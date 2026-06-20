@@ -1,0 +1,53 @@
+defmodule Dragones.Dice do
+  @moduledoc """
+  Dice rolling for the game.
+
+  Real games want randomness; deterministic tests want fixed results. The tools
+  never roll directly — they call `ctx.deps.roller.(sides)`, so a test injects a
+  fixed roller (e.g. `fn _sides -> 20 end`) while production passes `&Dragones.Dice.roll/1`.
+  """
+
+  @doc "Roll a d`n` (1..n) using :rand. Seeded per-process via :rand.seed_swall/2 if needed."
+  @spec roll(pos_integer()) :: pos_integer()
+  def roll(n) when is_integer(n) and n > 0 do
+    :rand.uniform(n)
+  end
+
+  @doc """
+  Roll with advantage / disadvantage (roll twice, keep highest / lowest).
+  Returns the kept value plus both rolls for transparency.
+  """
+  @spec roll_advantage(pos_integer(), :advantage | :disadvantage, (pos_integer() -> pos_integer())) ::
+          {pos_integer(), pos_integer(), pos_integer()}
+  def roll_advantage(n, mode, roller \\ &roll/1) do
+    a = roller.(n)
+    b = roller.(n)
+    kept = if mode == :advantage, do: max(a, b), else: min(a, b)
+    {kept, a, b}
+  end
+
+  @doc "Roll a dice expression like \"2d6+3\". Returns the total."
+  @spec roll_expr(String.t(), (pos_integer() -> pos_integer())) :: integer()
+  def roll_expr(expr, roller \\ &roll/1) do
+    case Regex.run(~r/^(\d+)d(\d+)(?:([+-])(\d+))?$/, String.trim(expr)) do
+      [_, count, sides, sign, mod] ->
+        n = String.to_integer(count)
+        s = String.to_integer(sides)
+        m = String.to_integer(mod)
+        rolls = for _ <- 1..n, do: roller.(s)
+        sum = Enum.sum(rolls)
+        if sign == "-", do: sum - m, else: sum + m
+
+      [_, count, sides] ->
+        n = String.to_integer(count)
+        s = String.to_integer(sides)
+        Enum.sum(for _ <- 1..n, do: roller.(s))
+
+      _ ->
+        raise ArgumentError, "unparseable dice expression: #{inspect(expr)}"
+    end
+  end
+
+  # Convenience rollers for deps injection in tests.
+  def always(value), do: fn _sides -> value end
+end
