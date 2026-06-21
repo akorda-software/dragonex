@@ -25,16 +25,15 @@ Cada capacidad del framework se probó en un flujo real del juego y funcionó:
 Estos NO son bugs de exAgent — son decisiones/limitaciones que el spike
 sacó a la luz y que la app completa debe afrontar:
 
-### 1. El Mundo NO se persiste solo (ALTO)
-El `ExAgent.Server` checkpointa el **historial de conversación** del agente,
-pero el **World** vive en el `ExAgent.Session` (en memoria). Una campaña
-duradera necesita persistir el World también. El behaviour `ExAgent.Store`
-declara callbacks de session-snapshot (`save_session_snapshot` /
-`load_session_snapshot`) pero **no están cableados** en la Session.
+### 1. ~~El Mundo NO se persiste solo~~ → RESUELTO en exAgent 1.1
+`ExAgent.Session` ahora checkpointa `shared_state` + posición de turno en un
+store y rehidrata al restart (`Session.start_link(store: :ets)`). Ver
+`test/dragones/flows/session_persistence_test.exs`: el world sobrevive crash.
 
-Decisión para la app: (a) cablear session-snapshots en exAgent, o (b)
-persistir el World aparte (la Session lo recibe en `shared_state:` al
-arrancar), o (c) reconstruir el World desde el historial del DM.
+**Caveat JSON**: `shared_state` debe ser JSON-portable. Un struct como
+`Dragones.World` vuelve como map con claves string tras rehydrate — la app real
+necesita un codec (o diseñar el world con claves string) para round-trip a
+struct. Esa es decisión de la app, no del framework.
 
 ### 2. El `agent_id` duplicado no se detecta (MEDIO)
 Nada impide dos `ExAgent.Server` con el mismo `agent_id` contra el mismo
