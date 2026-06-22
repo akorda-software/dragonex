@@ -14,7 +14,7 @@ defmodule Dragones.Actions do
   No exAgent here: deterministic and unit-testable with a fixed roller.
   """
 
-  alias Dragones.{Character, Dice, Rules.Combat, World}
+  alias Dragones.{Character, Dice, Rules.Ability, Rules.Combat, World}
 
   @type roller :: (pos_integer() -> pos_integer())
   @type result ::
@@ -45,8 +45,8 @@ defmodule Dragones.Actions do
   damage roll, applied to the target's hp. The attacker and target must already
   be in the world, and the attacker must wield the named weapon.
   """
-  @spec attack(World.t(), String.t(), String.t(), String.t(), roller()) :: result()
-  def attack(world, attacker, target, weapon_name, roller) do
+  @spec attack(World.t(), String.t(), String.t(), String.t(), roller(), :normal | :advantage | :disadvantage) :: result()
+  def attack(world, attacker, target, weapon_name, roller, mode \\ :normal) do
     cond do
       is_nil(World.character(world, attacker)) ->
         {:error, "no such attacker: #{attacker}"}
@@ -63,12 +63,12 @@ defmodule Dragones.Actions do
             {:error, "#{attacker} has no weapon #{weapon_name}"}
 
           weapon ->
-            {kind, d20, total} = Combat.attack_roll(a, weapon, t.ac, roller)
+            {kind, d20, total} = Combat.attack_roll(a, weapon, t.ac, roller, mode)
 
             case kind do
               :miss ->
                 {:ok,
-                 "#{attacker} swings at #{target} — miss (d20 #{d20}: #{total} vs AC #{t.ac}).",
+                 "#{attacker} swings at #{target} — miss (d20 #{d20}: #{total} vs AC #{t.ac})#{mode_tag(mode)}.",
                  noop()}
 
               k ->
@@ -76,7 +76,7 @@ defmodule Dragones.Actions do
                 verb = if k == :crit, do: "CRITS", else: "hits"
 
                 {:ok,
-                 "#{attacker} #{verb} #{target} (d20 #{d20}: #{total} vs AC #{t.ac}) for #{dmg} #{weapon.damage_type}.",
+                 "#{attacker} #{verb} #{target} (d20 #{d20}: #{total} vs AC #{t.ac}) for #{dmg} #{weapon.damage_type}#{mode_tag(mode)}.",
                  World.apply_damage(target, dmg)}
             end
         end
@@ -165,8 +165,37 @@ defmodule Dragones.Actions do
         rolled = Dice.roll_expr(dice_expr, roller)
         applied = min(rolled, max_hp - hp)
 
-        {:ok, "#{target} is healed for #{applied} hp (#{hp} → #{hp + applied}).",
+        {:ok,
+         "#{target} is healed for #{applied} hp (#{hp} → #{hp + applied}).",
          World.heal(target, rolled)}
+    end
+  end
+
+  @doc """
+  Resolve an ability check (non-combat): the DM sets the `dc`, the engine rolls
+  `d20 + ability modifier` and reports success/failure. No world side-effect —
+  the DM narrates the consequences and may then call other tools.
+  """
+  @spec check(World.t(), String.t(), atom(), integer(), boolean(), roller(), :normal | :advantage | :disadvantage) :: result()
+  def check(world, who, ability, dc, proficient, roller, mode \\ :normal) do
+    case World.character(world, who) do
+      nil ->
+        {:error, "no such character: #{who}"}
+
+      %Character{} = c ->
+        {d20, total, success?} = Combat.ability_check(c, ability, dc, roller, proficient, mode)
+        mod = Character.modifier(c, ability)
+        prof = if proficient, do: Ability.proficiency(c.level), else: 0
+        verdict = if success?, do: "success", else: "failure"
+
+        parts =
+          ["d20 #{d20}"]
+          |> then(fn p -> if mod != 0, do: p ++ ["#{signed(mod)} (#{ability})"], else: p end)
+          |> then(fn p -> if prof != 0, do: p ++ ["#{prof} (prof)"], else: p end)
+
+        {:ok,
+         "#{who} makes a #{ability_label(ability)} check#{mode_tag(mode)}: #{Enum.join(parts, " + ")} = #{total} vs DC #{dc} — #{verdict}.",
+         noop()}
     end
   end
 
@@ -245,4 +274,22 @@ defmodule Dragones.Actions do
   defp noop, do: fn w -> {:ok, w} end
 
   defp sum(count, sides, roller), do: Enum.sum(for _ <- 1..count, do: roller.(sides))
+
+  defp signed(n) when n >= 0, do: "+#{n}"
+  defp signed(n), do: "#{n}"
+
+  defp mode_tag(:advantage), do: " (advantage)"
+  defp mode_tag(:disadvantage), do: " (disadvantage)"
+  defp mode_tag(_), do: ""
+
+  @abilities %{
+    str: "Strength",
+    dex: "Dexterity",
+    con: "Constitution",
+    int: "Intelligence",
+    wis: "Wisdom",
+    cha: "Charisma"
+  }
+
+  defp ability_label(a) when is_atom(a), do: Map.get(@abilities, a, inspect(a))
 end

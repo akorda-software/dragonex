@@ -172,4 +172,30 @@ defmodule Dragones.WorldTest do
       assert w.scene == "a tavern"
     end
   end
+
+  describe "controlled_by?/3" do
+    setup do
+      w =
+        World.new()
+        |> apply!(World.add_character(pc("Thane")))
+        |> apply!(World.add_character(goblin(7)))
+
+      {:ok, world: w}
+    end
+
+    test "a PC is controlled only by its own participant id", %{world: w} do
+      assert World.controlled_by?(w, "Thane", "Thane")
+      refute World.controlled_by?(w, "Thane", "dm")
+      refute World.controlled_by?(w, "Thane", "Vex")
+    end
+
+    test "a monster is controlled by the DM (any non-PC participant), never by a PC", %{world: w} do
+      assert World.controlled_by?(w, "goblin", "dm")
+      refute World.controlled_by?(w, "goblin", "Thane")
+    end
+
+    test "unknown character -> false", %{world: w} do
+      refute World.controlled_by?(w, "ghost", "dm")
+    end
+  end
 end

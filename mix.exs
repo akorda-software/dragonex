@@ -15,7 +15,6 @@ defmodule Dragones.MixProject do
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
-  # Run "mix help compile.app" to learn about applications.
   def application do
     [
       extra_applications: [:logger],
@@ -23,13 +22,20 @@ defmodule Dragones.MixProject do
     ]
   end
 
-  # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      # Path dep so we can fix exAgent friction in-place during the spike
-      # (swap for {:exagent, "~> 1.0"} once stable).
       {:exagent, path: "../exAgent"},
-      {:ecto, "~> 3.12"}
+      {:ecto, "~> 3.12"},
+      {:ecto_sql, "~> 3.12"},
+      {:postgrex, ">= 0.0.0"},
+      {:phoenix, "~> 1.7"},
+      {:phoenix_html, "~> 4.1"},
+      {:phoenix_live_view, "~> 1.0"},
+      {:phoenix_pubsub, "~> 2.1"},
+      {:phoenix_live_reload, "~> 1.4", only: :dev},
+      {:bandit, "~> 1.5"},
+      {:jason, "~> 1.4"},
+      {:lazy_html, ">= 0.1.0", only: :test}
     ]
   end
 end

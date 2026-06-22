@@ -30,9 +30,9 @@ defmodule Dragones.Rules.Combat do
     * nat 1  — automatic miss.
     * else   — hit when the total meets the AC.
   """
-  @spec attack_roll(Character.t(), Weapon.t(), non_neg_integer(), roller()) :: attack_outcome()
-  def attack_roll(%Character{} = attacker, %Weapon{} = weapon, target_ac, roller) do
-    d20 = roller.(20)
+  @spec attack_roll(Character.t(), Weapon.t(), non_neg_integer(), roller(), :normal | :advantage | :disadvantage) :: attack_outcome()
+  def attack_roll(%Character{} = attacker, %Weapon{} = weapon, target_ac, roller, mode \\ :normal) do
+    d20 = roll_d20(roller, mode)
     total = d20 + Ability.proficiency(attacker.level) + ability_for_weapon(attacker, weapon)
 
     cond do
@@ -75,11 +75,32 @@ defmodule Dragones.Rules.Combat do
   Returns `{d20, total, success?}`. Adds the proficiency bonus when the target
   is proficient in the relevant ability save.
   """
-  @spec saving_throw(Character.t(), ability(), integer(), roller()) ::
+  @spec saving_throw(Character.t(), ability(), integer(), roller(), :normal | :advantage | :disadvantage) ::
           {pos_integer(), integer(), boolean()}
-  def saving_throw(%Character{} = target, save_ability, dc, roller) do
-    d20 = roller.(20)
+  def saving_throw(%Character{} = target, save_ability, dc, roller, mode \\ :normal) do
+    d20 = roll_d20(roller, mode)
     total = d20 + Character.modifier(target, save_ability) + save_prof(target, save_ability)
+    {d20, total, total >= dc}
+  end
+
+  @doc """
+  Resolve an ability check against a DC the DM sets.
+
+  By 5e RAW: `d20 + ability modifier (+ proficiency if the character is trained
+  for this check)`, vs the DC. No natural-1/20 auto outcomes (those only apply
+  to attack rolls).
+
+  `proficient` (default false) adds the character's proficiency bonus — use it
+  when the check maps to a skill the character is trained in. Skill
+  proficiencies aren't modelled on the character yet, so the caller (the DM)
+  asserts it for now.
+  """
+  @spec ability_check(Character.t(), ability(), integer(), roller(), boolean(), :normal | :advantage | :disadvantage) ::
+          {pos_integer(), integer(), boolean()}
+  def ability_check(%Character{} = c, ability, dc, roller, proficient \\ false, mode \\ :normal) do
+    d20 = roll_d20(roller, mode)
+    prof = if proficient, do: Ability.proficiency(c.level), else: 0
+    total = d20 + Character.modifier(c, ability) + prof
     {d20, total, total >= dc}
   end
 
@@ -110,6 +131,20 @@ defmodule Dragones.Rules.Combat do
       true -> {:success, d20, 0, 1}
     end
   end
+
+  # Roll a d20, honouring advantage (keep higher of two) / disadvantage (lower).
+  # Both dice go through `roller`, so instrumentation (the UI dice modal) sees them.
+  defp roll_d20(roller, :advantage) do
+    {a, b} = {roller.(20), roller.(20)}
+    max(a, b)
+  end
+
+  defp roll_d20(roller, :disadvantage) do
+    {a, b} = {roller.(20), roller.(20)}
+    min(a, b)
+  end
+
+  defp roll_d20(roller, _), do: roller.(20)
 
   # Ability modifier applied to hit and damage for a given weapon.
   defp ability_for_weapon(%Character{} = c, %Weapon{finesse: true}) do

@@ -78,10 +78,11 @@ defmodule Dragones.Tools do
     end
   end
 
-  @doc "Resolve a weapon attack from `attacker` onto `target` by the rules."
-  deftool make_attack(ctx, attacker :: String.t(), target :: String.t(), weapon :: String.t()) do
-    with {:ok, msg, change} <-
-           Dragones.Actions.attack(world(ctx), attacker, target, weapon, ctx.deps.roller),
+  @doc "Resolve a weapon attack from `attacker` onto `target` by the rules. Pass mode \"advantage\"/\"disadvantage\" when it applies."
+  deftool make_attack(ctx, attacker :: String.t(), target :: String.t(), weapon :: String.t(), mode :: String.t()) do
+    with :ok <- assert_controls(ctx, attacker),
+         {:ok, msg, change} <-
+           Dragones.Actions.attack(world(ctx), attacker, target, weapon, ctx.deps.roller, parse_mode(mode)),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
     end
@@ -89,7 +90,8 @@ defmodule Dragones.Tools do
 
   @doc "Resolve a spell cast by `caster` onto `target` by the rules."
   deftool cast_spell(ctx, caster :: String.t(), spell :: String.t(), target :: String.t()) do
-    with {:ok, msg, change} <-
+    with :ok <- assert_controls(ctx, caster),
+         {:ok, msg, change} <-
            Dragones.Actions.spell(world(ctx), caster, spell, target, ctx.deps.roller),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
@@ -118,8 +120,65 @@ defmodule Dragones.Tools do
     end
   end
 
+  @doc """
+  Resolve a non-combat ability check: the DM sets the `dc` (5/10/15/20 by 5e
+  difficulty), the engine rolls d20 + the ability modifier for `who`.
+  `proficient` (optional, the DM asserts it) adds the proficiency bonus.
+  Pass mode "advantage"/"disadvantage" when it applies.
+  """
+  deftool ability_check(ctx, who :: String.t(), ability :: String.t(), dc :: integer(), mode :: String.t()) do
+    with :ok <- assert_controls(ctx, who),
+         {:ok, msg, change} <-
+           Dragones.Actions.check(
+             world(ctx),
+             who,
+             parse_ability(ability),
+             dc,
+             false,
+             ctx.deps.roller,
+             parse_mode(mode)
+           ),
+         {:ok, _} <- propose(ctx, change) do
+      {:ok, msg}
+    end
+  end
+
+  defp parse_ability(s) when is_binary(s) do
+    case String.downcase(s) do
+      "str" <> _ -> :str
+      "dex" <> _ -> :dex
+      "con" <> _ -> :con
+      "int" <> _ -> :int
+      "wis" <> _ -> :wis
+      "cha" <> _ -> :cha
+      _ -> :str
+    end
+  end
+
+  defp parse_mode("advantage"), do: :advantage
+  defp parse_mode("disadvantage"), do: :disadvantage
+  defp parse_mode(_), do: :normal
+
   # Read the current shared world through the Session handle.
   defp world(ctx), do: ExAgent.Session.SharedState.read(ctx.deps.state)
+
+  # Guard: only let a participant act with the characters it controls. Stops a
+  # monster from acting on a player's turn (and vice versa). The error is
+  # *directive* — it tells the DM exactly who must act and how to re-issue, so a
+  # confused model self-corrects on the retry instead of repeating the mistake.
+  defp assert_controls(ctx, actor) do
+    proposer = ctx.deps.state.participant_id
+
+    if Dragones.World.controlled_by?(world(ctx), actor, proposer) do
+      :ok
+    else
+      {:error,
+       "REFUSED — it is #{proposer}'s turn, so the actor/caster/who MUST be \"#{proposer}\". " <>
+         "You called this tool with actor=\"#{actor}\" (#{proposer} does not control #{actor}). " <>
+         "Re-issue the SAME intent but as #{proposer}, e.g. " <>
+         "make_attack(\"#{proposer}\", \"<target>\", \"<weapon>\") or cast_spell(\"#{proposer}\", \"<spell>\", \"<target>\")."}
+    end
+  end
 
   # Propose a world change through the Session handle. Tools must not mutate the
   # world directly; they propose through SharedState (single-writer rule).

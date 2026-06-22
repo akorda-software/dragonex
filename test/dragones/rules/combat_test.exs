@@ -10,6 +10,17 @@ defmodule Dragones.Rules.CombatTest do
 
   defp always(n), do: fn _sides -> n end
 
+  # A roller that pops values from a queue, so the two d20s of advantage differ.
+  defp seq(values) do
+    Process.put(:seq, values)
+
+    fn _sides ->
+      [h | rest] = Process.get(:seq)
+      Process.put(:seq, rest)
+      h
+    end
+  end
+
   defp weapon(character, name),
     do: Enum.find(character.weapons, &(&1.name == name)) || raise("no weapon #{name}")
 
@@ -115,6 +126,56 @@ defmodule Dragones.Rules.CombatTest do
     test "10-19 is one success" do
       assert {:success, 10, 0, 1} = Combat.death_save(always(10))
       assert {:success, 15, 0, 1} = Combat.death_save(always(15))
+    end
+  end
+
+  describe "ability_check/5" do
+    setup do
+      {:ok, fighter: Archetypes.fighter(), rogue: Archetypes.rogue()}
+    end
+
+    test "is d20 + ability modifier vs the DC (no crit/fumble)", %{fighter: f} do
+      # fighter STR 16 (+3). d20 12 -> 15 vs DC 15 -> success.
+      assert {12, 15, true} = Combat.ability_check(f, :str, 15, always(12))
+      # d20 11 -> 14 vs DC 15 -> failure.
+      assert {11, 14, false} = Combat.ability_check(f, :str, 15, always(11))
+      # nat 1 is NOT an auto-fail on ability checks (RAW): 1 + 3 = 4 vs DC 3 -> success.
+      assert {1, 4, true} = Combat.ability_check(f, :str, 3, always(1))
+    end
+
+    test "adds proficiency when the caller asserts it", %{fighter: f} do
+      # STR +3 + prof +2. d20 10 -> 15 vs DC 15 -> success (would be 13 without prof).
+      assert {10, 15, true} = Combat.ability_check(f, :str, 15, always(10), true)
+    end
+
+    test "uses the requested ability", %{rogue: r} do
+      # rogue DEX 16 (+3). d20 10 -> 13 vs DC 13 -> success.
+      assert {10, 13, true} = Combat.ability_check(r, :dex, 13, always(10))
+    end
+  end
+
+  describe "advantage / disadvantage" do
+    setup do
+      {:ok, fighter: Archetypes.fighter()}
+    end
+
+    test "advantage keeps the higher of two d20s", %{fighter: f} do
+      # longsword +5 (str 3 + prof 2); seq [14,7] -> keep 14 -> 19 vs AC 15 -> hit.
+      assert {:hit, 14, 19} =
+               Combat.attack_roll(f, weapon(f, "longsword"), 15, seq([14, 7]), :advantage)
+    end
+
+    test "disadvantage keeps the lower of two d20s", %{fighter: f} do
+      # seq [14,7] -> keep 7 -> 12 vs AC 15 -> miss.
+      assert {:miss, 7, 12} =
+               Combat.attack_roll(f, weapon(f, "longsword"), 15, seq([14, 7]), :disadvantage)
+    end
+
+    test "ability check honours advantage / disadvantage", %{fighter: f} do
+      # STR +3; seq [10,15] -> advantage keeps 15 -> 18 vs DC 18 -> success.
+      assert {15, 18, true} = Combat.ability_check(f, :str, 18, seq([10, 15]), false, :advantage)
+      # seq [10,15] -> disadvantage keeps 10 -> 13 vs DC 18 -> failure.
+      assert {10, 13, false} = Combat.ability_check(f, :str, 18, seq([10, 15]), false, :disadvantage)
     end
   end
 end

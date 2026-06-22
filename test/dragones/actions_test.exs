@@ -243,6 +243,37 @@ defmodule Dragones.ActionsTest do
     end
   end
 
+  describe "check/6 (ability check)" do
+    test "reports d20 + modifier vs the DM's DC, with success/failure" do
+      f = Archetypes.fighter()
+      w = then_apply(World.new(), World.add_character(f))
+
+      # STR 16 (+3). d20 12 -> 15 vs DC 15 -> success.
+      assert {:ok, msg, change} = Actions.check(w, "Thane", :str, 15, false, always(12))
+      assert msg =~ "Strength check"
+      assert msg =~ "d20 12"
+      assert msg =~ "+3"
+      assert msg =~ "= 15"
+      assert msg =~ "DC 15"
+      assert msg =~ "success"
+      # A check has no world side-effect.
+      {:ok, w2} = change.(w)
+      assert w2 == w
+    end
+
+    test "no proficiency in the message when untrained" do
+      f = Archetypes.fighter()
+      w = then_apply(World.new(), World.add_character(f))
+      {:ok, msg, _} = Actions.check(w, "Thane", :dex, 12, false, always(10))
+      refute msg =~ "prof"
+    end
+
+    test "errors on an unknown character" do
+      assert {:error, "no such character: ghost"} =
+               Actions.check(World.new(), "ghost", :str, 10, false, always(10))
+    end
+  end
+
   # helpers ----------------------------------------------------------------
   defp then_apply(world, change_fn) do
     assert {:ok, w} = change_fn.(world)

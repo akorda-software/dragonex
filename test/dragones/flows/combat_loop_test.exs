@@ -250,4 +250,57 @@ defmodule Dragones.Flows.CombatLoopTest do
     assert world.characters["goblin"].hp == 7
     assert world.phase == :combat
   end
+
+  test "the engine refuses a monster acting on the player's turn (control guard)" do
+    # On Thane's turn, the agent scripts the GOBLIN attacking Thane — the guard
+    # must reject it (Thane doesn't control the goblin), so Thane is unharmed.
+    roller = seq_roller([20, 10])
+
+    dm =
+      ExUnit.Callbacks.start_supervised!(
+        {Server, agent: agent([text("...")], "You are the DM."), agent_id: "guard-dm"}
+      )
+
+    fighter =
+      ExUnit.Callbacks.start_supervised!(
+        {Server,
+         agent:
+           agent(
+             [
+               tool_calls(
+                 [call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})]
+               ),
+               text("done")
+             ],
+             "You are Thane."
+           ),
+         agent_id: "guard-fighter"}
+      )
+
+    world =
+      [
+        World.add_character(Archetypes.fighter()),
+        World.add_character(Monsters.goblin()),
+        World.begin_combat(["Thane", "goblin"])
+      ]
+      |> Enum.reduce(World.new(), fn ch, w ->
+        {:ok, nw} = ch.(w)
+        nw
+      end)
+
+    {:ok, session} =
+      Session.start_link(
+        shared_state: world,
+        policy: {Dragones.TurnPolicy.WorldDriven, dm: "dm"},
+        participants: [p("dm", :agent, dm), p("Thane", :agent, fighter)],
+        session_id: "guard-#{System.unique_integer([:positive])}"
+      )
+
+    # Initiative [Thane, goblin] -> Thane first.
+    assert {:ok, "Thane"} = Session.start(session)
+    assert :ok = take_turn(session, "Thane", fighter, roller)
+
+    # The goblin's attack was refused; Thane is at full hp.
+    assert Session.read_state(session).characters["Thane"].hp == 12
+  end
 end

@@ -80,6 +80,27 @@ defmodule Dragones.World do
 
   def combat_over?(_), do: false
 
+  @doc """
+  Does `proposer` control the character `name`? The invariant that stops a
+  monster from acting on a player's turn (and vice versa):
+
+    * a PC is controlled only by the participant whose id is the PC's own name;
+    * a non-PC (monster/NPC) is controlled by any participant who is NOT a PC
+      (i.e. the DM), so the DM runs all its monsters.
+
+  This is a guard the tools enforce before resolving an action.
+  """
+  @spec controlled_by?(t(), String.t(), String.t()) :: boolean()
+  def controlled_by?(%__MODULE__{} = w, name, proposer) do
+    pcs = Enum.filter(Map.values(w.characters), &(&1.side == "pc" and &1.name == proposer))
+
+    case character(w, name) do
+      nil -> false
+      %Character{side: "pc"} = c -> proposer == c.name
+      %Character{} -> pcs == []
+    end
+  end
+
   # ---------------------------------------------------------- change functions
 
   @spec set_scene(String.t()) :: (t() -> {:ok, t()})

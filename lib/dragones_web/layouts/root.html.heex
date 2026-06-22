@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="csrf-token" content={Plug.CSRFProtection.get_csrf_token()} />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dragones</title>
+    <script type="module">
+      import { Socket } from "https://esm.sh/phoenix@1.7.18";
+      import { LiveSocket } from "https://esm.sh/phoenix_live_view@1.0.9";
+
+      const csrfToken = document
+        .querySelector("meta[name='csrf-token']")
+        .getAttribute("content");
+
+      const liveSocket = new LiveSocket("/live", Socket, {
+        params: { _csrf_token: csrfToken },
+      });
+
+      liveSocket.connect();
+    </script>
+    <style>
+      :root { color-scheme: light dark; }
+      body { margin: 0; font-family: system-ui, sans-serif; background: #1a1a1a; color: #e8e8e8; }
+      h1, h2, h3 { margin: 0 0 .4em; }
+      pre { white-space: pre-wrap; }
+      .muted { color: #888; }
+    </style>
+  </head>
+  <body>
+    <%= @inner_content %>
+  </body>
+</html>
