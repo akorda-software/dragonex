@@ -71,7 +71,7 @@ defmodule Dragones.Flows.MultiParticipantTest do
 
     # The human acts directly through the Session (a LiveView would do this).
     assert {:ok, _, _} =
-             Sess.take_turn(game, "human", fn w ->
+             Sess.take_turn(game, "human", fn %Dragones.World{} = w ->
                {:ok, %Dragones.World{w | log: [{"human", "I cast firebolt for 4!"} | w.log]}}
              end)
 

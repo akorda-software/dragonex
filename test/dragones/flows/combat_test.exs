@@ -21,10 +21,6 @@ defmodule Dragones.Flows.CombatTest do
     start_supervised_dm("fighter", "You are a brave fighter.", script)
   end
 
-  defp goblin(script) do
-    start_supervised_dm("goblin", "You are a vicious goblin.", script)
-  end
-
   test "initiative order is respected across a combat round" do
     # Order by DEX: rogue (fast) before goblin (slow).
     game =
@@ -65,7 +61,19 @@ defmodule Dragones.Flows.CombatTest do
   test "damage floors at 0 and a character is dead at 0 hp" do
     game =
       start_session(
-        world: World.new(characters: %{"goblin" => %{hp: 2, max_hp: 7}}),
+        world:
+          World.new(
+            characters: %{
+              "goblin" =>
+                Dragones.Character.new(
+                  name: "goblin",
+                  class: "monster",
+                  hp: 2,
+                  max_hp: 7,
+                  side: "enemy"
+                )
+            }
+          ),
         policy: :round_robin,
         participants: [p("fighter")]
       )
@@ -75,12 +83,12 @@ defmodule Dragones.Flows.CombatTest do
     # fighter overkills the goblin (5 damage into 2 hp).
     assert {:ok, _, _} =
              Sess.take_turn(game, "fighter", fn w ->
-               {:ok, elem(World.damage("goblin", 5).(w), 1)}
+               {:ok, elem(World.apply_damage("goblin", 5).(w), 1)}
              end)
 
     world = Sess.read_state(game)
     assert world.characters["goblin"].hp == 0
-    assert World.dead?(world, "goblin")
+    assert World.down?(world, "goblin")
   end
 
   test "attacking an unknown target returns a clean error (no crash)" do

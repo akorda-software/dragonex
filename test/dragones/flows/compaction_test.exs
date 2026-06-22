@@ -10,7 +10,7 @@ defmodule Dragones.Flows.CompactionTest do
 
   use ExUnit.Case, async: true
 
-  alias ExAgent.{Compaction, Message}
+  alias ExAgent.Compaction
   alias ExAgent.Message.{Part, Request}
 
   @tag :compaction

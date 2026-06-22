@@ -12,8 +12,7 @@ defmodule Dragones.Flows.NarrationTest do
 
   import Dragones.Test.Harness
 
-  alias Dragones.{Tools, World}
-  alias ExAgent.Server, as: S
+  alias Dragones.World
 
   test "the DM's set_scene tool mutates the world during its turn" do
     dm =
