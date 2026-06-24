@@ -30,7 +30,7 @@ defmodule Dragones.Game do
   use GenServer
   require Logger
 
-  alias Dragones.{DM, Games}
+  alias Dragones.{DM, Games, PCAgent}
   alias Dragones.TurnPolicy.WorldDriven
   alias ExAgent.{Server, Session}
   alias ExAgent.Session.{Participant, SharedState}
@@ -41,6 +41,7 @@ defmodule Dragones.Game do
             game: nil,
             session: nil,
             dm: nil,
+            pc_agents: %{},
             model: nil,
             roller: nil,
             participants: %{},
@@ -122,6 +123,16 @@ defmodule Dragones.Game do
   @spec resume(GenServer.server()) :: :ok | {:error, term()}
   def resume(server), do: GenServer.call(server, :resume)
 
+  @doc "Enable AI auto-play for a human participant (creates a PCAgent for them)."
+  @spec enable_auto_play(GenServer.server(), String.t()) :: :ok | {:error, term()}
+  def enable_auto_play(server, participant),
+    do: GenServer.call(server, {:set_auto_play, participant, true})
+
+  @doc "Disable AI auto-play for a participant (returns them to manual control)."
+  @spec disable_auto_play(GenServer.server(), String.t()) :: :ok | {:error, term()}
+  def disable_auto_play(server, participant),
+    do: GenServer.call(server, {:set_auto_play, participant, false})
+
   @doc """
   Test/debug helper: block until `predicate.(snapshot)` is truthy (or times out).
   `snapshot/1` returns `%{world, current, status, round}`. Safer than
@@ -185,8 +196,8 @@ defmodule Dragones.Game do
 
     participants =
       game.participants
-      |> Enum.map(fn %Games.Participant{name: name, kind: kind} ->
-        {name, %{name: name, kind: kind}}
+      |> Enum.map(fn %Games.Participant{name: name, kind: kind, user_id: uid} ->
+        {name, %{name: name, kind: kind, user_id: uid}}
       end)
       |> Map.new()
 
@@ -233,6 +244,31 @@ defmodule Dragones.Game do
         pubsub: :local
       )
 
+    # Create independent agents for AI-controlled PCs. Each gets its own
+    # personality-driven prompt and uses the same combat tools. The DM handles
+    # monster turns; AI PCs handle their own turns with their own voice.
+    pc_agents =
+      participants
+      |> Enum.filter(fn {name, %{kind: kind}} -> kind == :ai and name != "dm" end)
+      |> Enum.map(fn {name, _} ->
+        character = Map.get(world.characters, name)
+
+        if character do
+          agent = PCAgent.new(model, character, max_tokens: 384)
+
+          {:ok, pid} =
+            Server.start_link(
+              agent: agent,
+              agent_id: "game-#{game_id}-pc-#{name}",
+              pubsub: :local
+            )
+
+          {name, pid}
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+      |> Map.new()
+
     status =
       case game.status do
         s when s in [:running, :waiting] -> :running
@@ -244,6 +280,7 @@ defmodule Dragones.Game do
       game: game,
       session: session,
       dm: dm,
+      pc_agents: pc_agents,
       model: model,
       roller: roller,
       participants: participants,
@@ -354,6 +391,53 @@ defmodule Dragones.Game do
   def handle_call(:resume, _from, state),
     do: {:reply, {:error, {:not_paused, state.status}}, state}
 
+  def handle_call({:set_auto_play, participant, true}, _from, state) do
+    cond do
+      # Already has an agent (original AI or already auto-playing)
+      Map.has_key?(state.pc_agents, participant) ->
+        {:reply, :ok, state}
+
+      # Human participant → create an agent for them
+      human?(state, participant) ->
+        character = world_character(state, participant)
+
+        if character do
+          agent = PCAgent.new(state.model, character, max_tokens: 384)
+
+          {:ok, pid} =
+            Server.start_link(
+              agent: agent,
+              agent_id: "game-#{state.game_id}-auto-#{participant}",
+              pubsub: :local
+            )
+
+          state = %{state | pc_agents: Map.put(state.pc_agents, participant, pid)}
+          send(self(), @tick)
+          {:reply, :ok, state}
+        else
+          {:reply, {:error, :not_found}, state}
+        end
+
+      true ->
+        {:reply, {:error, :not_human}, state}
+    end
+  end
+
+  def handle_call({:set_auto_play, participant, false}, _from, state) do
+    # Only remove agents for human participants (auto-play agents).
+    # Original AI PC agents are kept (they were created in rehydrate).
+    if human?(state, participant) do
+      case Map.get(state.pc_agents, participant) do
+        pid when is_pid(pid) -> GenServer.stop(pid)
+        _ -> :ok
+      end
+
+      {:reply, :ok, %{state | pc_agents: Map.delete(state.pc_agents, participant)}}
+    else
+      {:reply, :ok, state}
+    end
+  end
+
   # --------------------------------------------------------------- loop
 
   @impl true
@@ -397,23 +481,30 @@ defmodule Dragones.Game do
         %{state | status: :ended}
 
       current ->
-        if human?(state, current) do
-          case Map.get(state.intents, current) do
-            # A queued intent exists → consume it now (the DM values it).
-            text when is_binary(text) and text != "" ->
-              state = %{state | status: :running}
-              consume_intent(state, current)
+        cond do
+          # Has an AI agent (original AI PC or auto-play enabled human)
+          ai_pc?(state, current) ->
+            character = world_character(state, current)
+            instruction = PCAgent.instruction(current, character || Dragones.Character.new(name: current))
+            state = run_beat(state, current, instruction)
+            %{state | status: :running}
 
-            # No intent yet → idle until the human declares.
-            _ ->
-              persist(state, :waiting)
-              broadcast_updated(state)
-              %{state | status: :waiting}
-          end
-        else
-          # An AI turn: run the beat in a Task (non-blocking).
-          state = run_beat(state, current, dm_instruction())
-          %{state | status: :running}
+          human?(state, current) ->
+            case Map.get(state.intents, current) do
+              text when is_binary(text) and text != "" ->
+                state = %{state | status: :running}
+                consume_intent(state, current)
+
+              _ ->
+                persist(state, :waiting)
+                broadcast_updated(state)
+                %{state | status: :waiting}
+            end
+
+          true ->
+            # DM's turn (monsters/NPCs).
+            state = run_beat(state, current, dm_instruction())
+            %{state | status: :running}
         end
     end
   end
@@ -480,14 +571,15 @@ defmodule Dragones.Game do
 
   # Launch one beat as `participant` in a supervised Task. The GenServer stays
   # responsive; the result arrives via handle_info({ref, result}).
-  defp run_beat(%{session: session, dm: dm, roller: roller} = state, participant, instruction) do
+  defp run_beat(%{session: session, roller: roller} = state, participant, instruction) do
+    agent = agent_for(state, participant)
     world = Session.read_state(session)
     prompt = DM.turn_prompt(world, participant, instruction, "dm")
     deps = %{state: SharedState.new(session, participant), roller: roller}
 
     task =
       Task.Supervisor.async_nolink(ExAgent.TaskSupervisor, fn ->
-        case Server.chat(dm, prompt, deps: deps) do
+        case Server.chat(agent, prompt, deps: deps) do
           {:ok, %{output: narration, usage: usage}} -> {:ok, narration, usage}
           {:error, reason} -> {:error, reason}
         end
@@ -496,11 +588,28 @@ defmodule Dragones.Game do
     %{state | busy: %{ref: task.ref, participant: participant}}
   end
 
+  # Select the right agent for a turn: AI PCs have their own agent; everything
+  # else (DM beats, monster turns) goes to the DM agent.
+  defp agent_for(%{dm: dm, pc_agents: pc_agents}, name) do
+    Map.get(pc_agents, name, dm)
+  end
+
   defp human?(%{participants: ps}, name) do
     case Map.get(ps, name) do
       %{kind: :human} -> true
       _ -> false
     end
+  end
+
+  # An AI-controlled participant: either an original AI PC or a human with
+  # auto-play enabled (has an entry in pc_agents).
+  defp ai_pc?(%{pc_agents: agents}, name) do
+    name != "dm" and Map.has_key?(agents, name)
+  end
+
+  defp world_character(%{session: session}, name) do
+    world = Session.read_state(session)
+    Map.get(world.characters, name)
   end
 
   defp human_instruction(name, text),

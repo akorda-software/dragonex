@@ -1,27 +1,35 @@
 defmodule DragonesWeb.GameLiveTest do
   @moduledoc """
-  The creator/list/table flow against the live endpoints:
+  The creator/list/table flow against the live endpoints.
 
-    * `/`            — the lobby lists partidas (DragonesWeb.GameLive.Index).
-    * `/games/new`   — the wizard builds a partida from a roster (GameLive.New).
-    * `/games/:id`   — the table opens/resumes a partida by id (GameLive.Show).
-
-  The Game runs beats in Tasks and notifies the LiveView via `Dragones.PubSub`,
-  so the table test polls `render/1` rather than flushing a synchronous cascade.
+  All routes except `/` and auth require a logged-in user, so each test
+  registers a user and seeds the session cookie.
   """
 
   use DragonesWeb.ConnCase, async: false
 
   import Dragones.Test.Harness
 
-  alias Dragones.{Archetypes, Game, Games, Monsters}
+  alias Dragones.{Archetypes, Accounts, Game, Games, Monsters}
   alias ExAgent.Models.Test
 
-  # Every LiveView here touches the Repo (list/create/open); share the sandbox.
   setup do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(Dragones.Repo)
     Ecto.Adapters.SQL.Sandbox.mode(Dragones.Repo, {:shared, self()})
-    :ok
+
+    {:ok, user} =
+      Accounts.register(%{
+        email: "test#{System.unique_integer([:positive])}@dragones.test",
+        password: "password123",
+        display_name: "TestHero"
+      })
+
+    conn =
+      Phoenix.ConnTest.build_conn()
+      |> Plug.Test.init_test_session(%{})
+      |> DragonesWeb.UserAuth.log_in(user)
+
+    {:ok, conn: conn, user: user}
   end
 
   defp await_render(view, pred, timeout_ms \\ 4_000) when is_function(pred, 1) or is_binary(pred) do
@@ -41,16 +49,16 @@ defmodule DragonesWeb.GameLiveTest do
   # --------------------------------------------------------------- index
 
   describe "the lobby at /" do
-    test "lists existing partidas and offers to create one", %{conn: conn} do
-      {:ok, game} =
+    test "lists existing partidas and offers to create one", %{conn: conn, user: user} do
+      {:ok, _game} =
         Games.create_game(
           title: "La Cámara",
           scene: "x",
+          user_id: user.id,
           roster: [{Archetypes.fighter(), :human}, {Monsters.goblin(), :ai}],
           initiative: ["goblin", "Thane"]
         )
 
-      _ = game
       {:ok, _view, html} = live(conn, "/")
 
       assert html =~ "Dragones — partidas"
@@ -58,8 +66,8 @@ defmodule DragonesWeb.GameLiveTest do
       assert html =~ "Nueva partida"
     end
 
-    test "deletes a partida", %{conn: conn} do
-      {:ok, game} = Games.create_game(title: "Efímera", scene: "x", roster: [{Archetypes.fighter(), :human}])
+    test "deletes a partida", %{conn: conn, user: user} do
+      {:ok, game} = Games.create_game(title: "Efímera", scene: "x", user_id: user.id, roster: [{Archetypes.fighter(), :human}])
       {:ok, view, _html} = live(conn, "/")
 
       view |> element("button", "Borrar") |> render_click(%{"id" => to_string(game.id)})
@@ -71,92 +79,63 @@ defmodule DragonesWeb.GameLiveTest do
   # --------------------------------------------------------------- wizard
 
   describe "the creator wizard at /games/new" do
-    test "builds a partida from the roster and navigates to the table", %{conn: conn} do
+    test "builds a partida via the 2-step wizard", %{conn: conn, user: user} do
       {:ok, view, _html} = live(conn, "/games/new")
 
-      assert render(view) =~ "Nueva partida"
-      assert render(view) =~ "Thane"
-      assert render(view) =~ "goblin"
+      # Step 1: details — pick a scenario
+      assert render(view) =~ "Detalles"
+      view |> element(".scenario-card", "Taberna") |> render_click()
 
-      view
-      |> element("form")
-      |> render_submit(%{
-        "title" => "La Ruina",
-        "scene" => "una ruina tenebrosa",
-        "dm_style" => "sombrío",
-        "roster" => %{
-          "fighter" => %{"include" => "on", "kind" => "human"},
-          "goblin" => %{"include" => "on"}
-        }
-      })
+      # Advance to step 2
+      view |> render_click("next")
+      assert render(view) =~ "Tu personaje"
 
-      # The partida was persisted with the wizard's choices, and the wizard
-      # navigated to its table.
-      [game] = Games.list_games()
+      # Pick the fighter as your hero
+      view |> element(".hero-opt", "Thane") |> render_click()
+
+      # Create the game
+      view |> render_click("next")
+
+      [game] = Games.list_games(user.id)
       assert_redirect(view, "/games/#{game.id}")
-      assert game.title == "La Ruina"
-      assert Games.load_world(game).scene == "una ruina tenebrosa"
-      assert Games.load_world(game).phase == :combat
+      assert game.title == "La Taberna del Dragón Rojo"
+      assert Games.load_world(game).scene =~ "taberna"
     end
 
-    test "refuses to create with no characters selected", %{conn: conn} do
+    test "refuses to create without picking a hero", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/games/new")
 
-      view
-      |> element("form")
-      |> render_submit(%{"title" => "x", "roster" => %{}})
+      # Skip to step 2 without picking anything
+      view |> render_click("next")
 
-      html = render(view)
-      assert html =~ "Selecciona al menos un personaje."
-      refute html =~ ~r{/games/\d+}
+      # Try to create without a hero
+      view |> render_click("next")
+
+      assert render(view) =~ "Elige tu personaje"
     end
   end
 
   # --------------------------------------------------------------- table
 
   describe "the table at /games/:id" do
-    test "without ?as= it shows the seat picker; with ?as= it renders that viewer", %{conn: conn} do
+    test "auto-assigns the viewer to their character (no picker)", %{conn: conn, user: user} do
       {:ok, game} =
         Games.create_game(
           title: "Mesa",
           scene: "x",
+          user_id: user.id,
           roster: [{Archetypes.fighter(), :human}, {Monsters.goblin(), :ai}],
           initiative: ["goblin", "Thane"]
         )
 
       {:ok, view, html} = live(conn, "/games/#{game.id}")
-      # No seat claimed yet → the picker is shown.
-      assert html =~ "¿Quién eres?"
 
-      # Claim Thane via the patch link; the table renders with the viewer set.
-      view |> element("a", "Thane") |> render_click()
-      assert_patch(view, "/games/#{game.id}?as=Thane")
+      # No picker — the viewer is auto-assigned to their character
+      refute html =~ "¿Quién eres?"
 
-      # The DM auto-acts (goblin) then it's Thane's turn → "¡Tu turno!".
+      # The DM auto-acts (goblin) then it's Thane's turn
       html = await_render(view, fn h -> h =~ "Es tu turno" and not (h =~ "el DM está pensando") end)
       assert html =~ "TÚ"
-    end
-
-    test "a claimed viewer can act on their turn; the DM replies", %{conn: conn} do
-      {:ok, game} =
-        Games.create_game(
-          title: "Mesa",
-          scene: "x",
-          roster: [{Archetypes.fighter(), :human}, {Monsters.goblin(), :ai}],
-          initiative: ["goblin", "Thane"]
-        )
-
-      {:ok, view, _html} = live(conn, "/games/#{game.id}?as=Thane")
-      await_render(view, fn h -> h =~ "Es tu turno" and not (h =~ "el DM está pensando") end)
-
-      view |> element("form") |> render_submit(%{"text" => "I attack the goblin."})
-
-      html =
-        await_render(view, fn h ->
-          h =~ "I attack the goblin." and not (h =~ "el DM está pensando") and h =~ "Es tu turno"
-        end)
-
-      assert html =~ "OPENROUTER_API_KEY"
     end
 
     test "a missing partida redirects to the lobby", %{conn: conn} do

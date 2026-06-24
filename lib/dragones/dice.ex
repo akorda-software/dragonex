@@ -5,12 +5,21 @@ defmodule Dragones.Dice do
   Real games want randomness; deterministic tests want fixed results. The tools
   never roll directly — they call `ctx.deps.roller.(sides)`, so a test injects a
   fixed roller (e.g. `fn _sides -> 20 end`) while production passes `&Dragones.Dice.roll/1`.
+
+  The actual RNG is delegated to the `dic_ex` package (`DicEx.RNG.Default`), so
+  every die draw flows through the same roller the `dic_ex` component and
+  notation parser use. The D&D expression parser/evaluator is available directly
+  via `DicEx.roll/1` (advantage, explode, keep/drop, reroll); `roll_expr/2` here
+  keeps the narrower `(sides -> value)`-injectable contract the combat engine
+  and tests rely on.
   """
 
-  @doc "Roll a d`n` (1..n) using :rand. Seeded per-process via :rand.seed_swall/2 if needed."
+  alias DicEx.RNG.Default, as: DicExRNG
+
+  @doc "Roll a d`n` (1..n) via the dic_ex default RNG."
   @spec roll(pos_integer()) :: pos_integer()
   def roll(n) when is_integer(n) and n > 0 do
-    :rand.uniform(n)
+    DicExRNG.roll(n)
   end
 
   @doc """

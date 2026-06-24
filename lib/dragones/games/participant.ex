@@ -15,6 +15,7 @@ defmodule Dragones.Games.Participant do
 
   schema "participants" do
     belongs_to(:game, Dragones.Games.Game)
+    belongs_to(:user, Dragones.Accounts.User)
     field(:name, :string)
     field(:kind, Ecto.Enum, values: [:ai, :human], default: :human)
     field(:side, :string, default: "pc")

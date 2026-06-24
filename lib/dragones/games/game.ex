@@ -20,6 +20,7 @@ defmodule Dragones.Games.Game do
     field(:title, :string)
     field(:story_bible, :map, default: %{})
     field(:dm_style, :string, default: "vivid but brief")
+    field(:dice_engine, :string, default: "2d")
     field(:world, :map)
     field(:status, Ecto.Enum,
       values: [:configuring, :running, :paused, :waiting, :ended],
@@ -28,7 +29,9 @@ defmodule Dragones.Games.Game do
     field(:round, :integer, default: 1)
     field(:current_participant, :string)
     field(:intents, :map, default: %{})
+    field(:open_slots, :integer, default: 0)
 
+    belongs_to(:user, Dragones.Accounts.User)
     has_many(:participants, Dragones.Games.Participant)
     has_many(:characters, Dragones.Games.Character)
     has_many(:events, Dragones.Games.GameEvent)
