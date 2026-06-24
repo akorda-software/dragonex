@@ -5,29 +5,93 @@
     <meta name="csrf-token" content={Plug.CSRFProtection.get_csrf_token()} />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Dragones</title>
+    <link rel="stylesheet" href="/assets/dic_ex.css" />
+    <script defer src="/assets/dic_ex.min.js"></script>
     <script type="module">
       import { Socket } from "https://esm.sh/phoenix@1.7.18";
-      import { LiveSocket } from "https://esm.sh/phoenix_live_view@1.0.9";
+      import { LiveSocket } from "https://esm.sh/phoenix_live_view@1.2.3";
 
       const csrfToken = document
         .querySelector("meta[name='csrf-token']")
         .getAttribute("content");
 
+      // dic_ex ships its LiveView hooks (DiceRoller 3D, DiceRoller2D) on
+      // window.DicExHooks via the deferred bundle above. If it failed to load
+      // the hooks are simply absent (the phx-hook attrs become no-ops).
+      const hooks = { ...(window.DicExHooks || {}) };
+
       const liveSocket = new LiveSocket("/live", Socket, {
+        hooks,
         params: { _csrf_token: csrfToken },
       });
 
       liveSocket.connect();
+
+      // Copy share URL to clipboard when the game fires "copy_url".
+      window.addEventListener("phx:copy_url", (e) => {
+        navigator.clipboard.writeText(window.location.origin + e.detail.url);
+        alert("¡Link copiado al portapapeles!");
+      });
     </script>
     <style>
       :root { color-scheme: light dark; }
-      body { margin: 0; font-family: system-ui, sans-serif; background: #1a1a1a; color: #e8e8e8; }
-      h1, h2, h3 { margin: 0 0 .4em; }
+      body {
+        margin: 0;
+        font-family: Georgia, 'Times New Roman', serif;
+        background: #151311;
+        color: #e8e8e8;
+        background-image:
+          radial-gradient(circle at 20% 80%, rgba(60,40,20,0.4) 0%, transparent 50%),
+          radial-gradient(circle at 80% 20%, rgba(40,30,60,0.3) 0%, transparent 50%);
+        min-height: 100vh;
+      }
+      h1, h2, h3 { margin: 0 0 .4em; font-family: Georgia, serif; }
       pre { white-space: pre-wrap; }
       .muted { color: #888; }
+      a { color: #7ab; }
+      nav.topbar {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: .5rem 1.5rem;
+        background: rgba(20,18,16,0.9);
+        border-bottom: 1px solid #2a2622;
+      }
+      nav.topbar .brand {
+        font-weight: bold;
+        color: #fc8;
+        font-size: 1.1rem;
+        text-decoration: none;
+        letter-spacing: .03em;
+      }
+      nav.topbar .nav-links { display: flex; gap: .8rem; margin-left: auto; align-items: center; }
+      nav.topbar a { color: #7ab; text-decoration: none; font-size: .85rem; }
+      nav.topbar a:hover { color: #9cd; }
+      nav.topbar .user-tag { color: #889; font-size: .8rem; }
+      nav.topbar form { display: inline; }
+      nav.topbar button { background: none; border: none; color: #744; font-size: .8rem; cursor: pointer; font-family: inherit; }
+      nav.topbar button:hover { color: #f99; }
     </style>
   </head>
   <body>
+    <nav class="topbar">
+      <.link href="/" class="brand">⚔ Dragones</.link>
+      <div class="nav-links">
+        <.link navigate="/">Partidas</.link>
+        <.link navigate="/heroes">Héroes</.link>
+        <%= if @current_user do %>
+          <span class="user-tag">{@current_user.display_name}</span>
+          <form action="/logout" method="post">
+            <input type="hidden" name="_method" value="delete" />
+            <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
+            <button type="submit">salir</button>
+          </form>
+        <% else %>
+          <.link navigate="/login">Entrar</.link>
+          <.link navigate="/register">Registro</.link>
+        <% end %>
+      </div>
+    </nav>
     <%= @inner_content %>
   </body>
 </html>
