@@ -27,7 +27,8 @@ defmodule Dragones.World do
             round: 1,
             characters: %{},
             initiative_order: [],
-            log: []
+            log: [],
+            spell_slots: %{}
 
   @type phase :: :exploration | :combat
 
@@ -37,7 +38,8 @@ defmodule Dragones.World do
           round: pos_integer(),
           characters: %{String.t() => Character.t()},
           initiative_order: [String.t()],
-          log: [{String.t(), String.t()}]
+          log: [{String.t(), String.t()}],
+          spell_slots: %{String.t() => %{pos_integer() => non_neg_integer()}}
         }
 
   @spec new(keyword()) :: t()
@@ -217,7 +219,168 @@ defmodule Dragones.World do
     end
   end
 
+  # ------------------------------------------------------------- spell slots
+
+  @doc "Initialize spell slots for every caster in the world (from class + level)."
+  @spec init_spell_slots(t()) :: t()
+  def init_spell_slots(%__MODULE__{characters: chars} = w) do
+    slots =
+      chars
+      |> Enum.filter(fn {_, c} -> Dragones.SpellSlots.caster?(c.class) end)
+      |> Enum.map(fn {name, c} -> {name, Dragones.SpellSlots.for_class(c.class, c.level)} end)
+      |> Map.new()
+
+    %{w | spell_slots: slots}
+  end
+
+  @doc "Does `name` have at least one level-`level` slot remaining?"
+  @spec has_slot?(t(), String.t(), pos_integer()) :: boolean()
+  def has_slot?(%__MODULE__{spell_slots: slots}, name, level) do
+    cond do
+      # No slot tracking → backward compat (spells always work)
+      slots == %{} -> true
+      # Character not tracked → no enforcement
+      not is_map_key(slots, name) -> true
+      # Tracked: check the count
+      true ->
+        slots
+        |> Map.get(name, %{})
+        |> Map.get(level, 0)
+        |> Kernel.>(0)
+    end
+  end
+
+  @doc "Consume one level-`level` slot from `name`. No-op if level 0 (cantrip) or untracked."
+  @spec consume_slot(String.t(), pos_integer()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def consume_slot(_name, 0), do: fn w -> {:ok, w} end
+
+  def consume_slot(name, level) do
+    fn w ->
+      cond do
+        # Untracked character → no-op (backward compat)
+        w.spell_slots == %{} or not is_map_key(w.spell_slots, name) ->
+          {:ok, w}
+
+        true ->
+          case get_in(w.spell_slots, [name, level]) do
+            n when is_integer(n) and n > 0 ->
+              {:ok, put_in(w.spell_slots[name][level], n - 1)}
+
+            _ ->
+              {:error, "#{name} has no level-#{level} spell slots remaining"}
+          end
+      end
+    end
+  end
+
+  @doc "Restore all spell slots for `name` to their maximum (called by long_rest)."
+  @spec restore_slots(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def restore_slots(name) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{class: class, level: level} ->
+          max_slots = Dragones.SpellSlots.for_class(class, level)
+          {:ok, %{w | spell_slots: Map.put(w.spell_slots, name, max_slots)}}
+      end
+    end
+  end
+
+  @doc "Increase a character's level by 1: bump the level, add HP (avg hit die), refresh slots."
+  @spec level_up(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def level_up(name) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{level: lvl, max_hp: max_hp, class: class} = c when lvl < 20 ->
+          hit_die = hit_die_size(class)
+          con_mod = Dragones.Rules.Ability.modifier(c.con)
+          avg_hp = div(hit_die, 2) + 1
+
+          leveled = %{c | level: lvl + 1, max_hp: max_hp + avg_hp + con_mod, hp: c.hp + avg_hp + con_mod}
+          w2 = put_char(w, name, leveled)
+
+          # Refresh spell slots to the new level's maximum
+          slots = Dragones.SpellSlots.for_class(class, lvl + 1)
+          w3 = if slots != %{}, do: %{w2 | spell_slots: Map.put(w2.spell_slots, name, slots)}, else: w2
+
+          {:ok, w3}
+
+        %Character{level: 20} ->
+          {:error, "#{name} is already at max level (20)"}
+      end
+    end
+  end
+
+  defp hit_die_size("barbarian"), do: 12
+  defp hit_die_size(c) when c in ~w(fighter paladin ranger), do: 10
+  defp hit_die_size(c) when c in ~w(bard cleric druid monk rogue warlock), do: 8
+  defp hit_die_size(c) when c in ~w(sorcerer wizard), do: 6
+  defp hit_die_size(_), do: 8
+
   # ----------------------------------------------------------------- helpers
+
+  @doc "Check if a character has a condition."
+  @spec has_condition?(t(), String.t(), String.t()) :: boolean()
+  def has_condition?(%__MODULE__{} = w, name, condition) do
+    case character(w, name) do
+      %Character{conditions: conds} ->
+        Enum.any?(conds, fn
+          %{condition: c} -> c == condition
+          %{"condition" => c} -> c == condition
+          c when is_binary(c) -> c == condition
+          _ -> false
+        end)
+
+      _ ->
+        false
+    end
+  end
+
+  @doc "Apply a condition to a character (idempotent — duplicates are skipped)."
+  @spec apply_condition(String.t(), String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def apply_condition(target, condition) do
+    fn w ->
+      case character(w, target) do
+        nil ->
+          {:error, "no such character: #{target}"}
+
+        %Character{conditions: conds} = c ->
+          if has_condition?(w, target, condition) do
+            {:ok, w}
+          else
+            updated = %{c | conditions: conds ++ [%{condition: condition}]}
+            {:ok, put_char(w, target, updated)}
+          end
+      end
+    end
+  end
+
+  @doc "Remove a condition from a character."
+  @spec remove_condition(String.t(), String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def remove_condition(target, condition) do
+    fn w ->
+      case character(w, target) do
+        nil ->
+          {:error, "no such character: #{target}"}
+
+        %Character{conditions: conds} = c ->
+          filtered =
+            Enum.reject(conds, fn
+              %{condition: cd} -> cd == condition
+              %{"condition" => cd} -> cd == condition
+              cd when is_binary(cd) -> cd == condition
+              _ -> false
+            end)
+
+          {:ok, put_char(w, target, %{c | conditions: filtered})}
+      end
+    end
+  end
 
   defp log(%__MODULE__{log: l}, actor, entry), do: [{actor, entry} | l]
 

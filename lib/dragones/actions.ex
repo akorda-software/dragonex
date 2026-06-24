@@ -63,12 +63,13 @@ defmodule Dragones.Actions do
             {:error, "#{attacker} has no weapon #{weapon_name}"}
 
           weapon ->
-            {kind, d20, total} = Combat.attack_roll(a, weapon, t.ac, roller, mode)
+            effective_mode = adjust_mode_for_conditions(mode, a, t, weapon)
+            {kind, d20, total} = Combat.attack_roll(a, weapon, t.ac, roller, effective_mode)
 
             case kind do
               :miss ->
                 {:ok,
-                 "#{attacker} swings at #{target} — miss (d20 #{d20}: #{total} vs AC #{t.ac})#{mode_tag(mode)}.",
+                 "#{attacker} swings at #{target} — miss (d20 #{d20}: #{total} vs AC #{t.ac})#{mode_tag(effective_mode)}.",
                  noop()}
 
               k ->
@@ -76,11 +77,46 @@ defmodule Dragones.Actions do
                 verb = if k == :crit, do: "CRITS", else: "hits"
 
                 {:ok,
-                 "#{attacker} #{verb} #{target} (d20 #{d20}: #{total} vs AC #{t.ac}) for #{dmg} #{weapon.damage_type}#{mode_tag(mode)}.",
+                 "#{attacker} #{verb} #{target} (d20 #{d20}: #{total} vs AC #{t.ac}) for #{dmg} #{weapon.damage_type}#{mode_tag(effective_mode)}.",
                  World.apply_damage(target, dmg)}
             end
         end
     end
+  end
+
+  # 5e condition-aware mode adjustment: certain conditions grant advantage or
+  # disadvantage on attack rolls. When both apply, they cancel (normal).
+  defp adjust_mode_for_conditions(mode, attacker, target, weapon) do
+    attacker_conds = condition_names(attacker)
+    target_conds = condition_names(target)
+
+    disadvantage? =
+      Enum.any?(attacker_conds, &(&1 in ~w(poisoned frightened blinded restrained))) or
+        ("prone" in target_conds and weapon.ranged)
+
+    advantage? =
+      cond do
+        "prone" in target_conds and not weapon.ranged -> true
+        Enum.any?(target_conds, &(&1 in ~w(blinded stunned paralyzed unconscious restrained))) -> true
+        true -> false
+      end
+
+    cond do
+      advantage? and disadvantage? -> :normal
+      advantage? -> :advantage
+      disadvantage? -> :disadvantage
+      true -> mode
+    end
+  end
+
+  defp condition_names(%Character{conditions: conds}) do
+    Enum.map(conds, fn
+      %{condition: c} -> c
+      %{"condition" => c} -> c
+      c when is_binary(c) -> c
+      _ -> nil
+    end)
+    |> Enum.reject(&is_nil/1)
   end
 
   @doc """
@@ -108,10 +144,33 @@ defmodule Dragones.Actions do
             {:error, "#{caster_name} doesn't know #{spell_name}"}
 
           spell ->
-            resolve_spell(c, caster_name, t, target_name, spell, roller)
+            # Check spell slot for leveled spells (cantrips are free)
+            if spell.level > 0 and not World.has_slot?(world, caster_name, spell.level) do
+              {:error,
+               "#{caster_name} has no level-#{spell.level} spell slots remaining " <>
+                 "(rest to recover). Cantrips are always available."}
+            else
+              result = resolve_spell(c, caster_name, t, target_name, spell, roller)
+              compose_slot_consumption(result, caster_name, spell.level)
+            end
         end
     end
   end
+
+  # Wrap a spell result's change_fn to also consume a spell slot.
+  # Cantrips (level 0) pass through unchanged.
+  defp compose_slot_consumption({:ok, msg, change}, caster, spell_level) when spell_level > 0 do
+    combined = fn w ->
+      case change.(w) do
+        {:ok, w2} -> World.consume_slot(caster, spell_level).(w2)
+        error -> error
+      end
+    end
+
+    {:ok, msg, combined}
+  end
+
+  defp compose_slot_consumption(result, _, _), do: result
 
   @doc """
   Roll initiative for every conscious combatant (hp > 0), highest total first,
@@ -172,6 +231,64 @@ defmodule Dragones.Actions do
   end
 
   @doc """
+  A short rest: the character spends hit dice to recover HP.
+
+  At level 1, a character has 1 hit die. The heal is `roll(hit_die) + con_mod`.
+  """
+  @spec short_rest(World.t(), String.t(), roller()) :: result()
+  def short_rest(world, name, roller) do
+    case World.character(world, name) do
+      nil ->
+        {:error, "no such character: #{name}"}
+
+      %Character{hp: hp, max_hp: max_hp} = c ->
+        if hp <= 0 do
+          {:error, "#{name} is down and cannot rest"}
+        else
+          hit_die = hit_die_for(c.class)
+          con_mod = Character.modifier(c, :con)
+          rolled = roller.(hit_die) + con_mod
+          applied = min(rolled, max_hp - hp)
+
+          {:ok,
+           "#{name} takes a short rest and recovers #{applied} hp (1d#{hit_die}#{signed(con_mod)} = #{rolled}, now #{hp + applied}/#{max_hp}).",
+           World.heal(name, applied)}
+        end
+    end
+  end
+
+  @doc """
+  A long rest: full HP restore (and clears short-term conditions).
+
+  In 5e RAW, a long rest restores all hit points and hit dice (up to half the
+  total). At level 1 this means full heal + 1 hit die back.
+  """
+  @spec long_rest(World.t(), String.t()) :: result()
+  def long_rest(world, name) do
+    case World.character(world, name) do
+      nil ->
+        {:error, "no such character: #{name}"}
+
+      %Character{hp: hp, max_hp: max_hp} ->
+        if hp <= 0 do
+          {:error, "#{name} is down and cannot rest"}
+        else
+          healed = max_hp - hp
+
+          change = fn w ->
+            {:ok, w2} = World.heal(name, healed).(w)
+            {:ok, w3} = World.restore_slots(name).(w2)
+            {:ok, w3}
+          end
+
+          {:ok,
+           "#{name} takes a long rest and recovers #{healed} hp (#{hp} → #{max_hp}, full restore). Spell slots recovered.",
+           change}
+        end
+    end
+  end
+
+  @doc """
   Resolve an ability check (non-combat): the DM sets the `dc`, the engine rolls
   `d20 + ability modifier` and reports success/failure. No world side-effect —
   the DM narrates the consequences and may then call other tools.
@@ -204,12 +321,33 @@ defmodule Dragones.Actions do
   defp resolve_spell(c, caster_name, t, target_name, spell, roller) do
     case spell.kind do
       :automatic ->
-        dmg = dice(spell, roller)
-        verb = spell_damage_verb(spell, dmg)
+        amount = dice(spell, roller)
 
-        {:ok,
-         "#{caster_name} casts #{spell.name}; #{target_name} takes #{dmg} #{spell.damage_type}#{verb}.",
-         World.apply_damage(target_name, dmg)}
+        cond do
+          # Healing spell: no damage_type but has dice → heal the target
+          spell.damage_type == nil and amount > 0 ->
+            # Add casting ability modifier to healing (5e: spell save DC modifier applies)
+            cast_mod = Character.modifier(c, spell.casting_ability)
+            total_heal = amount + cast_mod
+
+            {:ok,
+             "#{caster_name} casts #{spell.name}; #{target_name} is healed for #{total_heal} hp (#{amount} + #{cast_mod}).",
+             World.heal(target_name, total_heal)}
+
+          # Damage spell (magic missile, etc.)
+          amount > 0 ->
+            verb = spell_damage_verb(spell, amount)
+
+            {:ok,
+             "#{caster_name} casts #{spell.name}; #{target_name} takes #{amount} #{spell.damage_type}#{verb}.",
+             World.apply_damage(target_name, amount)}
+
+          # Utility spell (shield, bless, etc.): no dice → just report
+          true ->
+            {:ok,
+             "#{caster_name} casts #{spell.name} on #{target_name}. #{spell.effect || ""}",
+             noop()}
+        end
 
       :attack ->
         bonus = Combat.spell_attack_bonus(c, spell)
@@ -267,6 +405,12 @@ defmodule Dragones.Actions do
 
   defp find_weapon(%Character{weapons: weapons}, name),
     do: Enum.find(weapons, &(&1.name == name))
+
+  defp hit_die_for("barbarian"), do: 12
+  defp hit_die_for(c) when c in ~w(fighter paladin ranger), do: 10
+  defp hit_die_for(c) when c in ~w(bard cleric druid monk rogue warlock), do: 8
+  defp hit_die_for(c) when c in ~w(sorcerer wizard), do: 6
+  defp hit_die_for(_), do: 8
 
   defp find_spell(%Character{spells: spells}, name),
     do: Enum.find(spells, &(&1.name == name))

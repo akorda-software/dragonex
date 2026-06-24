@@ -26,7 +26,8 @@ defmodule Dragones.Codec do
       "round" => w.round,
       "characters" => Map.new(w.characters, fn {name, c} -> {name, encode_character(c)} end),
       "initiative_order" => w.initiative_order,
-      "log" => Enum.map(w.log, fn {actor, entry} -> [actor, entry] end)
+      "log" => Enum.map(w.log, fn {actor, entry} -> [actor, entry] end),
+      "spell_slots" => w.spell_slots
     }
   end
 
@@ -40,7 +41,8 @@ defmodule Dragones.Codec do
       round: m["round"],
       characters: Map.new(m["characters"], fn {name, c} -> {name, decode_character(c)} end),
       initiative_order: m["initiative_order"] || [],
-      log: Enum.map(m["log"] || [], fn [actor, entry] -> {actor, entry} end)
+      log: Enum.map(m["log"] || [], fn [actor, entry] -> {actor, entry} end),
+      spell_slots: m["spell_slots"] || %{}
     }
   end
 
@@ -161,7 +163,7 @@ defmodule Dragones.Codec do
   end
 
   defp decode_item(%{} = i) do
-    %Item{name: i["name"], qty: i["qty"], kind: String.to_existing_atom(i["kind"])}
+    %Item{name: i["name"], qty: i["qty"], kind: String.to_atom(i["kind"])}
   end
 
   # -------------------------------------------------------------- helpers
@@ -174,9 +176,10 @@ defmodule Dragones.Codec do
   defp decode_phase(_), do: :exploration
 
   defp ability(name) when name in @abilities, do: name
-  defp ability(name) when is_binary(name), do: String.to_existing_atom(name)
+  defp ability(name) when is_binary(name), do: String.to_atom(name)
 
-  # spell kind shares the ability namespace for :save/:attack/:automatic, all
-  # pre-existing atoms, so the same safe conversion works.
-  defp ability_or_kind(name) when is_binary(name), do: String.to_existing_atom(name)
+  # spell kind shares the ability namespace for :save/:attack/:automatic.
+  # Uses to_atom (not to_existing_atom) because the atoms may not be loaded
+  # yet when decoding a stored hero sheet early in the app lifecycle.
+  defp ability_or_kind(name) when is_binary(name), do: String.to_atom(name)
 end

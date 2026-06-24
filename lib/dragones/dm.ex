@@ -150,9 +150,11 @@ defmodule Dragones.DM do
        - On YOUR turn (the brief says "It's YOUR turn (DM) -- act for: ..."), you act for the listed monsters/NPCs only — the attacker is one of yours, e.g. `make_attack("goblin", "Thane", "scimitar")`.
        Never mix the two: do not run a monster's action during a player's turn, and do not run a player's action during your turn.
     4. Follow the dice honestly. Do not protect or favour any side. Do not undo or contradict a result the tool reported.
-    5. Pacing: when a fight breaks out, call `roll_initiative` once. When every enemy is down (hp 0), call `end_combat`.
+    5. Pacing: when a fight breaks out, call `roll_initiative` once. When every enemy is down (hp 0), call `end_combat`. Between fights, PCs may call `short_rest` (spend a hit die to heal) or `long_rest` (full restore) — let them do this during exploration. Award levels with `level_up("name")` at dramatic story milestones.
     6. Advantage/disadvantage: pass `mode: "advantage"` or `mode: "disadvantage"` to `make_attack` / `ability_check` when the situation grants it (a prone foe, an ally helping, high ground, a concealed target, etc.). Otherwise pass "normal" (or omit it).
-    7. Style: vivid but BRIEF. 1–3 sentences per beat. Address the player characters in second person. No lists, no game-jargon to the players — speak as the world.
+    7. Conditions: use `apply_condition` and `remove_condition` to track prone, poisoned, blinded, stunned, etc. The engine automatically grants advantage/disadvantage based on conditions.
+    8. Reinforcements: call `spawn_monster("kind", "name")` to add foes mid-encounter. Available: goblin, kobold, bandit, skeleton, wolf, orc, hobgoblin, ogre. Use unique names for multiples ("orc1", "orc2").
+    9. Style: vivid but BRIEF. 1–3 sentences per beat. Address the player characters in second person. No lists, no game-jargon to the players — speak as the world.
 
     #{bible_section(story_bible)}
     """
@@ -199,7 +201,7 @@ defmodule Dragones.DM do
     chars =
       w.characters
       |> Enum.sort_by(fn {name, _} -> name end)
-      |> Enum.map(fn {name, c} -> describe_char(name, c, current, dm) end)
+      |> Enum.map(fn {name, c} -> describe_char(name, c, current, dm, w.spell_slots) end)
       |> Enum.join("\n")
 
     [phase_line, turn_line, "Scene: #{w.scene}", chars]
@@ -229,13 +231,53 @@ defmodule Dragones.DM do
     "WORLD:\n#{world_brief(w, current, dm)}\n\n#{instruction}"
   end
 
-  defp describe_char(name, %Character{} = c, current, dm) do
+  defp describe_char(name, %Character{} = c, current, dm, spell_slots) do
     status = if c.hp <= 0, do: " [DOWN]", else: ""
+
+    cond_str =
+      case c.conditions || [] do
+        [] -> ""
+        conds ->
+          names = Enum.map(conds, fn
+            %{condition: cd} -> cd
+            %{"condition" => cd} -> cd
+            cd when is_binary(cd) -> cd
+            _ -> nil
+          end) |> Enum.reject(&is_nil/1)
+          if names == [], do: "", else: " [#{Enum.join(names, ", ")}]"
+      end
+
     you = if name == current and current != dm, do: "  <- ACTS NOW", else: ""
     weapons = c.weapons |> Enum.map(& &1.name) |> Enum.join(", ")
     spells = if c.spells == [], do: [], else: c.spells |> Enum.map(& &1.name) |> Enum.join(", ")
+
+    level_tag = if c.level > 1, do: " L#{c.level}", else: ""
+
     gear = ["Weapons: #{weapons}"] ++ if spells == [], do: [], else: ["Spells: #{spells}"]
 
-    "- #{name} (#{c.class}, #{c.side}): #{c.hp}/#{c.max_hp} hp, AC #{c.ac}#{status}#{you} -- #{Enum.join(gear, "; ")}"
+    # Spell slots: only show for tracked casters
+    slot_str = slot_summary(spell_slots, name)
+
+    gear = if slot_str != "", do: gear ++ [slot_str], else: gear
+
+    "- #{name} (#{c.class}#{level_tag}, #{c.side}): #{c.hp}/#{c.max_hp} hp, AC #{c.ac}#{status}#{cond_str}#{you} -- #{Enum.join(gear, "; ")}"
   end
+
+  defp slot_summary(slots, name) when is_map(slots) and is_map_key(slots, name) do
+    char_slots = Map.get(slots, name, %{})
+
+    if char_slots == %{} do
+      ""
+    else
+      parts =
+        char_slots
+        |> Enum.sort_by(fn {level, _} -> level end)
+        |> Enum.map(fn {level, count} -> "L#{level}:#{count}" end)
+        |> Enum.join(", ")
+
+      "Slots: #{parts}"
+    end
+  end
+
+  defp slot_summary(_, _), do: ""
 end

@@ -112,6 +112,46 @@ defmodule Dragones.Tools do
     {:ok, "combat ends"}
   end
 
+  @doc "Short rest: spend a hit die to recover HP. Available outside combat."
+  deftool short_rest(ctx, target :: String.t()) do
+    with {:ok, msg, change} <- Dragones.Actions.short_rest(world(ctx), target, ctx.deps.roller),
+         {:ok, _} <- propose(ctx, change) do
+      {:ok, msg}
+    end
+  end
+
+  @doc "Long rest: restore all HP. Available outside combat."
+  deftool long_rest(ctx, target :: String.t()) do
+    with {:ok, msg, change} <- Dragones.Actions.long_rest(world(ctx), target),
+         {:ok, _} <- propose(ctx, change) do
+      {:ok, msg}
+    end
+  end
+
+  @doc "Award a level to a character (milestone leveling). Increases HP and spell slots."
+  deftool level_up(ctx, target :: String.t()) do
+    with {:ok, _} <- propose(ctx, Dragones.World.level_up(target)) do
+      {:ok, "#{target} gains a level!"}
+    end
+  end
+
+  @doc "Spawn a monster from the bestiary into the world (e.g. 'orc', 'skeleton', 'wolf'). Use a unique name if summoning multiples."
+  deftool spawn_monster(ctx, kind :: String.t(), name :: String.t()) do
+    monster =
+      case Dragones.Monsters.get(kind) do
+        builder when is_function(builder, 1) -> builder.(name: name)
+        nil -> nil
+      end
+
+    if monster do
+      with {:ok, _} <- propose(ctx, Dragones.World.add_character(monster)) do
+        {:ok, "#{name} (#{kind}) appears! HP #{monster.hp}, AC #{monster.ac}."}
+      end
+    else
+      {:ok, "Unknown monster type '#{kind}'. Available: #{Enum.join(Dragones.Monsters.keys(), ", ")}"}
+    end
+  end
+
   @doc "Heal `target` by a dice expression (e.g. \"1d8+3\"); caps at max hp, clears death saves."
   deftool heal(ctx, target :: String.t(), dice :: String.t()) do
     with {:ok, msg, change} <- Dragones.Actions.heal(world(ctx), target, dice, ctx.deps.roller),
@@ -140,6 +180,20 @@ defmodule Dragones.Tools do
            ),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
+    end
+  end
+
+  @doc "Apply a condition to a character (e.g. prone, poisoned, blinded)."
+  deftool apply_condition(ctx, target :: String.t(), condition :: String.t()) do
+    with {:ok, _} <- propose(ctx, Dragones.World.apply_condition(target, condition)) do
+      {:ok, "#{target} is now #{condition}"}
+    end
+  end
+
+  @doc "Remove a condition from a character."
+  deftool remove_condition(ctx, target :: String.t(), condition :: String.t()) do
+    with {:ok, _} <- propose(ctx, Dragones.World.remove_condition(target, condition)) do
+      {:ok, "#{target} is no longer #{condition}"}
     end
   end
 
