@@ -85,7 +85,7 @@ defmodule Dragones.ConditionsTest do
       {:ok, msg, _} = Actions.attack(w, "hero", "goblin", "longsword", fixed(10), :normal)
 
       # The message should mention "(advantage)" since prone grants it
-      assert msg =~ "advantage"
+      assert msg =~ "ventaja"
     end
 
     test "prone target: ranged attacker gets disadvantage" do
@@ -93,7 +93,7 @@ defmodule Dragones.ConditionsTest do
       {:ok, w} = World.apply_condition("hero", "prone").(w)
 
       {:ok, msg, _} = Actions.attack(w, "goblin", "hero", "shortbow", fixed(15), :normal)
-      assert msg =~ "disadvantage"
+      assert msg =~ "desventaja"
     end
 
     test "poisoned attacker gets disadvantage" do
@@ -101,7 +101,7 @@ defmodule Dragones.ConditionsTest do
       {:ok, w} = World.apply_condition("hero", "poisoned").(w)
 
       {:ok, msg, _} = Actions.attack(w, "hero", "goblin", "longsword", fixed(15), :normal)
-      assert msg =~ "disadvantage"
+      assert msg =~ "desventaja"
     end
 
     test "blinded target grants advantage" do
@@ -109,7 +109,7 @@ defmodule Dragones.ConditionsTest do
       {:ok, w} = World.apply_condition("goblin", "blinded").(w)
 
       {:ok, msg, _} = Actions.attack(w, "hero", "goblin", "longsword", fixed(10), :normal)
-      assert msg =~ "advantage"
+      assert msg =~ "ventaja"
     end
 
     test "advantage + disadvantage cancel to normal" do
@@ -120,8 +120,8 @@ defmodule Dragones.ConditionsTest do
 
       {:ok, msg, _} = Actions.attack(w, "hero", "goblin", "longsword", fixed(15), :normal)
       # Should NOT mention advantage or disadvantage
-      refute msg =~ "advantage"
-      refute msg =~ "disadvantage"
+      refute msg =~ "ventaja"
+      refute msg =~ "desventaja"
     end
   end
 end

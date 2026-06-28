@@ -287,6 +287,47 @@ defmodule Dragones.GamePhase0Test do
     assert Game.world(pid).characters["goblin"].hp < 7
   end
 
+  # Round counter + turn order with the dm LAST in initiative (the user's case:
+  # human first, dm last). A round is one full initiative cycle; the round must
+  # bump exactly when the last combatant acts, and the human at the top of the
+  # order must NOT be skipped after the wrap.
+  test "dm-last initiative: round advances once per cycle and the human is not skipped" do
+    {:ok, game} =
+      Games.create_game(
+        title: "dm-last",
+        scene: "a ruin",
+        roster: [{Archetypes.fighter(), :human}, {Archetypes.wizard(), :human}, {Monsters.goblin(), :ai}],
+        initiative: ["Thane", "Lyra", "goblin"]
+      )
+
+    # cycle [Thane, Lyra, dm]; beats: Thane, Lyra, dm, Thane, Lyra, dm
+    script = [
+      tool_calls([call("make_attack", %{"attacker" => "Thane", "target" => "goblin", "weapon" => "longsword"})]),
+      text("Thane ataca."),
+      tool_calls([call("make_attack", %{"attacker" => "Lyra", "target" => "goblin", "spell" => "firebolt"})]),
+      text("Lyra conjura."),
+      tool_calls([call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})]),
+      text("El goblin ataca."),  # dm acts (last) → bump round 2, wrap to Thane
+      tool_calls([call("make_attack", %{"attacker" => "Thane", "target" => "goblin", "weapon" => "longsword"})]),
+      text("Thane ataca de nuevo.")
+    ]
+
+    pid =
+      ExUnit.Callbacks.start_supervised!({Dragones.Game, {game.id, [model: %Test{script: script}, roller: hit_roller()]}})
+
+    # Thane (human, top of order) is first → waiting immediately.
+    assert :ok == Game.await(pid, waiting_on("Thane"))
+    assert Game.world(pid).round == 1
+
+    # Thane acts (beat 1) → Lyra's turn.
+    assert {:ok, :resolving} = Game.declare(pid, "Thane", "attack")
+    assert :ok == Game.await(pid, waiting_on("Lyra"))
+
+    # Lyra acts (beat 2) → dm auto-acts (beat 3, last) → bump to round 2 → Thane.
+    assert {:ok, :resolving} = Game.declare(pid, "Lyra", "cast firebolt")
+    assert :ok == Game.await(pid, fn s -> s.status == :waiting and s.current == "Thane" and s.round == 2 end)
+  end
+
   defp poll_until(thunk, predicate, timeout_ms) do
     deadline = System.monotonic_time(:millisecond) + timeout_ms
 

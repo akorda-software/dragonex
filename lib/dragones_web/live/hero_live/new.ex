@@ -35,6 +35,7 @@ defmodule DragonesWeb.HeroLive.New do
            race: nil,
            subrace: nil,
            class: nil,
+           sex: nil,
            background: nil,
            backstory: nil,
            score_method: "auto",
@@ -58,6 +59,7 @@ defmodule DragonesWeb.HeroLive.New do
       race: race,
       subrace: subrace,
       class: class,
+      sex: Enum.random(["hombre", "mujer", "no binario"]),
       background: background,
       score_method: "auto",
       pb: %{str: 8, dex: 8, con: 8, int: 8, wis: 8, cha: 8},
@@ -71,10 +73,29 @@ defmodule DragonesWeb.HeroLive.New do
   # --- navigation ---
 
   @impl true
-  def handle_event("next", _params, socket), do: go_next(socket)
+  def handle_event("next", _params, socket) do
+    current = socket.assigns.step
+    form = socket.assigns.form
+
+    if step_complete?(form, current) do
+      {:noreply, socket |> assign(step: next_step(current), error: nil) |> refresh_preview()}
+    else
+      {:noreply, assign(socket, :error, step_error(current, form))}
+    end
+  end
 
   def handle_event("back", _params, socket) do
     {:noreply, assign(socket, step: prev(socket.assigns.step), error: nil)}
+  end
+
+  def handle_event("goto", %{"step" => step_str}, socket) do
+    target = String.to_existing_atom(step_str)
+
+    if step_reachable?(socket.assigns.form, target) do
+      {:noreply, socket |> assign(step: target, error: nil) |> refresh_preview()}
+    else
+      {:noreply, assign(socket, :error, "Completa los pasos anteriores antes de saltar a este.")}
+    end
   end
 
   # --- selection (grid clicks) ---
@@ -173,6 +194,7 @@ defmodule DragonesWeb.HeroLive.New do
              race: form.race,
              subrace: form.subrace,
              class: form.class,
+             sex: form.sex,
              background: form.background,
              scores: scores,
              spells: form.spells,
@@ -202,37 +224,46 @@ defmodule DragonesWeb.HeroLive.New do
     end
   end
 
-  defp go_next(%{assigns: %{step: :identity}} = socket) do
-    f = socket.assigns.form
-
-    cond do
-      f.name == "" -> {:noreply, assign(socket, :error, "Ponle nombre a tu héroe.")}
-      f.race == nil -> {:noreply, assign(socket, :error, "Elige una raza.")}
-      f.class == nil -> {:noreply, assign(socket, :error, "Elige una clase.")}
-      f.race && Heroes.subraces(f.race) != [] && f.subrace == nil ->
-        {:noreply, assign(socket, :error, "Elige una subraza.")}
-      true -> {:noreply, socket |> assign(step: :heritage, error: nil) |> refresh_preview()}
-    end
-  end
-
-  defp go_next(%{assigns: %{step: :heritage}} = socket) do
-    if socket.assigns.form.background == nil do
-      {:noreply, assign(socket, :error, "Elige un trasfondo.")}
-    else
-      {:noreply, socket |> assign(step: :details, error: nil) |> refresh_preview()}
-    end
-  end
-
-  defp go_next(%{assigns: %{step: :details}} = socket) do
-    {:noreply, socket |> assign(step: :review, error: nil) |> refresh_preview()}
-  end
-
-  defp go_next(socket), do: {:noreply, socket}
+  defp next_step(:identity), do: :heritage
+  defp next_step(:heritage), do: :details
+  defp next_step(:details), do: :review
+  defp next_step(:review), do: :review
 
   defp prev(:heritage), do: :identity
   defp prev(:details), do: :heritage
   defp prev(:review), do: :details
   defp prev(_), do: :identity
+
+  # A step is "complete" when its required choices are filled — used both to
+  # gate the "Siguiente" button and to decide whether a tab is reachable.
+  defp step_complete?(f, :identity) do
+    f.name != "" and f.race != nil and f.class != nil and
+      (Heroes.subraces(f.race) == [] or f.subrace != nil)
+  end
+
+  defp step_complete?(f, :heritage), do: f.background != nil
+  defp step_complete?(_f, :details), do: true
+  defp step_complete?(_f, :review), do: true
+
+  defp step_error(:identity, f) do
+    cond do
+      f.name == "" -> "Ponle nombre a tu héroe."
+      f.race == nil -> "Elige una raza."
+      f.class == nil -> "Elige una clase."
+      f.race && Heroes.subraces(f.race) != [] && f.subrace == nil -> "Elige una subraza."
+      true -> "Completa la identidad."
+    end
+  end
+
+  defp step_error(:heritage, f) do
+    if f.background == nil, do: "Elige un trasfondo.", else: "Completa el linaje."
+  end
+
+  # A tab is reachable when every step before it is complete (identity always is).
+  defp step_reachable?(form, target) do
+    idx = Enum.find_index(@order, &(&1 == target))
+    @order |> Enum.take(idx) |> Enum.all?(&step_complete?(form, &1))
+  end
 
   defp step_status(current, step) do
     cond do
@@ -249,30 +280,36 @@ defmodule DragonesWeb.HeroLive.New do
     ~H"""
     <div class="creator">
       <style>
-        .creator{max-width:720px;margin:0 auto;padding:1.5rem;font-family:Georgia,'Times New Roman',serif;}
-        .creator h1{font-size:1.4rem;color:#fc8;text-align:center;}
-        .creator .sub{text-align:center;color:#889;font-size:.85rem;margin-bottom:1.2rem;}
-        .steps{display:flex;justify-content:center;gap:.4rem;margin-bottom:1.5rem;flex-wrap:wrap;}
-        .steps .s{padding:.3rem .7rem;border-radius:20px;font-size:.72rem;background:#222;border:1px solid #333;color:#666;}
+        .creator{width:min(1100px,calc(100% - 3rem));margin:0 auto;padding:clamp(1rem,2vw,2rem) 0 2.5rem;font-family:Georgia,'Times New Roman',serif;}
+        .creator-head{text-align:center;margin:1rem 0 1.25rem;}
+        .creator h1{font-size:clamp(1.6rem,2vw,2.1rem);color:#fc8;text-align:center;}
+        .creator .sub{text-align:center;color:#889;font-size:.92rem;margin-bottom:1.2rem;}
+        .creator-panel{background:rgba(18,18,18,.62);border:1px solid #2f2a25;border-radius:14px;padding:clamp(1rem,2vw,1.5rem);box-shadow:0 18px 60px rgba(0,0,0,.18);}
+        .steps{display:flex;justify-content:flex-start;gap:.5rem;margin-bottom:1.5rem;flex-wrap:wrap;}
+        .steps .s{padding:.3rem .7rem;border-radius:20px;font-size:.72rem;background:#222;border:1px solid #333;color:#666;font-family:inherit;cursor:pointer;}
+        .steps .s.clickable:hover{border-color:#555;color:#aaa;}
+        .steps .s.locked{opacity:.45;cursor:not-allowed;}
+        .steps .s.locked:hover{border-color:#333;color:#666;}
         .steps .s.active{background:#3a2a1a;border-color:#a72;color:#fc8;}
         .steps .s.done{background:#1a2a1a;border-color:#474;color:#9f9;}
         .step-label{font-size:.8rem;color:#7ab;text-transform:uppercase;letter-spacing:.05em;margin:.8rem 0 .3rem;}
         .creator input[type=text],.creator textarea
           {width:100%;padding:.6rem;background:#1a1a1a;color:#eee;border:1px solid #444;border-radius:4px;font-size:1rem;box-sizing:border-box;font-family:inherit;}
+        .creator textarea{min-height:9rem;resize:vertical;}
         .creator input:focus,.creator textarea:focus{border-color:#a72;outline:none;}
-        .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:.4rem;}
-        .opt{padding:.5rem .3rem;background:#1a1a1a;border:1px solid #333;border-radius:6px;cursor:pointer;text-align:center;font-size:.85rem;color:#ccc;transition:all .12s;}
+        .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:.55rem;}
+        .opt{padding:.7rem .5rem;background:#1a1a1a;border:1px solid #333;border-radius:8px;cursor:pointer;text-align:center;font-size:.9rem;color:#ccc;transition:all .12s;}
         .opt:hover{border-color:#555;background:#222;}
         .opt.sel{border-color:#a72;background:#3a2a1a;color:#fc8;}
         .opt .on{font-weight:600;}.opt .od{font-size:.68rem;color:#666;margin-top:.15rem;}
         .select-row{padding:.4rem;background:#1a1a1a;color:#eee;border:1px solid #444;border-radius:4px;font-family:inherit;width:100%;font-size:.9rem;}
-        .actions{display:flex;justify-content:space-between;margin-top:1.5rem;align-items:center;}
+        .actions{display:flex;justify-content:space-between;margin-top:1.5rem;align-items:center;gap:1rem;}
         .btn{padding:.55rem 1.3rem;border-radius:6px;border:1px solid #444;background:#2c2c2c;color:#eee;font-size:.92rem;cursor:pointer;font-family:inherit;text-decoration:none;}
         .btn:hover{background:#3a3a3a;}
         .btn-primary{background:#3a2a1a;border-color:#a72;color:#fc8;}.btn-primary:hover{background:#4a3520;}
         .btn-back{background:transparent;border-color:#333;color:#888;}
         .error{color:#f99;font-size:.85rem;margin:.5rem 0;text-align:center;}
-        .pv{background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:1rem;margin-top:1rem;}
+        .pv{background:rgba(26,26,26,.9);border:1px solid #333;border-radius:12px;padding:1rem;margin-top:1rem;}
         .pv h3{color:#fc8;font-size:1rem;margin-bottom:.3rem;}
         .pv .stats{display:grid;grid-template-columns:repeat(6,1fr);gap:.3rem;margin:.5rem 0;font-size:.72rem;color:#999;text-align:center;}
         .pv .stats strong{display:block;font-size:1.05rem;color:#eee;}
@@ -282,44 +319,71 @@ defmodule DragonesWeb.HeroLive.New do
         .nav-back{color:#7ab;text-decoration:none;font-size:.85rem;}
         .btn-random{padding:.5rem 1.2rem;border-radius:6px;border:1px solid #474;background:#1a2a1a;color:#9f9;font-size:.9rem;cursor:pointer;font-family:inherit;}
         .btn-random:hover{background:#2a3a2a;}
+        @media(max-width:720px){.creator{width:min(100% - 1rem,1100px);}.grid{grid-template-columns:1fr 1fr;}.actions{align-items:stretch;}.actions .btn{flex:1;}}
       </style>
 
       <.link navigate="/heroes" class="nav-back">← mis héroes</.link>
-      <h1>⚔ Forjar un héroe</h1>
-      <div class="sub">D&D 5e · Nivel 1 · SRD</div>
-
-      <div style="text-align:center;margin-bottom:1rem;">
+      <div class="creator-head">
+        <h1>⚔ Forjar un héroe</h1>
+        <div class="sub">D&D 5e · Nivel 1 · SRD</div>
         <button type="button" class="btn-random" phx-click="random">🎲 Héroe aleatorio</button>
       </div>
 
-      <div class="steps">
-        <span class={"s #{step_status(@step, :identity)}"}>1 · Identidad</span>
-        <span class={"s #{step_status(@step, :heritage)}"}>2 · Linaje</span>
-        <span class={"s #{step_status(@step, :details)}"}>3 · Detalles</span>
-        <span class={"s #{step_status(@step, :review)}"}>4 · Revisión</span>
-      </div>
+      <section class="creator-panel">
+        <div class="steps">
+          <button type="button"
+                  class={"s #{step_status(@step, :identity)} clickable"}
+                  phx-click="goto" phx-value-step="identity">
+            1 · Identidad
+          </button>
+          <% reachable_h = step_reachable?(@form, :heritage) %>
+          <button type="button"
+                  class={"s #{step_status(@step, :heritage)} #{if reachable_h, do: "clickable", else: "locked"}"}
+                  disabled={not reachable_h}
+                  title={if not reachable_h, do: "Completa Identidad primero", else: nil}
+                  phx-click={if reachable_h, do: "goto", else: nil} phx-value-step="heritage">
+            2 · Linaje
+          </button>
+          <% reachable_d = step_reachable?(@form, :details) %>
+          <button type="button"
+                  class={"s #{step_status(@step, :details)} #{if reachable_d, do: "clickable", else: "locked"}"}
+                  disabled={not reachable_d}
+                  title={if not reachable_d, do: "Completa Identidad y Linaje primero", else: nil}
+                  phx-click={if reachable_d, do: "goto", else: nil} phx-value-step="details">
+            3 · Detalles
+          </button>
+          <% reachable_r = step_reachable?(@form, :review) %>
+          <button type="button"
+                  class={"s #{step_status(@step, :review)} #{if reachable_r, do: "clickable", else: "locked"}"}
+                  disabled={not reachable_r}
+                  title={if not reachable_r, do: "Completa los pasos anteriores primero", else: nil}
+                  phx-click={if reachable_r, do: "goto", else: nil} phx-value-step="review">
+            4 · Revisión
+          </button>
+        </div>
 
-      <form phx-submit="next">
-        <%= case @step do %>
-          <% :identity -> %>
-            <.identity_step form={@form} />
-          <% :heritage -> %>
-            <.heritage_step form={@form} />
-          <% :details -> %>
-            <.details_step form={@form} />
-          <% :review -> %>
-            <.review_step preview={@preview} />
-        <% end %>
-      </form>
+        <form phx-submit="next">
+          <%= case @step do %>
+            <% :identity -> %>
+              <.identity_step form={@form} />
+            <% :heritage -> %>
+              <.heritage_step form={@form} />
+            <% :details -> %>
+              <.details_step form={@form} />
+            <% :review -> %>
+              <.review_step preview={@preview} />
+          <% end %>
+        </form>
 
-      <div :if={@error} class="error">{@error}</div>
+        <div :if={@error} class="error">{@error}</div>
 
-      <div class="actions">
-        <button :if={@step != :identity} type="button" class="btn btn-back" phx-click="back">← Atrás</button>
-        <span :if={@step == :identity} />
-        <button :if={@step != :review} type="button" class="btn btn-primary" phx-click="next">Siguiente →</button>
-        <button :if={@step == :review && @preview} type="button" class="btn btn-primary" phx-click="save">⚔ Guardar héroe</button>
-      </div>
+        <div class="actions">
+          <button :if={@step != :identity} type="button" class="btn btn-back" phx-click="back">← Atrás</button>
+          <span :if={@step == :identity} />
+          <button :if={@step != :review} type="button" class="btn btn-primary" phx-click="next">Siguiente →</button>
+          <button :if={@step == :review && @preview} type="button" class="btn btn-primary" phx-click="save">⚔ Guardar héroe</button>
+        </div>
+      </section>
 
       <.preview_card :if={@preview && @step != :review} preview={@preview} />
     </div>
@@ -328,13 +392,23 @@ defmodule DragonesWeb.HeroLive.New do
 
   # --- steps ---
 
-  attr :form, :map, required: true
+  attr(:form, :map, required: true)
 
   defp identity_step(assigns) do
     ~H"""
     <div>
       <div class="step-label">Nombre</div>
       <input type="text" name="name" value={@form.name} phx-change="change" placeholder="Lyra, Thane, Vex…" />
+
+      <div class="step-label">Sexo</div>
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));">
+        <%= for sex <- ~w(hombre mujer no binario) do %>
+          <div class={"opt #{if @form.sex == sex, do: "sel", else: ""}"}
+               phx-click="select" phx-value-field="sex" phx-value-value={sex}>
+            <div class="on">{String.capitalize(sex)}</div>
+          </div>
+        <% end %>
+      </div>
 
       <div class="step-label">Raza</div>
       <div class="grid">
@@ -509,7 +583,7 @@ defmodule DragonesWeb.HeroLive.New do
 
   # --- preview component ---
 
-  attr :preview, Character, required: true
+  attr(:preview, Character, required: true)
 
   defp preview_card(assigns) do
     ~H"""
@@ -517,6 +591,7 @@ defmodule DragonesWeb.HeroLive.New do
       <h3>{@preview.name}</h3>
       <div style="color:#fc8;font-size:.85rem;">
         {String.capitalize(@preview.race)} · {String.capitalize(@preview.class)} · Nivel {@preview.level}
+        <span :if={@preview.sex}>· {String.capitalize(@preview.sex)}</span>
       </div>
       <div class="stats">
         <%= for ab <- [:str, :dex, :con, :int, :wis, :cha] do %>
@@ -555,6 +630,7 @@ defmodule DragonesWeb.HeroLive.New do
   end
 
   defp caster?(nil), do: false
+
   defp caster?(class_key) do
     case Classes.get(class_key) do
       {:ok, %{spellcasting: nil}} -> false

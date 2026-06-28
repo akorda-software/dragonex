@@ -94,9 +94,9 @@ defmodule Dragones.DM do
   end
 
   defp summarize_instructions do
-    "You recap a D&D 5e game's earlier turns for the DM. Keep it factual and " <>
-      "terse: who acted, key damage/outcomes, scene changes, any downed foes. " <>
-      "2-4 sentences. No rules jargon."
+    "Haces un resumen de los turnos anteriores de una partida de D&D 5e para el DM. " <>
+      "Mantén un tono factual y conciso: quién actuó, daño/desenlaces clave, cambios de " <>
+      "escena, enemigos caídos. 2-4 frases. Sin jerga de reglas. Escribe en castellano."
   end
 
   # Flatten the old messages into a readable transcript for the summarizer.
@@ -105,20 +105,20 @@ defmodule Dragones.DM do
       messages
       |> Enum.map_join("\n", &message_line/1)
 
-    "Recap these earlier turns of the game:\n\n#{body}"
+    "Resume estos turnos anteriores de la partida:\n\n#{body}"
   end
 
   defp message_line(%Message.Request{parts: parts}) do
     case user_text(parts) do
       "" -> ""
-      text -> "PLAYER/DM: #{text}"
+      text -> "JUGADOR/DM: #{text}"
     end
   end
 
   defp message_line(%Message.Response{} = r) do
     case Response.text(r) do
       "" -> ""
-      text -> "DM NARRATION: #{text}"
+      text -> "NARRACIÓN DEL DM: #{text}"
     end
   end
 
@@ -140,21 +140,25 @@ defmodule Dragones.DM do
   @spec system_prompt(map()) :: String.t()
   def system_prompt(story_bible) when is_map(story_bible) do
     """
-    You are the Dungeon Master (DM) of a D&D 5e game. You narrate the world, voice every monster and NPC, referee the rules, and pace the scene.
+    Eres el Dungeon Master (DM) de una partida de D&D 5e. Narras el mundo, das voz a cada monstruo y PNJ, aplicas las reglas y marcas el ritmo de la escena.
 
-    CORE RULES — never break these:
-    1. You NEVER decide the outcome of a die roll, an attack, damage, a saving throw, an ability check, or a death save. These are resolved ONLY by calling the tools: `roll_initiative`, `make_attack`, `cast_spell`, `ability_check`, `make_death_save`, `heal`. The tool returns the factual result; you narrate it.
-    2. Never roll or compute numbers yourself. The tools are the single source of truth. If a player attempts something with a chance of failure outside combat (force a door, persuade, spot a trap), YOU set the difficulty and call `ability_check("Thane", "str", 15)` — use DC 5 very easy, 10 easy, 15 medium, 20 hard, 25 very hard.
-    3. WHO ACTS IS DECIDED BY WHOSE TURN IT IS, and the engine enforces this strictly:
-       - On a PLAYER's turn (the brief says "It's <name>'s turn"), ONLY that player's character may act. When you resolve their declared action, the attacker/caster/checker MUST be that character — e.g. `make_attack("Thane", "goblin", "longsword")`, never the monster. A monster acting on a player's turn is REFUSED by the engine.
-       - On YOUR turn (the brief says "It's YOUR turn (DM) -- act for: ..."), you act for the listed monsters/NPCs only — the attacker is one of yours, e.g. `make_attack("goblin", "Thane", "scimitar")`.
-       Never mix the two: do not run a monster's action during a player's turn, and do not run a player's action during your turn.
-    4. Follow the dice honestly. Do not protect or favour any side. Do not undo or contradict a result the tool reported.
-    5. Pacing: when a fight breaks out, call `roll_initiative` once. When every enemy is down (hp 0), call `end_combat`. Between fights, PCs may call `short_rest` (spend a hit die to heal) or `long_rest` (full restore) — let them do this during exploration. Award levels with `level_up("name")` at dramatic story milestones.
-    6. Advantage/disadvantage: pass `mode: "advantage"` or `mode: "disadvantage"` to `make_attack` / `ability_check` when the situation grants it (a prone foe, an ally helping, high ground, a concealed target, etc.). Otherwise pass "normal" (or omit it).
-    7. Conditions: use `apply_condition` and `remove_condition` to track prone, poisoned, blinded, stunned, etc. The engine automatically grants advantage/disadvantage based on conditions.
-    8. Reinforcements: call `spawn_monster("kind", "name")` to add foes mid-encounter. Available: goblin, kobold, bandit, skeleton, wolf, orc, hobgoblin, ogre. Use unique names for multiples ("orc1", "orc2").
-    9. Style: vivid but BRIEF. 1–3 sentences per beat. Address the player characters in second person. No lists, no game-jargon to the players — speak as the world.
+    IDIOMA: responde, narras y hablas SIEMPRE en castellano. Todo lo que digas a los jugadores debe estar en español.
+
+    REGLAS BÁSICAS — no las rompas nunca:
+    1. NUNCA decides tú el resultado de una tirada, un ataque, un daño, una salvación, una chequeo de característica o una salvación de muerte. Eso lo resuelven EXCLUSIVAMENTE las herramientas: `roll_initiative`, `make_attack`, `cast_spell`, `ability_check`, `make_death_save`, `heal`. La herramienta devuelve el resultado factual; tú lo narras.
+    2. Nunca tires ni calcules números tú mismo. Las herramientas son la única fuente de verdad. Si un jugador intenta algo con riesgo de fallo fuera del combate (forzar una puerta, persuadir, detectar una trampa), TÚ fijas la dificultad y llamas a `ability_check("Thane", "str", 15)` — usa CD 5 muy fácil, 10 fácil, 15 media, 20 difícil, 25 muy difícil.
+    3. QUIÉN ACTÚA LO DECIDE DE QUIÉN SEA EL TURNO, y el motor lo impone estrictamente:
+       - En el turno de un JUGADOR (el resumen dice "Es el turno de <nombre>"), SOLO el personaje de ese jugador puede actuar. Al resolver su acción declarada, el atacante/conjurador/chequeador DEBE ser ese personaje — p.ej. `make_attack("Thane", "goblin", "longsword")`, nunca el monstruo. Que un monstruo actúe en el turno de un jugador es RECHAZADO por el motor.
+       - En TU turno (el resumen dice "Es TU turno (DM) -- actúa por: ..."), actúas solo por los monstruos/PNJ listados — el atacante es tuyo, p.ej. `make_attack("goblin", "Thane", "scimitar")`.
+       Nunca mezcles los dos: no ejecutes la acción de un monstruo durante el turno de un jugador, ni la de un jugador durante el tuyo.
+       Las herramientas de ESCENA están EXENTAS: `roll_initiative`, `end_combat`, `spawn_monster`, `set_scene`, `level_up` no son acciones de personaje — puedes llamarlas EN CUALQUIER momento, en cualquier turno, para transitar la escena.
+    4. Sigue los dados con honestidad. No protejas ni favorezcas a nadie. No deshagas ni contradigas un resultado que haya devuelto la herramienta.
+    5. EMPEZAR EL COMBATE ES TU RESPONSABILIDAD Y ES URGENTE. En el INSTANTE en que estalle una pelea — un PJ ataca, conjura un hechizo hostil contra, o carga contra un enemigo, O uno de tus monstruos ataca — llama a `roll_initiative` INMEDIATAMENTE, antes de resolver ningún ataque o narrar el choque. Nunca roleeples una batalla en exploración: en cuanto crucen los aceros, tira iniciativa para que el motor secuencie los turnos. Luego, ya en combate, resuelve la acción del turno actual con normalidad (en el turno de un jugador, `make_attack("<ese jugador>", ...)`; en el tuyo, tu monstruo ataca). Cuando todos los enemigos estén fuera de combate (hp 0) el motor termina el combate automáticamente — aunque también puedes llamar a `end_combat`. Entre combates, los PJ pueden hacer `short_rest`/`long_rest` para recuperarse; concede `level_up("nombre")` en hitos dramáticos de la historia.
+    6. Ventaja/desventaja: pasa `mode: "advantage"` o `mode: "disadvantage"` a `make_attack` / `ability_check` cuando la situación lo conceda (un enemigo caído, un aliado ayudando, terreno alto, un objetivo oculto, etc.). En caso contrario pasa "normal" (u omítelo).
+    7. Condiciones: usa `apply_condition` y `remove_condition` para llevar tumbado, envenenado, cegado, aturdido, etc. El motor concede ventaja/desventaja automáticamente según las condiciones.
+    8. Refuerzos: llama a `spawn_monster("kind", "name")` para añadir enemigos a mitad del encuentro. Disponibles: goblin, kobold, bandit, skeleton, wolf, orc, hobgoblin, ogre. Usa nombres únicos si hay varios ("orc1", "orc2").
+    9. Estilo: vívido pero BREVE. 1–3 frases por turno. Dirígete a los personajes jugadores en segunda persona. Sin listas, sin jerga de reglas a los jugadores — habla como el mundo. NO anuncies de quién es el siguiente turno ni asignes el turno tú: el motor lo gestiona. Si el brief marca a un PJ como IA, ese PJ juega solo — NO le pidas al jugador humano que indique su acción. Cuando termines tu narración, simplemente abre la escena (un "¿qué hacéis?" genérico) y deja que el motor diga a quién le toca.
+    10. Caídos y muerte: un personaje a 0 pg está inconsciente y al borde de la muerte. NO tires su salvación de muerte tú — el motor la resuelve en el TURNO del caído. Como monstruo, no remates automáticamente a los caídos salvo que tenga sentido (el monstruo es cruel/hambriento y no hay amenazas activas): prioriza a los enemigos conscientes que siguen peleando.
 
     #{bible_section(story_bible)}
     """
@@ -170,7 +174,7 @@ defmodule Dragones.DM do
       bible
       |> Enum.map_join("\n", fn {k, v} -> "- #{k}: #{v}" end)
 
-    "CAMPAIGN BIBLE (stable — guides your narration and NPC voices):\n#{body}"
+    "BIBLIA DE LA CAMPAÑA (estable — guía tu narración y las voces de los PNJ):\n#{body}"
   end
 
   @doc """
@@ -182,36 +186,53 @@ defmodule Dragones.DM do
   When it's the DM's turn, the header lists the monsters it controls (since the
   policy folds all enemies onto the DM's single turn).
   """
-  @spec world_brief(World.t(), String.t() | nil, String.t()) :: String.t()
-  def world_brief(%World{} = w, current, dm \\ "dm") do
+  @spec world_brief(World.t(), String.t() | nil, String.t(), %{optional(String.t()) => atom()}) :: String.t()
+  def world_brief(%World{} = w, current, dm \\ "dm", kinds \\ %{}) do
     phase_line =
       case w do
         %World{phase: :combat, round: round, initiative_order: order} when order != [] ->
-          "Combat -- round #{round} (initiative: #{Enum.join(order, " -> ")})"
+          "Combate -- ronda #{round} (iniciativa: #{Enum.join(order, " -> ")})"
 
         %World{phase: :combat} ->
-          "Combat -- round #{w.round}"
+          "Combate -- ronda #{w.round}"
 
         _ ->
-          "Exploration"
+          "Exploración"
       end
 
-    turn_line = turn_for(w, current, dm)
+    turn_line = turn_for(w, current, dm, kinds)
+    control_line = control_line(w, kinds)
 
     chars =
       w.characters
       |> Enum.sort_by(fn {name, _} -> name end)
-      |> Enum.map(fn {name, c} -> describe_char(name, c, current, dm, w.spell_slots) end)
+      |> Enum.map(fn {name, c} -> describe_char(name, c, current, dm, w.spell_slots, kinds) end)
       |> Enum.join("\n")
 
-    [phase_line, turn_line, "Scene: #{w.scene}", chars]
+    [phase_line, turn_line, control_line, "Escena: #{w.scene}", chars]
     |> Enum.reject(&(&1 == ""))
     |> Enum.join("\n")
   end
 
-  defp turn_for(_w, nil, _dm), do: ""
+  # Tell the DM who auto-acts (AI PCs) vs who waits for a human, so it doesn't
+  # ask a human player to act for a bot, or vice versa.
+  defp control_line(%World{characters: chars}, kinds) do
+    pcs = chars |> Map.values() |> Enum.filter(&(&1.side == "pc")) |> Enum.map(& &1.name)
+    {ai, humans} = Enum.split_with(pcs, fn n -> kinds[n] == :ai end)
 
-  defp turn_for(%World{characters: chars}, current, dm) when current == dm do
+    case {ai, humans} do
+      {[], []} -> ""
+      {[], _} -> "Control: #{Enum.join(humans, ", ")} son jugadores humanos (esperan su input)."
+      {_, []} -> "Control: #{Enum.join(ai, ", ")} son PJ gestionados por IA (juegan solos en su turno; NO les pidas su acción)."
+      {_, _} ->
+        "Control: #{Enum.join(humans, ", ")} son jugadores humanos (esperan su input); " <>
+          "#{Enum.join(ai, ", ")} son PJ gestionados por IA (juegan solos; NO les pidas su acción)."
+    end
+  end
+
+  defp turn_for(_w, nil, _dm, _kinds), do: ""
+
+  defp turn_for(%World{characters: chars}, current, dm, _kinds) when current == dm do
     monsters =
       chars
       |> Enum.filter(fn {_, c} -> c.side != "pc" and c.hp > 0 end)
@@ -219,20 +240,24 @@ defmodule Dragones.DM do
       |> Enum.sort()
 
     if monsters == [],
-      do: "It's YOUR turn (DM).",
-      else: "It's YOUR turn (DM) -- act for: #{Enum.join(monsters, ", ")}."
+      do: "Es TU turno (DM).",
+      else: "Es TU turno (DM) -- actúa por: #{Enum.join(monsters, ", ")}."
   end
 
-  defp turn_for(_w, current, _dm), do: "It's #{current}'s turn (player) -- only #{current} may act now."
+  defp turn_for(_w, current, _dm, kinds) do
+    role = if kinds[current] == :ai, do: "IA, auto-juega", else: "jugador humano"
+    "Es el turno de #{current} (#{role}) -- solo #{current} puede actuar ahora."
+  end
 
   @doc "Build the per-turn user message: world snapshot + a directing instruction."
-  @spec turn_prompt(World.t(), String.t() | nil, String.t(), String.t()) :: String.t()
-  def turn_prompt(%World{} = w, current, instruction, dm \\ "dm") do
-    "WORLD:\n#{world_brief(w, current, dm)}\n\n#{instruction}"
+  @spec turn_prompt(World.t(), String.t() | nil, String.t(), String.t(), %{optional(String.t()) => atom()}) :: String.t()
+  def turn_prompt(%World{} = w, current, instruction, dm \\ "dm", kinds \\ %{}) do
+    "WORLD:\n#{world_brief(w, current, dm, kinds)}\n\n#{instruction}"
   end
 
-  defp describe_char(name, %Character{} = c, current, dm, spell_slots) do
-    status = if c.hp <= 0, do: " [DOWN]", else: ""
+  defp describe_char(name, %Character{} = c, current, dm, spell_slots, kinds) do
+    status = if (c.hp || 0) <= 0 and c.max_hp not in [nil, 0], do: " [CAÍDO]", else: ""
+    ai_tag = if kinds[name] == :ai, do: " IA", else: ""
 
     cond_str =
       case c.conditions || [] do
@@ -247,20 +272,20 @@ defmodule Dragones.DM do
           if names == [], do: "", else: " [#{Enum.join(names, ", ")}]"
       end
 
-    you = if name == current and current != dm, do: "  <- ACTS NOW", else: ""
+    you = if name == current and current != dm, do: "  <- ACTÚA AHORA", else: ""
     weapons = c.weapons |> Enum.map(& &1.name) |> Enum.join(", ")
     spells = if c.spells == [], do: [], else: c.spells |> Enum.map(& &1.name) |> Enum.join(", ")
 
-    level_tag = if c.level > 1, do: " L#{c.level}", else: ""
+    level_tag = if c.level > 1, do: " N#{c.level}", else: ""
 
-    gear = ["Weapons: #{weapons}"] ++ if spells == [], do: [], else: ["Spells: #{spells}"]
+    gear = ["Armas: #{weapons}"] ++ if spells == [], do: [], else: ["Hechizos: #{spells}"]
 
     # Spell slots: only show for tracked casters
     slot_str = slot_summary(spell_slots, name)
 
     gear = if slot_str != "", do: gear ++ [slot_str], else: gear
 
-    "- #{name} (#{c.class}#{level_tag}, #{c.side}): #{c.hp}/#{c.max_hp} hp, AC #{c.ac}#{status}#{cond_str}#{you} -- #{Enum.join(gear, "; ")}"
+    "- #{name} (#{c.class}#{level_tag}, #{c.side}#{ai_tag}): #{c.hp}/#{c.max_hp} pg, CA #{c.ac}#{status}#{cond_str}#{you} -- #{Enum.join(gear, "; ")}"
   end
 
   defp slot_summary(slots, name) when is_map(slots) and is_map_key(slots, name) do
@@ -272,10 +297,10 @@ defmodule Dragones.DM do
       parts =
         char_slots
         |> Enum.sort_by(fn {level, _} -> level end)
-        |> Enum.map(fn {level, count} -> "L#{level}:#{count}" end)
+        |> Enum.map(fn {level, count} -> "N#{level}:#{count}" end)
         |> Enum.join(", ")
 
-      "Slots: #{parts}"
+      "Casillas: #{parts}"
     end
   end
 

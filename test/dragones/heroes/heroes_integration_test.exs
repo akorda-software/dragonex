@@ -113,7 +113,7 @@ defmodule Dragones.HeroesIntegrationTest do
       # d20=15: prof(2) + str_mod(3) + 15 = 20 vs goblin AC 15 → hit
       {:ok, msg, change} = Actions.attack(world, "Hero", "goblin", "longsword", fixed(15), :normal)
 
-      assert msg =~ "hits"
+      assert msg =~ "acierta"
       new_world = elem(change.(world), 1)
       assert new_world.characters["goblin"].hp < 7
     end
@@ -130,7 +130,7 @@ defmodule Dragones.HeroesIntegrationTest do
 
       {:ok, msg, change} = Actions.attack(world, "Hero", "goblin", "longsword", fixed(2), :normal)
 
-      assert msg =~ "miss"
+      assert msg =~ "fallo"
       new_world = elem(change.(world), 1)
       assert new_world.characters["goblin"].hp == 7
     end
@@ -151,7 +151,7 @@ defmodule Dragones.HeroesIntegrationTest do
       {:ok, msg, change} = Actions.spell(world, "Lyra", "fire bolt", "goblin", fixed(15))
 
       assert msg =~ "fire bolt"
-      assert msg =~ "hits"
+      assert msg =~ "impacta"
       new_world = elem(change.(world), 1)
       assert new_world.characters["goblin"].hp < 7
     end
@@ -192,7 +192,7 @@ defmodule Dragones.HeroesIntegrationTest do
       {:ok, msg, change} = Actions.spell(world, "Elder", "sacred flame", "goblin", fixed(5))
 
       assert msg =~ "sacred flame"
-      assert msg =~ "fails"
+      assert msg =~ "falla la salvación"
       new_world = elem(change.(world), 1)
       assert new_world.characters["goblin"].hp < 7
     end
@@ -211,7 +211,7 @@ defmodule Dragones.HeroesIntegrationTest do
       # d20=18 → 22 vs fighter AC 18 → hit
       {:ok, msg, change} = Actions.attack(world, "goblin", "Hero", "scimitar", fixed(18), :normal)
 
-      assert msg =~ "hits"
+      assert msg =~ "acierta"
       new_world = elem(change.(world), 1)
       assert new_world.characters["Hero"].hp < hero.hp
     end
@@ -228,7 +228,7 @@ defmodule Dragones.HeroesIntegrationTest do
 
       {:ok, msg, _change} = Actions.attack(world, "Hero", "goblin", "longsword", fixed(20), :normal)
 
-      assert msg =~ "CRITS"
+      assert msg =~ "CRÍTICO"
     end
   end
 

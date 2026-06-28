@@ -8,13 +8,13 @@ defmodule Dragones.DMModelsTest do
     test "includes the campaign bible in the stable prefix" do
       prompt = DM.system_prompt(%{"hook" => "the lost relic", "tone" => "gritty"})
 
-      assert prompt =~ "CAMPAIGN BIBLE"
+      assert prompt =~ "BIBLIA DE LA CAMPAÑA"
       assert prompt =~ "the lost relic"
       assert prompt =~ "gritty"
     end
 
     test "omits the bible section when empty" do
-      refute DM.system_prompt(%{}) =~ "CAMPAIGN BIBLE"
+      refute DM.system_prompt(%{}) =~ "BIBLIA DE LA CAMPAÑA"
     end
   end
 

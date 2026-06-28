@@ -49,7 +49,7 @@ defmodule Dragones.RestTest do
       # fixed roller(7): 1d10 = 7, + con_mod(14) = +2 → rolled 9, capped at 7 (5→12)
       {:ok, msg, change} = Actions.short_rest(w, "hero", fixed(7))
 
-      assert msg =~ "recovers 7 hp"
+      assert msg =~ "recupera 7 pg"
       assert msg =~ "= 9"
       {:ok, w2} = change.(w)
       assert w2.characters["hero"].hp == 12
@@ -61,7 +61,7 @@ defmodule Dragones.RestTest do
       # fixed roller(4): 1d6 = 4, + con_mod(14) = +2 → heal 6
       {:ok, msg, change} = Actions.short_rest(w, "mage", fixed(4))
 
-      assert msg =~ "6 hp"
+      assert msg =~ "6 pg"
       {:ok, w2} = change.(w)
       assert w2.characters["mage"].hp == 2 + 6
     end
@@ -93,7 +93,7 @@ defmodule Dragones.RestTest do
       w = world_with_hurt_fighter()
 
       {:ok, msg, change} = Actions.long_rest(w, "hero")
-      assert msg =~ "full restore"
+      assert msg =~ "recuperación completa"
 
       {:ok, w2} = change.(w)
       assert w2.characters["hero"].hp == 12

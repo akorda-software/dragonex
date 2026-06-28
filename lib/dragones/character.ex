@@ -24,6 +24,7 @@ defmodule Dragones.Character do
     field(:name, :string)
     field(:race, :string)
     field(:class, :string)
+    field(:sex, :string)
     field(:side, :string, default: "pc")
     field(:level, :integer, default: 1)
 
@@ -58,6 +59,7 @@ defmodule Dragones.Character do
         :name,
         :race,
         :class,
+        :sex,
         :side,
         :level,
         :hp,
@@ -113,6 +115,7 @@ defmodule Dragones.Character do
     defaults = [
       race: "human",
       class: "commoner",
+      sex: nil,
       side: "pc",
       level: 1,
       hp: 0,

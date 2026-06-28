@@ -13,12 +13,12 @@ defmodule Dragones.DMTest do
 
     brief = DM.world_brief(w, "Thane")
 
-    assert brief =~ "Exploration"
-    assert brief =~ "It's Thane's turn (player)"
+    assert brief =~ "Exploración"
+    assert brief =~ "Es el turno de Thane (jugador humano)"
     assert brief =~ "Thane (fighter, pc)"
-    assert brief =~ "12/12 hp, AC 16"
-    assert brief =~ "Weapons: longsword, javelin"
-    assert String.contains?(brief, "<- ACTS NOW")
+    assert brief =~ "12/12 pg, CA 16"
+    assert brief =~ "Armas: longsword, javelin"
+    assert String.contains?(brief, "<- ACTÚA AHORA")
   end
 
   test "combat brief shows the round, initiative and the DM's monster to act" do
@@ -30,9 +30,9 @@ defmodule Dragones.DMTest do
 
     brief = DM.world_brief(w, "dm", "dm")
 
-    assert brief =~ "Combat -- round 1"
-    assert brief =~ "initiative: goblin -> Thane"
-    assert brief =~ "It's YOUR turn (DM) -- act for: goblin."
+    assert brief =~ "Combate -- ronda 1"
+    assert brief =~ "iniciativa: goblin -> Thane"
+    assert brief =~ "Es TU turno (DM) -- actúa por: goblin."
     assert brief =~ "goblin (monster, enemy)"
   end
 
@@ -47,8 +47,8 @@ defmodule Dragones.DMTest do
     w = %{w | characters: Map.put(w.characters, "Lyra", down)}
 
     brief = DM.world_brief(w, "Lyra")
-    assert brief =~ "0/7 hp"
-    assert brief =~ "[DOWN]"
+    assert brief =~ "0/7 pg"
+    assert brief =~ "[CAÍDO]"
   end
 
   defp add(world, change) do

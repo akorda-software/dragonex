@@ -31,7 +31,7 @@ defmodule Dragones.HealingAndBestiaryTest do
       # d8 = 5, WIS mod (16) = +3 → heal 8 total
       {:ok, msg, change} = Actions.spell(w, "Elder", "cure wounds", "Thane", fixed(5))
 
-      assert msg =~ "healed"
+      assert msg =~ "se cura"
       {:ok, w2} = change.(w)
       assert w2.characters["Thane"].hp == 11  # 3 + 8 = 11 (capped at 12? no: 3+8=11)
     end
@@ -52,7 +52,7 @@ defmodule Dragones.HealingAndBestiaryTest do
 
       {:ok, msg, change} = Actions.spell(w, "Elder", "healing word", "Ally", fixed(3))
 
-      assert msg =~ "healed"
+      assert msg =~ "se cura"
       {:ok, w2} = change.(w)
       # d4 = 3, WIS +3 → heal 6, capped at 10-2=8
       assert w2.characters["Ally"].hp == 8
@@ -74,7 +74,7 @@ defmodule Dragones.HealingAndBestiaryTest do
 
       {:ok, msg, change} = Actions.spell(w, "Lyra", "magic missile", "gob", fixed(1))
 
-      assert msg =~ "takes"
+      assert msg =~ "recibe"
       {:ok, w2} = change.(w)
       assert w2.characters["gob"].hp < 7
     end

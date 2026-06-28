@@ -13,7 +13,7 @@ defmodule Dragones.Tools do
   @doc "Narrate and set the current scene."
   deftool set_scene(ctx, narration :: String.t()) do
     {:ok, _} = propose(ctx, Dragones.World.set_scene(narration))
-    {:ok, "scene set"}
+    {:ok, "escena establecida"}
   end
 
   # --- legacy spike stubs ----------------------------------------------------
@@ -26,7 +26,7 @@ defmodule Dragones.Tools do
   @doc "Attack a target for `damage` hp (after a successful hit roll elsewhere)."
   deftool attack(ctx, target :: String.t(), damage :: integer()) do
     case propose(ctx, Dragones.World.apply_damage(target, damage)) do
-      {:ok, _} -> {:ok, "#{target} takes #{damage} damage"}
+      {:ok, _} -> {:ok, "#{target} recibe #{damage} de daño"}
       {:error, _} = e -> e
     end
   end
@@ -34,7 +34,7 @@ defmodule Dragones.Tools do
   @doc "Roll a single d`n` and report the result to the model."
   deftool roll(ctx, sides :: pos_integer()) do
     roller = ctx.deps.roller
-    {:ok, "rolled #{roller.(sides)} (d#{sides})"}
+    {:ok, "salió #{roller.(sides)} (d#{sides})"}
   end
 
   @doc "Add a character to the world with the given hp."
@@ -50,13 +50,13 @@ defmodule Dragones.Tools do
       )
 
     {:ok, _} = propose(ctx, Dragones.World.add_character(c))
-    {:ok, "#{name} appears (#{hp} hp)"}
+    {:ok, "#{name} aparece (#{hp} pg)"}
   end
 
   @doc "Advance to the next round."
   deftool next_round(ctx) do
     {:ok, _} = propose(ctx, Dragones.World.next_round())
-    {:ok, "round advanced"}
+    {:ok, "ronda avanzada"}
   end
 
   # --- real bridge tools (Rules -> World) -------------------------------
@@ -66,13 +66,13 @@ defmodule Dragones.Tools do
 
   @doc "Roll `count` d`sides`, optionally with advantage/disadvantage."
   deftool roll_dice(ctx, count :: pos_integer(), sides :: pos_integer()) do
-    {:ok, msg} = Dragones.Actions.roll(count, sides, :normal, ctx.deps.roller)
+    {:ok, msg} = Dragones.Actions.roll(count, sides, :normal, ctx.deps.roller, ctx.deps[:roll_log])
     {:ok, msg}
   end
 
   @doc "Roll initiative for every conscious combatant and begin combat."
   deftool roll_initiative(ctx) do
-    with {:ok, msg, change} <- Dragones.Actions.initiative(world(ctx), ctx.deps.roller),
+    with {:ok, msg, change} <- Dragones.Actions.initiative(world(ctx), ctx.deps.roller, ctx.deps[:roll_log]),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
     end
@@ -82,7 +82,7 @@ defmodule Dragones.Tools do
   deftool make_attack(ctx, attacker :: String.t(), target :: String.t(), weapon :: String.t(), mode :: String.t()) do
     with :ok <- assert_controls(ctx, attacker),
          {:ok, msg, change} <-
-           Dragones.Actions.attack(world(ctx), attacker, target, weapon, ctx.deps.roller, parse_mode(mode)),
+           Dragones.Actions.attack(world(ctx), attacker, target, weapon, ctx.deps.roller, parse_mode(mode), ctx.deps[:roll_log]),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
     end
@@ -92,7 +92,7 @@ defmodule Dragones.Tools do
   deftool cast_spell(ctx, caster :: String.t(), spell :: String.t(), target :: String.t()) do
     with :ok <- assert_controls(ctx, caster),
          {:ok, msg, change} <-
-           Dragones.Actions.spell(world(ctx), caster, spell, target, ctx.deps.roller),
+           Dragones.Actions.spell(world(ctx), caster, spell, target, ctx.deps.roller, ctx.deps[:roll_log]),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
     end
@@ -100,7 +100,8 @@ defmodule Dragones.Tools do
 
   @doc "Make a death saving throw for a down `character`."
   deftool make_death_save(ctx, character :: String.t()) do
-    with {:ok, msg, change} <- Dragones.Actions.death_save(world(ctx), character, ctx.deps.roller),
+    with :ok <- assert_controls(ctx, character),
+         {:ok, msg, change} <- Dragones.Actions.death_save(world(ctx), character, ctx.deps.roller, ctx.deps[:roll_log]),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
     end
@@ -109,12 +110,12 @@ defmodule Dragones.Tools do
   @doc "End combat and return to free-form exploration (DM call, once combat is over)."
   deftool end_combat(ctx) do
     {:ok, _} = propose(ctx, Dragones.World.end_combat())
-    {:ok, "combat ends"}
+    {:ok, "el combate termina"}
   end
 
   @doc "Short rest: spend a hit die to recover HP. Available outside combat."
   deftool short_rest(ctx, target :: String.t()) do
-    with {:ok, msg, change} <- Dragones.Actions.short_rest(world(ctx), target, ctx.deps.roller),
+    with {:ok, msg, change} <- Dragones.Actions.short_rest(world(ctx), target, ctx.deps.roller, ctx.deps[:roll_log]),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
     end
@@ -131,7 +132,7 @@ defmodule Dragones.Tools do
   @doc "Award a level to a character (milestone leveling). Increases HP and spell slots."
   deftool level_up(ctx, target :: String.t()) do
     with {:ok, _} <- propose(ctx, Dragones.World.level_up(target)) do
-      {:ok, "#{target} gains a level!"}
+      {:ok, "¡#{target} sube de nivel!"}
     end
   end
 
@@ -144,17 +145,21 @@ defmodule Dragones.Tools do
       end
 
     if monster do
-      with {:ok, _} <- propose(ctx, Dragones.World.add_character(monster)) do
-        {:ok, "#{name} (#{kind}) appears! HP #{monster.hp}, AC #{monster.ac}."}
+      # Add the monster AND join it to the initiative order when mid-combat
+      # (join_initiative is a no-op in exploration, so composing is always safe).
+      change = compose(Dragones.World.add_character(monster), Dragones.World.join_initiative(monster.name))
+
+      with {:ok, _} <- propose(ctx, change) do
+        {:ok, "¡Aparece #{name} (#{kind})! PG #{monster.hp}, CA #{monster.ac}."}
       end
     else
-      {:ok, "Unknown monster type '#{kind}'. Available: #{Enum.join(Dragones.Monsters.keys(), ", ")}"}
+      {:ok, "Tipo de monstruo desconocido '#{kind}'. Disponibles: #{Enum.join(Dragones.Monsters.keys(), ", ")}"}
     end
   end
 
   @doc "Heal `target` by a dice expression (e.g. \"1d8+3\"); caps at max hp, clears death saves."
   deftool heal(ctx, target :: String.t(), dice :: String.t()) do
-    with {:ok, msg, change} <- Dragones.Actions.heal(world(ctx), target, dice, ctx.deps.roller),
+    with {:ok, msg, change} <- Dragones.Actions.heal(world(ctx), target, dice, ctx.deps.roller, ctx.deps[:roll_log]),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
     end
@@ -176,7 +181,8 @@ defmodule Dragones.Tools do
              dc,
              false,
              ctx.deps.roller,
-             parse_mode(mode)
+             parse_mode(mode),
+             ctx.deps[:roll_log]
            ),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
@@ -186,14 +192,14 @@ defmodule Dragones.Tools do
   @doc "Apply a condition to a character (e.g. prone, poisoned, blinded)."
   deftool apply_condition(ctx, target :: String.t(), condition :: String.t()) do
     with {:ok, _} <- propose(ctx, Dragones.World.apply_condition(target, condition)) do
-      {:ok, "#{target} is now #{condition}"}
+      {:ok, "#{target} ahora está #{condition}"}
     end
   end
 
   @doc "Remove a condition from a character."
   deftool remove_condition(ctx, target :: String.t(), condition :: String.t()) do
     with {:ok, _} <- propose(ctx, Dragones.World.remove_condition(target, condition)) do
-      {:ok, "#{target} is no longer #{condition}"}
+      {:ok, "#{target} ya no está #{condition}"}
     end
   end
 
@@ -227,10 +233,10 @@ defmodule Dragones.Tools do
       :ok
     else
       {:error,
-       "REFUSED — it is #{proposer}'s turn, so the actor/caster/who MUST be \"#{proposer}\". " <>
-         "You called this tool with actor=\"#{actor}\" (#{proposer} does not control #{actor}). " <>
-         "Re-issue the SAME intent but as #{proposer}, e.g. " <>
-         "make_attack(\"#{proposer}\", \"<target>\", \"<weapon>\") or cast_spell(\"#{proposer}\", \"<spell>\", \"<target>\")."}
+       "RECHAZADO — es el turno de #{proposer}, así que el atacante/conjurador/quien DEBE ser \"#{proposer}\". " <>
+         "Llamaste a esta herramienta con actor=\"#{actor}\" (#{proposer} no controla a #{actor}). " <>
+         "Reemite la MISMA intención pero como #{proposer}, p.ej. " <>
+         "make_attack(\"#{proposer}\", \"<objetivo>\", \"<arma>\") o cast_spell(\"#{proposer}\", \"<hechizo>\", \"<objetivo>\")."}
     end
   end
 
@@ -238,5 +244,12 @@ defmodule Dragones.Tools do
   # world directly; they propose through SharedState (single-writer rule).
   defp propose(ctx, change_fn) do
     ExAgent.Session.SharedState.propose_change(ctx.deps.state, change_fn)
+  end
+
+  # Sequence two change functions into one (the Session applies a single fn).
+  defp compose(f1, f2) do
+    fn w ->
+      with {:ok, w} <- f1.(w), {:ok, w} <- f2.(w), do: {:ok, w}
+    end
   end
 end

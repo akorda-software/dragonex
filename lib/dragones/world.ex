@@ -195,6 +195,31 @@ defmodule Dragones.World do
     fn w -> {:ok, %{w | phase: :exploration, log: log(w, "dm", "combat ends")}} end
   end
 
+  @doc """
+  Add an existing character to the initiative order mid-combat (for
+  reinforcements/summons). No-op outside combat — a character added in
+  exploration will be included the next time initiative is rolled.
+  """
+  @spec join_initiative(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def join_initiative(name) do
+    fn w ->
+      cond do
+        w.phase != :combat ->
+          {:ok, w}
+
+        not Map.has_key?(w.characters, name) ->
+          {:error, "no such character: #{name}"}
+
+        name in w.initiative_order ->
+          {:ok, w}
+
+        true ->
+          {:ok,
+           %{w | initiative_order: w.initiative_order ++ [name], log: log(w, "dm", "#{name} joins the fight")}}
+      end
+    end
+  end
+
   @doc "Bump the round counter directly (kept for the spike's exploration flows)."
   @spec next_round() :: (t() -> {:ok, t()})
   def next_round do

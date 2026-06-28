@@ -14,7 +14,7 @@ defmodule Dragones.Actions do
   No exAgent here: deterministic and unit-testable with a fixed roller.
   """
 
-  alias Dragones.{Character, Dice, Rules.Ability, Rules.Combat, World}
+  alias Dragones.{Character, Dice, RollLog, Rules.Ability, Rules.Combat, World}
 
   @type roller :: (pos_integer() -> pos_integer())
   @type result ::
@@ -22,22 +22,28 @@ defmodule Dragones.Actions do
           | {:error, String.t()}
 
   @doc "Roll one or more dice and report the total (no world side-effect)."
-  @spec roll(pos_integer(), pos_integer(), :normal | :advantage | :disadvantage, roller()) ::
+  @spec roll(pos_integer(), pos_integer(), :normal | :advantage | :disadvantage, roller(), RollLog.t() | nil) ::
           {:ok, String.t()}
-  def roll(count, sides, mode \\ :normal, roller) do
-    case mode do
+  def roll(count, sides, mode \\ :normal, roller, roll_log \\ nil) do
+    {r, close} = RollLog.open(roll_log, roller, nil, :roll, "tirada de #{count}d#{sides}")
+
+    result =
+      case mode do
       :normal ->
-        {:ok, "rolled #{count}d#{sides} = #{sum(count, sides, roller)}"}
+        {:ok, "tirada #{count}d#{sides} = #{sum(count, sides, r)}"}
 
       mode when mode in [:advantage, :disadvantage] ->
         kept =
           for _ <- 1..max(count, 1) do
-            {k, _, _} = Dice.roll_advantage(sides, mode, roller)
+            {k, _, _} = Dice.roll_advantage(sides, mode, r)
             k
           end
 
-        {:ok, "rolled #{count}d#{sides} (#{mode}) = #{Enum.sum(kept)}"}
-    end
+        {:ok, "tirada #{count}d#{sides} (#{mode}) = #{Enum.sum(kept)}"}
+      end
+
+    RollLog.close(close, total: nil, against: nil, outcome: nil)
+    result
   end
 
   @doc """
@@ -45,14 +51,14 @@ defmodule Dragones.Actions do
   damage roll, applied to the target's hp. The attacker and target must already
   be in the world, and the attacker must wield the named weapon.
   """
-  @spec attack(World.t(), String.t(), String.t(), String.t(), roller(), :normal | :advantage | :disadvantage) :: result()
-  def attack(world, attacker, target, weapon_name, roller, mode \\ :normal) do
+  @spec attack(World.t(), String.t(), String.t(), String.t(), roller(), :normal | :advantage | :disadvantage, RollLog.t() | nil) :: result()
+  def attack(world, attacker, target, weapon_name, roller, mode \\ :normal, roll_log \\ nil) do
     cond do
       is_nil(World.character(world, attacker)) ->
-        {:error, "no such attacker: #{attacker}"}
+        {:error, "no existe el atacante: #{attacker}"}
 
       is_nil(World.character(world, target)) ->
-        {:error, "no such target: #{target}"}
+        {:error, "no existe el objetivo: #{target}"}
 
       true ->
         a = World.character(world, attacker)
@@ -60,24 +66,30 @@ defmodule Dragones.Actions do
 
         case find_weapon(a, weapon_name) do
           nil ->
-            {:error, "#{attacker} has no weapon #{weapon_name}"}
+            {:error, "#{attacker} no tiene el arma #{weapon_name}"}
 
           weapon ->
             effective_mode = adjust_mode_for_conditions(mode, a, t, weapon)
-            {kind, d20, total} = Combat.attack_roll(a, weapon, t.ac, roller, effective_mode)
+
+            {r, close_atk} = RollLog.open(roll_log, roller, attacker, :attack, "ataque a #{target} con #{weapon.name}")
+            {kind, d20, total} = Combat.attack_roll(a, weapon, t.ac, r, effective_mode)
+            RollLog.close(close_atk, total: total, against: {:ac, t.ac}, outcome: kind)
 
             case kind do
               :miss ->
                 {:ok,
-                 "#{attacker} swings at #{target} — miss (d20 #{d20}: #{total} vs AC #{t.ac})#{mode_tag(effective_mode)}.",
+                 "#{attacker} lanza un golpe a #{target} — fallo (d20 #{d20}: #{total} vs CA #{t.ac})#{mode_tag(effective_mode)}.",
                  noop()}
 
               k ->
-                dmg = Combat.damage_roll(a, weapon, k, roller)
-                verb = if k == :crit, do: "CRITS", else: "hits"
+                {r2, close_dmg} = RollLog.open(roll_log, roller, attacker, :damage, "daño #{weapon.damage_type} a #{target}")
+                dmg = Combat.damage_roll(a, weapon, k, r2)
+                RollLog.close(close_dmg, total: dmg, against: nil, outcome: if(k == :crit, do: :crit, else: nil))
+
+                verb = if k == :crit, do: "CRÍTICO", else: "acierta"
 
                 {:ok,
-                 "#{attacker} #{verb} #{target} (d20 #{d20}: #{total} vs AC #{t.ac}) for #{dmg} #{weapon.damage_type}#{mode_tag(effective_mode)}.",
+                 "#{attacker} #{verb} a #{target} (d20 #{d20}: #{total} vs CA #{t.ac}) por #{dmg} de daño #{weapon.damage_type}#{mode_tag(effective_mode)}.",
                  World.apply_damage(target, dmg)}
             end
         end
@@ -126,14 +138,14 @@ defmodule Dragones.Actions do
     * `:attack`    — spell attack vs AC (nat 20 auto-hits, nat 1 auto-misses).
     * `:save`      — target saves vs DC; success halves the damage (5e default).
   """
-  @spec spell(World.t(), String.t(), String.t(), String.t(), roller()) :: result()
-  def spell(world, caster_name, spell_name, target_name, roller) do
+  @spec spell(World.t(), String.t(), String.t(), String.t(), roller(), RollLog.t() | nil) :: result()
+  def spell(world, caster_name, spell_name, target_name, roller, roll_log \\ nil) do
     cond do
       is_nil(World.character(world, caster_name)) ->
-        {:error, "no such caster: #{caster_name}"}
+        {:error, "no existe el conjurador: #{caster_name}"}
 
       is_nil(World.character(world, target_name)) ->
-        {:error, "no such target: #{target_name}"}
+        {:error, "no existe el objetivo: #{target_name}"}
 
       true ->
         c = World.character(world, caster_name)
@@ -141,16 +153,16 @@ defmodule Dragones.Actions do
 
         case find_spell(c, spell_name) do
           nil ->
-            {:error, "#{caster_name} doesn't know #{spell_name}"}
+            {:error, "#{caster_name} no conoce #{spell_name}"}
 
           spell ->
             # Check spell slot for leveled spells (cantrips are free)
             if spell.level > 0 and not World.has_slot?(world, caster_name, spell.level) do
               {:error,
-               "#{caster_name} has no level-#{spell.level} spell slots remaining " <>
-                 "(rest to recover). Cantrips are always available."}
+               "a #{caster_name} no le quedan casillas de hechizo de nivel #{spell.level} " <>
+                 "(debe descansar para recuperarlas). Los trucos siempre están disponibles."}
             else
-              result = resolve_spell(c, caster_name, t, target_name, spell, roller)
+              result = resolve_spell(c, caster_name, t, target_name, spell, roller, roll_log)
               compose_slot_consumption(result, caster_name, spell.level)
             end
         end
@@ -177,13 +189,19 @@ defmodule Dragones.Actions do
   and produce a `begin_combat` change. Ties break by name for determinism (5e
   would use dexterity then a roll-off — a refinement for later).
   """
-  @spec initiative(World.t(), roller()) :: result()
-  def initiative(world, roller) do
+  @spec initiative(World.t(), roller(), RollLog.t() | nil) :: result()
+  def initiative(world, roller, roll_log \\ nil) do
     ordered =
       world.characters
       |> Enum.filter(fn {_, %Character{hp: hp}} -> hp > 0 end)
       |> Enum.sort_by(fn {name, _} -> name end)
-      |> Enum.map(fn {name, c} -> {name, Combat.roll_initiative(c, roller)} end)
+      |> Enum.map(fn {name, c} ->
+        {r, close} = RollLog.open(roll_log, roller, name, :initiative, "tirada de iniciativa")
+        rolled = Combat.roll_initiative(c, r)
+        {_d20, total} = rolled
+        RollLog.close(close, total: total, against: nil, outcome: nil)
+        {name, rolled}
+      end)
       |> Enum.sort_by(fn {name, {_d20, total}} -> {-total, name} end)
 
     summary =
@@ -191,21 +209,23 @@ defmodule Dragones.Actions do
 
     names = Enum.map(ordered, &elem(&1, 0))
 
-    {:ok, "Initiative — #{summary}.", World.begin_combat(names)}
+    {:ok, "Iniciativa — #{summary}.", World.begin_combat(names)}
   end
 
   @doc "Make a death saving throw for a down character and apply the result."
-  @spec death_save(World.t(), String.t(), roller()) :: result()
-  def death_save(world, name, roller) do
+  @spec death_save(World.t(), String.t(), roller(), RollLog.t() | nil) :: result()
+  def death_save(world, name, roller, roll_log \\ nil) do
     case World.character(world, name) do
       nil ->
-        {:error, "no such character: #{name}"}
+        {:error, "no existe el personaje: #{name}"}
 
       %Character{hp: hp} when hp > 0 ->
-        {:error, "#{name} is not down (hp #{hp})"}
+        {:error, "#{name} no está caído (pg #{hp})"}
 
       %Character{} ->
-        result = Combat.death_save(roller)
+        {r, close} = RollLog.open(roll_log, roller, name, :death_save, "salvación de muerte")
+        result = Combat.death_save(r)
+        RollLog.close(close, total: elem(result, 1), against: {:dc, 10}, outcome: elem(result, 0))
         {:ok, describe_death_save(name, result), World.apply_death_save(name, result)}
     end
   end
@@ -214,18 +234,20 @@ defmodule Dragones.Actions do
   Heal a character by a dice expression (e.g. "1d8+3"), capped at max_hp.
   Healing also clears the death-save tracker (reviving a downed character).
   """
-  @spec heal(World.t(), String.t(), String.t(), roller()) :: result()
-  def heal(world, target, dice_expr, roller) do
+  @spec heal(World.t(), String.t(), String.t(), roller(), RollLog.t() | nil) :: result()
+  def heal(world, target, dice_expr, roller, roll_log \\ nil) do
     case World.character(world, target) do
       nil ->
-        {:error, "no such character: #{target}"}
+        {:error, "no existe el personaje: #{target}"}
 
       %Character{hp: hp, max_hp: max_hp} ->
-        rolled = Dice.roll_expr(dice_expr, roller)
+        {r, close} = RollLog.open(roll_log, roller, target, :heal, "curación (#{dice_expr})")
+        rolled = Dice.roll_expr(dice_expr, r)
+        RollLog.close(close, total: rolled, against: nil, outcome: nil)
         applied = min(rolled, max_hp - hp)
 
         {:ok,
-         "#{target} is healed for #{applied} hp (#{hp} → #{hp + applied}).",
+         "#{target} se cura #{applied} pg (#{hp} → #{hp + applied}).",
          World.heal(target, rolled)}
     end
   end
@@ -235,23 +257,26 @@ defmodule Dragones.Actions do
 
   At level 1, a character has 1 hit die. The heal is `roll(hit_die) + con_mod`.
   """
-  @spec short_rest(World.t(), String.t(), roller()) :: result()
-  def short_rest(world, name, roller) do
+  @spec short_rest(World.t(), String.t(), roller(), RollLog.t() | nil) :: result()
+  def short_rest(world, name, roller, roll_log \\ nil) do
     case World.character(world, name) do
       nil ->
-        {:error, "no such character: #{name}"}
+        {:error, "no existe el personaje: #{name}"}
 
       %Character{hp: hp, max_hp: max_hp} = c ->
         if hp <= 0 do
-          {:error, "#{name} is down and cannot rest"}
+          {:error, "#{name} está caído y no puede descansar"}
         else
           hit_die = hit_die_for(c.class)
           con_mod = Character.modifier(c, :con)
-          rolled = roller.(hit_die) + con_mod
+
+          {r, close} = RollLog.open(roll_log, roller, name, :heal, "descanso corto (1d#{hit_die})")
+          rolled = r.(hit_die) + con_mod
+          RollLog.close(close, total: rolled, against: nil, outcome: nil)
           applied = min(rolled, max_hp - hp)
 
           {:ok,
-           "#{name} takes a short rest and recovers #{applied} hp (1d#{hit_die}#{signed(con_mod)} = #{rolled}, now #{hp + applied}/#{max_hp}).",
+           "#{name} hace un descanso corto y recupera #{applied} pg (1d#{hit_die}#{signed(con_mod)} = #{rolled}, ahora #{hp + applied}/#{max_hp}).",
            World.heal(name, applied)}
         end
     end
@@ -267,11 +292,11 @@ defmodule Dragones.Actions do
   def long_rest(world, name) do
     case World.character(world, name) do
       nil ->
-        {:error, "no such character: #{name}"}
+        {:error, "no existe el personaje: #{name}"}
 
       %Character{hp: hp, max_hp: max_hp} ->
         if hp <= 0 do
-          {:error, "#{name} is down and cannot rest"}
+          {:error, "#{name} está caído y no puede descansar"}
         else
           healed = max_hp - hp
 
@@ -282,7 +307,7 @@ defmodule Dragones.Actions do
           end
 
           {:ok,
-           "#{name} takes a long rest and recovers #{healed} hp (#{hp} → #{max_hp}, full restore). Spell slots recovered.",
+           "#{name} hace un descanso largo y recupera #{healed} pg (#{hp} → #{max_hp}, recuperación completa). Casillas de hechizo recuperadas.",
            change}
         end
     end
@@ -293,118 +318,142 @@ defmodule Dragones.Actions do
   `d20 + ability modifier` and reports success/failure. No world side-effect —
   the DM narrates the consequences and may then call other tools.
   """
-  @spec check(World.t(), String.t(), atom(), integer(), boolean(), roller(), :normal | :advantage | :disadvantage) :: result()
-  def check(world, who, ability, dc, proficient, roller, mode \\ :normal) do
+  @spec check(World.t(), String.t(), atom(), integer(), boolean(), roller(), :normal | :advantage | :disadvantage, RollLog.t() | nil) :: result()
+  def check(world, who, ability, dc, proficient, roller, mode \\ :normal, roll_log \\ nil) do
     case World.character(world, who) do
       nil ->
-        {:error, "no such character: #{who}"}
+        {:error, "no existe el personaje: #{who}"}
 
       %Character{} = c ->
-        {d20, total, success?} = Combat.ability_check(c, ability, dc, roller, proficient, mode)
+        {r, close} = RollLog.open(roll_log, roller, who, :check, "chequeo de #{ability_es(ability)}")
+        {d20, total, success?} = Combat.ability_check(c, ability, dc, r, proficient, mode)
+        RollLog.close(close, total: total, against: {:dc, dc}, outcome: if(success?, do: :success, else: :failure))
+
         mod = Character.modifier(c, ability)
         prof = if proficient, do: Ability.proficiency(c.level), else: 0
-        verdict = if success?, do: "success", else: "failure"
+        verdict = if success?, do: "éxito", else: "fallo"
 
         parts =
           ["d20 #{d20}"]
           |> then(fn p -> if mod != 0, do: p ++ ["#{signed(mod)} (#{ability})"], else: p end)
-          |> then(fn p -> if prof != 0, do: p ++ ["#{prof} (prof)"], else: p end)
+          |> then(fn p -> if prof != 0, do: p ++ ["#{prof} (competencia)"], else: p end)
 
         {:ok,
-         "#{who} makes a #{ability_label(ability)} check#{mode_tag(mode)}: #{Enum.join(parts, " + ")} = #{total} vs DC #{dc} — #{verdict}.",
+         "#{who} hace un chequeo de #{ability_es(ability)}#{mode_tag(mode)}: #{Enum.join(parts, " + ")} = #{total} vs CD #{dc} — #{verdict}.",
          noop()}
     end
   end
 
   # ------------------------------------------------------------- spell helpers
 
-  defp resolve_spell(c, caster_name, t, target_name, spell, roller) do
+  defp resolve_spell(c, caster_name, t, target_name, spell, roller, roll_log) do
     case spell.kind do
       :automatic ->
-        amount = dice(spell, roller)
+        {r, close} = RollLog.open(roll_log, roller, caster_name, :spell, "conjura #{spell.name}")
+
+        amount =
+          case spell do
+            %{dice: nil} -> 0
+            %{dice: expr} -> Dice.roll_expr(expr, r)
+          end
 
         cond do
           # Healing spell: no damage_type but has dice → heal the target
           spell.damage_type == nil and amount > 0 ->
-            # Add casting ability modifier to healing (5e: spell save DC modifier applies)
             cast_mod = Character.modifier(c, spell.casting_ability)
             total_heal = amount + cast_mod
+            RollLog.close(close, kind: :heal, reason: "curación de #{spell.name}", total: total_heal, outcome: nil)
 
             {:ok,
-             "#{caster_name} casts #{spell.name}; #{target_name} is healed for #{total_heal} hp (#{amount} + #{cast_mod}).",
+             "#{caster_name} conjura #{spell.name}; #{target_name} se cura #{total_heal} pg (#{amount} + #{cast_mod}).",
              World.heal(target_name, total_heal)}
 
           # Damage spell (magic missile, etc.)
           amount > 0 ->
             verb = spell_damage_verb(spell, amount)
+            RollLog.close(close, kind: :damage, reason: "daño de #{spell.name} (#{spell.damage_type})", total: amount, outcome: nil)
 
             {:ok,
-             "#{caster_name} casts #{spell.name}; #{target_name} takes #{amount} #{spell.damage_type}#{verb}.",
+             "#{caster_name} conjura #{spell.name}; #{target_name} recibe #{amount} de daño #{spell.damage_type}#{verb}.",
              World.apply_damage(target_name, amount)}
 
           # Utility spell (shield, bless, etc.): no dice → just report
           true ->
+            RollLog.close(close, total: 0, outcome: nil)
+
             {:ok,
-             "#{caster_name} casts #{spell.name} on #{target_name}. #{spell.effect || ""}",
+             "#{caster_name} conjura #{spell.name} sobre #{target_name}. #{spell.effect || ""}",
              noop()}
         end
 
       :attack ->
         bonus = Combat.spell_attack_bonus(c, spell)
-        d20 = roller.(20)
-        total = d20 + bonus
 
-        if d20 == 20 or (d20 != 1 and total >= t.ac) do
-          dmg = dice(spell, roller)
+        {r, close_atk} = RollLog.open(roll_log, roller, caster_name, :attack, "ataque con #{spell.name}")
+        d20 = r.(20)
+        total = d20 + bonus
+        hit? = d20 == 20 or (d20 != 1 and total >= t.ac)
+        RollLog.close(close_atk, total: total, against: {:ac, t.ac}, outcome: if(d20 == 20, do: :crit, else: (if hit?, do: :hit, else: :miss)))
+
+        if hit? do
+          {r2, close_dmg} = RollLog.open(roll_log, roller, caster_name, :damage, "daño de #{spell.name} (#{spell.damage_type})")
+          dmg = dice_with(spell, r2)
+          RollLog.close(close_dmg, total: dmg, against: nil, outcome: nil)
 
           {:ok,
-           "#{caster_name} casts #{spell.name}; hits #{target_name} (d20 #{d20}: #{total} vs AC #{t.ac}) for #{dmg} #{spell.damage_type}.",
+           "#{caster_name} conjura #{spell.name}; impacta a #{target_name} (d20 #{d20}: #{total} vs CA #{t.ac}) por #{dmg} de daño #{spell.damage_type}.",
            World.apply_damage(target_name, dmg)}
         else
           {:ok,
-           "#{caster_name} casts #{spell.name}; misses #{target_name} (d20 #{d20}: #{total} vs AC #{t.ac}).",
+           "#{caster_name} conjura #{spell.name}; falla contra #{target_name} (d20 #{d20}: #{total} vs CA #{t.ac}).",
            noop()}
         end
 
       :save ->
         dc = Combat.spell_save_dc(c, spell)
-        {d20, stotal, success?} = Combat.saving_throw(t, spell.save_ability, dc, roller)
-        full = dice(spell, roller)
+
+        {r, close_save} = RollLog.open(roll_log, roller, target_name, :save, "salvación de #{ability_es(spell.save_ability)} contra #{spell.name}")
+        {d20, stotal, success?} = Combat.saving_throw(t, spell.save_ability, dc, r)
+        RollLog.close(close_save, total: stotal, against: {:dc, dc}, outcome: if(success?, do: :success, else: :failure))
+
+        {r2, close_dmg} = RollLog.open(roll_log, roller, caster_name, :damage, "daño de #{spell.name} (#{spell.damage_type})")
+        full = dice_with(spell, r2)
+        RollLog.close(close_dmg, total: full, against: nil, outcome: nil)
+
         dmg = if success?, do: div(full, 2), else: full
 
         verdict =
           if success?,
-            do: "saves (d20 #{d20}: #{stotal} vs DC #{dc}), half",
-            else: "fails (d20 #{d20}: #{stotal} vs DC #{dc})"
+            do: "supera la salvación (d20 #{d20}: #{stotal} vs CD #{dc}), mitad de daño",
+            else: "falla la salvación (d20 #{d20}: #{stotal} vs CD #{dc})"
 
         {:ok,
-         "#{caster_name} casts #{spell.name}; #{target_name} #{verdict} — #{dmg} #{spell.damage_type}.",
+         "#{caster_name} conjura #{spell.name}; #{target_name} #{verdict} — #{dmg} de daño #{spell.damage_type}.",
          World.apply_damage(target_name, dmg)}
     end
   end
 
-  defp dice(%{dice: nil}, _roller), do: 0
-  defp dice(%{dice: expr}, roller), do: Dice.roll_expr(expr, roller)
+  defp dice_with(%{dice: nil}, _roller), do: 0
+  defp dice_with(%{dice: expr}, roller), do: Dice.roll_expr(expr, roller)
 
-  defp spell_damage_verb(%{name: "magic missile"}, _dmg), do: " (3 darts of force)"
+  defp spell_damage_verb(%{name: "magic missile"}, _dmg), do: " (3 dardos de fuerza)"
   defp spell_damage_verb(_spell, _dmg), do: ""
 
   defp describe_death_save(name, {:revive, _d20, _, _}),
-    do: "#{name} rolls a natural 20 — revives at 1 hp!"
+    do: "#{name} saca un 20 natural — ¡revive con 1 pg!"
 
   defp describe_death_save(name, {:crit_fail, 1, _, _}),
-    do: "#{name} rolls a natural 1 — two death-save failures!"
+    do: "#{name} saca un 1 natural — ¡dos fallos de salvación de muerte!"
 
   defp describe_death_save(name, {:fail, d20, _, _}),
-    do: "#{name} rolls #{d20} — one death-save failure."
+    do: "#{name} saca #{d20} — un fallo de salvación de muerte."
 
   defp describe_death_save(name, {:success, d20, _, _}),
-    do: "#{name} rolls #{d20} — one death-save success."
+    do: "#{name} saca #{d20} — un éxito de salvación de muerte."
 
   # ----------------------------------------------------------------- helpers
 
-  defp find_weapon(%Character{weapons: weapons}, name),
-    do: Enum.find(weapons, &(&1.name == name))
+  defp find_weapon(%Character{weapons: weapons}, name), do: match_named(weapons, name)
 
   defp hit_die_for("barbarian"), do: 12
   defp hit_die_for(c) when c in ~w(fighter paladin ranger), do: 10
@@ -412,8 +461,22 @@ defmodule Dragones.Actions do
   defp hit_die_for(c) when c in ~w(sorcerer wizard), do: 6
   defp hit_die_for(_), do: 8
 
-  defp find_spell(%Character{spells: spells}, name),
-    do: Enum.find(spells, &(&1.name == name))
+  defp find_spell(%Character{spells: spells}, name), do: match_named(spells, name)
+
+  # Fuzzy name lookup for weapons/spells: the LLM often says "sword" for
+  # "longsword", "firebolt" for "fire bolt", or varies casing. We match
+  # case/space-insensitively first, then fall back to a substring containment
+  # (both directions) so a short or approximate name still resolves.
+  defp match_named(items, name) do
+    norm = fn s -> s |> String.downcase() |> String.replace(~r/[\s_-]+/, "") end
+    n = norm.(name)
+
+    Enum.find(items, &(norm.(&1.name) == n)) ||
+      Enum.find(items, fn item ->
+        iname = norm.(item.name)
+        String.contains?(iname, n) or String.contains?(n, iname)
+      end)
+  end
 
   defp noop, do: fn w -> {:ok, w} end
 
@@ -422,18 +485,32 @@ defmodule Dragones.Actions do
   defp signed(n) when n >= 0, do: "+#{n}"
   defp signed(n), do: "#{n}"
 
-  defp mode_tag(:advantage), do: " (advantage)"
-  defp mode_tag(:disadvantage), do: " (disadvantage)"
+  defp mode_tag(:advantage), do: " (ventaja)"
+  defp mode_tag(:disadvantage), do: " (desventaja)"
   defp mode_tag(_), do: ""
 
-  @abilities %{
-    str: "Strength",
-    dex: "Dexterity",
-    con: "Constitution",
-    int: "Intelligence",
-    wis: "Wisdom",
-    cha: "Charisma"
+  @abilities_es %{
+    str: "Fuerza",
+    dex: "Destreza",
+    con: "Constitución",
+    int: "Inteligencia",
+    wis: "Sabiduría",
+    cha: "Carisma"
   }
 
-  defp ability_label(a) when is_atom(a), do: Map.get(@abilities, a, inspect(a))
+  # Spanish label for roll reasons (shown to players in the chat & dice modal).
+  defp ability_es(a) when is_atom(a), do: Map.get(@abilities_es, a, inspect(a))
+  defp ability_es(s) when is_binary(s), do: ability_es(parse_ability_atom(s))
+
+  defp parse_ability_atom(s) do
+    case to_string(s) |> String.downcase() do
+      "str" <> _ -> :str
+      "dex" <> _ -> :dex
+      "con" <> _ -> :con
+      "int" <> _ -> :int
+      "wis" <> _ -> :wis
+      "cha" <> _ -> :cha
+      _ -> :str
+    end
+  end
 end

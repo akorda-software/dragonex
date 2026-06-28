@@ -38,7 +38,7 @@ defmodule Dragones.ActionsTest do
 
     test "misses on a nat 1 (no damage)", %{world: w} do
       assert {:ok, msg, change} = Actions.attack(w, "Thane", "goblin", "longsword", always(1))
-      assert msg =~ "miss"
+      assert msg =~ "fallo"
       {:ok, w2} = change.(w)
       assert w2.characters["goblin"].hp == 15
     end
@@ -46,7 +46,7 @@ defmodule Dragones.ActionsTest do
     test "hits and applies damage on a normal hit", %{world: w} do
       # longsword +5 (str 3 + prof 2). seq: d20=10 -> 15 vs AC 12 hit; d8=4 +3 = 7.
       assert {:ok, msg, change} = Actions.attack(w, "Thane", "goblin", "longsword", seq([10, 4]))
-      assert msg =~ "hits"
+      assert msg =~ "acierta"
       {:ok, w2} = change.(w)
       assert w2.characters["goblin"].hp == 15 - 7
     end
@@ -56,19 +56,47 @@ defmodule Dragones.ActionsTest do
       assert {:ok, msg, change} =
                Actions.attack(w, "Thane", "goblin", "longsword", seq([20, 4, 4]))
 
-      assert msg =~ "CRITS"
+      assert msg =~ "CRÍTICO"
       {:ok, w2} = change.(w)
       assert w2.characters["goblin"].hp == 15 - 11
     end
 
     test "errors on unknown attacker / target / weapon", %{world: w} do
-      assert {:error, "no such attacker: ghost"} =
+      assert {:error, "no existe el atacante: ghost"} =
                Actions.attack(w, "ghost", "goblin", "longsword", always(10))
 
-      assert {:error, "no such target: ogre"} =
+      assert {:error, "no existe el objetivo: ogre"} =
                Actions.attack(w, "Thane", "ogre", "longsword", always(10))
 
       assert {:error, _} = Actions.attack(w, "Thane", "goblin", "greatsword", always(10))
+    end
+
+    test "fuzzy-matches the weapon name (case/space-insensitive, substring)", %{world: w} do
+      # The LLM often says "sword" for "longsword" or varies casing/spacing.
+      # Each resolves to the longsword; d20=10 -> 15 vs AC 12 hit, d8=4 +3 = 7.
+      for weapon <- ["sword", "Longsword", "LONG SWORD"] do
+        assert {:ok, msg, _change} = Actions.attack(w, "Thane", "goblin", weapon, seq([10, 4]))
+        assert msg =~ "acierta"
+      end
+    end
+
+    test "logs a structured attack group + damage group when given a RollLog", %{world: w} do
+      alias Dragones.RollLog
+      {:ok, rec} = RollLog.start()
+      log = %RollLog{base: seq([10, 4]), recorder: rec}
+
+      # seq: d20=10 -> 15 vs AC 12 hit; d8=4 +3 = 7.
+      assert {:ok, _msg, _change} = Actions.attack(w, "Thane", "goblin", "longsword", seq([10, 4]), :normal, log)
+
+      [atk, dmg] = RollLog.entries(rec)
+      assert atk.who == "Thane" and atk.kind == :attack
+      assert atk.dice == [[20, 10]] and atk.total == 15 and atk.against == ["ac", 12]
+      assert atk.outcome == :hit
+
+      assert dmg.kind == :damage
+      assert dmg.dice == [[8, 4]] and dmg.total == 7
+
+      RollLog.stop(rec)
     end
 
     test "finesse weapon uses the higher of str/dex", %{world: w} do
@@ -115,7 +143,7 @@ defmodule Dragones.ActionsTest do
     test ":attack spell hits on a high roll (firebolt 1d10)", %{world: w} do
       # firebolt spell attack: prof 2 + int 3 = +5. seq: d20=10 -> 15 vs AC 12 hit; d10=6.
       assert {:ok, msg, change} = Actions.spell(w, "Lyra", "firebolt", "goblin", seq([10, 6]))
-      assert msg =~ "hits"
+      assert msg =~ "impacta"
       {:ok, w2} = change.(w)
       assert w2.characters["goblin"].hp == 20 - 6
     end
@@ -123,7 +151,7 @@ defmodule Dragones.ActionsTest do
     test ":attack spell misses on a low roll", %{world: w} do
       # d20 4 -> 4 + 5 = 9 vs AC 12 -> miss.
       assert {:ok, msg, change} = Actions.spell(w, "Lyra", "firebolt", "goblin", always(4))
-      assert msg =~ "misses"
+      assert msg =~ "falla contra"
       {:ok, w2} = change.(w)
       assert w2.characters["goblin"].hp == 20
     end
@@ -173,14 +201,14 @@ defmodule Dragones.ActionsTest do
       w = then_apply(w, then_change(Actions.death_save(w, "hero", always(5))))
       refute World.dead?(w, "hero")
       {:ok, msg, change} = Actions.death_save(w, "hero", always(5))
-      assert msg =~ "failure"
+      assert msg =~ "fallo"
       {:ok, w2} = change.(w)
       assert World.dead?(w2, "hero")
     end
 
     test "nat 20 revives at 1 hp", %{world: w} do
       assert {:ok, msg, change} = Actions.death_save(w, "hero", always(20))
-      assert msg =~ "revives"
+      assert msg =~ "revive"
       {:ok, w2} = change.(w)
       assert w2.characters["hero"].hp == 1
       refute World.down?(w2, "hero")
@@ -189,13 +217,13 @@ defmodule Dragones.ActionsTest do
     test "refuses a character that isn't down", %{world: w} do
       up = Character.new(name: "up", class: "fighter", hp: 10, max_hp: 12, side: "pc")
       w = then_apply(w, World.add_character(up))
-      assert {:error, "up is not down (hp 10)"} = Actions.death_save(w, "up", always(10))
+      assert {:error, "up no está caído (pg 10)"} = Actions.death_save(w, "up", always(10))
     end
   end
 
   describe "roll/4" do
     test "normal sum" do
-      assert {:ok, "rolled 2d6 = 8"} = Actions.roll(2, 6, :normal, always(4))
+      assert {:ok, "tirada 2d6 = 8"} = Actions.roll(2, 6, :normal, always(4))
     end
 
     test "advantage keeps the higher of two" do
@@ -212,7 +240,7 @@ defmodule Dragones.ActionsTest do
 
       # 1d8 roller 8 -> 8, but only 2 hp to max -> applied 2.
       assert {:ok, msg, change} = Actions.heal(w, "hero", "1d8", always(8))
-      assert msg =~ "healed for 2 hp"
+      assert msg =~ "se cura 2 pg"
       {:ok, w2} = change.(w)
       assert w2.characters["hero"].hp == 12
     end
@@ -238,7 +266,7 @@ defmodule Dragones.ActionsTest do
     end
 
     test "errors on an unknown target" do
-      assert {:error, "no such character: ghost"} =
+      assert {:error, "no existe el personaje: ghost"} =
                Actions.heal(World.new(), "ghost", "1d8", always(5))
     end
   end
@@ -250,12 +278,12 @@ defmodule Dragones.ActionsTest do
 
       # STR 16 (+3). d20 12 -> 15 vs DC 15 -> success.
       assert {:ok, msg, change} = Actions.check(w, "Thane", :str, 15, false, always(12))
-      assert msg =~ "Strength check"
+      assert msg =~ "chequeo de Fuerza"
       assert msg =~ "d20 12"
       assert msg =~ "+3"
       assert msg =~ "= 15"
-      assert msg =~ "DC 15"
-      assert msg =~ "success"
+      assert msg =~ "CD 15"
+      assert msg =~ "éxito"
       # A check has no world side-effect.
       {:ok, w2} = change.(w)
       assert w2 == w
@@ -265,11 +293,11 @@ defmodule Dragones.ActionsTest do
       f = Archetypes.fighter()
       w = then_apply(World.new(), World.add_character(f))
       {:ok, msg, _} = Actions.check(w, "Thane", :dex, 12, false, always(10))
-      refute msg =~ "prof"
+      refute msg =~ "competencia"
     end
 
     test "errors on an unknown character" do
-      assert {:error, "no such character: ghost"} =
+      assert {:error, "no existe el personaje: ghost"} =
                Actions.check(World.new(), "ghost", :str, 10, false, always(10))
     end
   end

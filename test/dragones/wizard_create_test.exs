@@ -8,7 +8,7 @@ defmodule Dragones.WizardCreateTest do
     :ok
   end
 
-  test "builds a roster from wizard params and begins combat (monsters first)" do
+  test "builds a roster from wizard params and opens in exploration" do
     params = %{
       "title" => "La Ruina",
       "scene" => "una ruina iluminada por antorchas",
@@ -26,9 +26,10 @@ defmodule Dragones.WizardCreateTest do
 
     world = Games.load_world(game)
     assert world.scene == "una ruina iluminada por antorchas"
-    assert world.phase == :combat
-    # Monsters first in initiative (DM auto-acts on open), then the PC.
-    assert world.initiative_order == ["goblin", "Thane"]
+    # The partida opens in exploration; combat (and initiative) begins only when
+    # the DM calls roll_initiative, not pre-baked at creation.
+    assert world.phase == :exploration
+    assert world.initiative_order == []
 
     reloaded = Games.get_game(game.id)
     assert Enum.find(reloaded.participants, &(&1.name == "Thane")).kind == :human

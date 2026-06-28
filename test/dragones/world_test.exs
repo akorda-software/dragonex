@@ -101,6 +101,26 @@ defmodule Dragones.WorldTest do
       w = apply!(w, World.end_combat())
       assert w.phase == :exploration
     end
+
+    test "join_initiative appends a reinforcement mid-combat", %{world: w} do
+      w = apply!(w, World.begin_combat(["rogue", "goblin"]))
+      orc = Character.new(name: "orc", class: "monster", hp: 15, max_hp: 15, side: "enemy")
+      w = apply!(w, World.add_character(orc))
+      w = apply!(w, World.join_initiative("orc"))
+      assert w.initiative_order == ["rogue", "goblin", "orc"]
+    end
+
+    test "join_initiative is a no-op outside combat", %{world: w} do
+      # No begin_combat — still exploration.
+      w = apply!(w, World.join_initiative("goblin"))
+      assert w.initiative_order == []
+    end
+
+    test "join_initiative is idempotent", %{world: w} do
+      w = apply!(w, World.begin_combat(["rogue", "goblin"]))
+      w = apply!(w, World.join_initiative("goblin"))
+      assert w.initiative_order == ["rogue", "goblin"]
+    end
   end
 
   describe "combat_over?/1" do

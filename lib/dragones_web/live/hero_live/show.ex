@@ -49,7 +49,10 @@ defmodule DragonesWeb.HeroLive.Show do
 
       <%= if @sheet do %>
         <h1>{@sheet.name}</h1>
-        <div class="role">{String.capitalize(@sheet.race)} · {String.capitalize(@sheet.class)} · Nivel {@sheet.level}</div>
+        <div class="role">
+          {String.capitalize(@sheet.race)} · {String.capitalize(@sheet.class)} · Nivel {@sheet.level}
+          <span :if={@sheet.sex}>· {String.capitalize(@sheet.sex)}</span>
+        </div>
 
         <div class="sheet">
           <div class="section-label">Atributos</div>

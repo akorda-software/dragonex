@@ -30,7 +30,7 @@ defmodule Dragones.Game do
   use GenServer
   require Logger
 
-  alias Dragones.{DM, Games, PCAgent}
+  alias Dragones.{DM, Games, PCAgent, RollLog}
   alias Dragones.TurnPolicy.WorldDriven
   alias ExAgent.{Server, Session}
   alias ExAgent.Session.{Participant, SharedState}
@@ -321,6 +321,9 @@ defmodule Dragones.Game do
       participants: state.participants,
       # Pending declared intents {name => text} — the UI shows each viewer's plan.
       intents: state.intents,
+      # Human participants currently auto-played by an agent (so the toggle
+      # reflects real engine state across reloads / multiple tabs).
+      auto: auto_humans(state),
       # The chat timeline: recent visible events, oldest-first. Bundled here so
       # the LiveView renders purely from the snapshot (no direct Repo access).
       events: Games.recent_events(state.game_id, 50)
@@ -412,7 +415,20 @@ defmodule Dragones.Game do
             )
 
           state = %{state | pc_agents: Map.put(state.pc_agents, participant, pid)}
+
+          # If we're auto-enabling on the human's OWN waiting turn, the loop is
+          # parked in :waiting and advance() no-ops on non-:running status — the
+          # tick would do nothing and the game wedges. Flip to :running so the
+          # PCAgent actually plays this turn (mirrors consume_intent).
+          state =
+            if state.status == :waiting and Session.current(state.session) == participant do
+              %{state | status: :running}
+            else
+              state
+            end
+
           send(self(), @tick)
+          broadcast_updated(state)
           {:reply, :ok, state}
         else
           {:reply, {:error, :not_found}, state}
@@ -432,7 +448,9 @@ defmodule Dragones.Game do
         _ -> :ok
       end
 
-      {:reply, :ok, %{state | pc_agents: Map.delete(state.pc_agents, participant)}}
+      state = %{state | pc_agents: Map.delete(state.pc_agents, participant)}
+      broadcast_updated(state)
+      {:reply, :ok, state}
     else
       {:reply, :ok, state}
     end
@@ -525,16 +543,38 @@ defmodule Dragones.Game do
 
   defp handle_beat_result(state, result) do
     current = state.busy.participant
+    # The phase the beat STARTED in. A beat that began in exploration may flip
+    # into combat (the DM rolled initiative) — that's the combat-START beat, not
+    # a wrap, so round advancement must ignore it.
+    beat_phase = Map.get(state.busy, :phase)
     state = %{state | busy: nil}
 
     case result do
-      {:ok, narration, usage} ->
+      {:ok, narration, rolls, usage} ->
         {:ok, _} = Session.end_turn(state.session, current)
+
+        # Surface every die roll of the beat BEFORE the narration, each with who
+        # rolled, why, the dice, the total, what it contested against and the
+        # outcome (hit/miss/save/fail …). The chat reads: action → rolls → DM prose.
+        for entry <- rolls do
+          {:ok, _} = Games.append_event(state.game_id, :dice, current, "all", entry)
+        end
+
+        # Send the structured roll groups to the dice modal so it can show each
+        # roll labeled and comparison-aware (attacker vs AC, saver vs DC …)
+        # instead of one meaningless pile of dice.
+        if rolls != [], do: broadcast_dice_groups(state.game_id, rolls)
+
         {:ok, _} = Games.append_event(state.game_id, :narration, "dm", "all", %{text: narration})
 
         # Log the prompt-caching win (cached vs total input tokens) so the cost
         # saving is visible. Best-effort: a missing usage map just logs nothing.
         log_token_usage(state.game_id, usage)
+
+        # Engine-driven combat bookkeeping the DM used to have to remember (and
+        # often forgot, leaving combat wedged or the round counter stuck):
+        state = maybe_end_combat(state)
+        maybe_advance_round(state, current, beat_phase)
 
         persist(state, :running)
         broadcast_updated(state)
@@ -546,7 +586,7 @@ defmodule Dragones.Game do
 
         {:ok, _} =
           Games.append_event(state.game_id, :system, "system", "dm", %{
-            note: "beat failed: #{inspect(reason)}"
+            note: "el turno falló: #{inspect(reason)}"
           })
 
         # Stay on the same participant but pause, so a crash doesn't loop.
@@ -574,18 +614,34 @@ defmodule Dragones.Game do
   defp run_beat(%{session: session, roller: roller} = state, participant, instruction) do
     agent = agent_for(state, participant)
     world = Session.read_state(session)
-    prompt = DM.turn_prompt(world, participant, instruction, "dm")
-    deps = %{state: SharedState.new(session, participant), roller: roller}
+    # name -> :ai | :human, so the DM knows who auto-acts and who waits for input.
+    kinds = state.participants |> Map.new(fn {n, p} -> {n, p.kind} end)
+    prompt = DM.turn_prompt(world, participant, instruction, "dm", kinds)
+    shared = SharedState.new(session, participant)
 
     task =
       Task.Supervisor.async_nolink(ExAgent.TaskSupervisor, fn ->
-        case Server.chat(agent, prompt, deps: deps) do
-          {:ok, %{output: narration, usage: usage}} -> {:ok, narration, usage}
-          {:error, reason} -> {:error, reason}
-        end
+        # One recorder per beat (linked to this Task, so it can never outlive it).
+        # It is addressed by pid, so it crosses the process boundary between this
+        # beat Task and ExAgent's run Task / parallel tool tasks unscathed.
+        {:ok, recorder} = RollLog.start()
+        roll_log = %RollLog{base: roller, recorder: recorder}
+        deps = %{state: shared, roller: roller, roll_log: roll_log}
+
+        result =
+          case Server.chat(agent, prompt, deps: deps) do
+            {:ok, %{output: narration, usage: usage}} ->
+              {:ok, narration, RollLog.entries(recorder), usage}
+
+            {:error, reason} ->
+              {:error, reason}
+          end
+
+        RollLog.stop(recorder)
+        result
       end)
 
-    %{state | busy: %{ref: task.ref, participant: participant}}
+    %{state | busy: %{ref: task.ref, participant: participant, phase: world.phase}}
   end
 
   # Select the right agent for a turn: AI PCs have their own agent; everything
@@ -607,6 +663,16 @@ defmodule Dragones.Game do
     name != "dm" and Map.has_key?(agents, name)
   end
 
+  # The subset of pc_agents that are auto-played HUMANS (not original AI PCs).
+  # This is what the LiveView toggle reflects, so it survives reloads and stays
+  # consistent across viewers.
+  defp auto_humans(%{pc_agents: agents} = state) do
+    agents
+    |> Map.keys()
+    |> Enum.filter(&human?(state, &1))
+    |> MapSet.new()
+  end
+
   defp world_character(%{session: session}, name) do
     world = Session.read_state(session)
     Map.get(world.characters, name)
@@ -614,15 +680,58 @@ defmodule Dragones.Game do
 
   defp human_instruction(name, text),
     do:
-      "It is #{name}'s turn. You are proposing AS #{name}: in EVERY tool call the " <>
-        "attacker/caster/who MUST be \"#{name}\" (never a monster — a monster acting now is " <>
-        "REFUSED). #{name} (a player character) declares: \"#{if text == "", do: "(passes)", else: text}\". " <>
-        "Resolve it by the rules (call the right tool with \"#{name}\" as the actor), then narrate."
+      "Es el turno de #{name}. Estás proponiendo COMO #{name}: en CADA llamada a una herramienta " <>
+        "el atacante/conjurador/quien DEBE ser \"#{name}\" (nunca un monstruo — que un monstruo actúe " <>
+        "ahora es RECHAZADO). #{name} (un personaje jugador) declara: \"#{if text == "", do: "(pasa)", else: text}\". " <>
+        "Resuélvelo por las reglas (llama a la herramienta adecuada con \"#{name}\" como actor) y luego narra. Responde en castellano."
 
   defp dm_instruction,
     do:
-      "Act for any monsters/NPCs whose turn it is (call the tools), then narrate. " <>
-        "Advance the scene."
+      "Actúa por cualquier monstruo/PNJ cuyo turno sea (llama a las herramientas), luego narra. " <>
+        "Haz avanzar la escena. Responde en castellano."
+
+  # Engine-driven combat resolution. The DM used to be solely responsible for
+  # calling end_combat when every enemy was down — and frequently forgot, leaving
+  # the loop cycling turns through dead enemies. Now the engine ends combat the
+  # moment `World.combat_over?/1` is true (at most one conscious side left).
+  defp maybe_end_combat(state) do
+    world = Session.read_state(state.session)
+
+    if world.phase == :combat and Dragones.World.combat_over?(world) do
+      with next when not is_nil(next) <- Session.current(state.session),
+           {:ok, _} <- Session.update_state(state.session, next, Dragones.World.end_combat()) do
+        {:ok, _} =
+          Games.append_event(state.game_id, :system, "system", "all", %{note: "⚔ El combate termina."})
+      end
+    end
+
+    state
+  end
+
+  # Advance the round counter when the initiative cycle wraps. A round = one
+  # full pass through the (living) combatants; we detect the wrap statelessly:
+  # the participant who just acted was the LAST in the cycle and there's more
+  # than one combatant. `beat_phase` excludes the combat-START beat (which began
+  # in exploration and may falsely look like a wrap). No-op once combat has
+  # ended above. Keeps `world.round` honest so the DM brief stays accurate.
+  defp maybe_advance_round(state, acted, :combat) do
+    world = Session.read_state(state.session)
+
+    if world.phase == :combat do
+      cycle = Dragones.TurnPolicy.WorldDriven.combat_participants(world, "dm")
+
+      if length(cycle) > 1 and acted == List.last(cycle) do
+        with next when not is_nil(next) <- Session.current(state.session),
+             {:ok, _} <- Session.update_state(state.session, next, Dragones.World.next_round()) do
+          :ok
+        end
+      end
+    end
+
+    :ok
+  end
+
+  defp maybe_advance_round(_state, _acted, _beat_phase), do: :ok
 
   # Persist the live state to Postgres: world jsonb + turn position + status +
   # the pending intents (so a player's declared plan survives a restart).
@@ -652,6 +761,14 @@ defmodule Dragones.Game do
   # Best-effort: a pubsub hiccup must never break the loop.
   defp broadcast_updated(%__MODULE__{game_id: game_id}) do
     Phoenix.PubSub.broadcast(@pubsub, topic(game_id), {:game_updated, game_id})
+  rescue
+    _ -> :ok
+  end
+
+  # Send this beat's structured roll groups to the dice modal (each labeled with
+  # who/why/dice/total/against/outcome). Best-effort, like broadcast_updated/1.
+  defp broadcast_dice_groups(game_id, rolls) do
+    Phoenix.PubSub.broadcast(@pubsub, topic(game_id), {:dice_groups, game_id, rolls})
   rescue
     _ -> :ok
   end

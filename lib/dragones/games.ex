@@ -64,7 +64,7 @@ defmodule Dragones.Games do
       case Repo.insert(changeset) do
         {:ok, game} ->
           # Seed the opening scene as the first timeline event.
-          append_event(game.id, :system, "system", "all", %{note: "game created"})
+          append_event(game.id, :system, "system", "all", %{note: "partida creada"})
           append_event(game.id, :narration, "dm", "all", %{text: opening_for(scene)})
 
           game
@@ -82,8 +82,8 @@ defmodule Dragones.Games do
   `roster` map keyed by catalogue key OR hero id (prefixed `hero_`):
   `%{key => %{"include" => "on", "kind" => "human" | "ai"}}`. Catalogue entries
   resolve to their sheet builder; hero entries load the saved sheet from DB;
-  monsters ignore `kind` (always DM-controlled). Combat begins when at least one
-  monster AND one PC are picked, with monsters first in the order.
+  monsters ignore `kind` (always DM-controlled). The partida opens in
+  free-form exploration: combat starts only when the DM calls roll_initiative.
   """
   @spec create_from_wizard(map()) :: {:ok, Game.t()} | {:error, term()}
   def create_from_wizard(params) when is_map(params) do
@@ -103,23 +103,11 @@ defmodule Dragones.Games do
     if roster == [] do
       {:error, :no_characters}
     else
-      pc? = Enum.any?(roster, fn {%Dragones.Character{side: s}, _} -> s == "pc" end)
-      monster? = Enum.any?(roster, fn {%Dragones.Character{side: s}, _} -> s == "enemy" end)
-
-      initiative =
-        if pc? and monster? do
-          roster
-          |> Enum.filter(fn {%Dragones.Character{side: s}, _} -> s == "enemy" end)
-          |> Enum.map(fn {%Dragones.Character{name: n}, _} -> n end)
-          |> Kernel.++(
-            roster
-            |> Enum.filter(fn {%Dragones.Character{side: s}, _} -> s == "pc" end)
-            |> Enum.map(fn {%Dragones.Character{name: n}, _} -> n end)
-          )
-        else
-          []
-        end
-
+      # New games open in free-form exploration: the DM narrates the scene and
+      # the players act, and combat begins naturally (the DM calls
+      # roll_initiative) when a fight breaks out. Pre-baking combat at creation
+      # left roll_initiative refusing "already in combat" and dropped players
+      # into a fight before the scene was even set.
       create_game(
         title: Map.get(params, "title", "Nueva partida"),
         scene: scene_from(roster, Map.get(params, "scene")),
@@ -127,7 +115,7 @@ defmodule Dragones.Games do
         dm_style: Map.get(params, "dm_style", "vivid but brief"),
         dice_engine: Map.get(params, "dice_engine", "2d"),
         roster: roster,
-        initiative: initiative,
+        initiative: [],
         user_id: user_id,
         open_slots: Map.get(params, "open_slots", 0)
       )
@@ -226,7 +214,7 @@ defmodule Dragones.Games do
     Dragones.Codec.encode(world)["characters"][c.name]
   end
 
-  defp opening_for(scene), do: "The scene is set: #{scene}."
+  defp opening_for(scene), do: "La escena está preparada: #{scene}."
 
   # --------------------------------------------------------------- reads
 

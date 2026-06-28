@@ -1,0 +1,137 @@
+defmodule Dragones.RollLog do
+  @moduledoc """
+  Collects structured, per-group roll records during a single beat so that every
+  die roll reaches the timeline with WHO rolled, WHY, the actual dice, the total,
+  what it was contested against, and whether it was effective (hit/miss/crit,
+  save/fail, …).
+
+  The unit of logging is a **roll group** — e.g. one attack's d20, one weapon's
+  damage dice, one saving throw, one ability check. A group is opened with a
+  reason and closed with the computed outcome; everything rolled in between (one
+  d20, or 2d6, or 2d20 under advantage) is attached to it.
+
+  ## Why an Agent (and per-group ids)
+
+  Tools do NOT run in the beat Task's process: `ExAgent.Server` runs each agent
+  turn in its own supervised Task, and `ExAgent` executes function tools in
+  **parallel** (`Task.async_stream`). So:
+
+    * a process dictionary is useless — the writer and the reader are different
+      processes, and the entries could never come back;
+    * a single "current group" slot would corrupt under concurrent tools.
+
+  The recorder is therefore a short-lived `Agent` (one per beat) addressed by
+  pid, and each open group gets a unique id with its own recording roller that
+  writes only to that group. `Dragones.Rules.Combat` stays pure — it keeps
+  taking a plain `(sides -> value)` roller; the `Dragones.Actions` layer is what
+  knows the semantics (attack vs damage vs save …) and opens/closes groups.
+
+  When no recorder is wired in (plain unit tests), `open/5` degrades to a
+  pass-through of the fallback roller, so `Actions` code is uniform and tests
+  stay unchanged.
+  """
+
+  @type die :: {pos_integer(), pos_integer()}
+
+  @type entry :: %{
+          who: String.t() | nil,
+          kind: atom(),
+          reason: String.t(),
+          dice: [die()],
+          total: number() | nil,
+          against: term() | nil,
+          outcome: atom() | nil
+        }
+
+  defstruct base: nil, recorder: nil
+
+  @type t :: %__MODULE__{
+          base: (pos_integer() -> pos_integer()) | nil,
+          recorder: pid() | nil
+        }
+
+  @doc "Start a per-beat recorder. Link it to the caller (the beat Task) so it dies with it."
+  @spec start() :: Agent.on_start()
+  def start, do: Agent.start_link(fn -> %{groups: %{}, entries: []} end)
+
+  @doc "All closed groups this beat, in the order they were closed."
+  @spec entries(pid()) :: [entry()]
+  def entries(recorder), do: Agent.get(recorder, & &1.entries)
+
+  @doc "Stop the recorder (called when the beat finishes)."
+  def stop(recorder), do: Agent.stop(recorder)
+
+  @doc """
+  Open a roll group and return `{roller, closer}`:
+
+    * `roller` — a `(sides -> value)` bound to THIS group; pass it to
+      `Rules.Combat` / `Dice`. Each die it rolls is recorded here.
+    * `closer` — `close.(opts)` finalizes the group with `:total`, `:against`
+      and `:outcome`, appending it to the log.
+
+  Pass `nil` for `log` (no recorder) and a fallback roller to get uniform,
+  no-op logging — useful for unit tests and any path that doesn't care.
+  """
+  @spec open(t() | nil, (pos_integer() -> pos_integer()), String.t() | nil, atom(), String.t()) ::
+          {(pos_integer() -> pos_integer()), (keyword() -> entry() | nil)}
+  def open(nil, fallback_roller, _who, _kind, _reason),
+    do: {fallback_roller, fn _opts -> nil end}
+
+  def open(%__MODULE__{base: base, recorder: rec}, _fallback, who, kind, reason) do
+    id = System.unique_integer([:positive])
+
+    :ok =
+      Agent.update(rec, fn s ->
+        put_in(s.groups[id], %{who: who, kind: kind, reason: reason, dice: []})
+      end)
+
+    roller = fn sides ->
+      value = base.(sides)
+
+      try do
+        Agent.update(rec, fn s -> update_in(s.groups[id].dice, &(&1 ++ [{sides, value}])) end)
+      catch
+        :exit, _ -> :ok
+      end
+
+      value
+    end
+
+    closer = fn opts -> close_group(rec, id, opts) end
+    {roller, closer}
+  end
+
+  @doc "Finalize a group's closer with `:total` / `:against` / `:outcome`."
+  @spec close((keyword() -> entry() | nil), keyword()) :: entry() | nil
+  def close(closer, opts) when is_function(closer, 1), do: closer.(opts)
+
+  defp normalize_against({:ac, n}), do: ["ac", n]
+  defp normalize_against({:dc, n}), do: ["dc", n]
+  defp normalize_against(other), do: other
+
+  defp close_group(rec, id, opts) do
+    Agent.get_and_update(rec, fn s ->
+      case get_in(s.groups, [id]) do
+        nil ->
+          {nil, s}
+
+        g ->
+          extra = opts |> Enum.into(%{}) |> Map.take([:total, :against, :outcome])
+
+          # Store a JSON-safe entry (the timeline persists it as jsonb): dice as
+          # [[sides, value]] and `against` as ["ac"|"dc", n] — no tuples.
+          entry = %{
+            who: g.who,
+            kind: g.kind,
+            reason: g.reason,
+            dice: Enum.map(g.dice, fn {s, v} -> [s, v] end),
+            total: extra[:total],
+            against: normalize_against(extra[:against]),
+            outcome: extra[:outcome]
+          }
+
+          {entry, %{s | groups: Map.delete(s.groups, id), entries: s.entries ++ [entry]}}
+      end
+    end)
+  end
+end

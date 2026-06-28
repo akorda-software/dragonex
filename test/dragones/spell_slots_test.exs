@@ -109,7 +109,7 @@ defmodule Dragones.SpellSlotsTest do
 
       # Third cast: no slots left
       assert {:error, msg} = Actions.spell(w3, "Lyra", "magic missile", "goblin", fixed(1))
-      assert msg =~ "no level-1 spell slots"
+      assert msg =~ "casillas de hechizo de nivel 1"
     end
 
     test "cantrip still works when slots are exhausted" do

@@ -24,10 +24,10 @@ defmodule Dragones.PCAgentTest do
 
       assert prompt =~ "Lyra"
       assert prompt =~ "elf"
-      assert prompt =~ "wizard"
+      assert prompt =~ "mago"
       assert prompt =~ "quarterstaff"
       assert prompt =~ "fire bolt"
-      assert prompt =~ "PERSONALITY"
+      assert prompt =~ "PERSONALIDAD"
     end
 
     test "each class gets a distinct personality" do
@@ -37,8 +37,8 @@ defmodule Dragones.PCAgentTest do
       rogue_prompt = PCAgent.system_prompt(rogue)
       paladin_prompt = PCAgent.system_prompt(paladin)
 
-      assert rogue_prompt =~ "cunning"
-      assert paladin_prompt =~ "honourable"
+      assert rogue_prompt =~ "astuto"
+      assert paladin_prompt =~ "honorable"
     end
   end
 
@@ -58,7 +58,7 @@ defmodule Dragones.PCAgentTest do
 
       assert instr =~ "longsword"
       assert instr =~ "javelin"
-      assert instr =~ "YOUR turn"
+      assert instr =~ "Es TU turno"
     end
 
     test "includes spells for casters" do
@@ -88,7 +88,7 @@ defmodule Dragones.PCAgentTest do
 
       instr = agent.instructions |> Enum.map(& &1.content) |> Enum.join("\n")
       assert instr =~ "Bryn"
-      assert instr =~ "fighter"
+      assert instr =~ "guerrero"
       assert length(agent.tools) > 0
     end
 

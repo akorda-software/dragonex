@@ -94,6 +94,32 @@ defmodule Dragones.TurnPolicy.WorldDriven do
 
   # ----------------------------------------------------------- helpers
 
+  @doc """
+  The combat turn cycle as participant ids: each combatant in `initiative_order`
+  mapped to the participant that controls it (PCs → themselves, enemies → the
+  DM), with consecutive duplicates collapsed so all the DM's monsters share one
+  slot per cycle.
+
+  This is the single source of truth for the combat cycle, shared with the Game
+  (round advancement). Downed/dead combatants are NOT filtered here — ending
+  combat the moment it's over is the Game's job (`World.combat_over?`), and a
+  mid-fight casualty just means the DM acts with its remaining monsters.
+  """
+  @spec combat_participants(World.t(), term()) :: [term()]
+  def combat_participants(%World{phase: :combat, initiative_order: order, characters: chars}, dm)
+      when is_list(order) do
+    order
+    |> Enum.map(fn name ->
+      case Map.get(chars, name) do
+        %{side: "pc"} -> name
+        _ -> dm
+      end
+    end)
+    |> dedupe_consecutive()
+  end
+
+  def combat_participants(_, _), do: []
+
   defp pick(state, pool, phase) do
     if pool == [] do
       {:done, %{state | current: nil, last_phase: phase}}
@@ -112,20 +138,8 @@ defmodule Dragones.TurnPolicy.WorldDriven do
 
   defp reset_on_phase_change(state, _phase), do: state
 
-  defp combat_order(
-         %__MODULE__{dm: dm},
-         %{shared_state: %World{phase: :combat, initiative_order: order, characters: chars}}
-       )
-       when is_list(order) and order != [] do
-    order
-    |> Enum.map(fn name ->
-      case Map.get(chars, name) do
-        %{side: "pc"} -> name
-        _ -> dm
-      end
-    end)
-    |> dedupe_consecutive()
-  end
+  defp combat_order(%__MODULE__{dm: dm}, %{shared_state: %World{phase: :combat} = w}),
+    do: combat_participants(w, dm)
 
   defp combat_order(_, _), do: nil
 
