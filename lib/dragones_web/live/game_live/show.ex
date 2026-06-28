@@ -553,13 +553,29 @@ defmodule DragonesWeb.GameLive.Show do
 
   # CSS class for the turn header actor label: highlights the viewer's own turn
   # and tones down the DM's.
-  defp th_actor_class(actor, viewer) do
+  defp th_actor_class(actor, viewer, auto_play) do
     cond do
+      actor == viewer and auto_play -> "auto"
       actor == viewer -> "mine"
       actor == "dm" -> "dm-side"
       true -> ""
     end
   end
+
+  # The header label for the acting character: "TÚ" if the viewer is manually
+  # controlling them; "🤖 <name> (auto)" if they enabled auto-play on their own
+  # character; otherwise just the name (or "Turno del DM").
+  defp turn_header_label("dm", _viewer, _auto), do: "Turno del DM"
+
+  defp turn_header_label(actor, viewer, true) when actor == viewer do
+    ["🤖 ", actor, " (auto)"]
+  end
+
+  defp turn_header_label(actor, viewer, _auto) when actor == viewer do
+    [actor, " · TÚ"]
+  end
+
+  defp turn_header_label(actor, _viewer, _auto), do: "Turno de #{actor}"
 
   # Group the timeline into per-turn blocks so the chat reads as a sequence of
   # turns (each with its header — who/round/phase — and its events inline),
@@ -767,6 +783,7 @@ defmodule DragonesWeb.GameLive.Show do
         .th-actor{font-weight:bold; color:#cdf;}
         .th-actor.dm-side{color:#b08a3e;}
         .th-actor.mine{color:#4fbf90;}
+        .th-actor.auto{color:#c8a8ff;}
         .th-you{font-size:.62rem; padding:.05rem .3rem; margin-left:.3rem; border-radius:3px; background:#1a3a2a; color:#7e7; border:1px solid #2f6a4a;}
         .th-phase{font-size:.7rem; color:#a55; padding:.05rem .35rem; border-radius:3px; background:#2a1a1a; border:1px solid #422;}
         .msg{margin:0 0 .6rem;} .msg .who{display:inline-block; margin-right:.4rem; font-weight:bold; color:#7ab;}
@@ -954,9 +971,8 @@ defmodule DragonesWeb.GameLive.Show do
         <div :for={{block, bi} <- Enum.with_index(@chat)} :key={block.header && block.header.turn_id || bi} class="turn-block">
           <div :if={block.header} class="turn-head">
             <span class="th-line">
-              <span class={"th-actor #{th_actor_class(block.header.actor, @viewer)}"}>
-                {if block.header.actor == "dm", do: "Turno del DM", else: "Turno de #{block.header.actor}"}
-                <span :if={block.header.actor == @viewer} class="th-you">TÚ</span>
+              <span class={"th-actor #{th_actor_class(block.header.actor, @viewer, @auto_play)}"}>
+                {turn_header_label(block.header.actor, @viewer, @auto_play)}
               </span>
               <span :if={block.header.phase == "combat"} class="th-phase">⚔ combate</span>
             </span>

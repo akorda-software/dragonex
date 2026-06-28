@@ -78,10 +78,11 @@ defmodule Dragones.PCAgent do
     2. Cuando sea tu turno, TÚ eres el actor. CADA llamada a una herramienta DEBE usar "#{c.name}" como atacante/conjurador/quien — nunca otro personaje. El motor lo impone: usar otro nombre es RECHAZADO.
     3. **SOLO puedes atacar/conjurar contra objetivos que existan en el mundo y estén VIVOS.** El motor rechaza cualquier objetivo inexistente ("el maniquí", "la diana", "el barril", PNJ no hostiles…). Si tu instrucción de turno NO lista objetivos enemigos, NO llames a make_attack ni cast_spell — actúa en personaje (hablar, observar, planear) sin herramienta.
     4. Si tu turno es en EXPLORACIÓN y no hay enemigos a la vista, responde con 1-2 frases EN PERSONAJE sin llamar a ninguna herramienta. Llama a `ability_check` SÓLO si intentas algo con riesgo real (forzar, persuadir, detectar…). Nunca inventes un combate que el DM no haya iniciado.
-    5. Cuando SÍ haya combate y tu instrucción liste objetivos VÁLIDOS, llama a UNA herramienta (make_attack / cast_spell) por turno y luego reacciona en 1-2 frases. Sé breve.
-    6. Ventaja/desventaja: pasa `mode: "advantage"` o `mode: "disadvantage"` a `make_attack` cuando la situación lo conceda (un enemigo caído, una posición oculta, etc.). En caso contrario pasa "normal".
-    7. Pelea con inteligencia: ataca al enemigo más débil, protege a los aliados con poca vida, usa tus habilidades más fuertes. Si estás muy herido, dilo y busca cobertura o curación.
-    8. Mantente siempre en personaje. Habla como lo haría #{c.name} — en primera persona, con tu personalidad. No rompas la cuarta pared ni menciones mecánicas del juego.
+    5. **PROACTIVIDAD**: eres un aventurero con voluntad propia, no un personaje pasivo esperando órdenes. Avanza la escena: explora, abre, pregunta, propone, decide. Si el DM ofreció opciones en su último turno, ELIGE una y ejecútala en tu voz. Si nadie en el grupo toma la iniciativa, TÓMALA TÚ. Nunca termines un turno diciendo sólo "espero", "paso" o "no hago nada" — siempre debes haber HECHO o PROPUESTO algo concreto que mueva la partida hacia delante.
+    6. Cuando SÍ haya combate y tu instrucción liste objetivos VÁLIDOS, llama a UNA herramienta (make_attack / cast_spell) por turno y luego reacciona en 1-2 frases. Sé breve.
+    7. Ventaja/desventaja: pasa `mode: "advantage"` o `mode: "disadvantage"` a `make_attack` cuando la situación lo conceda (un enemigo caído, una posición oculta, etc.). En caso contrario pasa "normal".
+    8. Pelea con inteligencia: ataca al enemigo más débil, protege a los aliados con poca vida, usa tus habilidades más fuertes. Si estás muy herido, dilo y busca cobertura o curación.
+    9. Mantente siempre en personaje. Habla como lo haría #{c.name} — en primera persona, con tu personalidad. No rompas la cuarta pared ni menciones mecánicas del juego.
 
     #{bible_note(c)}
     """
@@ -157,14 +158,23 @@ defmodule Dragones.PCAgent do
         # The bot may speak, observe, plan, move — all text-only. Only call a
         # tool if attempting something with a real chance of failure (force a
         # door, persuade an NPC, search for traps…).
+        #
+        # PROACTIVIDAD: el bot debe AVANZAR la escena, no pasar turnos en
+        # pasivo. Si el DM ofreció opciones, ELIGE uno. Si nadie lidera, toma
+        # la iniciativa. Nunca termines un turno sólo con "espero" o "mi turno
+        # termina" — eso hace que la partida loopee.
         "Es TU turno (#{c.name}). NO hay enemigos a la vista.\n" <>
-          "Puedes ACTUAR EN PERSONA sin llamar a ninguna herramienta: hablar, observar, moverte, " <>
-          "planear, reaccionar a la escena. Una o dos frases en tu voz.\n" <>
+          "COMO PERSONAJE ACTIVO: eres un aventurero con motivación propia, NO un espectador. Avanza la escena: " <>
+          "explora un área nueva, abre una puerta, habla con un PNJ, inspecciona un detalle, propone un plan al grupo, " <>
+          "toma una decisión. Si el DM ha ofrecido opciones en su último turno, ELIGE UNA y ejecútala. " <>
+          "Si la escena está parada, propón una acción concreta que la mueva.\n" <>
+          "NUNCA termines tu turno diciendo sólo 'espero', 'paso', 'no hago nada', 'mi turno termina' — siempre " <>
+          "debes haber HECHO o PROPUESTO algo concreto, en una o dos frases con personalidad.\n" <>
           "SOLO llama a una herramienta si intentas algo con riesgo real de fallo " <>
           "(forzar una puerta, persuadir a un PNJ, detectar una trampa, etc.): " <>
           "ability_check(\"#{c.name}\", \"<str|dex|con|int|wis|cha>\", <DC>).\n" <>
           "NO inventes make_attack contra objetos, PNJ sin hostilidad, o nombres que no estén en el mundo. " <>
-          "Si no sabes qué hacer, simplemente habla en personaje y termina tu turno.\n" <>
+          "Si no sabes qué hacer, propone UNA acción concreta (abrir X, hablar con Y, ir a Z) en personaje.\n" <>
           cond_line <>
           "Responde en castellano."
       end

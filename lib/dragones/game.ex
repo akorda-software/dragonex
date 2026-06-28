@@ -631,10 +631,18 @@ defmodule Dragones.Game do
         state = maybe_end_combat(state)
         maybe_advance_round(state, current, beat_phase)
 
-        persist(state, :running)
+        # Honour a pause the user requested while this beat was in flight.
+        # Without this, pressing "Pausa" during a bot's beat would be silently
+        # undone the moment the beat finished (persist+tick overwrote :paused
+        # back to :running). Real pausa means "stop the loop after this beat
+        # settles", so we persist as :paused, skip the next tick, and let the
+        # user resume explicitly.
+        next_status = if state.status == :paused, do: :paused, else: :running
+
+        persist(state, next_status)
         broadcast_updated(state)
-        send(self(), @tick)
-        %{state | status: :running}
+        if next_status == :running, do: send(self(), @tick)
+        %{state | status: next_status}
 
       {:error, reason} ->
         # A beat can fail for many reasons: the bot/DM burned its tool retry
@@ -662,10 +670,14 @@ defmodule Dragones.Game do
         state = maybe_end_combat(state)
         maybe_advance_round(state, current, beat_phase)
 
-        persist(state, :running)
+        # Same pause-respect as the success path: a pause requested mid-beat
+        # must survive the beat's failure too.
+        next_status = if state.status == :paused, do: :paused, else: :running
+
+        persist(state, next_status)
         broadcast_updated(state)
-        send(self(), @tick)
-        %{state | status: :running}
+        if next_status == :running, do: send(self(), @tick)
+        %{state | status: next_status}
     end
   end
 

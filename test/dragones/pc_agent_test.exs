@@ -83,7 +83,7 @@ defmodule Dragones.PCAgentTest do
       instr = PCAgent.instruction("Thane", c, world)
 
       assert instr =~ "Es TU turno"
-      assert instr =~ "ACTUAR EN PERSONA"
+      assert instr =~ "PERSONAJE ACTIVO"
       assert instr =~ "NO hay enemigos"
     end
 

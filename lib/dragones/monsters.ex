@@ -27,7 +27,13 @@ defmodule Dragones.Monsters do
       "wolf" => &wolf/1,
       "orc" => &orc/1,
       "hobgoblin" => &hobgoblin/1,
-      "ogre" => &ogre/1
+      "ogre" => &ogre/1,
+      # Practice targets — inert dummies/stumps/dummies with HP and a low AC so
+      # PCs can roll attacks against them in a training arena without inventing
+      # phantoms. They have no weapons, so when their turn comes up the DM just
+      # narrates them swaying / doing nothing.
+      "training_dummy" => &training_dummy/1,
+      "archery_target" => &archery_target/1
     }
   end
 
@@ -185,4 +191,35 @@ defmodule Dragones.Monsters do
   defp shield, do: %Item{name: "shield", qty: 1, kind: :armor}
   defp hide_armor, do: %Item{name: "hide armor", qty: 1, kind: :armor}
   defp chain_mail, do: %Item{name: "chain mail", qty: 1, kind: :armor}
+
+  # ----------------------------------------------------- practice targets
+
+  @doc """
+  A straw-and-burlap practice dummy on a wooden post. CA low (12 — easy to
+  hit), modest HP, no weapons, no initiative participation worth speaking of.
+  Used by `spawn_monster("training_dummy", "maniquí1")` so the DM can materialize
+  a target the engine recognizes when a PC wants to swing at the practice rack
+  — instead of refusing with "no existe el objetivo" or inventing a roll.
+  """
+  @spec training_dummy(opts()) :: Character.t()
+  def training_dummy(opts \\ []) do
+    base(opts, "construct", "monster", "A straw-and-burlap practice dummy on a wooden post.", 20, 12, 0,
+      str: 3, dex: 3, con: 10, int: 1, wis: 1, cha: 1,
+      weapons: [],
+      inventory: [],
+      saves: [])
+  end
+
+  @doc """
+  A wooden archery target with concentric-painted rings. CA 15 (smaller
+  center), HP generous so it survives many arrows. No weapons.
+  """
+  @spec archery_target(opts()) :: Character.t()
+  def archery_target(opts \\ []) do
+    base(opts, "construct", "monster", "A wooden archery target with concentric rings.", 30, 15, 0,
+      str: 1, dex: 1, con: 10, int: 1, wis: 1, cha: 1,
+      weapons: [],
+      inventory: [],
+      saves: [])
+  end
 end

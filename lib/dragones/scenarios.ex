@@ -91,9 +91,18 @@ defmodule Dragones.Scenarios do
         scene: "una arena de entrenamiento cerrada con maniquíes de paja, dianas, barriles, un círculo de invocación para criaturas de prueba y carteles que delimitan cada zona de práctica",
         dm_style: "metódico y didáctico: guía al jugador por cada mecánica del motor, una a una. Anima a experimentar con ventaja, desventaja, condiciones, magia y descansos. Usa spawn_monster para invocar diferentes enemigos y prueba cada tipo de arma y hechizo",
         hook:
-          "ESTO NO ES UNA AVENTURA — es un campo de pruebas para ejercitar TODAS las mecánicas del motor. " <>
-            "El objetivo no es la narrativa sino verificar que cada sistema funciona. " <>
-            "Lista de mecánicas a probar (avanza metódicamente, pregunta al jugador qué quiere testear):\n" <>
+          "ESTO NO ES UNA AVENTURA — es un campo de pruebas cerrado para ejercitar TODAS las mecánicas del motor. " <>
+            "El objetivo no es la narrativa sino verificar que cada sistema funciona.\n" <>
+            "LÍMITES DE LA ESCENA (crítico): la arena es una única sala cerrada. NO hay puertas secretas, " <>
+            "pasillos ocultos, tabernas, ni mundo exterior. Si un PC dice 'me voy', 'salgo de la arena', " <>
+            "'voy a la taberna' o similar, reconduce: el mayordomo le detiene, las puertas están selladas, " <>
+            "la arena está aislada por un campo mágico. NO inventes trama externa (guardias, jefes, cajas, " <>
+            "puertas oeste) — no existen. Lo único que existe es la arena y lo que en ella hay.\n" <>
+            "OBJETOS VÁLIDOS PARA PRÁCTICA: cuando un PC quiera atacar un maniquí o diana, usa " <>
+            "spawn_monster(\"training_dummy\", \"maniquí1\") o spawn_monster(\"archery_target\", \"diana1\") " <>
+            "para crear el objetivo y luego el PC hace make_attack contra ese nombre. NUNCA tires un d20 " <>
+            "tú mismo por un ataque a un objeto — siempre a través de make_attack.\n" <>
+            "Lista de mecánicas a probar (avanza metódicamente, UNA por turno, sin repetir el menú):\n" <>
             "• COMBATE: ataques melee con STR (longsword), ataques a distancia con DEX (shortbow, javelin), armas finesse (scimitar, shortsword), " <>
             "ataques con ventaja (mode: advantage) y desventaja (mode: disadvantage), críticos (nat 20) y pifias (nat 1).\n" <>
             "• MAGIA: hechizos de ataque vs CA (firebolt), hechizos automáticos que siempre impactan (magic missile), " <>
@@ -111,10 +120,10 @@ defmodule Dragones.Scenarios do
             "(probar cada CR: goblin, kobold, bandit, skeleton, wolf, orc, hobgoblin, ogre), end_combat para terminar.\n" <>
             "Empieza preguntando al jugador qué mecánica quiere probar primero.",
         tone: "experimental y didáctico, sin stakes narrativos — lo que importa es ejercitar mecánicas, no la historia",
-        npcs: "maniquíes de práctica (objetos inertes para atacar), dianas móviles, un mayordomo de arena neutral que explica las opciones disponibles",
-        locations: "la Arena de Pruebas: zona de cuerpo a cuerpo, zona de tiro al blanco, círculo de invocación, zona de magia, zona de descanso",
+        npcs: "maniquíes de práctica (objetos inertes para atacar — crear vía spawn_monster), dianas, un mayordomo de arena neutral que explica las opciones disponibles",
+        locations: "ÚNICAMENTE la Arena de Pruebas: zona de cuerpo a cuerpo, zona de tiro al blanco, círculo de invocación, zona de magia, zona de descanso. Nada más.",
         suggested_enemies: ["goblin", "kobold", "bandit", "skeleton", "wolf", "orc", "hobgoblin", "ogre"],
-        summary: "Campo de pruebas: no es una aventura. Ejercita todas las mecánicas (combate, magia, salvaciones, condiciones, descansos, niveles, refuerzos) en un entorno controlado."
+        summary: "Campo de pruebas: no es una aventura. Ejercita todas las mecánicas (combate, magia, salvaciones, condiciones, descansos, niveles, refuerzos) en un entorno controlado. Sin trama externa, sin salida."
       }
     ]
   end

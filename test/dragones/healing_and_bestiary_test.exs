@@ -81,7 +81,7 @@ defmodule Dragones.HealingAndBestiaryTest do
   end
 
   describe "bestiary" do
-    test "all 8 monsters are available" do
+    test "all 8 combat monsters are available" do
       keys = Monsters.keys()
       assert "goblin" in keys
       assert "kobold" in keys
@@ -91,17 +91,29 @@ defmodule Dragones.HealingAndBestiaryTest do
       assert "orc" in keys
       assert "hobgoblin" in keys
       assert "ogre" in keys
-      assert length(keys) == 8
+      # Plus the practice targets for arena scenarios.
+      assert "training_dummy" in keys
+      assert "archery_target" in keys
     end
 
-    test "each monster has valid stats and weapons" do
-      for key <- Monsters.keys() do
+    test "each combat monster has valid stats and weapons" do
+      for key <- ~w(goblin kobold bandit skeleton wolf orc hobgoblin ogre) do
         m = Monsters.get(key).(name: key)
         assert m.side == "enemy"
         assert m.hp > 0 and m.max_hp > 0
         assert m.ac >= 10
         assert length(m.weapons) >= 1
         assert String.capitalize(key) =~ ~r/^[A-Z]/
+      end
+    end
+
+    test "practice targets are inert objects with HP and no weapons" do
+      for key <- ~w(training_dummy archery_target) do
+        m = Monsters.get(key).(name: key)
+        assert m.side == "enemy"
+        assert m.hp > 0 and m.max_hp > 0
+        # No weapons — they never attack; the DM just narrates them swaying.
+        assert m.weapons == []
       end
     end
 
