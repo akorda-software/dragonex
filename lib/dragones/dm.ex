@@ -8,7 +8,7 @@ defmodule Dragones.DM do
   DM only reads their textual results and weaves them into the scene.
   """
 
-  alias Dragones.{Character, Tools, World}
+  alias Dragones.{Character, Events, Tools, World}
   alias ExAgent.{Compaction, Message, Message.Response}
 
   @doc """
@@ -54,12 +54,20 @@ defmodule Dragones.DM do
         max_tokens: Keyword.get(opts, :max_tokens, 512),
         temperature: 0.7
       ],
-      capabilities: compaction_capabilities(opts)
+      # `Events` is what makes a beat feel alive: it publishes each assistant
+      # text chunk as it's produced (mid-beat declarations + final narration),
+      # instead of dropping everything but the last response. It reads the
+      # per-beat context (game_id, turn_id, actor, …) from `state.deps.beat`,
+      # which `Dragones.Game.run_beat/3` populates each turn. When no beat
+      # context is wired (unit tests of the agent), it no-ops.
+      capabilities: [Events | compaction_capabilities(opts)]
     )
   end
 
   # Wire compaction only when a summarizer model is supplied. The summarizer runs
-  # as a separate (cheap) agent when the history crosses the threshold.
+  # as a separate (cheap) agent when the history crosses the threshold. The
+  # `Events` capability (live per-step publishing) is added by `new/2` itself,
+  # so this helper returns only the compaction capability when applicable.
   defp compaction_capabilities(opts) do
     case Keyword.get(opts, :summarizer) do
       nil ->

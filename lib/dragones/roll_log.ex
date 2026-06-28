@@ -50,9 +50,15 @@ defmodule Dragones.RollLog do
           recorder: pid() | nil
         }
 
-  @doc "Start a per-beat recorder. Link it to the caller (the beat Task) so it dies with it."
-  @spec start() :: Agent.on_start()
-  def start, do: Agent.start_link(fn -> %{groups: %{}, entries: []} end)
+  @doc """
+  Start a per-beat recorder. Link it to the caller (the beat Task) so it dies
+  with it. Optional `:on_close` callback is invoked with each finalized entry —
+  used by `Dragones.Game` to persist + broadcast every roll the moment it lands.
+  """
+  @spec start(keyword()) :: Agent.on_start()
+  def start(opts \\ []) do
+    Agent.start_link(fn -> %{groups: %{}, entries: [], on_close: Keyword.get(opts, :on_close)} end)
+  end
 
   @doc "All closed groups this beat, in the order they were closed."
   @spec entries(pid()) :: [entry()]
@@ -130,8 +136,22 @@ defmodule Dragones.RollLog do
             outcome: extra[:outcome]
           }
 
+          # Publish LIVE if a callback was wired: this is what makes a die land
+          # in the chat the instant the engine resolves it, instead of all the
+          # dice arriving collapsed at the end of the beat. Best-effort: a
+          # failure here must never corrupt the recorder state.
+          if s.on_close, do: safe_call(s.on_close, entry)
+
           {entry, %{s | groups: Map.delete(s.groups, id), entries: s.entries ++ [entry]}}
       end
     end)
+  end
+
+  defp safe_call(fun, entry) when is_function(fun, 1) do
+    fun.(entry)
+  rescue
+    _ -> :ok
+  catch
+    _, _ -> :ok
   end
 end

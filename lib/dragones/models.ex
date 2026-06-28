@@ -59,7 +59,7 @@ defmodule Dragones.Models do
 
   @doc "Max output tokens per DM beat (cost cap)."
   @spec dm_max_tokens() :: pos_integer()
-  def dm_max_tokens, do: System.get_env("DRAGONES_DM_MAX_TOKENS", "512") |> String.to_integer()
+  def dm_max_tokens, do: System.get_env("DRAGONES_DM_MAX_TOKENS", "1024") |> String.to_integer()
 
   @doc """
   Extract cached prompt tokens from a Usage map (OpenRouter/OpenAI report them

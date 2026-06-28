@@ -22,14 +22,25 @@ defmodule DragonesWeb.GameLive.Show do
   @dice_debounce_ms 140
   @dice_hold_ms 2600
 
+  # How many events each "load more log" click pulls in. Tuned so one click
+  # recovers ~2-4 turns of context.
+  @log_page_size 100
+
   @impl true
   def mount(%{"game_id" => id}, session, socket) do
     game_id = String.to_integer(id)
     user = Dragones.Accounts.get_user(session["user_id"])
 
+    # Initialize every assign the render may touch up front. The disconnected
+    # render (HTTP request) and the connected render (websocket upgrade) start
+    # from independent sockets, and a fast PubSub message can land between
+    # mount and handle_params — so the full default set must exist from the
+    # very first moment.
+    socket = base_assigns(socket, game_id)
+
     cond do
       not Phoenix.LiveView.connected?(socket) ->
-        {:ok, base_assigns(socket, game_id)}
+        {:ok, socket}
 
       Games.get_game(game_id) == nil ->
         {:ok, push_navigate(socket, to: "/")}
@@ -50,7 +61,6 @@ defmodule DragonesWeb.GameLive.Show do
 
             {:ok,
              assign(socket,
-               game_id: game_id,
                connected: true,
                current_user: user,
                show_join: false,
@@ -67,7 +77,6 @@ defmodule DragonesWeb.GameLive.Show do
 
             {:ok,
              assign(socket,
-               game_id: game_id,
                connected: true,
                current_user: user,
                show_join: false,
@@ -200,6 +209,42 @@ defmodule DragonesWeb.GameLive.Show do
     {:noreply, socket}
   end
 
+  # Paginate the chat timeline upward. The button sits at the top of the log
+  # when `has_more_events` is true; clicking it loads the previous chunk of
+  # events (those with seq < the oldest currently shown) and prepends them to
+  # the rendered blocks. The `chat` assign is rebuilt so blocks regroup the
+  # newly-arrived events correctly under their `:turn` headers.
+  def handle_event("load_more_log", _params, socket) do
+    game_id = socket.assigns.game_id
+    viewer = socket.assigns[:viewer]
+
+    case Enum.at(socket.assigns[:chat] || [], 0) do
+      nil ->
+        {:noreply, socket}
+
+      first_block ->
+        oldest_seq =
+          first_block.events
+          |> Enum.map(& &1.seq)
+          |> Enum.min(fn -> nil end)
+
+        if oldest_seq == nil or oldest_seq <= 1 do
+          {:noreply, assign(socket, has_more_events: false)}
+        else
+          older = Dragones.Games.events_before(game_id, oldest_seq, @log_page_size)
+          older_blocks = chat_blocks(older, viewer)
+          still_more? = length(older) == @log_page_size
+
+          {:noreply,
+           socket
+           |> assign(
+             chat: older_blocks ++ socket.assigns[:chat],
+             has_more_events: still_more?
+           )}
+        end
+    end
+  end
+
   def handle_event("pause", _params, socket) do
     if pid = server(socket), do: _ = Game.pause(pid)
     {:noreply, socket}
@@ -275,11 +320,46 @@ defmodule DragonesWeb.GameLive.Show do
       ),
       do: {:noreply, load(socket, game_id, viewer)}
 
-  def handle_info({:dice_roll, game_id, sides, value}, %{assigns: %{game_id: game_id}} = socket) do
-    # A new die landed. We don't animate immediately: the engine rolls several
-    # dice per action in quick succession (attack d20, then damage dice), so we
-    # debounce them into one burst that the dic_ex 2D hook tumbles together.
-    hand = socket.assigns.dice_hand ++ [%{sides: sides, value: value}]
+  # Token-level narration streaming: each chunk the model emits during a beat
+  # is appended to the live bubble. The bubble builds word-by-word while the
+  # beat is in flight; once the model's response completes, the `Events`
+  # capability persists the final text as a :narration event and the next
+  # `{:game_updated, _}` re-render flushes the live bubble (its text now lives
+  # in the chat timeline as a real narration entry).
+  def handle_info({:text_delta, game_id, turn_id, actor, chunk}, %{assigns: %{game_id: game_id}} = socket) do
+    prev_turn = socket.assigns[:live_turn_id]
+
+    # New turn or new actor → start a fresh bubble (drop the previous preview).
+    {text, live_turn, live_actor} =
+      cond do
+        prev_turn == nil or prev_turn != turn_id ->
+          {chunk, turn_id, actor}
+
+        true ->
+          {socket.assigns[:live_text] <> chunk, prev_turn, socket.assigns[:live_actor]}
+      end
+
+    {:noreply,
+     socket
+     |> assign(live_text: text, live_turn_id: live_turn, live_actor: live_actor)}
+  end
+
+  # A roll GROUP landed (RollLog on_close). It already carries the full labeled
+  # entry — who rolled, why, dice, total, what it contested against, outcome —
+  # so we open the modal ONCE per group with everything in one shot. Multiple
+  # groups arriving within the debounce window (e.g. an attack's d20 then its
+  # damage dice) collapse into a single tumble + a stack of labeled cards.
+  def handle_info({:dice_group, game_id, entry}, %{assigns: %{game_id: game_id}} = socket) do
+    # Pull the dice of THIS group into the tumble hand, and stack the labeled
+    # entry into the cards list. Both reset on each new group burst after the
+    # hold timer fires (see :hide_dice).
+    new_hand = Enum.map(entry["dice"] || entry[:dice] || [], fn
+      [s, v] -> %{sides: s, value: v}
+      {s, v} -> %{sides: s, value: v}
+    end)
+
+    hand = socket.assigns.dice_hand ++ new_hand
+    groups = socket.assigns.dice_groups ++ [entry]
 
     if ref = socket.assigns[:dice_flush_ref], do: Process.cancel_timer(ref)
     if ref = socket.assigns[:dice_hide_ref], do: Process.cancel_timer(ref)
@@ -291,6 +371,7 @@ defmodule DragonesWeb.GameLive.Show do
      socket
      |> assign(
        dice_hand: hand,
+       dice_groups: groups,
        dice_show: true,
        dice_token: token,
        dice_flush_ref: flush_ref,
@@ -298,30 +379,22 @@ defmodule DragonesWeb.GameLive.Show do
      )}
   end
 
-  # Flush the accumulated hand to the dic_ex hook as one roll event. The token
-  # guards against a cancelled-yet-already-fired timer double-pushing.
+  # Flush the accumulated hand to the dic_ex hook as one tumble event. The token
+  # guards against a cancelled-yet-already-fired timer double-pushing. The
+  # labeled cards (dice_groups) are already in assigns and render beside the
+  # tumble — no second pass needed.
   def handle_info({:flush_dice, token}, %{assigns: %{dice_token: token}} = socket) do
     payload = dice_payload(socket.assigns.dice_hand)
 
-    {:noreply,
-     socket
-     |> assign(dice_rolling: true, dice_flush_ref: nil)
-     |> push_event("dic_ex:roll:#{dice_stage_id(socket.assigns.dice_engine)}", payload)}
-  end
-
-  def handle_info({:flush_dice, _stale_token}, socket), do: {:noreply, socket}
-
-  # The structured roll groups for the beat: each carries who/why/dice/total/
-  # against/outcome. Show them in the modal as labeled, comparison-aware cards
-  # (the bare-dice tumble already played; this is the readable result).
-  def handle_info({:dice_groups, game_id, groups}, %{assigns: %{game_id: game_id}} = socket) do
-    if ref = socket.assigns[:dice_hide_ref], do: Process.cancel_timer(ref)
     hide_ref = Process.send_after(self(), :hide_dice, @dice_hold_ms)
 
     {:noreply,
      socket
-     |> assign(dice_groups: groups, dice_show: true, dice_rolling: false, dice_hide_ref: hide_ref)}
+     |> assign(dice_rolling: true, dice_flush_ref: nil, dice_hide_ref: hide_ref)
+     |> push_event("dic_ex:roll:#{dice_stage_id(socket.assigns.dice_engine)}", payload)}
   end
+
+  def handle_info({:flush_dice, _stale_token}, socket), do: {:noreply, socket}
 
   def handle_info(:hide_dice, socket) do
     {:noreply, assign(socket, dice_show: false, dice_hand: [], dice_groups: [], dice_hide_ref: nil)}
@@ -344,6 +417,12 @@ defmodule DragonesWeb.GameLive.Show do
       participants: %{},
       my_turn: false,
       chat: [],
+      busy: false,
+      busy_actor: nil,
+      live_text: "",
+      live_turn_id: nil,
+      live_actor: nil,
+      has_more_events: false,
       busy: false,
       pending: "",
       dice_hand: [],
@@ -371,6 +450,13 @@ defmodule DragonesWeb.GameLive.Show do
         base_assigns(socket, game_id)
 
       pid ->
+        socket =
+          socket
+          |> assign_new(:live_text, fn -> "" end)
+          |> assign_new(:live_actor, fn -> nil end)
+          |> assign_new(:live_turn_id, fn -> nil end)
+          |> assign_new(:has_more_events, fn -> false end)
+
         snap = Game.snapshot(pid)
         user = socket.assigns[:current_user]
         game = Games.get_game(game_id)
@@ -400,8 +486,17 @@ defmodule DragonesWeb.GameLive.Show do
           intents: snap.intents,
           my_intent: Map.get(snap.intents, viewer),
           my_turn: viewer != nil and snap.current == viewer,
-          chat: chat_lines(snap.events, viewer),
+          chat: chat_blocks(snap.events, viewer),
           busy: snap.status == :running,
+          busy_actor: busy_actor(snap),
+          # Preserve the live (streaming) bubble while the same actor's beat is
+          # in flight; flush it when the beat ends (busy_actor nil OR changed).
+          # The narration event persisted by the Events capability replaces it
+          # in the chat timeline on the same render.
+          live_text: maybe_flush_live_text(socket, busy_actor(snap)),
+          live_turn_id: if(busy_actor(snap) == socket.assigns[:live_actor], do: socket.assigns[:live_turn_id], else: nil),
+          live_actor: if(busy_actor(snap) == socket.assigns[:live_actor], do: socket.assigns[:live_actor], else: nil),
+          has_more_events: Map.get(snap, :has_more_events, false),
           pending: "",
           dice_hand: socket.assigns[:dice_hand] || [],
           dice_groups: socket.assigns[:dice_groups] || [],
@@ -437,29 +532,101 @@ defmodule DragonesWeb.GameLive.Show do
     end
   end
 
-  defp chat_lines(events, viewer) do
-    events
-    |> Enum.filter(fn e ->
-      if viewer == "dm", do: e.visible_to in ["all", "dm"], else: e.visible_to == "all"
-    end)
-    |> Enum.map(fn e ->
-      %{seq: e.seq, role: chat_role(e), who: chat_who(e), text: chat_text(e), outcome: chat_outcome(e)}
-    end)
+  # When the loop is :running, snap.current is the participant whose beat is in
+  # flight — drives the "X está actuando…" indicator. nil when waiting/paused.
+  defp busy_actor(%{status: :running, current: current}), do: current
+  defp busy_actor(_), do: nil
+
+  # Keep the streaming bubble's text while the same actor's beat is still in
+  # flight; clear it the moment the beat ends (busy_actor nil) or a different
+  # actor's beat starts (so we don't show stale text from the previous turn).
+  # Defensive against the first render before any streaming has happened
+  # (socket.assigns may not yet carry :live_text — use [:] access).
+  defp maybe_flush_live_text(socket, busy_actor) do
+    live_actor = socket.assigns[:live_actor]
+    live_text = socket.assigns[:live_text] || ""
+
+    if busy_actor != nil and busy_actor == live_actor,
+      do: live_text,
+      else: ""
   end
 
-  defp chat_role(%{type: :narration}), do: :dm
+  # CSS class for the turn header actor label: highlights the viewer's own turn
+  # and tones down the DM's.
+  defp th_actor_class(actor, viewer) do
+    cond do
+      actor == viewer -> "mine"
+      actor == "dm" -> "dm-side"
+      true -> ""
+    end
+  end
+
+  # Group the timeline into per-turn blocks so the chat reads as a sequence of
+  # turns (each with its header — who/round/phase — and its events inline),
+  # instead of a flat list where narration, dice and actions pile up without
+  # hierarchy. Events without a turn_id (the opening narration, legacy events,
+  # system notes) land in a prologue block with no header.
+  defp chat_blocks(events, viewer) do
+    visible =
+      Enum.filter(events, fn e ->
+        if viewer == "dm", do: e.visible_to in ["all", "dm"], else: e.visible_to == "all"
+      end)
+
+    # Walk the visible events in order, opening a new block every time a
+    # :turn marker appears. The marker carries turn_id/round/phase/actor.
+    {blocks, _current} =
+      Enum.reduce(visible, {[], nil}, fn e, {acc, cur} ->
+        case e do
+          %{type: :turn, payload: %{"kind" => "start"} = p} ->
+            header = %{
+              turn_id: p["turn_id"],
+              actor: e.actor,
+              round: p["round"],
+              phase: p["phase"]
+            }
+
+            block = %{header: header, events: []}
+            {acc ++ [block], block}
+
+          _ ->
+            line = %{seq: e.seq, type: e.type, actor: e.actor, role: chat_role(e), who: chat_who(e), text: chat_text(e), outcome: chat_outcome(e)}
+
+            case cur do
+              nil ->
+                # No open block — prologue (e.g. the opening narration).
+                prologue = %{header: nil, events: [line]}
+                {acc ++ [prologue], prologue}
+
+              %{events: evs} = block ->
+                updated = %{block | events: evs ++ [line]}
+                # Replace the last block in acc with the updated one.
+                {Enum.drop(acc, -1) ++ [updated], updated}
+            end
+        end
+      end)
+
+    blocks
+  end
+
+  # The role drives the CSS class. Narration by the DM → :dm. Narration/action
+  # by a non-dm actor → :pc (the bot or human PC speaking in their own voice).
+  # Dice → :roll. System → :system.
+  defp chat_role(%{type: :narration, actor: actor}), do: if(actor == "dm", do: :dm, else: :pc)
   defp chat_role(%{type: :dice}), do: :roll
-  defp chat_role(%{type: :action, actor: actor}), do: if(actor == "dm", do: :dm, else: :player)
+  defp chat_role(%{type: :action, actor: actor}), do: if(actor == "dm", do: :dm, else: :pc)
+  defp chat_role(%{type: :turn}), do: :turn
   defp chat_role(_), do: :system
 
   # The label shown in the chat for each line: the acting hero's name for player
-  # actions. DM narration carries no label — it is understood to be the DM.
+  # actions/declarations and for a PC bot's narration. DM narration carries no
+  # label — it is understood to be the DM.
   defp chat_who(%{type: :dice, actor: actor, payload: p}) do
     who = p["who"] || actor
     if who, do: "🎲 #{who}", else: "🎲"
   end
 
   defp chat_who(%{type: :action, actor: actor}) when actor != "dm", do: actor
+  defp chat_who(%{type: :narration, actor: actor}) when actor != "dm", do: actor
   defp chat_who(_), do: ""
 
   defp chat_outcome(%{type: :dice, payload: p}), do: p["outcome"]
@@ -589,13 +756,36 @@ defmodule DragonesWeb.GameLive.Show do
         .game-input button{flex:0 0 auto; padding:.5rem 1.2rem; font-size:1rem; background:#2c2c2c; color:#eee; border:1px solid #555; border-radius:4px; cursor:pointer;}
         .game-input button:hover:not(:disabled){background:#3a3a3a;}
         .game-log{flex:1 1 0; min-height:0; background:#111; border:1px solid #333; border-radius:6px; padding:.8rem; font-size:.95rem; line-height:1.4; overflow:auto;}
+        .load-more-btn{display:block; width:100%; margin:0 0 .8rem; padding:.4rem; font-size:.78rem; color:#7ab; background:#1a1a1a; border:1px dashed #333; border-radius:4px; cursor:pointer; font-family:inherit;}
+        .load-more-btn:hover{color:#cdf; background:#222; border-color:#555;}
+        .turn-block{margin:0 0 .9rem; padding:0; border-left:2px solid #2a2a2a; padding-left:.6rem;}
+        .turn-block:first-child{margin-top:0;}
+        .turn-head{margin:0 0 .4rem; padding-bottom:.2rem; border-bottom:1px solid #222;}
+        .th-line{display:flex; align-items:baseline; gap:.4rem; flex-wrap:wrap; font-size:.78rem; color:#9ab;}
+        .th-round{font-weight:bold; color:#fb0; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.74rem;}
+        .th-sep{color:#444;}
+        .th-actor{font-weight:bold; color:#cdf;}
+        .th-actor.dm-side{color:#b08a3e;}
+        .th-actor.mine{color:#4fbf90;}
+        .th-you{font-size:.62rem; padding:.05rem .3rem; margin-left:.3rem; border-radius:3px; background:#1a3a2a; color:#7e7; border:1px solid #2f6a4a;}
+        .th-phase{font-size:.7rem; color:#a55; padding:.05rem .35rem; border-radius:3px; background:#2a1a1a; border:1px solid #422;}
         .msg{margin:0 0 .6rem;} .msg .who{display:inline-block; margin-right:.4rem; font-weight:bold; color:#7ab;}
+        /* The chip for a player's chat-input action: discrete icon-only by
+           default, full text on hover as a tooltip. Never inline in the
+           timeline — it's the player's intent, not narration. */
+        .player-declared-chip{display:inline-flex; align-items:center; gap:.25rem; font-size:.78rem; color:#666; background:transparent; padding:.05rem .25rem; border-radius:4px; cursor:help; opacity:.5;}
+        .player-declared-chip:hover{opacity:1; background:#1a1a1a;}
         .msg-dm{color:#e8dcc4;} .msg-dm .who{color:#b08a3e;}
-        .msg-player{color:#ffe9b0; border-left:2px solid #553; padding-left:.5rem; margin-left:.2rem; font-style:italic;} .msg-player .who{color:#fb0; font-style:normal;}
-        .msg-roll{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.86rem; color:#9cdec8; background:#11221c; border:1px solid #1f4a39; border-radius:4px; padding:.25rem .5rem;} .msg-roll .who{color:#4fbf90; font-family:Georgia,serif; font-size:.78rem;}
+        .msg-pc{color:#ffe9b0; border-left:2px solid #a55; padding-left:.5rem; margin-left:.2rem; font-style:italic;} .msg-pc .who{color:#fb0; font-style:normal; font-weight:bold;}
+        .msg-roll{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.86rem; color:#9cdec8; background:#11221c; border:1px solid #1f4a39; border-radius:4px; padding:.25rem .5rem; margin:.15rem 0;} .msg-roll .who{color:#4fbf90; font-family:Georgia,serif; font-size:.78rem;}
         .msg-roll.roll-hit,.msg-roll.roll-crit,.msg-roll.roll-success,.msg-roll.roll-revive{border-color:#2f6a4a; color:#bdf0d4;}
         .msg-roll.roll-miss,.msg-roll.roll-failure,.msg-roll.roll-crit_fail{border-color:#5a2a2a; color:#f0bdb0;}
         .msg-system{color:#777; font-style:italic;}
+        .msg-system.thinking::after{content:" ⋯"; animation:dots 1.2s infinite;}
+        @keyframes dots{0%{opacity:.3;}50%{opacity:1;}100%{opacity:.3;}}
+        .live-streaming{position:relative; opacity:.92;}
+        .live-streaming .cursor{display:inline-block; color:#fc8; animation:blink 1s steps(2) infinite; margin-left:1px;}
+        @keyframes blink{0%,50%{opacity:1;}51%,100%{opacity:0;}}
         .sheet{flex:1 1 0; min-height:0; display:flex;}
         .card,.empty-sheet{flex:1 1 auto; min-height:0; overflow:hidden; background:#222; border:1px solid #3a3a3a; border-radius:8px; padding:.6rem;}
         .card h3{margin:0; font-size:1rem;} .card p{margin:.2rem 0; font-size:.85rem;}
@@ -683,6 +873,10 @@ defmodule DragonesWeb.GameLive.Show do
             my_intent={@my_intent}
             chat={@chat}
             busy={@busy}
+            busy_actor={@busy_actor}
+            live_text={@live_text}
+            live_actor={@live_actor}
+            has_more_events={@has_more_events}
             pending={@pending}
             dice_show={@dice_show}
             dice_rolling={@dice_rolling}
@@ -748,10 +942,49 @@ defmodule DragonesWeb.GameLive.Show do
 
     <section class="game-center">
       <div class="game-log" id="log" phx-hook="AutoScroll">
-        <p :for={entry <- @chat} :key={entry.seq} class={"msg msg-#{entry.role}#{if entry.outcome, do: " roll-#{entry.outcome}", else: ""}"}>
-          <span :if={entry.who != ""} class="who">{entry.who}</span>{entry.text}
+        <button
+          :if={@has_more_events}
+          class="load-more-btn"
+          phx-click="load_more_log"
+          title="Cargar turnos anteriores"
+        >
+          ↑ cargar turnos anteriores
+        </button>
+
+        <div :for={{block, bi} <- Enum.with_index(@chat)} :key={block.header && block.header.turn_id || bi} class="turn-block">
+          <div :if={block.header} class="turn-head">
+            <span class="th-line">
+              <span class={"th-actor #{th_actor_class(block.header.actor, @viewer)}"}>
+                {if block.header.actor == "dm", do: "Turno del DM", else: "Turno de #{block.header.actor}"}
+                <span :if={block.header.actor == @viewer} class="th-you">TÚ</span>
+              </span>
+              <span :if={block.header.phase == "combat"} class="th-phase">⚔ combate</span>
+            </span>
+          </div>
+
+          <p
+            :for={entry <- block.events}
+            :key={entry.seq}
+            class={"msg msg-#{entry.role}#{if entry.outcome, do: " roll-#{entry.outcome}", else: ""}"}
+          >
+            <span :if={entry.type == :action and entry.actor != "dm"} class="player-declared-chip" title={entry.text}>
+              <span class="pd-icon">💭</span>
+            </span>
+            <span :if={not (entry.type == :action and entry.actor != "dm")}>
+              <span :if={entry.who != ""} class="who">{entry.who}</span>{entry.text}
+            </span>
+          </p>
+        </div>
+        <p :if={@busy and @live_text == ""} class="msg msg-system thinking">
+          {case @busy_actor do
+            "dm" -> "el DM está narrando…"
+            nil -> "el DM está pensando…"
+            name -> "#{name} está actuando…"
+          end}
         </p>
-        <p :if={@busy} class="msg msg-system thinking">el DM está pensando…</p>
+        <p :if={@live_text != ""} class={"msg msg-#{if @live_actor == "dm", do: "dm", else: "pc"} live-streaming"}>
+          <span :if={@live_actor != "dm" and @live_actor != nil} class="who">{@live_actor}</span>{@live_text}<span class="cursor">▍</span>
+        </p>
       </div>
       <div class="game-input-area">
         <form class="game-input" id="player-input" phx-submit="declare">

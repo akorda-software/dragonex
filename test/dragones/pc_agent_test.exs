@@ -6,7 +6,7 @@ defmodule Dragones.PCAgentTest do
 
   use ExUnit.Case, async: true
 
-  alias Dragones.{Character, PCAgent}
+  alias Dragones.{Character, PCAgent, World}
   alias ExAgent.{Models.Test}
 
   describe "system_prompt/1" do
@@ -42,8 +42,8 @@ defmodule Dragones.PCAgentTest do
     end
   end
 
-  describe "instruction/2" do
-    test "lists available weapons and spells" do
+  describe "instruction/3" do
+    test "lists available weapons and spells in combat with enemies" do
       c = Character.new(
         name: "Thane", race: "human", class: "fighter", level: 1,
         weapons: [
@@ -54,14 +54,40 @@ defmodule Dragones.PCAgentTest do
         side: "pc"
       )
 
-      instr = PCAgent.instruction("Thane", c)
+      # A combat world with a living enemy so the bot is steered to make_attack.
+      {:ok, w1} = World.add_character(c).(World.new())
+      {:ok, w2} = World.add_character(%Character{name: "goblin", side: "enemy", hp: 7, max_hp: 7}).(w1)
+      {:ok, world} = World.begin_combat(["Thane", "goblin"]).(w2)
+
+      instr = PCAgent.instruction("Thane", c, world)
 
       assert instr =~ "longsword"
       assert instr =~ "javelin"
       assert instr =~ "Es TU turno"
+      assert instr =~ "goblin"
+      assert instr =~ "Objetivos VÁLIDOS"
     end
 
-    test "includes spells for casters" do
+    test "in exploration (no enemies) steers the bot to act in character, no tools" do
+      c = Character.new(
+        name: "Thane", race: "human", class: "fighter", level: 1,
+        weapons: [%Dragones.Weapon{name: "longsword", dice: "1d8", damage_type: "slashing", attack_ability: :str}],
+        spells: [],
+        side: "pc"
+      )
+
+      # Exploration world — only the PC, no enemies. The bot must NOT be told
+      # to call make_attack on phantoms; it should act in character.
+      {:ok, world} = World.add_character(c).(World.new())
+
+      instr = PCAgent.instruction("Thane", c, world)
+
+      assert instr =~ "Es TU turno"
+      assert instr =~ "ACTUAR EN PERSONA"
+      assert instr =~ "NO hay enemigos"
+    end
+
+    test "includes spells for casters in combat" do
       c = Character.new(
         name: "Lyra", race: "elf", class: "wizard", level: 1,
         weapons: [%Dragones.Weapon{name: "quarterstaff", dice: "1d6", damage_type: "bludgeoning", attack_ability: :str}],
@@ -69,7 +95,11 @@ defmodule Dragones.PCAgentTest do
         side: "pc"
       )
 
-      instr = PCAgent.instruction("Lyra", c)
+      {:ok, w1} = World.add_character(c).(World.new())
+      {:ok, w2} = World.add_character(%Character{name: "goblin", side: "enemy", hp: 7, max_hp: 7}).(w1)
+      {:ok, world} = World.begin_combat(["Lyra", "goblin"]).(w2)
+
+      instr = PCAgent.instruction("Lyra", c, world)
 
       assert instr =~ "fire bolt"
       assert instr =~ "cast_spell"

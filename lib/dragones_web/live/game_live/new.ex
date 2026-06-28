@@ -92,10 +92,24 @@ defmodule DragonesWeb.GameLive.New do
   # --- scenario selection ---
 
   def handle_event("pick_scenario", %{"key" => key}, socket) do
-    if key == "custom" do
-      {:noreply, assign(socket, selected_scenario: %{key: "custom"}, error: nil)}
-    else
-      {:noreply, assign(socket, selected_scenario: Scenarios.get(key), error: nil)}
+    cond do
+      key == "custom" ->
+        {:noreply, assign(socket, selected_scenario: %{key: "custom"}, error: nil)}
+
+      key == "arena" ->
+        # Auto-select all 3 archetypes so the player can test every mechanic
+        # without manual setup: fighter (STR melee + ranged), wizard (spellcasting),
+        # rogue (DEX, finesse, ranged).
+        {:noreply,
+         assign(socket,
+           selected_scenario: Scenarios.get(key),
+           my_hero: "fighter",
+           companions: ["wizard", "rogue", nil, nil, nil],
+           error: nil
+         )}
+
+      true ->
+        {:noreply, assign(socket, selected_scenario: Scenarios.get(key), error: nil)}
     end
   end
 

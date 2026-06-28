@@ -14,7 +14,7 @@ defmodule Dragones.PCAgent do
   a wizard is curious and methodical.
   """
 
-  alias Dragones.{Character, Tools}
+  alias Dragones.{Character, Events, Tools, World}
 
   @doc """
   The PC's tool set — a restricted subset of the game tools.
@@ -50,7 +50,11 @@ defmodule Dragones.PCAgent do
       model_settings: [
         max_tokens: Keyword.get(opts, :max_tokens, 384),
         temperature: 0.8
-      ]
+      ],
+      # Same `Events` capability as the DM: publishes the bot's mid-beat speech
+      # (its declaration before a tool, its reaction after) so a bot PC's turn
+      # reads as a sequence of visible beats instead of one DM-flavored block.
+      capabilities: [Events]
     )
   end
 
@@ -72,19 +76,39 @@ defmodule Dragones.PCAgent do
     REGLAS DE COMBATE — no las rompas nunca:
     1. NUNCA decides tú el resultado de una tirada, ataque, daño, salvación o chequeo. Eso lo resuelven EXCLUSIVAMENTE las herramientas: `make_attack`, `cast_spell`, `ability_check`, `heal`. La herramienta devuelve el resultado factual; tú reaccionas a él en personaje.
     2. Cuando sea tu turno, TÚ eres el actor. CADA llamada a una herramienta DEBE usar "#{c.name}" como atacante/conjurador/quien — nunca otro personaje. El motor lo impone: usar otro nombre es RECHAZADO.
-    3. Llama a UNA herramienta por turno para resolver tu acción, luego habla 1–2 frases en personaje reaccionando al resultado. Sé breve.
-    4. Ventaja/desventaja: pasa `mode: "advantage"` o `mode: "disadvantage"` a `make_attack` cuando la situación lo conceda (un enemigo caído, una posición oculta, etc.). En caso contrario pasa "normal".
-    5. Pelea con inteligencia: ataca al enemigo más débil, protege a los aliados con poca vida, usa tus habilidades más fuertes. Si estás muy herido, dilo y busca cobertura o curación.
-    6. Mantente siempre en personaje. Habla como lo haría #{c.name} — en primera persona, con tu personalidad. No rompas la cuarta pared ni menciones mecánicas del juego.
+    3. **SOLO puedes atacar/conjurar contra objetivos que existan en el mundo y estén VIVOS.** El motor rechaza cualquier objetivo inexistente ("el maniquí", "la diana", "el barril", PNJ no hostiles…). Si tu instrucción de turno NO lista objetivos enemigos, NO llames a make_attack ni cast_spell — actúa en personaje (hablar, observar, planear) sin herramienta.
+    4. Si tu turno es en EXPLORACIÓN y no hay enemigos a la vista, responde con 1-2 frases EN PERSONAJE sin llamar a ninguna herramienta. Llama a `ability_check` SÓLO si intentas algo con riesgo real (forzar, persuadir, detectar…). Nunca inventes un combate que el DM no haya iniciado.
+    5. Cuando SÍ haya combate y tu instrucción liste objetivos VÁLIDOS, llama a UNA herramienta (make_attack / cast_spell) por turno y luego reacciona en 1-2 frases. Sé breve.
+    6. Ventaja/desventaja: pasa `mode: "advantage"` o `mode: "disadvantage"` a `make_attack` cuando la situación lo conceda (un enemigo caído, una posición oculta, etc.). En caso contrario pasa "normal".
+    7. Pelea con inteligencia: ataca al enemigo más débil, protege a los aliados con poca vida, usa tus habilidades más fuertes. Si estás muy herido, dilo y busca cobertura o curación.
+    8. Mantente siempre en personaje. Habla como lo haría #{c.name} — en primera persona, con tu personalidad. No rompas la cuarta pared ni menciones mecánicas del juego.
 
     #{bible_note(c)}
     """
     |> String.trim_trailing()
   end
 
-  @doc "The per-turn instruction for this PC."
+  @doc """
+  The per-turn instruction for this PC.
+
+  Adapts to the situation:
+    * Downed (0 hp) → only a death saving throw.
+    * Combat with living enemies → lists the valid targets (so the bot doesn't
+      invent phantoms like "el maniquí" or "la diana") and the available
+      weapons/spells.
+    * Exploration / no enemies in sight → the bot can act **in character without
+      calling any tool** (talk, observe, move). Tools are still listed for when
+      it tries something with a failure risk (force a door, persuade…).
+
+  World is threaded in so the bot knows its real context, instead of being
+  steered to call make_attack on something that doesn't exist (which would burn
+  the retry budget and pause the partida).
+  """
   @spec instruction(String.t(), Character.t()) :: String.t()
-  def instruction(name, %Character{} = c) when c.name == name do
+  def instruction(name, %Character{} = c), do: instruction(name, c, nil)
+
+  @spec instruction(String.t(), Character.t(), World.t() | nil) :: String.t()
+  def instruction(name, %Character{} = c, world) when c.name == name do
     # A downed (0 hp) character can only make a death saving throw on its turn —
     # it cannot attack, cast, or act. Steer the agent there explicitly so it
     # doesn't try to fight while unconscious.
@@ -96,14 +120,9 @@ defmodule Dragones.PCAgent do
       weapons = c.weapons |> Enum.map(& &1.name) |> Enum.join(", ")
       spells = if c.spells == [], do: [], else: c.spells |> Enum.map(& &1.name) |> Enum.join(", ")
 
-      base = "Es TU turno (#{c.name}). Elige tu acción y llama a la herramienta adecuada:\n" <>
-        "- Atacar: make_attack(\"#{c.name}\", \"<objetivo>\", \"<arma>\") — armas disponibles: #{weapons}.\n"
+      enemies = living_enemies(world, c)
+      combat? = world != nil and world.phase == :combat and enemies != []
 
-      spell_line = if spells != "",
-        do: "- Conjurar: cast_spell(\"#{c.name}\", \"<hechizo>\", \"<objetivo>\") — hechizos conocidos: #{spells}.\n",
-        else: ""
-
-      # Conditions reminder
       cond_line =
         case c.conditions || [] do
           [] -> ""
@@ -117,11 +136,60 @@ defmodule Dragones.PCAgent do
             if names == [], do: "", else: "- AVISO: estás #{Enum.join(names, ", ")}. Esto puede afectar a tus tiradas de ataque.\n"
         end
 
-      base <> spell_line <> cond_line <> "Responde en castellano."
+      if combat? do
+        # Combat with real enemies: list them so the bot never proposes a
+        # non-existent target. Tools are the right path here.
+        targets = Enum.map_join(enemies, ", ", &"\"#{&1}\"")
+
+        base =
+          "Es TU turno (#{c.name}). Estás en COMBATE. Objetivos VÁLIDOS (único tipo de objetivo que el motor acepta): #{targets}.\n" <>
+            "- Atacar: make_attack(\"#{c.name}\", \"<objetivo de la lista>\", \"<arma>\") — armas: #{weapons}.\n"
+
+        spell_line =
+          if spells != "",
+            do: "- Conjurar: cast_spell(\"#{c.name}\", \"<hechizo>\", \"<objetivo de la lista>\") — hechizos: #{spells}.\n",
+            else: ""
+
+        base <> spell_line <> cond_line <>
+          "Elige UNA acción y llama a la herramienta. Luego reacciona en 1-2 frases. Responde en castellano."
+      else
+        # Exploration (or combat with no living enemies): NO fuerces un tool.
+        # The bot may speak, observe, plan, move — all text-only. Only call a
+        # tool if attempting something with a real chance of failure (force a
+        # door, persuade an NPC, search for traps…).
+        "Es TU turno (#{c.name}). NO hay enemigos a la vista.\n" <>
+          "Puedes ACTUAR EN PERSONA sin llamar a ninguna herramienta: hablar, observar, moverte, " <>
+          "planear, reaccionar a la escena. Una o dos frases en tu voz.\n" <>
+          "SOLO llama a una herramienta si intentas algo con riesgo real de fallo " <>
+          "(forzar una puerta, persuadir a un PNJ, detectar una trampa, etc.): " <>
+          "ability_check(\"#{c.name}\", \"<str|dex|con|int|wis|cha>\", <DC>).\n" <>
+          "NO inventes make_attack contra objetos, PNJ sin hostilidad, o nombres que no estén en el mundo. " <>
+          "Si no sabes qué hacer, simplemente habla en personaje y termina tu turno.\n" <>
+          cond_line <>
+          "Responde en castellano."
+      end
     end
   end
 
-  def instruction(name, _), do: "Es el turno de #{name}. Actúa en personaje. Responde en castellano."
+  def instruction(name, %Character{} = c, _world) when c.name != name do
+    "Es el turno de #{name}. Actúa en personaje. Responde en castellano."
+  end
+
+  def instruction(name, _, _) do
+    "Es el turno de #{name}. Actúa en personaje. Responde en castellano."
+  end
+
+  # The valid attack/cast targets for this PC: every living character on the
+  # other side. Returns [] when world is nil (defensive — keep old behaviour).
+  defp living_enemies(nil, _c), do: []
+
+  defp living_enemies(%World{characters: chars}, %Character{side: side}) do
+    chars
+    |> Map.values()
+    |> Enum.filter(fn ch -> ch.side != side and (ch.hp || 0) > 0 end)
+    |> Enum.map(& &1.name)
+    |> Enum.sort()
+  end
 
   # --- personality by class ---
 

@@ -363,9 +363,32 @@ defmodule Dragones.Games do
 
   @doc "The last `n` events (for agent context / chat render)."
   @spec recent_events(term(), pos_integer()) :: [GameEvent.t()]
-  def recent_events(game_id, n \\ 20) do
+  def recent_events(game_id, n \\ 200) do
     Repo.all(from(e in GameEvent, where: e.game_id == ^game_id, order_by: [desc: e.seq], limit: ^n))
     |> Enum.reverse()
+  end
+
+  @doc """
+  Older events for pagination: the `n` events strictly before `before_seq`
+  (i.e. with a lower seq), oldest-first. Used by the LiveView's "load more"
+  handler to grow the chat timeline upward without re-fetching the whole log.
+  """
+  @spec events_before(term(), integer(), pos_integer()) :: [GameEvent.t()]
+  def events_before(game_id, before_seq, n \\ 200) do
+    Repo.all(
+      from(e in GameEvent,
+        where: e.game_id == ^game_id and e.seq < ^before_seq,
+        order_by: [desc: e.seq],
+        limit: ^n
+      )
+    )
+    |> Enum.reverse()
+  end
+
+  @doc "Total event count for a game (drives the 'has more' flag in the UI)."
+  @spec count_events(term()) :: non_neg_integer()
+  def count_events(game_id) do
+    Repo.one(from(e in GameEvent, where: e.game_id == ^game_id, select: count(e.id)))
   end
 
   # --------------------------------------------------------------- writes

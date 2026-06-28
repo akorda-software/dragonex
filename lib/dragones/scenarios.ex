@@ -84,6 +84,37 @@ defmodule Dragones.Scenarios do
         locations: "el Bosque Negro, la aldea de los Claros, la cueva oculta en lo profundo",
         suggested_enemies: ["wolf", "wolf", "orc"],
         summary: "Persigue lobos en un bosque oscuro y descubre qué los controla. Supervivencia y exploración."
+      },
+      %{
+        key: "arena",
+        title: "Arena de Pruebas",
+        scene: "una arena de entrenamiento cerrada con maniquíes de paja, dianas, barriles, un círculo de invocación para criaturas de prueba y carteles que delimitan cada zona de práctica",
+        dm_style: "metódico y didáctico: guía al jugador por cada mecánica del motor, una a una. Anima a experimentar con ventaja, desventaja, condiciones, magia y descansos. Usa spawn_monster para invocar diferentes enemigos y prueba cada tipo de arma y hechizo",
+        hook:
+          "ESTO NO ES UNA AVENTURA — es un campo de pruebas para ejercitar TODAS las mecánicas del motor. " <>
+            "El objetivo no es la narrativa sino verificar que cada sistema funciona. " <>
+            "Lista de mecánicas a probar (avanza metódicamente, pregunta al jugador qué quiere testear):\n" <>
+            "• COMBATE: ataques melee con STR (longsword), ataques a distancia con DEX (shortbow, javelin), armas finesse (scimitar, shortsword), " <>
+            "ataques con ventaja (mode: advantage) y desventaja (mode: disadvantage), críticos (nat 20) y pifias (nat 1).\n" <>
+            "• MAGIA: hechizos de ataque vs CA (firebolt), hechizos automáticos que siempre impactan (magic missile), " <>
+            "hechizos de salvación (saving throw), reacciones (shield +5 CA).\n" <>
+            "• TIRADAS: ability checks con y sin competencia a varias CDs (5 fácil, 10 media, 15 difícil, 20 muy difícil), " <>
+            "saving throws de cada característica (str, dex, con, int, wis, cha).\n" <>
+            "• MUERTE Y CAÍDAS: dejar un personaje a 0 HP y probar make_death_save " <>
+            "(nat 20 revive a 1 HP, nat 1 cuenta doble, 3 fallos = muerto, 3 éxitos = estable).\n" <>
+            "• CURACIÓN: heal con expresión de dados (1d8+3), comprobar tope de max_hp.\n" <>
+            "• CONDICIONES: apply_condition y remove_condition (prone, blinded, poisoned, stunned, restrained) — " <>
+            "observa cómo conceden ventaja/desventaja automáticamente.\n" <>
+            "• DESCANSOS: short_rest (gastar hit die) y long_rest (recuperar todo HP y casillas de hechizo).\n" <>
+            "• PROGRESIÓN: level_up para subir de nivel y ver crecer HP, competencia y casillas.\n" <>
+            "• TÁCTICO: roll_initiative para iniciar combate, spawn_monster para refuerzos " <>
+            "(probar cada CR: goblin, kobold, bandit, skeleton, wolf, orc, hobgoblin, ogre), end_combat para terminar.\n" <>
+            "Empieza preguntando al jugador qué mecánica quiere probar primero.",
+        tone: "experimental y didáctico, sin stakes narrativos — lo que importa es ejercitar mecánicas, no la historia",
+        npcs: "maniquíes de práctica (objetos inertes para atacar), dianas móviles, un mayordomo de arena neutral que explica las opciones disponibles",
+        locations: "la Arena de Pruebas: zona de cuerpo a cuerpo, zona de tiro al blanco, círculo de invocación, zona de magia, zona de descanso",
+        suggested_enemies: ["goblin", "kobold", "bandit", "skeleton", "wolf", "orc", "hobgoblin", "ogre"],
+        summary: "Campo de pruebas: no es una aventura. Ejercita todas las mecánicas (combate, magia, salvaciones, condiciones, descansos, niveles, refuerzos) en un entorno controlado."
       }
     ]
   end

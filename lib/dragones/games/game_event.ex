@@ -13,13 +13,13 @@ defmodule Dragones.Games.GameEvent do
 
   use Ecto.Schema
 
-  @type etype :: :narration | :action | :tool | :dice | :system
+  @type etype :: :narration | :action | :tool | :dice | :system | :turn
   @type visible_to :: :all | :dm | String.t()
 
   schema "game_events" do
     belongs_to(:game, Dragones.Games.Game)
     field(:seq, :integer)
-    field(:type, Ecto.Enum, values: [:narration, :action, :tool, :dice, :system])
+    field(:type, Ecto.Enum, values: [:narration, :action, :tool, :dice, :system, :turn])
     field(:actor, :string)
     field(:visible_to, :string, default: "all")
     field(:payload, :map, default: %{})
