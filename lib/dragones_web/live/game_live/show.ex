@@ -25,6 +25,10 @@ defmodule DragonesWeb.GameLive.Show do
   # How many events each "load more log" click pulls in. Tuned so one click
   # recovers ~2-4 turns of context.
   @log_page_size 100
+  # Hard cap on how many turn-blocks the LiveView keeps rendered client-side.
+  # Prevents unbounded memory/render growth when a user clicks "load more"
+  # repeatedly; the oldest tail is dropped past this limit.
+  @max_chat_blocks 400
 
   @impl true
   def mount(%{"game_id" => id}, session, socket) do
@@ -235,10 +239,23 @@ defmodule DragonesWeb.GameLive.Show do
           older_blocks = chat_blocks(older, viewer)
           still_more? = length(older) == @log_page_size
 
+          # Cap the in-memory chat so a user clicking "load more" a hundred times
+          # can't grow the assign without bound (each block carries its events).
+          # When we exceed the cap, drop the OLDEST blocks at the tail — the user
+          # is paging up, so the freshly loaded top is what matters.
+          merged = older_blocks ++ socket.assigns[:chat]
+
+          merged =
+            if length(merged) > @max_chat_blocks do
+              Enum.take(merged, @max_chat_blocks)
+            else
+              merged
+            end
+
           {:noreply,
            socket
            |> assign(
-             chat: older_blocks ++ socket.assigns[:chat],
+             chat: merged,
              has_more_events: still_more?
            )}
         end
@@ -422,6 +439,7 @@ defmodule DragonesWeb.GameLive.Show do
       live_text: "",
       live_turn_id: nil,
       live_actor: nil,
+      live_last_narration_seq: 0,
       has_more_events: false,
       busy: false,
       pending: "",
@@ -455,59 +473,89 @@ defmodule DragonesWeb.GameLive.Show do
           |> assign_new(:live_text, fn -> "" end)
           |> assign_new(:live_actor, fn -> nil end)
           |> assign_new(:live_turn_id, fn -> nil end)
+          |> assign_new(:live_last_narration_seq, fn -> 0 end)
           |> assign_new(:has_more_events, fn -> false end)
 
-        snap = Game.snapshot(pid)
-        user = socket.assigns[:current_user]
-        game = Games.get_game(game_id)
-        is_creator = user && game && game.user_id == user.id
-
-        # Auto-assign viewer: creator can use ?as=dm for DM view; everyone else
-        # gets their own participant automatically.
-        viewer =
-          cond do
-            viewer_param == "dm" and is_creator -> "dm"
-            is_binary(viewer_param) -> validate_viewer(viewer_param, snap.participants)
-            user != nil -> auto_viewer(snap.participants, user.id)
-            true -> nil
+        # The snapshot is a synchronous GenServer call. If the game server is
+        # busy (processing a beat, heavy mailbox), the default 5s timeout can
+        # fire and crash the LiveView — taking the user's view down. Catch the
+        # exit and skip this update: the next broadcast will retry.
+        snap =
+          try do
+            Game.snapshot(pid)
+          catch
+            :exit, _ ->
+              nil
           end
 
-        assign(socket,
-          loaded: true,
-          connected: true,
-          game_id: game_id,
-          viewer: viewer,
-          is_creator: is_creator,
-          world: snap.world,
-          current: snap.current,
-          status: snap.status,
-          round: snap.round,
-          participants: snap.participants,
-          intents: snap.intents,
-          my_intent: Map.get(snap.intents, viewer),
-          my_turn: viewer != nil and snap.current == viewer,
-          chat: chat_blocks(snap.events, viewer),
-          busy: snap.status == :running,
-          busy_actor: busy_actor(snap),
-          # Preserve the live (streaming) bubble while the same actor's beat is
-          # in flight; flush it when the beat ends (busy_actor nil OR changed).
-          # The narration event persisted by the Events capability replaces it
-          # in the chat timeline on the same render.
-          live_text: maybe_flush_live_text(socket, busy_actor(snap)),
-          live_turn_id: if(busy_actor(snap) == socket.assigns[:live_actor], do: socket.assigns[:live_turn_id], else: nil),
-          live_actor: if(busy_actor(snap) == socket.assigns[:live_actor], do: socket.assigns[:live_actor], else: nil),
-          has_more_events: Map.get(snap, :has_more_events, false),
-          pending: "",
-          dice_hand: socket.assigns[:dice_hand] || [],
-          dice_groups: socket.assigns[:dice_groups] || [],
-          dice_show: socket.assigns[:dice_show] || false,
-          dice_rolling: socket.assigns[:dice_rolling] || false,
-          dice_token: socket.assigns[:dice_token] || 0,
-          dice_flush_ref: socket.assigns[:dice_flush_ref] || nil,
-          dice_hide_ref: socket.assigns[:dice_hide_ref] || nil,
-          dice_engine: socket.assigns[:dice_engine] || (game && game.dice_engine) || "2d",
-          auto_play: viewer != nil and MapSet.member?(snap[:auto] || MapSet.new(), viewer)
-        )
+        if snap == nil do
+          socket
+        else
+          user = socket.assigns[:current_user]
+          game = Games.get_game(game_id)
+          is_creator = user && game && game.user_id == user.id
+
+          viewer =
+            cond do
+              viewer_param == "dm" and is_creator -> "dm"
+              is_binary(viewer_param) -> validate_viewer(viewer_param, snap.participants)
+              user != nil -> auto_viewer(snap.participants, user.id)
+              true -> nil
+            end
+
+          busy = busy_actor(snap)
+
+          # Streaming bubble state. We track the seq of the actor's latest
+          # persisted narration: when a NEW narration lands while the same beat
+          # is still in flight (mid-beat text → tool call → text), the segment
+          # we were streaming is now a chat card, so the bubble is flushed and
+          # the next segment streams fresh. Seq-based (not text-comparison) so
+          # it's robust to scrubbing changing the persisted text vs the raw
+          # streaming preview.
+          live =
+            compute_live_state(
+              busy,
+              snap.events,
+              socket.assigns[:live_actor],
+              socket.assigns[:live_text],
+              socket.assigns[:live_turn_id],
+              socket.assigns[:live_last_narration_seq]
+            )
+
+          assign(socket,
+            loaded: true,
+            connected: true,
+            game_id: game_id,
+            viewer: viewer,
+            is_creator: is_creator,
+            world: snap.world,
+            current: snap.current,
+            status: snap.status,
+            round: snap.round,
+            participants: snap.participants,
+            intents: snap.intents,
+            my_intent: Map.get(snap.intents, viewer),
+            my_turn: viewer != nil and snap.current == viewer,
+            chat: chat_blocks(snap.events, viewer),
+            busy: snap.status == :running,
+            busy_actor: busy,
+            live_text: live.text,
+            live_turn_id: live.turn_id,
+            live_actor: live.actor,
+            live_last_narration_seq: live.last_seq,
+            has_more_events: Map.get(snap, :has_more_events, false),
+            pending: "",
+            dice_hand: socket.assigns[:dice_hand] || [],
+            dice_groups: socket.assigns[:dice_groups] || [],
+            dice_show: socket.assigns[:dice_show] || false,
+            dice_rolling: socket.assigns[:dice_rolling] || false,
+            dice_token: socket.assigns[:dice_token] || 0,
+            dice_flush_ref: socket.assigns[:dice_flush_ref] || nil,
+            dice_hide_ref: socket.assigns[:dice_hide_ref] || nil,
+            dice_engine: socket.assigns[:dice_engine] || (game && game.dice_engine) || "2d",
+            auto_play: viewer != nil and MapSet.member?(snap[:auto] || MapSet.new(), viewer)
+          )
+        end
     end
   end
 
@@ -537,18 +585,46 @@ defmodule DragonesWeb.GameLive.Show do
   defp busy_actor(%{status: :running, current: current}), do: current
   defp busy_actor(_), do: nil
 
-  # Keep the streaming bubble's text while the same actor's beat is still in
-  # flight; clear it the moment the beat ends (busy_actor nil) or a different
-  # actor's beat starts (so we don't show stale text from the previous turn).
-  # Defensive against the first render before any streaming has happened
-  # (socket.assigns may not yet carry :live_text — use [:] access).
-  defp maybe_flush_live_text(socket, busy_actor) do
-    live_actor = socket.assigns[:live_actor]
-    live_text = socket.assigns[:live_text] || ""
+  # Streaming bubble state machine, re-evaluated on every `:game_updated`
+  # re-render. The bubble shows the text currently being generated; it must
+  # flush (clear) the moment a streamed segment has been persisted as a chat
+  # card, so the NEXT segment (the model's reaction after a mid-beat tool call)
+  # streams fresh instead of appending to the already-carded text.
+  #
+  # We detect "a new segment just landed" by comparing the seq of the actor's
+  # latest narration against the seq we saw when the bubble started filling.
+  # This is robust where a text comparison would not be: the persisted text is
+  # scrubbed (`Text.scrub/2` strips leading tags, the actor's own name, HP
+  # leaks…) while the bubble holds the RAW stream, so they routinely differ.
+  #
+  # On a beat/actor change we clear the bubble AND seed `last_seq` to the new
+  # actor's latest narration, so the segment that's ALREADY on screen when we
+  # connect doesn't count as "new" and flush prematurely.
+  defp compute_live_state(busy, events, live_actor, live_text, live_turn_id, prev_seq) do
+    live_text = live_text || ""
+    prev_seq = prev_seq || 0
+    latest_seq = last_narration_seq(events, busy) || 0
 
-    if busy_actor != nil and busy_actor == live_actor,
-      do: live_text,
-      else: ""
+    cond do
+      busy == nil or busy != live_actor ->
+        %{text: "", last_seq: latest_seq, turn_id: nil, actor: nil}
+
+      live_text != "" and latest_seq > prev_seq ->
+        %{text: "", last_seq: latest_seq, turn_id: live_turn_id, actor: live_actor}
+
+      true ->
+        %{text: live_text, last_seq: prev_seq, turn_id: live_turn_id, actor: live_actor}
+    end
+  end
+
+  defp last_narration_seq(events, actor) do
+    events
+    |> Enum.reverse()
+    |> Enum.find(fn e -> e.type == :narration and e.actor == actor end)
+    |> case do
+      nil -> nil
+      e -> e.seq
+    end
   end
 
   # CSS class for the turn header actor label: highlights the viewer's own turn
@@ -644,6 +720,35 @@ defmodule DragonesWeb.GameLive.Show do
   defp chat_who(%{type: :action, actor: actor}) when actor != "dm", do: actor
   defp chat_who(%{type: :narration, actor: actor}) when actor != "dm", do: actor
   defp chat_who(_), do: ""
+
+  # True when the streaming bubble's text already opens with the actor's own
+  # name (a PC bot narrating in third person, "Lyra levanta..."). In that case
+  # the leading `who` span is redundant — showing it would render "LyraLyra
+  # levanta...". Persisted cards are already scrubbed of this by
+  # `Text.scrub/2`, but the live bubble streams RAW text, so we guard here too.
+  # Word-boundary safe: the name must be followed by a separator, so
+  # "Lyranthropo" never matches.
+  defp leading_self?(text, actor) when is_binary(text) and is_binary(actor) and actor != "" do
+    trimmed = text |> String.trim() |> String.trim_leading("—*\"'- ")
+    size = byte_size(actor)
+
+    case trimmed do
+      <<prefix::binary-size(^size), rest::binary>> when prefix == actor ->
+        # The card already labels the actor, so a leading self-name would render
+        # doubled. The streaming bubble uses RAW (un-scrubbed) text, so we must
+        # detect the self-name here too. After the name, strip any closing
+        # markdown bold (`**Thane**...` → `**...`) the model emits, then accept
+        # a separator OR a lowercase letter (DeepSeek sometimes glues the name
+        # to the next word with no space: "Thanedeja ...").
+        rest = String.trim_leading(rest, "*")
+        rest == "" or Regex.match?(~r/^([:：,.\s\-—]|[a-zá-úñ])/, rest)
+
+      _ ->
+        false
+    end
+  end
+
+  defp leading_self?(_, _), do: false
 
   defp chat_outcome(%{type: :dice, payload: p}), do: p["outcome"]
   defp chat_outcome(_), do: nil
@@ -987,7 +1092,7 @@ defmodule DragonesWeb.GameLive.Show do
               <span class="pd-icon">💭</span>
             </span>
             <span :if={not (entry.type == :action and entry.actor != "dm")}>
-              <span :if={entry.who != ""} class="who">{entry.who}</span>{entry.text}
+              <span :if={entry.who != ""}><span class="who">{entry.who}</span> </span>{entry.text}
             </span>
           </p>
         </div>
@@ -999,7 +1104,7 @@ defmodule DragonesWeb.GameLive.Show do
           end}
         </p>
         <p :if={@live_text != ""} class={"msg msg-#{if @live_actor == "dm", do: "dm", else: "pc"} live-streaming"}>
-          <span :if={@live_actor != "dm" and @live_actor != nil} class="who">{@live_actor}</span>{@live_text}<span class="cursor">▍</span>
+          <span :if={@live_actor != "dm" and @live_actor != nil and not leading_self?(@live_text, @live_actor)} class="who">{@live_actor}</span>{@live_text}<span class="cursor">▍</span>
         </p>
       </div>
       <div class="game-input-area">
@@ -1577,6 +1682,7 @@ defmodule DragonesWeb.GameLive.Show do
   defp sheets(%World{} = w),
     do:
       w.characters
+      |> Enum.reject(fn {_, c} -> c.side != "pc" and c.hp <= 0 end)
       |> Enum.sort_by(fn {n, _} -> n end)
       |> Enum.take(@max_sheets)
       |> Enum.map(&elem(&1, 1))

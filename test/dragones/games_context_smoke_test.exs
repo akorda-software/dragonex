@@ -44,4 +44,38 @@ defmodule Dragones.GamesContextSmokeTest do
     assert Games.get_game(game.id).current_participant == "Thane"
     assert Games.get_game(game.id).status == :waiting
   end
+
+  test "delete_narrations_for_turn drops only that turn's narrations" do
+    {:ok, game} =
+      Games.create_game(
+        title: "scrub",
+        scene: "x",
+        roster: [{Archetypes.fighter(), :human}, {Monsters.goblin(), :ai}]
+      )
+
+    # Two narrations on turn "AAA" (the partial + the retry) and one on "BBB".
+    Games.append_event(game.id, :narration, "dm", "all", %{text: "parcial…", turn_id: "AAA"})
+    Games.append_event(game.id, :narration, "dm", "all", %{text: "completa", turn_id: "AAA"})
+    Games.append_event(game.id, :narration, "dm", "all", %{text: "otro turno", turn_id: "BBB"})
+    # A dice event on "AAA" must be preserved (real outcome).
+    Games.append_event(game.id, :dice, "dm", "all", %{turn_id: "AAA", reason: "ataque"})
+
+    {count, _} = Games.delete_narrations_for_turn(game.id, "AAA")
+
+    assert count == 2
+
+    remaining = Games.list_events(game.id)
+
+    refute Enum.any?(remaining, fn e ->
+             e.type == :narration and e.payload["turn_id"] == "AAA"
+           end)
+
+    assert Enum.any?(remaining, fn e ->
+             e.type == :narration and e.payload["turn_id"] == "BBB"
+           end)
+
+    assert Enum.any?(remaining, fn e ->
+             e.type == :dice and e.payload["turn_id"] == "AAA"
+           end)
+  end
 end
