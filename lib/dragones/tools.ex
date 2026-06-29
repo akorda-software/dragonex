@@ -16,6 +16,18 @@ defmodule Dragones.Tools do
     {:ok, "escena establecida"}
   end
 
+  @doc """
+  Record a durable narrative fact ("Un mensajero del Concejo entregó un pergamino",
+  "Thane descubrió una puerta oculta"). Facts persist in the world and are shown
+  to every agent each turn, so the partida's concrete state survives history
+  truncation and hooks don't get dropped or re-introduced. Call this whenever you
+  introduce or reveal something concrete the party should remember.
+  """
+  deftool establish_fact(ctx, fact :: String.t()) do
+    {:ok, _} = propose(ctx, Dragones.World.add_fact(fact))
+    {:ok, "hecho registrado"}
+  end
+
   # --- legacy spike stubs ----------------------------------------------------
   # These apply a raw effect without rolling — they predate the rules engine and
   # are kept only so the original exAgent capability tests (combat/round-robin,

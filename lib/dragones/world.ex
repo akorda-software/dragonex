@@ -28,7 +28,14 @@ defmodule Dragones.World do
             characters: %{},
             initiative_order: [],
             log: [],
-            spell_slots: %{}
+            spell_slots: %{},
+            # Durable narrative facts the DM has established (a PNJ arrived, a
+            # door was discovered, a contract was given). They survive truncation
+            # in the shared history and are surfaced in the world_brief every
+            # turn, so every agent reads the same "what has concretely happened
+            # in the world" — the antidote to the DM introducing a hook and then
+            # abandoning it, or re-introducing an event that already occurred.
+            facts: []
 
   @type phase :: :exploration | :combat
 
@@ -39,7 +46,8 @@ defmodule Dragones.World do
           characters: %{String.t() => Character.t()},
           initiative_order: [String.t()],
           log: [{String.t(), String.t()}],
-          spell_slots: %{String.t() => %{pos_integer() => non_neg_integer()}}
+          spell_slots: %{String.t() => %{pos_integer() => non_neg_integer()}},
+          facts: [String.t()]
         }
 
   @spec new(keyword()) :: t()
@@ -113,6 +121,28 @@ defmodule Dragones.World do
   @spec narrate(String.t(), String.t()) :: (t() -> {:ok, t()})
   def narrate(actor, text) do
     fn w -> {:ok, %{w | log: log(w, actor, text)}} end
+  end
+
+  @doc """
+  Append a durable narrative fact to the world. Facts are short, concrete
+  statements of what has been established in-fiction ("Un mensajero del Concejo
+  entregó un pergamino con una misión", "Thane descubrió una puerta oculta tras
+  las dianas"). They are surfaced in every agent's world_brief so the partida's
+  concrete state survives history truncation and every agent reads the same
+  ground truth — keeping the DM from re-introducing or abandoning hooks it
+  already fired. Idempotent: an identical existing fact is not re-added.
+  """
+  @spec add_fact(String.t()) :: (t() -> {:ok, t()})
+  def add_fact(fact) when is_binary(fact) do
+    fn w ->
+      trimmed = String.trim(fact)
+
+      if trimmed == "" or trimmed in w.facts do
+        {:ok, w}
+      else
+        {:ok, %{w | facts: w.facts ++ [trimmed]}}
+      end
+    end
   end
 
   @spec add_character(Character.t()) :: (t() -> {:ok, t()} | {:error, String.t()})

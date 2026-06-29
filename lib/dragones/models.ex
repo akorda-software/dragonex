@@ -57,9 +57,13 @@ defmodule Dragones.Models do
     end
   end
 
-  @doc "Max output tokens per DM beat (cost cap)."
+  @doc "Max output tokens per DM beat (cost cap). DeepSeek v4 flash tends to
+  overwrite when given headroom — multiple markdown sections, initiative tables,
+  post-action HP recaps — which blows the cap mid-tool-call. 1500 is enough for
+  vivid-but-tight narration (3-5 short paragraphs) and forces the model to be
+  concise. Bots are capped at 2048 in PCAgent.new/3 (they handle tools + speech)."
   @spec dm_max_tokens() :: pos_integer()
-  def dm_max_tokens, do: System.get_env("DRAGONES_DM_MAX_TOKENS", "1024") |> String.to_integer()
+  def dm_max_tokens, do: System.get_env("DRAGONES_DM_MAX_TOKENS", "1500") |> String.to_integer()
 
   @doc """
   Extract cached prompt tokens from a Usage map (OpenRouter/OpenAI report them

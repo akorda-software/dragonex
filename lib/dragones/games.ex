@@ -450,4 +450,26 @@ defmodule Dragones.Games do
     )
     |> Repo.insert()
   end
+
+  @doc """
+  Delete the :narration events produced for a given `turn_id`.
+
+  The timeline is append-only by convention, but a beat that hit max_tokens
+  leaves a HALF narration on the log (the model streamed some text before being
+  cut off) which then sits next to the complete narration the brevity retry
+  produces — so the player sees a truncated "…correa de la moch" immediately
+  followed by the good line. Wiping the failed-turn narrations before the retry
+  keeps the timeline clean. Dice/system/action events for that turn are kept
+  (they're real outcomes); only the partial narration is dropped.
+  """
+  @spec delete_narrations_for_turn(term(), String.t()) :: {non_neg_integer(), term()}
+  def delete_narrations_for_turn(game_id, turn_id) do
+    Repo.delete_all(
+      from(e in GameEvent,
+        where:
+          e.game_id == ^game_id and e.type == :narration and
+            fragment("?->>'turn_id' = ?", e.payload, ^turn_id)
+      )
+    )
+  end
 end

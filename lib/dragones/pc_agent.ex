@@ -15,6 +15,7 @@ defmodule Dragones.PCAgent do
   """
 
   alias Dragones.{Character, Events, Tools, World}
+  alias ExAgent.{Compaction, Message}
 
   @doc """
   The PC's tool set — a restricted subset of the game tools.
@@ -39,24 +40,92 @@ defmodule Dragones.PCAgent do
   into the instructions (a cacheable stable prefix).
 
   Options:
-    * `:max_tokens` — output cap per turn (default 384 — PCs are terser than the DM).
+    * `:max_tokens` — output cap per turn (default 2048).
   """
   @spec new(term(), Character.t(), keyword()) :: ExAgent.t()
   def new(model, %Character{} = sheet, opts \\ []) do
+    summarizer = Keyword.get(opts, :summarizer)
+    max_tokens = Keyword.get(opts, :max_tokens, 2048)
+    caps = [Events | compaction_capabilities(summarizer, opts)]
+
     ExAgent.new(
       model: model,
       instructions: system_prompt(sheet),
       tools: tools(),
       model_settings: [
-        max_tokens: Keyword.get(opts, :max_tokens, 384),
+        max_tokens: max_tokens,
         temperature: 0.8
       ],
-      # Same `Events` capability as the DM: publishes the bot's mid-beat speech
-      # (its declaration before a tool, its reaction after) so a bot PC's turn
-      # reads as a sequence of visible beats instead of one DM-flavored block.
-      capabilities: [Events]
+      capabilities: caps
     )
   end
+
+  # PC bots now read the SAME shared history as the DM (Dragones.Game
+  # reconstructs it from game_events), so they're no longer blind to what
+  # others did. Their history grows at the same rate. Compaction is wired the
+  # same way as the DM: cheap summarizer, 250k threshold (effectively off for
+  # most partidas), keep_recent 12 so the latest beat survives intact.
+  defp compaction_capabilities(nil, _opts), do: []
+
+  defp compaction_capabilities(summarizer, opts) do
+    [
+      %Compaction.Capability{
+        compactor: Compaction.Summary,
+        opts: [
+          threshold_tokens: Keyword.get(opts, :compaction_threshold, 250_000),
+          keep_recent: Keyword.get(opts, :compaction_keep_recent, 12),
+          summarize: fn old -> summarize_history(summarizer, old) end
+        ]
+      }
+    ]
+  end
+
+  defp summarize_history(summarizer, old_messages) do
+    require Logger
+
+    Logger.info(
+      "dragones: pc-compaction fired — summarizing #{length(old_messages)} old messages via #{ExAgent.Model.model_name(summarizer)}"
+    )
+
+    agent = ExAgent.new(model: summarizer, instructions: summarize_instructions())
+
+    case ExAgent.run(agent, summarize_prompt(old_messages)) do
+      {:ok, %{output: text}} when is_binary(text) -> text
+      _ -> "(earlier turns recap unavailable)"
+    end
+  end
+
+  defp summarize_instructions do
+    "Haces un resumen de los turnos anteriores de una partida de D&D 5e para un personaje jugador. " <>
+      "Mantén un tono factual y conciso: qué hizo cada personaje, daño/desenlaces clave, cambios de " <>
+      "escena, enemigos caídos. 2-4 frases. Sin jerga de reglas. Escribe en castellano."
+  end
+
+  defp summarize_prompt(messages) do
+    body =
+      messages
+      |> Enum.map_join("\n", fn
+        %Message.Request{parts: parts} ->
+          case Enum.find_value(parts, &extract_user_text/1) do
+            nil -> ""
+            text -> "ESCENA: #{text}"
+          end
+
+        %Message.Response{} = r ->
+          case Message.Response.text(r) do
+            "" -> ""
+            text -> "NARRACIÓN: #{text}"
+          end
+
+        _ ->
+          ""
+      end)
+
+    "Resume estos turnos anteriores de la partida:\n\n#{body}"
+  end
+
+  defp extract_user_text(%ExAgent.Message.Part.User{content: c}) when is_binary(c), do: c
+  defp extract_user_text(_), do: nil
 
   @doc "The PC's system prompt — identity, personality, gear, and the tool contract."
   @spec system_prompt(Character.t()) :: String.t()
@@ -78,11 +147,13 @@ defmodule Dragones.PCAgent do
     2. Cuando sea tu turno, TÚ eres el actor. CADA llamada a una herramienta DEBE usar "#{c.name}" como atacante/conjurador/quien — nunca otro personaje. El motor lo impone: usar otro nombre es RECHAZADO.
     3. **SOLO puedes atacar/conjurar contra objetivos que existan en el mundo y estén VIVOS.** El motor rechaza cualquier objetivo inexistente ("el maniquí", "la diana", "el barril", PNJ no hostiles…). Si tu instrucción de turno NO lista objetivos enemigos, NO llames a make_attack ni cast_spell — actúa en personaje (hablar, observar, planear) sin herramienta.
     4. Si tu turno es en EXPLORACIÓN y no hay enemigos a la vista, responde con 1-2 frases EN PERSONAJE sin llamar a ninguna herramienta. Llama a `ability_check` SÓLO si intentas algo con riesgo real (forzar, persuadir, detectar…). Nunca inventes un combate que el DM no haya iniciado.
-    5. **PROACTIVIDAD**: eres un aventurero con voluntad propia, no un personaje pasivo esperando órdenes. Avanza la escena: explora, abre, pregunta, propone, decide. Si el DM ofreció opciones en su último turno, ELIGE una y ejecútala en tu voz. Si nadie en el grupo toma la iniciativa, TÓMALA TÚ. Nunca termines un turno diciendo sólo "espero", "paso" o "no hago nada" — siempre debes haber HECHO o PROPUESTO algo concreto que mueva la partida hacia delante.
+    5. **PROACTIVIDAD**: eres un aventurero con voluntad propia, no un personaje pasivo esperando órdenes. Avanza la escena: explora, abre, pregunta, propone, decide. Si el DM ofreció opciones en su último turno, ELIGE una y ejecútala en tu voz. Si nadie en el grupo toma la iniciativa, TÓMALA TÚ. Nunca termines un turno diciendo sólo "espero", "paso" o "no hago nada" — siempre debes haber HECHO o PROPUESTO algo concreto que mueva la partida hacia delante. **ANTIBUCLE**: si en los turnos anteriores ya dijiste tu intención ("¿subimos el nivel?", "¿vamos a la biblioteca?", "¿seguimos?"), NO repitas la misma pregunta. Esta vez TOMA LA ACCIÓN directamente: camina hacia la salida, abre el cofre, activa el mecanismo, ataca al objetivo. La repetición de intención estanca la partida.
     6. Cuando SÍ haya combate y tu instrucción liste objetivos VÁLIDOS, llama a UNA herramienta (make_attack / cast_spell) por turno y luego reacciona en 1-2 frases. Sé breve.
     7. Ventaja/desventaja: pasa `mode: "advantage"` o `mode: "disadvantage"` a `make_attack` cuando la situación lo conceda (un enemigo caído, una posición oculta, etc.). En caso contrario pasa "normal".
     8. Pelea con inteligencia: ataca al enemigo más débil, protege a los aliados con poca vida, usa tus habilidades más fuertes. Si estás muy herido, dilo y busca cobertura o curación.
     9. Mantente siempre en personaje. Habla como lo haría #{c.name} — en primera persona, con tu personalidad. No rompas la cuarta pared ni menciones mecánicas del juego.
+    10. **FORMATO DE OUTPUT (CRÍTICO)**: tu respuesta debe ser PROSA PURA en castellano. NUNCA incluyas en tu output ninguna de estas marcas: `[#{c.name}]:`, `[DM]:`, `[<cualquier nombre>]:`, `[R1 · Turno de ...]`, ni headers que empiecen por `R<numero>`. Esas etiquetas las usa internamente el motor en el history — tú NO las imites. Tampoco tablas markdown, battlemaps ASCII, ni tokens tipo `<｜DSML｜...>`. Escribe tu acción y diálogo como lo haría un personaje de novela: con guiones para diálogo (`—dijo...`) o descripción directa (*"Vex desenfunda..."*). NUNCA abras con `[#{c.name}]:`.
+    11. **NO REVELES STATS**: nunca digas "el goblin tiene 7 HP", "le quedan 2 pg", "CA 13", ni números internos del motor en tu output. Describe el estado del enemigo cualitativamente ("está herido", "sangra", "cojea", "parece ileso") — los números los lleva el motor, tú llevas la ficción.
 
     #{bible_note(c)}
     """
@@ -168,11 +239,17 @@ defmodule Dragones.PCAgent do
           "explora un área nueva, abre una puerta, habla con un PNJ, inspecciona un detalle, propone un plan al grupo, " <>
           "toma una decisión. Si el DM ha ofrecido opciones en su último turno, ELIGE UNA y ejecútala. " <>
           "Si la escena está parada, propón una acción concreta que la mueva.\n" <>
+          "COORDINACIÓN CON EL GRUPO: lee lo que tus compañeros acaban de hacer en sus turnos y REACCIONA en " <>
+          "persona — apoya, matiza, desvío, propón alternativa, o suma tu parte al plan. NO ignores lo que otro " <>
+          "miembro propuso para abrir un hilo paralelo desconectado; la partida fluye mejor cuando los PCs responden " <>
+          "unos a otros y avanzan juntos hacia un mismo objetivo.\n" <>
           "NUNCA termines tu turno diciendo sólo 'espero', 'paso', 'no hago nada', 'mi turno termina' — siempre " <>
           "debes haber HECHO o PROPUESTO algo concreto, en una o dos frases con personalidad.\n" <>
           "SOLO llama a una herramienta si intentas algo con riesgo real de fallo " <>
           "(forzar una puerta, persuadir a un PNJ, detectar una trampa, etc.): " <>
           "ability_check(\"#{c.name}\", \"<str|dex|con|int|wis|cha>\", <DC>).\n" <>
+          "Si introducen o revelan algo duradero (un PNJ llega, un descubrimiento, un encargo), el DM lo registrará " <>
+          "con establish_fact; tú NO necesitas llamarlo. " <>
           "NO inventes make_attack contra objetos, PNJ sin hostilidad, o nombres que no estén en el mundo. " <>
           "Si no sabes qué hacer, propone UNA acción concreta (abrir X, hablar con Y, ir a Z) en personaje.\n" <>
           cond_line <>

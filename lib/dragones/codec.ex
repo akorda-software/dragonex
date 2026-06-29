@@ -27,7 +27,8 @@ defmodule Dragones.Codec do
       "characters" => Map.new(w.characters, fn {name, c} -> {name, encode_character(c)} end),
       "initiative_order" => w.initiative_order,
       "log" => Enum.map(w.log, fn {actor, entry} -> [actor, entry] end),
-      "spell_slots" => w.spell_slots
+      "spell_slots" => w.spell_slots,
+      "facts" => w.facts
     }
   end
 
@@ -42,7 +43,8 @@ defmodule Dragones.Codec do
       characters: Map.new(m["characters"], fn {name, c} -> {name, decode_character(c)} end),
       initiative_order: m["initiative_order"] || [],
       log: Enum.map(m["log"] || [], fn [actor, entry] -> {actor, entry} end),
-      spell_slots: m["spell_slots"] || %{}
+      spell_slots: m["spell_slots"] || %{},
+      facts: m["facts"] || []
     }
   end
 
