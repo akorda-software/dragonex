@@ -28,7 +28,7 @@ defmodule Dragones.Events do
 
   use ExAgent.Capability
 
-  alias Dragones.Games
+  alias Dragones.{Games, Text}
   alias ExAgent.Message, as: Msg
   alias ExAgent.Message.{Part, Response}
 
@@ -58,7 +58,11 @@ defmodule Dragones.Events do
   defp maybe_publish_speech(_game_id, _actor, _beat, nil), do: :ok
 
   defp maybe_publish_speech(game_id, actor, beat, %Response{} = resp) do
-    text = String.trim(Response.text(resp))
+    text =
+      resp
+      |> Response.text()
+      |> String.trim()
+      |> Text.scrub(actor)
 
     if text == "" do
       :ok
