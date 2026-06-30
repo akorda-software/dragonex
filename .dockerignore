@@ -1,0 +1,22 @@
+.git
+_build/
+deps/
+.elixir_ls/
+.mix/
+cover/
+erl_crash.dump
+
+# Secrets / env
+.env
+.env.*
+!.env.dokploy.example
+
+# Docs / metadata
+*.md
+doc/
+.github/
+.vscode/
+.DS_Store
+
+# Tests no van al build de prod
+test/

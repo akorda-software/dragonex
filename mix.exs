@@ -25,8 +25,8 @@ defmodule Dragones.MixProject do
 
   defp deps do
     [
-      {:exagent, path: "../exAgent"},
-      {:dic_ex, path: "../dic_ex"},
+      {:exagent, github: "kukapu/exagent", branch: "main"},
+      {:dic_ex, github: "kukapu/dic_ex", branch: "main"},
       {:ecto, "~> 3.12"},
       {:ecto_sql, "~> 3.12"},
       {:postgrex, ">= 0.0.0"},
@@ -38,7 +38,8 @@ defmodule Dragones.MixProject do
       {:bandit, "~> 1.5"},
       {:jason, "~> 1.4"},
       {:bcrypt_elixir, "~> 3.0"},
-      {:lazy_html, ">= 0.1.0", only: :test}
+      {:lazy_html, ">= 0.1.0", only: :test},
+      {:dotenvy, "~> 1.1", only: :dev}
     ]
   end
 end

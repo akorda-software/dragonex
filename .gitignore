@@ -24,6 +24,8 @@ dragones-*.tar
 
 
 .env
+.env.dokploy
+!.env.dokploy.example
 
 # Vendored dic_ex dice assets (JS bundle + CSS) — copied from the ../dic_ex
 # path dep via `mix dic_ex.install` (or `cp ../dic_ex/priv/static/* priv/static/assets/`).
