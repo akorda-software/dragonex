@@ -47,4 +47,6 @@ COPY --from=builder --chown=app:app /app/_build/prod/rel/dragones ./
 USER app
 
 EXPOSE 4000
-CMD ["bin/dragones", "start"]
+# Migra (idempotente) y luego arranca. Si una migración falla, el contenedor
+# no arranca — preferible a servir con schema incompleto.
+CMD ["sh", "-c", "bin/dragones eval 'Dragones.Release.migrate()' && bin/dragones start"]
