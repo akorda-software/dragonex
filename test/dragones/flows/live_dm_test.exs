@@ -16,7 +16,7 @@ defmodule Dragones.Flows.LiveDMTest do
 
   @moduletag :integration
 
-  alias Dragones.{Archetypes, DM, Monsters, TurnPolicy.WorldDriven, World}
+  alias Dragones.{Archetypes, Brief, DM, Monsters, TurnPolicy.WorldDriven, World}
   alias ExAgent.{Models, Server, Session}
   alias ExAgent.Session.{Participant, SharedState}
 
@@ -56,7 +56,7 @@ defmodule Dragones.Flows.LiveDMTest do
     assert {:ok, %{usage: usage}} =
              Server.chat(
                dm,
-               DM.turn_prompt(Session.read_state(game), "dm", "Begin the fight: roll initiative."),
+                Brief.turn_prompt(Session.read_state(game), "dm", "Begin the fight: roll initiative."),
                deps: deps
              )
 
@@ -94,11 +94,11 @@ defmodule Dragones.Flows.LiveDMTest do
     assert {:ok, _} =
              Server.chat(
                dm,
-               DM.turn_prompt(
-                 Session.read_state(game),
-                 "dm",
-                 "Run the goblin's turn: it attacks Thane. Call the right tool, then narrate."
-               ),
+                Brief.turn_prompt(
+                  Session.read_state(game),
+                  "dm",
+                  "Run the goblin's turn: it attacks Thane. Call the right tool, then narrate."
+                ),
                deps: %{state: SharedState.new(game, "dm"), roller: roller}
              )
 

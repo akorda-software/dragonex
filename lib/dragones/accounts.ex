@@ -8,7 +8,7 @@ defmodule Dragones.Accounts do
 
   import Ecto.Query
 
-  alias Dragones.{Codec, Repo, World}
+  alias Dragones.{Codec, Repo}
   alias Dragones.Accounts.{Hero, User}
 
   # ----------------------------------------------------------------- users
@@ -75,7 +75,7 @@ defmodule Dragones.Accounts do
   """
   @spec save_hero(User.t(), Dragones.Character.t()) :: {:ok, Hero.t()} | {:error, term()}
   def save_hero(%User{id: uid}, %Dragones.Character{} = sheet) do
-    encoded = encode_sheet(sheet)
+    encoded = Codec.encode_character(sheet)
 
     %Hero{}
     |> Ecto.Changeset.cast(
@@ -96,26 +96,9 @@ defmodule Dragones.Accounts do
 
   @doc "Decode a hero's stored sheet back into a `Dragones.Character` struct."
   @spec hero_sheet(Hero.t()) :: Dragones.Character.t()
-  def hero_sheet(%Hero{sheet: sheet}) do
-    # Build a minimal encoded world so Codec.decode reconstructs the struct tree.
-    encoded_world = %{
-      "scene" => "",
-      "phase" => "exploration",
-      "round" => 1,
-      "characters" => %{"" => sheet},
-      "initiative_order" => [],
-      "log" => []
-    }
-
-    Codec.decode(encoded_world).characters[""]
-  end
+  def hero_sheet(%Hero{sheet: sheet}), do: Codec.decode_character(sheet)
 
   # --------------------------------------------------------------- helpers
-
-  defp encode_sheet(%Dragones.Character{} = c) do
-    world = %World{characters: %{c.name => c}}
-    Codec.encode(world)["characters"][c.name]
-  end
 
   defp user_registration_changeset(user, attrs) do
     email = (attrs[:email] || attrs["email"] || "") |> to_string() |> String.trim() |> String.downcase()

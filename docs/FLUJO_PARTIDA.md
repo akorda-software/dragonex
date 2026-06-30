@@ -151,7 +151,7 @@ lanza el beat.
 
 **Qué monta el beat**:
 1. Elige el agent (`agent_for`: PCAgent si existe, sino DM).
-2. Construye el `prompt` con `DM.turn_prompt(world, current, instruction, dm, kinds)`
+2. Construye el `prompt` con `Brief.turn_prompt(world, current, instruction, dm, kinds)`
    = `world_brief` + instruction.
 3. Reconstruye el **history compartido** (`History.from_events`, §7).
 4. Monta callbacks:
@@ -254,7 +254,7 @@ clave:
 - `PCAgent.instruction/3` (`pc_agent.ex:182`): adapta al estado. Caído → solo
   `make_death_save`. Combate con enemigos → lista objetivos válidos + armas.
   Exploración → actúa en personaje, sin forzar tool.
-- `DM.turn_prompt/4` (`dm.ex:268`): `world_brief` + instruction.
+- `Brief.turn_prompt/5` (`brief.ex`): `world_brief` + instruction.
 
 ---
 

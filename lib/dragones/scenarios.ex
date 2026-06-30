@@ -132,10 +132,6 @@ defmodule Dragones.Scenarios do
   @spec get(String.t()) :: scenario() | nil
   def get(key), do: Enum.find(all(), &(&1.key == key))
 
-  @doc "All scenario keys."
-  @spec keys() :: [String.t()]
-  def keys, do: Enum.map(all(), & &1.key)
-
   @doc "Build a story bible map for `Games.create_game`."
   @spec bible(scenario()) :: map()
   def bible(%{hook: hook, tone: tone, npcs: npcs, locations: loc, suggested_enemies: enemies}) do

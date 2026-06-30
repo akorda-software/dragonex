@@ -81,18 +81,13 @@ defmodule Dragones.PCAgent do
   end
 
   defp summarize_history(summarizer, old_messages) do
-    require Logger
-
-    Logger.info(
-      "dragones: pc-compaction fired — summarizing #{length(old_messages)} old messages via #{ExAgent.Model.model_name(summarizer)}"
+    Dragones.Agent.summarize(
+      summarizer,
+      summarize_instructions(),
+      old_messages,
+      &summarize_line/1,
+      "dragones: pc"
     )
-
-    agent = ExAgent.new(model: summarizer, instructions: summarize_instructions())
-
-    case ExAgent.run(agent, summarize_prompt(old_messages)) do
-      {:ok, %{output: text}} when is_binary(text) -> text
-      _ -> "(earlier turns recap unavailable)"
-    end
   end
 
   defp summarize_instructions do
@@ -101,28 +96,24 @@ defmodule Dragones.PCAgent do
       "escena, enemigos caídos. 2-4 frases. Sin jerga de reglas. Escribe en castellano."
   end
 
-  defp summarize_prompt(messages) do
-    body =
-      messages
-      |> Enum.map_join("\n", fn
-        %Message.Request{parts: parts} ->
-          case Enum.find_value(parts, &extract_user_text/1) do
-            nil -> ""
-            text -> "ESCENA: #{text}"
-          end
-
-        %Message.Response{} = r ->
-          case Message.Response.text(r) do
-            "" -> ""
-            text -> "NARRACIÓN: #{text}"
-          end
-
-        _ ->
-          ""
-      end)
-
-    "Resume estos turnos anteriores de la partida:\n\n#{body}"
+  # One transcript line for the summarizer. The PC labels user turns as "ESCENA"
+  # (vs the DM's "JUGADOR/DM") and narration as "NARRACIÓN" — coarser, since the
+  # PC only needs the scene gist, not who said what.
+  defp summarize_line(%Message.Request{parts: parts}) do
+    case Enum.find_value(parts, &extract_user_text/1) do
+      nil -> ""
+      text -> "ESCENA: #{text}"
+    end
   end
+
+  defp summarize_line(%Message.Response{} = r) do
+    case Message.Response.text(r) do
+      "" -> ""
+      text -> "NARRACIÓN: #{text}"
+    end
+  end
+
+  defp summarize_line(_), do: ""
 
   defp extract_user_text(%ExAgent.Message.Part.User{content: c}) when is_binary(c), do: c
   defp extract_user_text(_), do: nil
@@ -302,13 +293,7 @@ defmodule Dragones.PCAgent do
     do: "Eres devoto, compasivo y te guía la fe. Curas a los heridos, proteges a los inocentes y hablas con la autoridad serena de quien sirve a un poder superior."
 
   defp class_personality("druid"),
-    do: "Eres sabio, sintonizado con la naturaleza y protector de lo salvaje. Prefieres las formas antiguas, hablas de equilibrio y extraes tu poder de la tierra viva."
-
-  defp class_personality("fighter"),
-    do: "Eres disciplinado, táctico y valiente. Estudias el campo de batalla, proteges a quien tienes detrás y nunca retrocedes sin un buen motivo. Eres un veterano que ha visto combate real."
-
-  defp class_personality("monk"),
-    do: "Eres sereno, disciplinado y preciso. Te mueves como el agua y golpeas como el rayo. Hablas con parquedad y buscas la perfección interior a través de las artes marciales."
+    do: "Eres sabio, sintonizado con la naturaleza y protector de lo salvaje. Prefieres las formas antiguas, hablas erior a través de las artes marciales."
 
   defp class_personality("paladin"),
     do: "Eres honorable, justo y estás vinculado por un juramento sagrado. Luchas por la justicia, proteges a los débiles y preferirías morir antes que romper tu palabra. Tu convicción es tu fuerza."

@@ -3,7 +3,7 @@ defmodule Dragones.DMTest do
 
   use ExUnit.Case, async: true
 
-  alias Dragones.{Archetypes, Character, DM, Monsters, World}
+  alias Dragones.{Archetypes, Brief, Character, Monsters, World}
 
   test "exploration brief flags the acting PC and shows the stats" do
     w =
@@ -11,7 +11,7 @@ defmodule Dragones.DMTest do
       |> add(World.add_character(Archetypes.fighter()))
       |> add(World.add_character(Monsters.goblin()))
 
-    brief = DM.world_brief(w, "Thane")
+    brief = Brief.world_brief(w, "Thane")
 
     assert brief =~ "Exploración"
     assert brief =~ "Es el turno de Thane (jugador humano)"
@@ -28,7 +28,7 @@ defmodule Dragones.DMTest do
       |> add(World.add_character(Monsters.goblin()))
       |> add(World.begin_combat(["goblin", "Thane"]))
 
-    brief = DM.world_brief(w, "dm", "dm")
+    brief = Brief.world_brief(w, "dm", "dm")
 
     assert brief =~ "Combate -- ronda 1"
     assert brief =~ "iniciativa: goblin -> Thane"
@@ -46,7 +46,7 @@ defmodule Dragones.DMTest do
     down = %Character{lyra | hp: 0}
     w = %{w | characters: Map.put(w.characters, "Lyra", down)}
 
-    brief = DM.world_brief(w, "Lyra")
+    brief = Brief.world_brief(w, "Lyra")
     assert brief =~ "0/7 pg"
     assert brief =~ "[CAÍDO]"
   end

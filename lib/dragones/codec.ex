@@ -50,7 +50,13 @@ defmodule Dragones.Codec do
 
   # ------------------------------------------------------------- character
 
-  defp encode_character(%Character{} = c) do
+  @doc """
+  Encode a single `Character` sheet to a JSON-safe map, without wrapping it in
+  a `World`. Use this for standalone storage (the `characters.sheet` and
+  `heroes.sheet` jsonb columns); use `encode/1` for a whole world.
+  """
+  @spec encode_character(Character.t()) :: map()
+  def encode_character(%Character{} = c) do
     %{
       "name" => c.name,
       "race" => c.race,
@@ -79,7 +85,9 @@ defmodule Dragones.Codec do
     }
   end
 
-  defp decode_character(%{} = c) do
+  @doc "Decode a stored sheet map back into a `Character` struct."
+  @spec decode_character(map()) :: Character.t()
+  def decode_character(%{} = c) do
     %Character{
       name: c["name"],
       race: c["race"],

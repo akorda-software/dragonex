@@ -267,7 +267,7 @@ defmodule Dragones.Actions do
         if hp <= 0 do
           {:error, "#{name} está caído y no puede descansar"}
         else
-          hit_die = hit_die_for(c.class)
+          hit_die = World.hit_die_size(c.class)
           con_mod = Character.modifier(c, :con)
 
           {r, close} = RollLog.open(roll_log, roller, name, :heal, "descanso corto (1d#{hit_die})")
@@ -454,12 +454,6 @@ defmodule Dragones.Actions do
   # ----------------------------------------------------------------- helpers
 
   defp find_weapon(%Character{weapons: weapons}, name), do: match_named(weapons, name)
-
-  defp hit_die_for("barbarian"), do: 12
-  defp hit_die_for(c) when c in ~w(fighter paladin ranger), do: 10
-  defp hit_die_for(c) when c in ~w(bard cleric druid monk rogue warlock), do: 8
-  defp hit_die_for(c) when c in ~w(sorcerer wizard), do: 6
-  defp hit_die_for(_), do: 8
 
   defp find_spell(%Character{spells: spells}, name), do: match_named(spells, name)
 

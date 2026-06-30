@@ -54,6 +54,27 @@ defmodule Dragones.Heroes.Classes do
     end
   end
 
+  @doc "True when the class key has a spellcasting progression (a caster class)."
+  @spec caster?(String.t() | nil) :: boolean()
+  def caster?(nil), do: false
+
+  def caster?(key) do
+    case get(key) do
+      {:ok, %{spellcasting: nil}} -> false
+      {:ok, %{spellcasting: _}} -> true
+      _ -> false
+    end
+  end
+
+  @doc "The default spell names (cantrips + level-1) a class starts with, or []."
+  @spec default_spell_names(String.t() | nil) :: [String.t()]
+  def default_spell_names(class_key) do
+    case get(class_key || "") do
+      {:ok, %{spellcasting: %{defaults: %{cantrips: c, spells: s}}}} -> c ++ s
+      _ -> []
+    end
+  end
+
   @doc "All class keys."
   @spec keys() :: [String.t()]
   def keys, do: Enum.map(all(), & &1.key)

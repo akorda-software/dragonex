@@ -1,11 +1,11 @@
-defmodule Dragones.Scenario do
+defmodule Dragones.Roster do
   @moduledoc """
-  Prebuilt game scenarios — `create_game/1` option bundles.
+  The creator wizard's catalogue of selectable characters: predefined PCs and
+  monsters (`catalog/0`), plus the user's saved heroes (`hero_catalog/1`).
 
-  `default/0` is the classic "Thane (fighter) vs a goblin in a torchlit ruin"
-  starting position: goblin-first combat so the DM auto-acts on mount, handing
-  the first player turn to Thane. Shared by the LiveView and the live scripts so
-  they never drift apart.
+  Renamed from the old `Dragones.Scenario` — that collided confusingly with
+  `Dragones.Scenarios` (the *story bibles*). This module builds the partida's
+  starting roster; `Scenarios` supplies the campaign's narrative setup.
   """
 
   alias Dragones.{Archetypes, Monsters}
@@ -57,36 +57,5 @@ defmodule Dragones.Scenario do
         builder: fn -> Dragones.Accounts.hero_sheet(hero) end
       }
     end)
-  end
-
-  @doc "The default partida: Thane (human) + a goblin (DM-controlled), goblin-first combat."
-  @spec default(keyword()) :: keyword()
-  def default(opts \\ []) do
-    [
-      title: Keyword.get(opts, :title, "The Torchlit Ruin"),
-      scene: Keyword.get(opts, :scene, "a torchlit ruin, rubble underfoot"),
-      story_bible: Keyword.get(opts, :story_bible, default_bible()),
-      dm_style: Keyword.get(opts, :dm_style, "vivid but brief"),
-      roster: Keyword.get(opts, :roster, default_roster()),
-      initiative: Keyword.get(opts, :initiative, ["goblin", "Thane"])
-    ]
-  end
-
-  defp default_roster do
-    [
-      {Archetypes.fighter(), :human},
-      {Monsters.goblin(), :ai}
-    ]
-  end
-
-  defp default_bible do
-    %{
-      "hook" =>
-        "A retired soldier, Thane, explores a ruin rumoured to hold a lost relic — " <>
-          "but a goblin raider has claimed it as its lair.",
-      "tone" => "gritty, heroic low fantasy",
-      "npcs" => ["the goblin raider"],
-      "locations" => ["the torchlit ruin"]
-    }
   end
 end

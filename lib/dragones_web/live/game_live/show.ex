@@ -13,6 +13,8 @@ defmodule DragonesWeb.GameLive.Show do
   use Phoenix.LiveView, layout: {DragonesWeb.Layouts, :app}
 
   alias Dragones.{Character, Game, Games, World}
+  alias DragonesWeb.GameLive.RollFormat
+  import DragonesWeb.GameLive.Components
 
   @max_sheets 4
 
@@ -66,10 +68,9 @@ defmodule DragonesWeb.GameLive.Show do
             {:ok,
              assign(socket,
                connected: true,
-               current_user: user,
-               show_join: false,
-               show_waiting_room: true,
-               waiting_game: game,
+                current_user: user,
+                show_waiting_room: true,
+                waiting_game: game,
                waiting_heroes: heroes,
                is_creator: user && game.user_id == user.id
              )}
@@ -82,10 +83,9 @@ defmodule DragonesWeb.GameLive.Show do
             {:ok,
              assign(socket,
                connected: true,
-               current_user: user,
-               show_join: false,
-               show_waiting_room: false
-             )}
+                current_user: user,
+                show_waiting_room: false
+              )}
 
           # No access → go away
           true ->
@@ -98,9 +98,6 @@ defmodule DragonesWeb.GameLive.Show do
   # toggle DM view via the "DM" button (patches ?as=dm).
   @impl true
   def handle_params(_params, _url, %{assigns: %{show_waiting_room: true}} = socket),
-    do: {:noreply, socket}
-
-  def handle_params(_params, _url, %{assigns: %{show_join: true}} = socket),
     do: {:noreply, socket}
 
   def handle_params(params, _url, %{assigns: %{connected: true, game_id: gid}} = socket) do
@@ -149,9 +146,8 @@ defmodule DragonesWeb.GameLive.Show do
           {:noreply,
            socket
            |> assign(
-             show_join: false,
-             show_waiting_room: true,
-             waiting_game: Dragones.Repo.preload(updated_game, [:participants, :characters])
+              show_waiting_room: true,
+              waiting_game: Dragones.Repo.preload(updated_game, [:participants, :characters])
            )}
 
         {:error, _} ->
@@ -441,7 +437,6 @@ defmodule DragonesWeb.GameLive.Show do
       live_actor: nil,
       live_last_narration_seq: 0,
       has_more_events: false,
-      busy: false,
       pending: "",
       dice_hand: [],
       dice_groups: [],
@@ -451,11 +446,9 @@ defmodule DragonesWeb.GameLive.Show do
       dice_flush_ref: nil,
       dice_hide_ref: nil,
       dice_engine: nil,
-      show_join: false,
       show_waiting_room: false,
       waiting_heroes: [],
       waiting_game: nil,
-      join_heroes: [],
       join_error: nil,
       auto_play: false,
       is_creator: false
@@ -666,8 +659,13 @@ defmodule DragonesWeb.GameLive.Show do
 
     # Walk the visible events in order, opening a new block every time a
     # :turn marker appears. The marker carries turn_id/round/phase/actor.
-    {blocks, _current} =
-      Enum.reduce(visible, {[], nil}, fn e, {acc, cur} ->
+    # Blocks are prepended (and lines prepended within each block) for O(1)
+    # updates, then reversed at the end so the result is chronological — the
+    # earlier `acc ++ [block]` form was O(n²) over a long timeline.
+    blocks_rev =
+      Enum.reduce(visible, [], fn e, acc ->
+        cur = List.first(acc)
+
         case e do
           %{type: :turn, payload: %{"kind" => "start"} = p} ->
             header = %{
@@ -678,7 +676,7 @@ defmodule DragonesWeb.GameLive.Show do
             }
 
             block = %{header: header, events: []}
-            {acc ++ [block], block}
+            [block | acc]
 
           _ ->
             line = %{seq: e.seq, type: e.type, actor: e.actor, role: chat_role(e), who: chat_who(e), text: chat_text(e), outcome: chat_outcome(e)}
@@ -686,18 +684,17 @@ defmodule DragonesWeb.GameLive.Show do
             case cur do
               nil ->
                 # No open block — prologue (e.g. the opening narration).
-                prologue = %{header: nil, events: [line]}
-                {acc ++ [prologue], prologue}
+                [%{header: nil, events: [line]} | acc]
 
               %{events: evs} = block ->
-                updated = %{block | events: evs ++ [line]}
-                # Replace the last block in acc with the updated one.
-                {Enum.drop(acc, -1) ++ [updated], updated}
+                [%{block | events: [line | evs]} | tl(acc)]
             end
         end
       end)
 
-    blocks
+    blocks_rev
+    |> Enum.reverse()
+    |> Enum.map(&%{&1 | events: Enum.reverse(&1.events)})
   end
 
   # The role drives the CSS class. Narration by the DM → :dm. Narration/action
@@ -754,87 +751,8 @@ defmodule DragonesWeb.GameLive.Show do
   defp chat_outcome(_), do: nil
 
   defp chat_text(%{type: :system, payload: p}), do: p["note"] || p[:note] || ""
-  defp chat_text(%{type: :dice, payload: p}), do: format_dice_line(p)
+  defp chat_text(%{type: :dice, payload: p}), do: RollFormat.format_line(p)
   defp chat_text(%{payload: p}), do: p["text"] || p[:text] || ""
-
-  # A structured roll entry → one scannable line:
-  #   "<reason>: d20:14 +4 = 18 vs CA 15 → ¡ACIERTO!"
-  # Payload comes back from jsonb with string keys, dice as [[sides, value]],
-  # against as ["ac"|"dc", n]; handle both atom- and string-keyed forms.
-  defp format_dice_line(%{} = p) do
-    dice = p["dice"] || p[:dice] || []
-    reason = p["reason"] || p[:reason] || "tirada"
-    total = p["total"] || p[:total]
-
-    dice_str =
-      dice
-      |> Enum.map(fn
-        [s, v] -> "d#{s}:#{v}"
-        {s, v} -> "d#{s}:#{v}"
-        _ -> nil
-      end)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.join(" ")
-
-    dice_sum =
-      dice
-      |> Enum.map(fn
-        [_, v] when is_number(v) -> v
-        {_, v} when is_number(v) -> v
-        _ -> 0
-      end)
-      |> Enum.sum()
-
-    mod = if is_number(total), do: total - dice_sum, else: nil
-
-    parts = [reason, dice_str]
-
-    parts =
-      case mod do
-        n when is_number(n) and n > 0 -> parts ++ ["+#{n}"]
-        n when is_number(n) and n < 0 -> parts ++ ["#{n}"]
-        _ -> parts
-      end
-
-    parts = if is_number(total), do: parts ++ ["= #{total}"], else: parts
-    parts = append_if(parts, format_against(p["against"] || p[:against]))
-    parts = append_if(parts, outcome_line(p["outcome"] || p[:outcome]))
-
-    parts |> Enum.reject(&(&1 in ["", nil])) |> Enum.join(" ")
-  end
-
-  defp append_if(parts, ""), do: parts
-  defp append_if(parts, frag), do: parts ++ [frag]
-
-  defp format_against(v) do
-    case v do
-      ["ac", n] -> "vs CA #{n}"
-      ["dc", n] -> "vs DC #{n}"
-      {:ac, n} -> "vs CA #{n}"
-      {:dc, n} -> "vs DC #{n}"
-      _ -> ""
-    end
-  end
-
-  defp outcome_line(o) do
-    case o do
-      "hit" -> "→ ¡ACIERTO!"
-      "crit" -> "→ ¡CRÍTICO!"
-      "miss" -> "→ fallo"
-      "success" -> "→ éxito"
-      "failure" -> "→ fallo"
-      "revive" -> "→ ¡revive!"
-      "crit_fail" -> "→ ¡PIFIA!"
-      :hit -> "→ ¡ACIERTO!"
-      :crit -> "→ ¡CRÍTICO!"
-      :miss -> "→ fallo"
-      :success -> "→ éxito"
-      :failure -> "→ fallo"
-      :revive -> "→ ¡revive!"
-      :crit_fail -> "→ ¡PIFIA!"
-      _ -> ""
-    end
-  end
 
   defp server(%{assigns: %{game_id: game_id}}) when not is_nil(game_id),
     do: Dragones.Game.Supervisor.whereis(game_id)
@@ -847,133 +765,8 @@ defmodule DragonesWeb.GameLive.Show do
   def render(assigns) do
     ~H"""
     <div class="game">
-      <style>
-        /* Height chain: body -> LiveView wrapper -> main.game-layout -> .game.
-           Only .game-log scrolls; every parent clips and passes a bounded height. */
-        .game { position:relative; flex:1 1 0; width:100%; min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:.6rem; padding:.6rem; box-sizing:border-box; }
-        .game-topbar { flex:0 0 auto; min-height:0; }
-        .turn-bar{display:flex; align-items:center; gap:1rem; background:#1f1f1f; border:1px solid #333; border-radius:6px; padding:.4rem .8rem; font-size:.9rem; min-width:0;}
-        .game-body { flex:1 1 0; min-height:0; display:grid; grid-template-columns:220px minmax(0,1fr) 220px; gap:.6rem; overflow:hidden; }
-        .game-rail { min-height:0; display:flex; flex-direction:column; gap:.6rem; overflow:hidden; }
-        .game-center { min-width:0; min-height:0; display:flex; flex-direction:column; gap:.4rem; overflow:hidden; }
-        .round{font-weight:bold; color:#fb0;}
-        .initiative{display:flex; gap:.4rem; list-style:none; padding:0; margin:0;}
-        .initiative li{padding:.15rem .5rem; background:#2a2a2a; border-radius:4px; border:1px solid #333;}
-        .initiative li.active{background:#3a3a1a; border-color:#bb0; color:#ff5;}
-        .whose-turn{font-weight:bold;}
-        .controls{margin-left:auto; display:flex; gap:.4rem; align-items:center;}
-        .viewer-tag{font-size:.8rem; color:#7ab;}
-        .ctl-btn{padding:.25rem .7rem; font-size:.8rem; border-radius:4px; border:1px solid #555; background:#2c2c2c; color:#eee; cursor:pointer; text-decoration:none;}
-        .ctl-btn:hover{background:#3a3a3a;}
-        .ctl-active{background:#3a2a1a !important;border-color:#a72 !important;color:#fc8 !important;}
-        .toast-stack{position:absolute; top:3.4rem; left:50%; transform:translateX(-50%); z-index:5; display:flex; flex-direction:column; align-items:center; gap:.4rem; width:min(720px, calc(100% - 2rem)); pointer-events:none;}
-        .game-toast{max-width:100%; background:rgba(58,42,10,.96); border:1px solid #ea0; color:#ff5; padding:.45rem .9rem; border-radius:999px; font-weight:bold; box-shadow:0 8px 24px rgba(0,0,0,.35); pointer-events:auto;}
-        .my-turn-banner{animation:pulse 1.5s infinite;}
-        @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.6;}}
-        .intent-banner{display:flex; align-items:center; gap:.6rem; background:rgba(26,42,58,.96); border-color:#4af; color:#cdf; font-size:.85rem;}
-        .game-input{display:flex; gap:.4rem;}
-        .game-input-area{flex:0 0 auto; min-height:0;}
-        .game-input input{flex:1 1 auto; min-width:0; padding:.5rem; font-size:1rem; background:#222; color:#eee; border:1px solid #444; border-radius:4px;}
-        .game-input button{flex:0 0 auto; padding:.5rem 1.2rem; font-size:1rem; background:#2c2c2c; color:#eee; border:1px solid #555; border-radius:4px; cursor:pointer;}
-        .game-input button:hover:not(:disabled){background:#3a3a3a;}
-        .game-log{flex:1 1 0; min-height:0; background:#111; border:1px solid #333; border-radius:6px; padding:.8rem; font-size:.95rem; line-height:1.4; overflow:auto;}
-        .load-more-btn{display:block; width:100%; margin:0 0 .8rem; padding:.4rem; font-size:.78rem; color:#7ab; background:#1a1a1a; border:1px dashed #333; border-radius:4px; cursor:pointer; font-family:inherit;}
-        .load-more-btn:hover{color:#cdf; background:#222; border-color:#555;}
-        .turn-block{margin:0 0 .9rem; padding:0; border-left:2px solid #2a2a2a; padding-left:.6rem;}
-        .turn-block:first-child{margin-top:0;}
-        .turn-head{margin:0 0 .4rem; padding-bottom:.2rem; border-bottom:1px solid #222;}
-        .th-line{display:flex; align-items:baseline; gap:.4rem; flex-wrap:wrap; font-size:.78rem; color:#9ab;}
-        .th-round{font-weight:bold; color:#fb0; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.74rem;}
-        .th-sep{color:#444;}
-        .th-actor{font-weight:bold; color:#cdf;}
-        .th-actor.dm-side{color:#b08a3e;}
-        .th-actor.mine{color:#4fbf90;}
-        .th-actor.auto{color:#c8a8ff;}
-        .th-you{font-size:.62rem; padding:.05rem .3rem; margin-left:.3rem; border-radius:3px; background:#1a3a2a; color:#7e7; border:1px solid #2f6a4a;}
-        .th-phase{font-size:.7rem; color:#a55; padding:.05rem .35rem; border-radius:3px; background:#2a1a1a; border:1px solid #422;}
-        .msg{margin:0 0 .6rem;} .msg .who{display:inline-block; margin-right:.4rem; font-weight:bold; color:#7ab;}
-        /* The chip for a player's chat-input action: discrete icon-only by
-           default, full text on hover as a tooltip. Never inline in the
-           timeline — it's the player's intent, not narration. */
-        .player-declared-chip{display:inline-flex; align-items:center; gap:.25rem; font-size:.78rem; color:#666; background:transparent; padding:.05rem .25rem; border-radius:4px; cursor:help; opacity:.5;}
-        .player-declared-chip:hover{opacity:1; background:#1a1a1a;}
-        .msg-dm{color:#e8dcc4;} .msg-dm .who{color:#b08a3e;}
-        .msg-pc{color:#ffe9b0; border-left:2px solid #a55; padding-left:.5rem; margin-left:.2rem; font-style:italic;} .msg-pc .who{color:#fb0; font-style:normal; font-weight:bold;}
-        .msg-roll{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.86rem; color:#9cdec8; background:#11221c; border:1px solid #1f4a39; border-radius:4px; padding:.25rem .5rem; margin:.15rem 0;} .msg-roll .who{color:#4fbf90; font-family:Georgia,serif; font-size:.78rem;}
-        .msg-roll.roll-hit,.msg-roll.roll-crit,.msg-roll.roll-success,.msg-roll.roll-revive{border-color:#2f6a4a; color:#bdf0d4;}
-        .msg-roll.roll-miss,.msg-roll.roll-failure,.msg-roll.roll-crit_fail{border-color:#5a2a2a; color:#f0bdb0;}
-        .msg-system{color:#777; font-style:italic;}
-        .msg-system.thinking::after{content:" ⋯"; animation:dots 1.2s infinite;}
-        @keyframes dots{0%{opacity:.3;}50%{opacity:1;}100%{opacity:.3;}}
-        .live-streaming{position:relative; opacity:.92;}
-        .live-streaming .cursor{display:inline-block; color:#fc8; animation:blink 1s steps(2) infinite; margin-left:1px;}
-        @keyframes blink{0%,50%{opacity:1;}51%,100%{opacity:0;}}
-        .sheet{flex:1 1 0; min-height:0; display:flex;}
-        .card,.empty-sheet{flex:1 1 auto; min-height:0; overflow:hidden; background:#222; border:1px solid #3a3a3a; border-radius:8px; padding:.6rem;}
-        .card h3{margin:0; font-size:1rem;} .card p{margin:.2rem 0; font-size:.85rem;}
-        .side-enemy{border-color:#5a2222;} .card.your-turn{box-shadow:0 0 0 2px #bb0 inset;}
-        .card.mine{box-shadow:0 0 0 2px #4af inset;}
-        .you-tag{font-size:.7rem;color:#4af;font-weight:bold;margin-left:.4rem;}
-        .conds{display:flex;flex-wrap:wrap;gap:.2rem;margin:.2rem 0 0;}
-        .cond-badge{font-size:.65rem;padding:.08rem .3rem;border-radius:3px;background:#3a2222;border:1px solid #744;color:#faa;}
-        .hp{height:8px; background:#400; border-radius:4px; margin:.3rem 0; overflow:hidden;}
-        .hp-fill{height:100%; background:#3c3;}
-        .combat-tracker{flex:1 1 0; min-height:0; display:flex; flex-direction:column; background:#1a1a1a; border:1px solid #3a2222; border-radius:8px; overflow:hidden;}
-        .ct-header{display:flex; align-items:center; gap:.4rem; padding:.45rem .6rem; background:#2a1818; border-bottom:1px solid #3a2222; color:#fc8; font-weight:bold; font-size:.85rem;}
-        .ct-header .ct-round{margin-left:auto; color:#fb0; font-size:.78rem;}
-        .ct-list{flex:1 1 auto; min-height:0; overflow:auto; padding:.4rem; display:flex; flex-direction:column; gap:.35rem;}
-        .combatant{display:flex; gap:.4rem; padding:.4rem; background:#222; border:1px solid #333; border-radius:6px;}
-        .combatant.acting{border-color:#bb0; box-shadow:0 0 0 2px rgba(187,170,0,.3);}
-        .combatant.mine{box-shadow:0 0 0 2px #4af inset;}
-        .combatant.side-enemy{background:#2a1a1a; border-color:#5a2222;}
-        .ct-mark{color:#ff5; width:.7rem; flex:0 0 auto; font-size:.8rem;}
-        .ct-body{flex:1 1 auto; min-width:0;}
-        .ct-name{font-weight:bold; font-size:.88rem;}
-        .ct-down{color:#f55;}
-        .ct-stats{font-size:.72rem; color:#9ab;}
-        .combatant .hp{margin:.2rem 0;}
-        .modal{position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:10;}
-        .modal-box{background:#222; border:1px solid #555; border-radius:10px; padding:1.2rem 2rem; text-align:center;}
-        .modal-box ul{list-style:none; padding:0; font-size:1.3rem;}
-        .dice-hidden{display:none !important;}
-        .dice-overlay{backdrop-filter:blur(2px);}
-        .dice-modal-box{min-width:320px;}
-        .dice-modal-box h2{color:#fc8; font-size:1.1rem;}
-        .dice-modal-box .dicex-roller{margin:.6rem auto;}
-        .dice-modal-box .dicex-engine-3d{width:min(460px,80vw);--dicex-stage-h:320px;}
-        .dice-modal-box .dicex-engine-2d{width:fit-content;min-width:220px;--dicex-stage-h:200px;}
-        .dice-results{display:flex;flex-direction:column;align-items:center;gap:.55rem;margin-top:.4rem;}
-        .dice-results-title{font-size:.75rem;color:#9ab;text-transform:uppercase;letter-spacing:.08em;}
-        .dice-result-list{display:flex;flex-wrap:wrap;justify-content:center;gap:.45rem;max-width:min(440px,76vw);}
-        .die-result{display:flex;align-items:center;gap:.35rem;background:#171717;border:1px solid #444;border-radius:999px;padding:.28rem .65rem;}
-        .die-kind{font-size:.78rem;color:#9ab;}
-        .die-value{font-size:1.25rem;font-weight:bold;color:#ff5;line-height:1;}
-        .dice-rolling-text{font-size:1.1rem; color:#fc8; font-style:italic; margin-top:.4rem;}
-        .dice-groups{display:flex;flex-direction:column;gap:.5rem;margin-top:.5rem;width:100%;max-width:min(440px,80vw);margin-left:auto;margin-right:auto;}
-        .dice-group{background:#161616;border:1px solid #3a3a3a;border-left:4px solid #777;border-radius:8px;padding:.5rem .7rem;text-align:left;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
-        .dice-group.dg-win{border-left-color:#3c3;color:#cfe;}
-        .dice-group.dg-lose{border-left-color:#c33;color:#fdc;}
-        .dice-group.dg-neutral{color:#cbd;}
-        .dg-head{display:flex;justify-content:space-between;gap:.6rem;align-items:baseline;margin-bottom:.2rem;font-family:Georgia,serif;}
-        .dg-who{font-weight:bold;color:#fc8;font-size:.9rem;}
-        .dg-reason{font-size:.78rem;color:#9ab;font-style:italic;}
-        .dg-line{font-size:.92rem;color:#e8e8e8;}
-        .dg-against{color:#9ab;margin-left:.3rem;}
-        .dg-outcome{margin-top:.25rem;font-weight:bold;font-size:.95rem;font-family:Georgia,serif;}
-        .dg-win .dg-outcome{color:#7e7;}
-        .dg-lose .dg-outcome{color:#f99;}
-        .loading{flex:1 1 auto; display:flex; align-items:center; justify-content:center; color:#888; font-size:1.2rem;}
-        .back-link{color:#7ab; text-decoration:none; font-size:.8rem;}
-        .picker{position:fixed; inset:0; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center; z-index:20;}
-        .picker-box{background:#222; border:1px solid #555; border-radius:10px; padding:1.5rem 2rem; text-align:center; min-width:280px;}
-        .picker h2{margin:0 0 1rem;}
-        .picker button{display:block; width:100%; margin:.3rem 0; padding:.6rem; font-size:1rem; background:#2c2c2c; color:#eee; border:1px solid #555; border-radius:6px; cursor:pointer;}
-        .picker button:hover{background:#3a3a3a;}
-      </style>
 
       <%= cond do %>
-        <% @show_join -> %>
-          <.join_screen game_id={@game_id} heroes={@join_heroes} error={@join_error} />
         <% @show_waiting_room -> %>
           <.waiting_room game_id={@game_id} game={@waiting_game} is_creator={@is_creator} current_user={@current_user} waiting_heroes={@waiting_heroes} />
         <% not @loaded -> %>
@@ -1149,44 +942,6 @@ defmodule DragonesWeb.GameLive.Show do
   defp waiting_room(assigns) do
     ~H"""
     <div class="wr">
-      <style>
-        .wr{max-width:960px;margin:0 auto;padding:1.5rem;font-family:Georgia,'Times New Roman',serif;}
-        .wr-header{text-align:center;margin-bottom:1.5rem;}
-        .wr-header h1{color:#fc8;font-size:1.6rem;margin-bottom:.3rem;}
-        .wr-header .scene{color:#889;font-size:.85rem;font-style:italic;}
-        .wr-layout{display:grid;grid-template-columns:1fr 320px;gap:1.5rem;align-items:start;}
-        @media(max-width:768px){.wr-layout{grid-template-columns:1fr;}}
-        .slots-area h2{color:#7ab;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;margin:0 0 .8rem;}
-        .slots-circle{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.8rem;}
-        .slot-card{background:#1a1a1a;border:2px solid #333;border-radius:12px;padding:1rem;text-align:center;transition:all .2s;}
-        .slot-card.ready{border-color:#474;}
-        .slot-card.you{border-color:#a72;box-shadow:0 0 12px rgba(170,100,30,.2);}
-        .slot-card.empty{border-style:dashed;opacity:.6;}
-        .slot-card .avatar{font-size:2rem;margin-bottom:.3rem;}
-        .slot-card .sname{font-weight:700;color:#eee;font-size:.9rem;}
-        .slot-card .shero{color:#889;font-size:.75rem;margin-top:.1rem;}
-        .slot-card .sbadge{display:inline-block;font-size:.65rem;padding:.15rem .4rem;border-radius:10px;margin-top:.4rem;}
-        .sbadge-ready{background:#1a2a1a;color:#9f9;border:1px solid #474;}
-        .sbadge-waiting{background:#2a2a1a;color:#fc8;border:1px solid #553;}
-        .sbadge-empty{background:#222;color:#666;border:1px solid #333;}
-        .hero-picker{margin-top:.8rem;padding:.6rem;background:#222;border-radius:8px;}
-        .hero-picker-label{font-size:.68rem;color:#7ab;text-transform:uppercase;margin-bottom:.4rem;text-align:left;}
-        .hero-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:.3rem;}
-        .hero-btn{padding:.4rem .2rem;background:#1a1a1a;border:1px solid #333;border-radius:6px;cursor:pointer;text-align:center;font-size:.75rem;color:#ccc;transition:all .12s;}
-        .hero-btn:hover{border-color:#a72;background:#3a2a1a;color:#fc8;}
-        .hero-btn .hn{font-weight:600;}
-        .hero-btn .hd{font-size:.65rem;color:#666;margin-top:.1rem;}
-        .sidebar{display:flex;flex-direction:column;gap:1rem;}
-        .panel{background:#1a1a1a;border:1px solid #333;border-radius:10px;padding:1rem;}
-        .panel h3{color:#7ab;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;margin:0 0 .5rem;}
-        .share-link{color:#7ab;font-size:.78rem;word-break:break-all;background:#222;padding:.4rem;border-radius:4px;margin:.3rem 0;}
-        .copy-btn{width:100%;padding:.5rem;border-radius:6px;border:1px solid #444;background:#2c2c2c;color:#eee;font-size:.82rem;cursor:pointer;font-family:inherit;margin-top:.3rem;}
-        .copy-btn:hover{background:#3a3a3a;}
-        .start-btn{width:100%;padding:.8rem;border-radius:8px;border:1px solid #a72;background:#3a2a1a;color:#fc8;font-size:1.05rem;cursor:pointer;font-family:inherit;}
-        .start-btn:hover{background:#4a3520;}
-        .info-row{font-size:.75rem;color:#889;padding:.2rem 0;}
-        .no-hero{color:#666;font-size:.78rem;font-style:italic;padding:.5rem;}
-      </style>
 
       <div class="wr-header">
         <h1>⚔ {@game.title}</h1>
@@ -1289,175 +1044,6 @@ defmodule DragonesWeb.GameLive.Show do
     Enum.any?(participants, fn p -> p.user_id == uid end)
   end
 
-  # The join screen: pick one of your heroes to join the game.
-  defp join_screen(assigns) do
-    ~H"""
-    <div class="picker">
-      <div class="picker-box" style="min-width:320px;">
-        <h2>🔓 Unirse a la partida</h2>
-        <p style="color:#889;font-size:.82rem;margin-bottom:.8rem;">Elige tu héroe:</p>
-        <div :if={@error} style="color:#f99;font-size:.82rem;margin-bottom:.6rem;">{@error}</div>
-        <%= for hero <- @heroes do %>
-          <button phx-click="join_with_hero" phx-value-hero_id={hero.id}>
-            {hero.name} — {String.capitalize(hero.race)} {String.capitalize(hero.class)}
-          </button>
-        <% end %>
-        <div :if={@heroes == []} style="color:#666;font-size:.82rem;font-style:italic;">
-          No tienes héroes. <a href="/heroes/new" style="color:#7ab;">Crear uno</a>
-        </div>
-        <.link navigate="/" style="margin-top:.8rem;font-size:.8rem;color:#888;">← volver</.link>
-      </div>
-    </div>
-    """
-  end
-
-  attr(:world, :any, default: nil)
-  attr(:current, :any, default: nil)
-  attr(:round, :integer, default: 1)
-  attr(:status, :any, default: nil)
-  attr(:viewer, :any, default: nil)
-
-  defp turn_bar(%{
-         world: %World{phase: :combat} = w,
-         current: current,
-         round: round,
-         status: status,
-         viewer: viewer
-       }) do
-    assigns = %{w: w, current: current, round: round, status: status, viewer: viewer}
-
-    ~H"""
-    <span class="round">Round {@round}</span>
-    <ul class="initiative">
-      <li :for={name <- @w.initiative_order} :key={name} class={if controller(@w, name) == @current, do: "active", else: ""}>
-        {name}
-      </li>
-    </ul>
-    <span class="whose-turn">{turn_label(@current, @status, @viewer)}</span>
-    """
-  end
-
-  defp turn_bar(%{current: current, status: status, viewer: viewer}) do
-    assigns = %{current: current, status: status, viewer: viewer}
-
-    ~H"""
-    <span class="phase">Exploración</span>
-    <span class="whose-turn">{turn_label(@current, @status, @viewer)}</span>
-    """
-  end
-
-  attr(:card, :map, default: nil)
-  attr(:active, :boolean, default: false)
-  attr(:mine, :boolean, default: false)
-
-  defp sheet(assigns) do
-    ~H"""
-    <%= if @card do %>
-      <% card = @card
-         pct = if card.max_hp > 0, do: max(0, card.hp) / card.max_hp * 100, else: 0
-         status = if card.hp <= 0, do: " [DOWN]", else: ""
-         conds = Enum.map(card.conditions || [], &cond_name/1) %>
-      <div class={"card side-#{card.side}#{if @active, do: " your-turn", else: ""}#{if @mine, do: " mine", else: ""}"}>
-        <h3>
-          {card.name}{status}<span :if={@mine} class="you-tag">TÚ</span>
-        </h3>
-        <p class="muted">{card.class} · {card.side}</p>
-        <div class="hp"><div class="hp-fill" style={"width:#{pct}%"}></div></div>
-        <p>HP {card.hp}/{card.max_hp} · AC {card.ac}</p>
-        <p :if={conds != []} class="conds">
-          <span :for={c <- conds} class="cond-badge">{c}</span>
-        </p>
-      </div>
-    <% else %>
-      <div class="empty-sheet muted">— vacío —</div>
-    <% end %>
-    """
-  end
-
-  # A scrollable initiative tracker shown in the left rail during combat: every
-  # combatant in turn order with an HP bar, AC, conditions and a clear marker on
-  # whoever is acting right now.
-  attr(:world, :any, required: true)
-  attr(:current, :any, default: nil)
-  attr(:round, :integer, default: 1)
-  attr(:viewer, :any, default: nil)
-
-  defp combat_tracker(assigns) do
-    ~H"""
-    <div class="combat-tracker">
-      <div class="ct-header">
-        <span>⚔</span> Iniciativa <span class="ct-round">Ronda {@round}</span>
-      </div>
-      <div class="ct-list">
-        <div :for={name <- @world.initiative_order} :key={name}>
-          <.combatant world={@world} name={name} current={@current} viewer={@viewer} />
-        </div>
-      </div>
-    </div>
-    """
-  end
-
-  attr(:world, :any, required: true)
-  attr(:name, :string, required: true)
-  attr(:current, :any, default: nil)
-  attr(:viewer, :any, default: nil)
-
-  defp combatant(assigns) do
-    c = Map.get(assigns.world.characters, assigns.name)
-    acting = controller(assigns.world, assigns.name) == assigns.current
-    pct = if c && c.max_hp > 0, do: max(0, c.hp) / c.max_hp * 100, else: 0
-    conds = if c, do: Enum.map(c.conditions || [], &cond_name/1), else: []
-
-    assigns =
-      assign(assigns, c: c, acting: acting, pct: pct, down: c && c.hp <= 0, conds: conds)
-
-    ~H"""
-    <div class={"combatant side-#{(@c && @c.side) || "pc"}#{if @acting, do: " acting", else: ""}#{if @name == @viewer, do: " mine", else: ""}"}>
-      <span class="ct-mark">{if @acting, do: "▶", else: ""}</span>
-      <div class="ct-body">
-        <div class="ct-name">
-          {@name}<span :if={@name == @viewer} class="you-tag">TÚ</span><span :if={@down} class="ct-down"> ✖</span>
-        </div>
-        <div class="hp"><div class="hp-fill" style={"width:#{@pct}%"}></div></div>
-        <div class="ct-stats">HP {(@c && @c.hp) || 0}/{(@c && @c.max_hp) || 0} · CA {(@c && @c.ac) || "?"}</div>
-        <div :if={@conds != []} class="conds">
-          <span :for={cd <- @conds} class="cond-badge">{cd}</span>
-        </div>
-      </div>
-    </div>
-    """
-  end
-
-  # The viewer's own detailed sheet (combat): full stats + weapons/spells so the
-  # player has their full character at hand while the tracker shows everyone.
-  attr(:card, :map, default: nil)
-
-  defp detail_sheet(assigns) do
-    ~H"""
-    <%= if @card do %>
-      <% card = @card
-         pct = if card.max_hp > 0, do: max(0, card.hp) / card.max_hp * 100, else: 0
-         conds = Enum.map(card.conditions || [], &cond_name/1)
-         weapons = Enum.map(card.weapons || [], & &1.name)
-         spells = Enum.map(card.spells || [], & &1.name) %>
-      <div class="sheet">
-        <div class="card mine">
-          <h3>{card.name}<span class="you-tag">TÚ</span></h3>
-          <p class="muted">{card.race} {card.class} · niv {card.level}</p>
-          <div class="hp"><div class="hp-fill" style={"width:#{pct}%"}></div></div>
-          <p>HP {card.hp}/{card.max_hp} · CA {card.ac}</p>
-          <p class="muted">STR {card.str} · DEX {card.dex} · CON {card.con}<br />INT {card.int} · WIS {card.wis} · CHA {card.cha}</p>
-          <p :if={weapons != []}><span class="muted">Armas:</span> {Enum.join(weapons, ", ")}</p>
-          <p :if={spells != []}><span class="muted">Hechizos:</span> {Enum.join(spells, ", ")}</p>
-          <p :if={conds != []} class="conds">
-            <span :for={c <- conds} class="cond-badge">{c}</span>
-          </p>
-        </div>
-      </div>
-    <% end %>
-    """
-  end
-
   attr(:show, :boolean, default: false)
   attr(:rolling, :boolean, default: false)
   attr(:hand, :list, default: [])
@@ -1513,7 +1099,7 @@ defmodule DragonesWeb.GameLive.Show do
 
   defp dice_group_card(assigns) do
     assigns =
-      assign(assigns, :outcome_css, outcome_css(assigns.g[:outcome] || assigns.g["outcome"]))
+      assign(assigns, :outcome_css, RollFormat.outcome_css(assigns.g[:outcome] || assigns.g["outcome"]))
 
     ~H"""
     <div class={"dice-group #{@outcome_css}"}>
@@ -1522,79 +1108,12 @@ defmodule DragonesWeb.GameLive.Show do
         <span class="dg-reason">{(@g[:reason] || @g["reason"] || "")}</span>
       </div>
       <div class="dg-line">
-        <span class="dg-dice">{format_group_dice(@g)}</span>
-        <span class="dg-against">{format_group_against(@g)}</span>
+        <span class="dg-dice">{RollFormat.format_dice(@g)}</span>
+        <span class="dg-against">{RollFormat.format_against_spaced(@g)}</span>
       </div>
-      <div class="dg-outcome">{outcome_group_label(@g[:outcome] || @g["outcome"])}</div>
+      <div class="dg-outcome">{RollFormat.outcome_label(@g[:outcome] || @g["outcome"])}</div>
     </div>
     """
-  end
-
-  defp format_group_dice(g) do
-    dice = g[:dice] || g["dice"] || []
-    total = g[:total] || g["total"]
-
-    dice_str =
-      dice
-      |> Enum.map(fn
-        [s, v] -> "d#{s}:#{v}"
-        {s, v} -> "d#{s}:#{v}"
-        _ -> nil
-      end)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.join(" ")
-
-    sum = dice |> Enum.map(fn [_, v] -> v; {_, v} -> v; _ -> 0 end) |> Enum.sum()
-    mod = if is_number(total), do: total - sum, else: nil
-
-    mod_str =
-      cond do
-        mod == nil -> ""
-        mod > 0 -> " +#{mod}"
-        mod < 0 -> " #{mod}"
-        true -> ""
-      end
-
-    total_str = if is_number(total), do: " = #{total}", else: ""
-    "#{dice_str}#{mod_str}#{total_str}"
-  end
-
-  defp format_group_against(g) do
-    case g[:against] || g["against"] do
-      ["ac", n] -> " vs CA #{n}"
-      ["dc", n] -> " vs DC #{n}"
-      {:ac, n} -> " vs CA #{n}"
-      {:dc, n} -> " vs DC #{n}"
-      _ -> ""
-    end
-  end
-
-  defp outcome_css(o) do
-    case o do
-      x when x in [:hit, "hit", :crit, "crit", :success, "success", :revive, "revive"] -> "dg-win"
-      x when x in [:miss, "miss", :failure, "failure", :crit_fail, "crit_fail"] -> "dg-lose"
-      _ -> "dg-neutral"
-    end
-  end
-
-  defp outcome_group_label(o) do
-    case o do
-      :hit -> "¡Acierto!"
-      "hit" -> "¡Acierto!"
-      :crit -> "¡Crítico!"
-      "crit" -> "¡Crítico!"
-      :miss -> "Fallo"
-      "miss" -> "Fallo"
-      :success -> "Éxito"
-      "success" -> "Éxito"
-      :failure -> "Fallo"
-      "failure" -> "Fallo"
-      :revive -> "¡Revive!"
-      "revive" -> "¡Revive!"
-      :crit_fail -> "¡Pifia! (2 fallos)"
-      "crit_fail" -> "¡Pifia! (2 fallos)"
-      _ -> ""
-    end
   end
 
   # ----------------------------------------------------------- dice helpers
@@ -1688,21 +1207,9 @@ defmodule DragonesWeb.GameLive.Show do
       |> Enum.map(&elem(&1, 1))
 
   defp active_card?(%World{} = w, %Character{} = c, current),
-    do: controller(w, c) == current and c.hp > 0
+    do: World.controller_of(w, c) == current and c.hp > 0
 
   defp active_card?(_, _, _), do: false
-
-  defp controller(%World{} = w, name) when is_binary(name),
-    do: controller(w, Map.get(w.characters, name))
-
-  defp controller(_w, %{side: "pc"} = c), do: c.name
-  defp controller(_w, _enemy), do: "dm"
-
-  defp turn_label(viewer, _, viewer) when is_binary(viewer), do: "¡Tu turno!"
-  defp turn_label(current, :paused, _) when current != nil, do: "En pausa"
-  defp turn_label("dm", _, _), do: "Turno del DM"
-  defp turn_label(other, _, _) when is_binary(other), do: "Esperando a #{other}"
-  defp turn_label(_, _, _), do: ""
 
   defp placeholder(true, _, _, _), do: "¿Qué haces?"
   defp placeholder(_, true, _, _), do: "el DM está pensando…"
@@ -1712,9 +1219,4 @@ defmodule DragonesWeb.GameLive.Show do
     do: "Declara tu intención (turno de #{current})…"
 
   defp placeholder(_, _, _, _), do: "Declara tu intención…"
-
-  defp cond_name(%{condition: c}), do: c
-  defp cond_name(%{"condition" => c}), do: c
-  defp cond_name(c) when is_binary(c), do: c
-  defp cond_name(_), do: "?"
 end

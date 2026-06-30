@@ -6,7 +6,7 @@
 # (proposing as "dm"). The dice confirm the tools ran; the world confirms the
 # rules were applied; the turn alternation confirms the policy drives the order.
 
-alias Dragones.{Archetypes, DM, Monsters, TurnPolicy.WorldDriven, World}
+alias Dragones.{Archetypes, Brief, Monsters, TurnPolicy.WorldDriven, World}
 alias ExAgent.{Models, Server, Session}
 alias ExAgent.Session.{Participant, SharedState}
 
@@ -46,7 +46,7 @@ defmodule Runner do
   def beat(label, game, dm, propose_as, instruction) do
     IO.puts("\n########## #{label} (propose as #{propose_as}) ##########")
     world = Session.read_state(game)
-    prompt = Dragones.DM.turn_prompt(world, propose_as, instruction, "dm")
+    prompt = Dragones.Brief.turn_prompt(world, propose_as, instruction, "dm")
 
     {:ok, roll_log} = Agent.start_link(fn -> [] end)
 

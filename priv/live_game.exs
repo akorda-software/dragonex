@@ -13,7 +13,7 @@
 # The key invariant (from the spike): the DM does NOT invent outcomes — it calls
 # the tools, which is detectable as hp changing by the rules + dice rolled.
 
-alias Dragones.{Game, Games, Scenario}
+alias Dragones.{Game, Games, Roster}
 alias ExAgent.Models
 
 unless System.get_env("OPENROUTER_API_KEY"),

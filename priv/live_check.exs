@@ -4,7 +4,7 @@
 # Verifies the DM adjudicates a non-combat action through ability_check: the DM
 # sets the DC, the engine rolls d20 + WIS modifier, the DM narrates the result.
 
-alias Dragones.{Archetypes, DM, World}
+alias Dragones.{Archetypes, Brief, World}
 alias ExAgent.{Models, Server, Session}
 alias ExAgent.Session.{Participant, SharedState}
 
@@ -38,7 +38,7 @@ world =
 roller = fn sides -> v = :rand.uniform(sides); Agent.update(roll_log, fn l -> l ++ [{sides, v}] end); v end
 
 prompt =
-  DM.turn_prompt(
+  Brief.turn_prompt(
     Session.read_state(game),
     "Thane",
     "Thane (the player) declares: \"I examine the raised flagstone for traps before stepping on it.\". " <>

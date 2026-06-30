@@ -13,7 +13,7 @@ defmodule DragonesWeb.GameLive.New do
 
   use Phoenix.LiveView, layout: {DragonesWeb.Layouts, :app}
 
-  alias Dragones.{Games, Scenario, Scenarios}
+  alias Dragones.{Games, Roster, Scenarios}
 
   @steps [:details, :characters]
   @max_companions 5
@@ -25,8 +25,8 @@ defmodule DragonesWeb.GameLive.New do
     if user == nil do
       {:ok, Phoenix.LiveView.redirect(socket, to: "/login")}
     else
-      pcs = Enum.filter(Scenario.catalog(), &(&1.side == "pc"))
-      heroes = Scenario.hero_catalog(user)
+      pcs = Enum.filter(Roster.catalog(), &(&1.side == "pc"))
+      heroes = Roster.hero_catalog(user)
 
       {:ok,
        assign(socket,
@@ -50,16 +50,7 @@ defmodule DragonesWeb.GameLive.New do
 
   @impl true
   def handle_event("next", _params, %{assigns: %{step: :details}} = socket) do
-    s = socket.assigns
-
-    cond do
-      s.selected_scenario == nil and s.my_hero == nil ->
-        # Allow skipping if no scenario but we need a hero in step 2
-        {:noreply, assign(socket, step: :characters, error: nil)}
-
-      true ->
-        {:noreply, assign(socket, step: :characters, error: nil)}
-    end
+    {:noreply, assign(socket, step: :characters, error: nil)}
   end
 
   def handle_event("next", _params, %{assigns: %{step: :characters}} = socket) do
@@ -72,8 +63,7 @@ defmodule DragonesWeb.GameLive.New do
   end
 
   def handle_event("back", _params, socket) do
-    prev = if socket.assigns.step == :characters, do: :details, else: :details
-    {:noreply, assign(socket, step: prev, error: nil)}
+    {:noreply, assign(socket, step: :details, error: nil)}
   end
 
   # --- text field changes (custom scenario fields) ---
@@ -208,58 +198,18 @@ defmodule DragonesWeb.GameLive.New do
   defp create_game(socket) do
     s = socket.assigns
 
-    {bible, title, scene, dm_style} =
-      case s.selected_scenario do
-        %{key: "custom"} ->
-          {%{}, s[:custom_title] || "Nueva partida", s[:custom_scene] || "an unremarkable crossroads",
-           s[:custom_dm_style] || "vivid but brief"}
-
-        nil ->
-          {%{}, "Nueva partida", "an unremarkable crossroads", "vivid but brief"}
-
-        scenario ->
-          {Scenarios.bible(scenario), scenario.title, scenario.scene, scenario.dm_style}
-      end
-
-    # Count open slots (waiting for human players)
-    open_count = Enum.count(s.companions, &(&1 == "open"))
-
-    # Build roster: my hero (human) + AI companions (skip "open" slots)
-    roster = %{}
-
-    roster =
-      if s.my_hero,
-        do: Map.put(roster, s.my_hero, %{"include" => "on", "kind" => "human"}),
-        else: roster
-
-    roster =
-      s.companions
-      |> Enum.with_index()
-      |> Enum.reduce(roster, fn {key, idx}, acc ->
-        cond do
-          key == nil or key == "open" ->
-            acc
-
-          Map.has_key?(acc, key) ->
-            Map.put(acc, "#{key}_#{idx}", %{"include" => "on", "kind" => "ai"})
-
-          true ->
-            Map.put(acc, key, %{"include" => "on", "kind" => "ai"})
-        end
-      end)
-
-    params = %{
-      "title" => title,
-      "scene" => scene,
-      "dm_style" => dm_style,
-      "story_bible" => bible,
-      "dice_engine" => s.dice_engine,
-      "user_id" => s.current_user.id,
-      "roster" => roster,
-      "open_slots" => open_count
+    choices = %{
+      user_id: s.current_user.id,
+      scenario: s.selected_scenario,
+      my_hero: s.my_hero,
+      companions: s.companions,
+      dice_engine: s.dice_engine,
+      custom_title: s[:custom_title],
+      custom_scene: s[:custom_scene],
+      custom_dm_style: s[:custom_dm_style]
     }
 
-    case Games.create_from_wizard(params) do
+    case Games.create_from_wizard_choices(choices) do
       {:ok, game} ->
         {:noreply, Phoenix.LiveView.push_navigate(socket, to: "/games/#{game.id}")}
 
@@ -277,59 +227,6 @@ defmodule DragonesWeb.GameLive.New do
   def render(assigns) do
     ~H"""
     <div class="wizard">
-      <style>
-        .wizard{max-width:680px;margin:0 auto;padding:1.5rem;font-family:Georgia,'Times New Roman',serif;}
-        .wizard h1{font-size:1.3rem;color:#fc8;text-align:center;}
-        .steps{display:flex;justify-content:center;gap:.4rem;margin-bottom:1.5rem;}
-        .steps .s{padding:.3rem .7rem;border-radius:20px;font-size:.72rem;background:#222;border:1px solid #333;color:#666;}
-        .steps .s.active{background:#3a2a1a;border-color:#a72;color:#fc8;}
-        .steps .s.done{background:#1a2a1a;border-color:#474;color:#9f9;}
-        .step-label{font-size:.8rem;color:#7ab;text-transform:uppercase;letter-spacing:.05em;margin:.8rem 0 .3rem;}
-        .btn-random{padding:.4rem 1rem;border-radius:6px;border:1px solid #474;background:#1a2a1a;color:#9f9;font-size:.85rem;cursor:pointer;font-family:inherit;margin-bottom:1rem;}
-        .btn-random:hover{background:#2a3a2a;}
-        .scenario-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;}
-        .scenario-card{padding:.8rem;background:#1a1a1a;border:1px solid #333;border-radius:6px;cursor:pointer;font-size:.85rem;color:#ccc;}
-        .scenario-card:hover{border-color:#555;background:#222;}
-        .scenario-card.sel{border-color:#a72;background:#3a2a1a;color:#fc8;}
-        .scenario-card .st{font-weight:600;margin-bottom:.2rem;}
-        .scenario-card .ss{font-size:.72rem;color:#777;line-height:1.4;}
-        .engine-toggle{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;}
-        .engine-opt{display:flex;flex-direction:column;align-items:center;gap:.15rem;padding:.7rem;background:#1a1a1a;border:1px solid #333;border-radius:6px;cursor:pointer;font-family:inherit;color:#888;}
-        .engine-opt:hover{border-color:#555;background:#222;}
-        .engine-opt.sel{border-color:#a72;background:#3a2a1a;color:#fc8;}
-        .engine-opt .eo-tk{font-size:1.2rem;}
-        .engine-opt .eo-n{font-weight:700;font-size:.95rem;}
-        .engine-opt .eo-d{font-size:.68rem;color:#777;}
-        .engine-opt.sel .eo-d{color:#c96;}
-        .hero-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:.4rem;}
-        .hero-opt{padding:.5rem;background:#1a1a1a;border:1px solid #333;border-radius:6px;cursor:pointer;text-align:center;font-size:.82rem;color:#ccc;}
-        .hero-opt:hover{border-color:#555;}
-        .hero-opt.sel{border-color:#a72;background:#3a2a1a;color:#fc8;}
-        .hero-opt.taken{opacity:.4;cursor:not-allowed;}
-        .hero-opt .hn{font-weight:600;}
-        .hero-opt .hr{font-size:.68rem;color:#666;margin-top:.1rem;}
-        .slots{display:flex;flex-direction:column;gap:.4rem;margin-top:.4rem;}
-        .slot{display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;background:#1a1a1a;border:1px solid #333;border-radius:6px;font-size:.82rem;}
-        .slot .slabel{color:#666;font-size:.72rem;width:3rem;}
-        .slot .sval{color:#fc8;}
-        .slot button{margin-left:auto;padding:.2rem .5rem;background:#2a1a1a;border:1px solid #744;color:#f99;border-radius:4px;font-size:.7rem;cursor:pointer;font-family:inherit;}
-        .slot-clear:hover{background:#3a2222;}
-        .slot-add{background:#2c2c2c !important;border:1px solid #444 !important;color:#888 !important;font-size:.78rem !important;}
-        .slot-add:hover{background:#3a3a3a !important;color:#ccc !important;}
-        .slot-pick{display:flex;flex-wrap:wrap;gap:.3rem;flex:1;}
-        .pick-opt{padding:.25rem .5rem;background:#1a2a1a !important;border:1px solid #474 !important;color:#9c9 !important;border-radius:4px;font-size:.72rem !important;cursor:pointer;font-family:inherit;margin:0 !important;}
-        .pick-opt:hover{background:#2a3a2a !important;border-color:#7a7 !important;}
-        .pick-cancel{padding:.25rem .5rem;background:transparent !important;border:1px solid #333 !important;color:#555 !important;border-radius:4px;font-size:.72rem !important;cursor:pointer;font-family:inherit;margin:0 !important;}
-        .actions{display:flex;justify-content:space-between;margin-top:1.5rem;align-items:center;}
-        .btn{padding:.55rem 1.3rem;border-radius:6px;border:1px solid #444;background:#2c2c2c;color:#eee;font-size:.92rem;cursor:pointer;font-family:inherit;}
-        .btn:hover{background:#3a3a3a;}
-        .btn-primary{background:#3a2a1a;border-color:#a72;color:#fc8;}
-        .btn-primary:hover{background:#4a3520;}
-        .btn-back{background:transparent;border-color:#333;color:#888;}
-        .error{color:#f99;font-size:.85rem;margin:.5rem 0;text-align:center;}
-        .back{color:#7ab;text-decoration:none;font-size:.85rem;}
-        .note{font-size:.75rem;color:#555;text-align:center;margin-top:.8rem;}
-      </style>
 
       <.link navigate="/" class="back">← volver</.link>
       <h1>Nueva partida</h1>

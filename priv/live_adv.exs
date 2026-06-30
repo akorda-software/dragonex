@@ -4,7 +4,7 @@
 # Verifies advantage end-to-end live: the DM, told the goblin is prone, should
 # pass mode "advantage" to make_attack, and the engine rolls 2d20 (kept higher).
 
-alias Dragones.{Archetypes, DM, Monsters, World}
+alias Dragones.{Archetypes, Brief, Monsters, World}
 alias ExAgent.{Models, Server, Session}
 alias ExAgent.Session.{Participant, SharedState}
 
@@ -38,7 +38,7 @@ world =
 roller = fn sides -> v = :rand.uniform(sides); Agent.update(roll_log, fn l -> l ++ [{sides, v}] end); v end
 
 prompt =
-  DM.turn_prompt(
+  Brief.turn_prompt(
     Session.read_state(game),
     "Thane",
     "Thane declares: \"The goblin is prone on the ground — I bring my longsword down on it.\". " <>

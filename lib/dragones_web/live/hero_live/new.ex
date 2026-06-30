@@ -11,11 +11,9 @@ defmodule DragonesWeb.HeroLive.New do
   use Phoenix.LiveView, layout: {DragonesWeb.Layouts, :app}
 
   alias Dragones.{Character, Heroes}
-  alias Dragones.Heroes.{Classes, Spells}
+  alias Dragones.Heroes.{Classes, Scoring, Spells}
 
   @order [:identity, :heritage, :details, :review]
-  @pb_costs %{8 => 0, 9 => 1, 10 => 2, 11 => 3, 12 => 4, 13 => 5, 14 => 7, 15 => 9}
-  @pb_budget 27
 
   @impl true
   def mount(_params, session, socket) do
@@ -48,19 +46,15 @@ defmodule DragonesWeb.HeroLive.New do
   # --- random hero ---
 
   def handle_event("random", _params, socket) do
-    race = Enum.random(Heroes.list_races())
-    subraces = Heroes.subraces(race)
-    subrace = if subraces != [], do: Enum.random(subraces), else: nil
-    class = Enum.random(Heroes.list_classes())
-    background = Enum.random(Heroes.list_backgrounds())
+    draft = Heroes.random_draft()
 
     form = %{
-      name: Dragones.Scenarios.random_name(),
-      race: race,
-      subrace: subrace,
-      class: class,
-      sex: Enum.random(["hombre", "mujer", "no binario"]),
-      background: background,
+      name: draft.name,
+      race: draft.race,
+      subrace: draft.subrace,
+      class: draft.class,
+      sex: draft.sex,
+      background: draft.background,
       score_method: "auto",
       pb: %{str: 8, dex: 8, con: 8, int: 8, wis: 8, cha: 8},
       backstory: nil,
@@ -117,19 +111,11 @@ defmodule DragonesWeb.HeroLive.New do
   def handle_event("pb_adjust", %{"ability" => ab, "delta" => delta}, socket) do
     ab_atom = String.to_atom(ab)
     delta_int = String.to_integer(delta)
-    pb = socket.assigns.form.pb
-    current = Map.get(pb, ab_atom, 8)
-    new_val = max(8, min(15, current + delta_int))
-
-    # Check if we have enough points
-    tentative_pb = Map.put(pb, ab_atom, new_val)
-    remaining = pb_remaining(tentative_pb)
 
     form =
-      if remaining >= 0 or new_val < current do
-        %{socket.assigns.form | pb: tentative_pb, score_method: "pointbuy"}
-      else
-        socket.assigns.form
+      case Scoring.apply_delta(socket.assigns.form.pb, ab_atom, delta_int) do
+        {:ok, new_pb} -> %{socket.assigns.form | pb: new_pb, score_method: "pointbuy"}
+        {:error, :no_budget} -> socket.assigns.form
       end
 
     {:noreply, socket |> assign(:form, form) |> refresh_preview()}
@@ -138,7 +124,7 @@ defmodule DragonesWeb.HeroLive.New do
   # --- spell toggle ---
 
   def handle_event("spell_toggle", %{"spell" => name}, socket) do
-    current = socket.assigns.form.spells || default_spell_names(socket.assigns.form.class)
+    current = socket.assigns.form.spells || Classes.default_spell_names(socket.assigns.form.class)
 
     new_spells =
       if name in current do
@@ -212,18 +198,6 @@ defmodule DragonesWeb.HeroLive.New do
     end
   end
 
-  defp pb_remaining(pb) do
-    spent = Enum.reduce(pb, 0, fn {_, v}, acc -> acc + Map.get(@pb_costs, v, 0) end)
-    @pb_budget - spent
-  end
-
-  defp default_spell_names(class_key) do
-    case Classes.get(class_key || "") do
-      {:ok, %{spellcasting: %{defaults: %{cantrips: c, spells: s}}}} -> c ++ s
-      _ -> []
-    end
-  end
-
   defp next_step(:identity), do: :heritage
   defp next_step(:heritage), do: :details
   defp next_step(:details), do: :review
@@ -279,48 +253,6 @@ defmodule DragonesWeb.HeroLive.New do
   def render(assigns) do
     ~H"""
     <div class="creator">
-      <style>
-        .creator{width:min(1100px,calc(100% - 3rem));margin:0 auto;padding:clamp(1rem,2vw,2rem) 0 2.5rem;font-family:Georgia,'Times New Roman',serif;}
-        .creator-head{text-align:center;margin:1rem 0 1.25rem;}
-        .creator h1{font-size:clamp(1.6rem,2vw,2.1rem);color:#fc8;text-align:center;}
-        .creator .sub{text-align:center;color:#889;font-size:.92rem;margin-bottom:1.2rem;}
-        .creator-panel{background:rgba(18,18,18,.62);border:1px solid #2f2a25;border-radius:14px;padding:clamp(1rem,2vw,1.5rem);box-shadow:0 18px 60px rgba(0,0,0,.18);}
-        .steps{display:flex;justify-content:flex-start;gap:.5rem;margin-bottom:1.5rem;flex-wrap:wrap;}
-        .steps .s{padding:.3rem .7rem;border-radius:20px;font-size:.72rem;background:#222;border:1px solid #333;color:#666;font-family:inherit;cursor:pointer;}
-        .steps .s.clickable:hover{border-color:#555;color:#aaa;}
-        .steps .s.locked{opacity:.45;cursor:not-allowed;}
-        .steps .s.locked:hover{border-color:#333;color:#666;}
-        .steps .s.active{background:#3a2a1a;border-color:#a72;color:#fc8;}
-        .steps .s.done{background:#1a2a1a;border-color:#474;color:#9f9;}
-        .step-label{font-size:.8rem;color:#7ab;text-transform:uppercase;letter-spacing:.05em;margin:.8rem 0 .3rem;}
-        .creator input[type=text],.creator textarea
-          {width:100%;padding:.6rem;background:#1a1a1a;color:#eee;border:1px solid #444;border-radius:4px;font-size:1rem;box-sizing:border-box;font-family:inherit;}
-        .creator textarea{min-height:9rem;resize:vertical;}
-        .creator input:focus,.creator textarea:focus{border-color:#a72;outline:none;}
-        .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:.55rem;}
-        .opt{padding:.7rem .5rem;background:#1a1a1a;border:1px solid #333;border-radius:8px;cursor:pointer;text-align:center;font-size:.9rem;color:#ccc;transition:all .12s;}
-        .opt:hover{border-color:#555;background:#222;}
-        .opt.sel{border-color:#a72;background:#3a2a1a;color:#fc8;}
-        .opt .on{font-weight:600;}.opt .od{font-size:.68rem;color:#666;margin-top:.15rem;}
-        .select-row{padding:.4rem;background:#1a1a1a;color:#eee;border:1px solid #444;border-radius:4px;font-family:inherit;width:100%;font-size:.9rem;}
-        .actions{display:flex;justify-content:space-between;margin-top:1.5rem;align-items:center;gap:1rem;}
-        .btn{padding:.55rem 1.3rem;border-radius:6px;border:1px solid #444;background:#2c2c2c;color:#eee;font-size:.92rem;cursor:pointer;font-family:inherit;text-decoration:none;}
-        .btn:hover{background:#3a3a3a;}
-        .btn-primary{background:#3a2a1a;border-color:#a72;color:#fc8;}.btn-primary:hover{background:#4a3520;}
-        .btn-back{background:transparent;border-color:#333;color:#888;}
-        .error{color:#f99;font-size:.85rem;margin:.5rem 0;text-align:center;}
-        .pv{background:rgba(26,26,26,.9);border:1px solid #333;border-radius:12px;padding:1rem;margin-top:1rem;}
-        .pv h3{color:#fc8;font-size:1rem;margin-bottom:.3rem;}
-        .pv .stats{display:grid;grid-template-columns:repeat(6,1fr);gap:.3rem;margin:.5rem 0;font-size:.72rem;color:#999;text-align:center;}
-        .pv .stats strong{display:block;font-size:1.05rem;color:#eee;}
-        .pv .derived{display:flex;gap:.5rem;flex-wrap:wrap;font-size:.82rem;color:#aaa;margin:.3rem 0;}
-        .pv .derived span{background:#222;padding:.2rem .5rem;border-radius:4px;}
-        .pv .spells{font-size:.78rem;color:#aaa;margin-top:.3rem;line-height:1.5;}
-        .nav-back{color:#7ab;text-decoration:none;font-size:.85rem;}
-        .btn-random{padding:.5rem 1.2rem;border-radius:6px;border:1px solid #474;background:#1a2a1a;color:#9f9;font-size:.9rem;cursor:pointer;font-family:inherit;}
-        .btn-random:hover{background:#2a3a2a;}
-        @media(max-width:720px){.creator{width:min(100% - 1rem,1100px);}.grid{grid-template-columns:1fr 1fr;}.actions{align-items:stretch;}.actions .btn{flex:1;}}
-      </style>
 
       <.link navigate="/heroes" class="nav-back">← mis héroes</.link>
       <div class="creator-head">
@@ -473,12 +405,12 @@ defmodule DragonesWeb.HeroLive.New do
 
       <div :if={@form.score_method == "pointbuy"} style="margin-top:1rem;">
         <div class="step-label">
-          Point Buy — Restantes: <strong style="color:#fc8;">{pb_remaining(@form.pb)}</strong> pts
+          Point Buy — Restantes: <strong style="color:#fc8;">{Scoring.point_buy_remaining(@form.pb)}</strong> pts
         </div>
         <div class="pb-grid">
           <%= for ab <- [:str, :dex, :con, :int, :wis, :cha] do %>
             <% val = @form.pb[ab]
-               cost = Map.get(%{8 => 0, 9 => 1, 10 => 2, 11 => 3, 12 => 4, 13 => 5, 14 => 7, 15 => 9}, val, 0) %>
+               cost = Scoring.cost_for(val) %>
             <div class="pb-row">
               <span class="pb-ab">{String.upcase(to_string(ab))}</span>
               <button type="button" class="pb-btn" phx-click="pb_adjust" phx-value-ability={ab} phx-value-delta="-1">−</button>
@@ -497,15 +429,6 @@ defmodule DragonesWeb.HeroLive.New do
         Asignado automáticamente según la prioridad de la clase.
       </div>
 
-      <style>
-        .pb-grid{display:grid;gap:.4rem;}
-        .pb-row{display:flex;align-items:center;gap:.6rem;padding:.4rem .6rem;background:#1a1a1a;border:1px solid #333;border-radius:6px;}
-        .pb-ab{font-weight:700;color:#7ab;width:2.5rem;font-size:.85rem;}
-        .pb-val{font-size:1.1rem;color:#eee;min-width:1.5rem;text-align:center;}
-        .pb-btn{width:28px;height:28px;border-radius:4px;border:1px solid #444;background:#2c2c2c;color:#eee;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;}
-        .pb-btn:hover{background:#3a3a3a;border-color:#a72;}
-        .pb-cost{font-size:.72rem;color:#555;margin-left:auto;}
-      </style>
     </div>
     """
   end
@@ -513,7 +436,7 @@ defmodule DragonesWeb.HeroLive.New do
   defp details_step(assigns) do
     ~H"""
     <div>
-      <.spell_picker :if={caster?(@form.class)} form={@form} />
+      <.spell_picker :if={Classes.caster?(@form.class)} form={@form} />
 
       <div class="step-label">Historia (opcional)</div>
       <textarea name="backstory" phx-change="change" placeholder="Un ex-soldado que empuñó la espada de nuevo cuando su aldea ardió…">{@form.backstory}</textarea>
@@ -556,12 +479,6 @@ defmodule DragonesWeb.HeroLive.New do
           </div>
         </div>
       <% end %>
-      <style>
-        .spell-chips{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.3rem;}
-        .spell-chip{padding:.25rem .6rem;background:#1a1a1a;border:1px solid #333;border-radius:12px;color:#888;font-size:.78rem;cursor:pointer;font-family:inherit;}
-        .spell-chip.sel{background:#3a2a1a;border-color:#a72;color:#fc8;}
-        .spell-chip:hover{border-color:#555;}
-      </style>
     </div>
     """
   end
@@ -629,24 +546,14 @@ defmodule DragonesWeb.HeroLive.New do
     end
   end
 
-  defp caster?(nil), do: false
-
-  defp caster?(class_key) do
-    case Classes.get(class_key) do
-      {:ok, %{spellcasting: nil}} -> false
-      {:ok, %{spellcasting: _}} -> true
-      _ -> false
-    end
-  end
-
   defp spell_selected?(%{spells: nil, class: class}, name) do
-    name in default_spell_names(class)
+    name in Classes.default_spell_names(class)
   end
 
   defp spell_selected?(%{spells: spells}, name), do: name in spells
 
   defp count_selected(%{spells: nil, class: class}, level) do
-    default_spell_names(class)
+    Classes.default_spell_names(class)
     |> Enum.count(fn name ->
       case Spells.get(name) do
         %{level: ^level} -> true

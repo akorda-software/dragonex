@@ -21,7 +21,7 @@ defmodule Dragones.Events do
 
   Capabilities are baked into the agent at construction time, but the values we
   need (game_id, turn_id, actor, round, phase) change every beat. We thread
-  them through `state.deps.beat`, which `Dragones.Game.run_beat/3` populates
+  them through `state.deps.beat`, which `Dragones.Game.run_beat/5` populates
   per turn. When `deps.beat` is absent (unit tests of the agent itself) the
   capability is a no-op.
   """
@@ -29,8 +29,7 @@ defmodule Dragones.Events do
   use ExAgent.Capability
 
   alias Dragones.{Games, Text}
-  alias ExAgent.Message, as: Msg
-  alias ExAgent.Message.{Part, Response}
+  alias ExAgent.Message.Response
 
   @pubsub Dragones.PubSub
 
@@ -87,8 +86,4 @@ defmodule Dragones.Events do
   rescue
     _ -> :ok
   end
-
-  # Helper re-exported for callers that build Response structs in tests.
-  def text_part(text), do: %Part.Text{content: text}
-  def response(text), do: Msg.new_response([text_part(text)])
 end

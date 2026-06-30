@@ -122,6 +122,77 @@ defmodule Dragones.Games do
     end
   end
 
+  @doc """
+  Build a partida directly from the creator wizard's semantic selections:
+  `:scenario` (a `Scenarios` entry, `%{key: "custom"}`, or `nil`), `:my_hero`
+  (the user's chosen hero key), `:companions` (the per-slot list, where
+  `"open"` reserves a human slot), `:dice_engine`, `:user_id`, and the optional
+  `:custom_title` / `:custom_scene` / `:custom_dm_style` for custom scenarios.
+
+  This owns the scenario-field resolution and the roster assembly so the
+  LiveView stays a thin forwarder. Delegates roster parsing + persistence to
+  `create_from_wizard/1`.
+  """
+  @spec create_from_wizard_choices(map()) :: {:ok, Game.t()} | {:error, term()}
+  def create_from_wizard_choices(choices) do
+    {bible, title, scene, dm_style} = resolve_scenario_fields(choices)
+
+    companions = Map.get(choices, :companions, [])
+    open_count = Enum.count(companions, &(&1 == "open"))
+    roster = build_wizard_roster(Map.get(choices, :my_hero), companions)
+
+    create_from_wizard(%{
+      "title" => title,
+      "scene" => scene,
+      "dm_style" => dm_style,
+      "story_bible" => bible,
+      "dice_engine" => Map.get(choices, :dice_engine, "2d"),
+      "user_id" => Map.get(choices, :user_id),
+      "roster" => roster,
+      "open_slots" => open_count
+    })
+  end
+
+  # Scenario → {bible, title, scene, dm_style}. A custom scenario (or none) falls
+  # back to the wizard's custom_* fields then to safe defaults; a picked scenario
+  # contributes its own bible + fields.
+  defp resolve_scenario_fields(%{scenario: %{key: "custom"}} = ch) do
+    {%{},
+     Map.get(ch, :custom_title) || "Nueva partida",
+     Map.get(ch, :custom_scene) || "an unremarkable crossroads",
+     Map.get(ch, :custom_dm_style) || "vivid but brief"}
+  end
+
+  defp resolve_scenario_fields(%{scenario: nil}) do
+    {%{}, "Nueva partida", "an unremarkable crossroads", "vivid but brief"}
+  end
+
+  defp resolve_scenario_fields(%{scenario: scenario}) do
+    {Dragones.Scenarios.bible(scenario), scenario.title, scenario.scene, scenario.dm_style}
+  end
+
+  # Assemble the roster input `create_from_wizard/1` expects: the user's hero as
+  # `:human`, each companion slot as `:ai` (skipping nil / "open"), with duplicate
+  # keys disambiguated by slot index.
+  defp build_wizard_roster(my_hero, companions) do
+    roster = if my_hero, do: %{my_hero => %{"include" => "on", "kind" => "human"}}, else: %{}
+
+    companions
+    |> Enum.with_index()
+    |> Enum.reduce(roster, fn {key, idx}, acc ->
+      cond do
+        key == nil or key == "open" ->
+          acc
+
+        Map.has_key?(acc, key) ->
+          Map.put(acc, "#{key}_#{idx}", %{"include" => "on", "kind" => "ai"})
+
+        true ->
+          Map.put(acc, key, %{"include" => "on", "kind" => "ai"})
+      end
+    end)
+  end
+
   defp resolve_roster_entry("hero_" <> id_str, user_id) do
     hero = Dragones.Accounts.get_hero(id_str)
 
@@ -146,14 +217,14 @@ defmodule Dragones.Games do
   end
 
   defp resolve_roster_entry(key, _user_id) do
-    entry = Dragones.Scenario.catalog_entry(key)
+    entry = Dragones.Roster.catalog_entry(key)
     {entry.builder.(), entry.side}
   end
 
   defp parse_kind("ai"), do: :ai
   defp parse_kind(_), do: :human
 
-  defp monster_first?(key), do: if(String.starts_with?(key, "hero_") or Dragones.Scenario.catalog_entry(key).side == "enemy", do: 0, else: 1)
+  defp monster_first?(key), do: if(String.starts_with?(key, "hero_") or Dragones.Roster.catalog_entry(key).side == "enemy", do: 0, else: 1)
 
   defp scene_from(_roster, nil), do: "an unremarkable crossroads"
   defp scene_from(_roster, ""), do: "an unremarkable crossroads"
@@ -166,7 +237,7 @@ defmodule Dragones.Games do
     {participants, characters, add_fns} =
       roster
       |> Enum.reduce({[dm], [], []}, fn {sheet, kind}, {ps, cs, fs} ->
-        c = struct(Character, %{name: sheet.name, sheet: sheet_to_map(sheet), kind: kind})
+        c = struct(Character, %{name: sheet.name, sheet: Dragones.Codec.encode_character(sheet), kind: kind})
 
         # Only PCs are participants. The creator's PC (kind :human) gets the
         # creator's user_id so the viewer auto-assigns correctly.
@@ -203,15 +274,6 @@ defmodule Dragones.Games do
       end)
 
     {world, participants, characters}
-  end
-
-  # A Character sheet round-trips to a plain map for jsonb storage. We reuse the
-  # Codec's per-field encoder so the baseline sheet matches the live world form.
-  defp sheet_to_map(%Dragones.Character{} = c) do
-    # Reuse the private codec by encoding a single-character world, then pulling
-    # the entry out. Keeps one source of truth for the sheet shape.
-    world = %Dragones.World{characters: %{c.name => c}}
-    Dragones.Codec.encode(world)["characters"][c.name]
   end
 
   defp opening_for(scene), do: "La escena está preparada: #{scene}."
@@ -266,7 +328,7 @@ defmodule Dragones.Games do
       {:ok, _char} =
         %Character{}
         |> Ecto.Changeset.cast(
-          %{game_id: game_id, name: sheet.name, sheet: sheet_to_map(sheet), kind: :human},
+          %{game_id: game_id, name: sheet.name, sheet: Dragones.Codec.encode_character(sheet), kind: :human},
           [:game_id, :name, :sheet, :kind]
         )
         |> Repo.insert()

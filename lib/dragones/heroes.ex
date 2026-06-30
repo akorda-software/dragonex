@@ -16,7 +16,7 @@ defmodule Dragones.Heroes do
       ...>   class: "wizard", background: "sage"
       ...> })
 
-  The game layer already consumes `Character` via `Scenario.catalog` /
+  The game layer already consumes `Character` via `Roster.catalog` /
   `Games.create_from_wizard` — that integration is a separate, optional step.
 
   ## What the builder derives (5e rules)
@@ -122,6 +122,33 @@ defmodule Dragones.Heroes do
   @doc "Subrace keys for a race (empty list if the race has none)."
   @spec subraces(String.t()) :: [String.t()]
   def subraces(race_key), do: Races.subrace_keys(race_key)
+
+  @doc """
+  A random coherent set of hero choices (race + matching subrace, class,
+  background, sex, name) for the creator's draft button. The caller owns the
+  form-shape assembly; this only picks the domain values.
+  """
+  @spec random_draft() :: %{
+          name: String.t(),
+          race: String.t(),
+          subrace: String.t() | nil,
+          class: String.t(),
+          background: String.t(),
+          sex: String.t()
+        }
+  def random_draft do
+    race = Enum.random(list_races())
+    subs = subraces(race)
+
+    %{
+      name: Dragones.Scenarios.random_name(),
+      race: race,
+      subrace: if(subs != [], do: Enum.random(subs), else: nil),
+      class: Enum.random(list_classes()),
+      background: Enum.random(list_backgrounds()),
+      sex: Enum.random(["hombre", "mujer", "no binario"])
+    }
+  end
 
   # ---------------------------------------------------------------- race
 

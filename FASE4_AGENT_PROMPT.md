@@ -43,7 +43,7 @@ sesiones, DM ni LiveView. Su único contrato de salida es:
 
 > Producir un `Dragones.Character` **válido, completo y 5e-correcto**.
 
-La capa de partidas ya existe y ya consume `Character` (vía `Scenario.catalog` →
+La capa de partidas ya existe y ya consume `Character` (vía `Roster.catalog` →
 `Games.create_from_wizard`). **No la rompas**. Cuando tu creador esté listo, el
 único punto de integración será que el wizard pueda ofrecer personajes creados en
 lugar de (o además de) los archetypes hardcoded — pero eso es **el último paso**,
@@ -159,7 +159,7 @@ estén bien puestos; **no dupliques** la lógica de combate.
 3. **Validación 5e**: que las elecciones sean legales (raza existe, clase existe,
    skills dentro de la lista, nº de skills correcto, puntuaciones en rango,
    alineamiento válido, etc.). Usa/extend `Character.changeset`.
-4. **(Opcional, último)** Integración con el wizard: que `Scenario.catalog`/
+4. **(Opcional, último)** Integración con el wizard: que `Roster.catalog`/
    `create_from_wizard` pueda nutrirse de personajes creados. Mínimo impacto.
 
 No construyas UI en esta iteración salvo que sobre tiempo; el foco es el

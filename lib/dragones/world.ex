@@ -90,6 +90,27 @@ defmodule Dragones.World do
 
   def combat_over?(_), do: false
 
+  @doc "The set of living enemy (side `\"enemy\"`) character names."
+  @spec living_enemies(t()) :: MapSet.t(String.t())
+  def living_enemies(%__MODULE__{characters: chars}) do
+    chars
+    |> Enum.filter(fn {_, c} -> c.side == "enemy" and (c.hp || 0) > 0 end)
+    |> Enum.map(fn {name, _} -> name end)
+    |> MapSet.new()
+  end
+
+  @doc "True if any conscious (hp > 0) PC is present."
+  @spec has_living_pcs?(t()) :: boolean()
+  def has_living_pcs?(%__MODULE__{characters: chars}) do
+    Enum.any?(chars, fn {_, c} -> c.side == "pc" and (c.hp || 0) > 0 end)
+  end
+
+  @doc "True if any conscious (hp > 0) enemy is present."
+  @spec has_living_enemies?(t()) :: boolean()
+  def has_living_enemies?(%__MODULE__{characters: chars}) do
+    Enum.any?(chars, fn {_, c} -> c.side == "enemy" and (c.hp || 0) > 0 end)
+  end
+
   @doc """
   Does `proposer` control the character `name`? The invariant that stops a
   monster from acting on a player's turn (and vice versa):
@@ -110,6 +131,19 @@ defmodule Dragones.World do
       %Character{} -> pcs == []
     end
   end
+
+  @doc """
+  Who controls `name`/`c`: the PC's own name if it's a player character, or
+  `\"dm\"` otherwise (monsters/NPCs fold onto the DM). The view-layer inverse of
+  `controlled_by?/3` — used to mark whose turn it is in the initiative tracker.
+  Accepts either a name (looked up) or a `Character` struct directly.
+  """
+  @spec controller_of(t(), String.t() | Character.t() | nil) :: String.t()
+  def controller_of(%__MODULE__{} = w, name) when is_binary(name),
+    do: controller_of(w, character(w, name))
+
+  def controller_of(_w, %Character{side: "pc"} = c), do: c.name
+  def controller_of(_w, _enemy_or_nil), do: "dm"
 
   # ---------------------------------------------------------- change functions
 
@@ -371,11 +405,13 @@ defmodule Dragones.World do
     end
   end
 
-  defp hit_die_size("barbarian"), do: 12
-  defp hit_die_size(c) when c in ~w(fighter paladin ranger), do: 10
-  defp hit_die_size(c) when c in ~w(bard cleric druid monk rogue warlock), do: 8
-  defp hit_die_size(c) when c in ~w(sorcerer wizard), do: 6
-  defp hit_die_size(_), do: 8
+  @doc "The hit-die size for a 5e class (the canonical source of truth)."
+  @spec hit_die_size(String.t()) :: pos_integer()
+  def hit_die_size("barbarian"), do: 12
+  def hit_die_size(c) when c in ~w(fighter paladin ranger), do: 10
+  def hit_die_size(c) when c in ~w(bard cleric druid monk rogue warlock), do: 8
+  def hit_die_size(c) when c in ~w(sorcerer wizard), do: 6
+  def hit_die_size(_), do: 8
 
   # ----------------------------------------------------------------- helpers
 

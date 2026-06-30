@@ -8,7 +8,7 @@ defmodule Dragones.DM do
   DM only reads their textual results and weaves them into the scene.
   """
 
-  alias Dragones.{Character, Events, Tools, World}
+  alias Dragones.{Events, Tools}
   alias ExAgent.{Compaction, Message, Message.Response}
 
   @doc """
@@ -58,7 +58,7 @@ defmodule Dragones.DM do
       # text chunk as it's produced (mid-beat declarations + final narration),
       # instead of dropping everything but the last response. It reads the
       # per-beat context (game_id, turn_id, actor, …) from `state.deps.beat`,
-      # which `Dragones.Game.run_beat/3` populates each turn. When no beat
+      # which `Dragones.Game.run_beat/5` populates each turn. When no beat
       # context is wired (unit tests of the agent), it no-ops.
       capabilities: [Events | compaction_capabilities(opts)]
     )
@@ -88,32 +88,19 @@ defmodule Dragones.DM do
   end
 
   defp summarize_history(summarizer, old_messages) do
-    # Operational signal: compaction only fires when the threshold is crossed,
-    # so this log is rare and confirms the cheap summarizer role is in use.
-    require Logger
-    Logger.info("dragones: compaction fired — summarizing #{length(old_messages)} old messages via #{ExAgent.Model.model_name(summarizer)}")
-
-    agent = ExAgent.new(model: summarizer, instructions: summarize_instructions())
-
-    case ExAgent.run(agent, summarize_prompt(old_messages)) do
-      {:ok, %{output: text}} when is_binary(text) -> text
-      _ -> "(earlier turns recap unavailable)"
-    end
+    Dragones.Agent.summarize(
+      summarizer,
+      summarize_instructions(),
+      old_messages,
+      &message_line/1,
+      "dragones"
+    )
   end
 
   defp summarize_instructions do
     "Haces un resumen de los turnos anteriores de una partida de D&D 5e para el DM. " <>
       "Mantén un tono factual y conciso: quién actuó, daño/desenlaces clave, cambios de " <>
       "escena, enemigos caídos. 2-4 frases. Sin jerga de reglas. Escribe en castellano."
-  end
-
-  # Flatten the old messages into a readable transcript for the summarizer.
-  defp summarize_prompt(messages) do
-    body =
-      messages
-      |> Enum.map_join("\n", &message_line/1)
-
-    "Resume estos turnos anteriores de la partida:\n\n#{body}"
   end
 
   defp message_line(%Message.Request{parts: parts}) do
@@ -190,146 +177,4 @@ defmodule Dragones.DM do
 
     "BIBLIA DE LA CAMPAÑA (estable — guía tu narración y las voces de los PNJ):\n#{body}"
   end
-
-  @doc """
-  A compact, LLM-readable snapshot of the world: phase, round, scene, initiative,
-  whose turn it is, and one line per character. This is what the DM "sees" to
-  decide its action.
-
-  `current` is the participant whose turn it is; `dm` is the DM participant id.
-  When it's the DM's turn, the header lists the monsters it controls (since the
-  policy folds all enemies onto the DM's single turn).
-  """
-  @spec world_brief(World.t(), String.t() | nil, String.t(), %{optional(String.t()) => atom()}) :: String.t()
-  def world_brief(%World{} = w, current, dm \\ "dm", kinds \\ %{}) do
-    phase_line =
-      case w do
-        %World{phase: :combat, round: round, initiative_order: order} when order != [] ->
-          "Combate -- ronda #{round} (iniciativa: #{Enum.join(order, " -> ")})"
-
-        %World{phase: :combat} ->
-          "Combate -- ronda #{w.round}"
-
-        _ ->
-          "Exploración"
-      end
-
-    turn_line = turn_for(w, current, dm, kinds)
-    control_line = control_line(w, kinds)
-    facts_line = facts_line(w)
-
-    chars =
-      w.characters
-      |> Enum.sort_by(fn {name, _} -> name end)
-      |> Enum.map(fn {name, c} -> describe_char(name, c, current, dm, w.spell_slots, kinds) end)
-      |> Enum.join("\n")
-
-    [phase_line, turn_line, control_line, facts_line, "Escena: #{w.scene}", chars]
-    |> Enum.reject(&(&1 == ""))
-    |> Enum.join("\n")
-  end
-
-  # Durable narrative facts the DM has established. Surfaced every turn so the
-  # partida's concrete state survives history truncation and every agent reads
-  # the same ground truth — keeping hooks from being dropped or re-introduced.
-  defp facts_line(%World{facts: []}), do: ""
-
-  defp facts_line(%World{facts: facts}) do
-    body = Enum.map_join(facts, "\n", &"- #{&1}")
-
-    "Hechos establecidos (verdad canónica de la partida — confía en esto, no lo contradigas ni lo reintroduzcas):\n" <>
-      body
-  end
-
-  # Tell the DM who auto-acts (AI PCs) vs who waits for a human, so it doesn't
-  # ask a human player to act for a bot, or vice versa.
-  defp control_line(%World{characters: chars}, kinds) do
-    pcs = chars |> Map.values() |> Enum.filter(&(&1.side == "pc")) |> Enum.map(& &1.name)
-    {ai, humans} = Enum.split_with(pcs, fn n -> kinds[n] == :ai end)
-
-    case {ai, humans} do
-      {[], []} -> ""
-      {[], _} -> "Control: #{Enum.join(humans, ", ")} son jugadores humanos (esperan su input)."
-      {_, []} -> "Control: #{Enum.join(ai, ", ")} son PJ gestionados por IA (juegan solos en su turno; NO les pidas su acción)."
-      {_, _} ->
-        "Control: #{Enum.join(humans, ", ")} son jugadores humanos (esperan su input); " <>
-          "#{Enum.join(ai, ", ")} son PJ gestionados por IA (juegan solos; NO les pidas su acción)."
-    end
-  end
-
-  defp turn_for(_w, nil, _dm, _kinds), do: ""
-
-  defp turn_for(%World{characters: chars}, current, dm, _kinds) when current == dm do
-    monsters =
-      chars
-      |> Enum.filter(fn {_, c} -> c.side != "pc" and c.hp > 0 end)
-      |> Enum.map(fn {name, _} -> name end)
-      |> Enum.sort()
-
-    if monsters == [],
-      do: "Es TU turno (DM).",
-      else: "Es TU turno (DM) -- actúa por: #{Enum.join(monsters, ", ")}."
-  end
-
-  defp turn_for(_w, current, _dm, kinds) do
-    role = if kinds[current] == :ai, do: "IA, auto-juega", else: "jugador humano"
-    "Es el turno de #{current} (#{role}) -- solo #{current} puede actuar ahora."
-  end
-
-  @doc "Build the per-turn user message: world snapshot + a directing instruction."
-  @spec turn_prompt(World.t(), String.t() | nil, String.t(), String.t(), %{optional(String.t()) => atom()}) :: String.t()
-  def turn_prompt(%World{} = w, current, instruction, dm \\ "dm", kinds \\ %{}) do
-    "WORLD:\n#{world_brief(w, current, dm, kinds)}\n\n#{instruction}"
-  end
-
-  defp describe_char(name, %Character{} = c, current, dm, spell_slots, kinds) do
-    status = if (c.hp || 0) <= 0 and c.max_hp not in [nil, 0], do: " [CAÍDO]", else: ""
-    ai_tag = if kinds[name] == :ai, do: " IA", else: ""
-
-    cond_str =
-      case c.conditions || [] do
-        [] -> ""
-        conds ->
-          names = Enum.map(conds, fn
-            %{condition: cd} -> cd
-            %{"condition" => cd} -> cd
-            cd when is_binary(cd) -> cd
-            _ -> nil
-          end) |> Enum.reject(&is_nil/1)
-          if names == [], do: "", else: " [#{Enum.join(names, ", ")}]"
-      end
-
-    you = if name == current and current != dm, do: "  <- ACTÚA AHORA", else: ""
-    weapons = c.weapons |> Enum.map(& &1.name) |> Enum.join(", ")
-    spells = if c.spells == [], do: [], else: c.spells |> Enum.map(& &1.name) |> Enum.join(", ")
-
-    level_tag = if c.level > 1, do: " N#{c.level}", else: ""
-
-    gear = ["Armas: #{weapons}"] ++ if spells == [], do: [], else: ["Hechizos: #{spells}"]
-
-    # Spell slots: only show for tracked casters
-    slot_str = slot_summary(spell_slots, name)
-
-    gear = if slot_str != "", do: gear ++ [slot_str], else: gear
-
-    "- #{name} (#{c.class}#{level_tag}, #{c.side}#{ai_tag}): #{c.hp}/#{c.max_hp} pg, CA #{c.ac}#{status}#{cond_str}#{you} -- #{Enum.join(gear, "; ")}"
-  end
-
-  defp slot_summary(slots, name) when is_map(slots) and is_map_key(slots, name) do
-    char_slots = Map.get(slots, name, %{})
-
-    if char_slots == %{} do
-      ""
-    else
-      parts =
-        char_slots
-        |> Enum.sort_by(fn {level, _} -> level end)
-        |> Enum.map(fn {level, count} -> "N#{level}:#{count}" end)
-        |> Enum.join(", ")
-
-      "Casillas: #{parts}"
-    end
-  end
-
-  defp slot_summary(_, _), do: ""
 end

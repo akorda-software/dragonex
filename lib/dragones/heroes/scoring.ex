@@ -42,6 +42,38 @@ defmodule Dragones.Heroes.Scoring do
   @spec point_buy_budget() :: pos_integer()
   def point_buy_budget, do: @point_buy_budget
 
+  @doc "Point-buy cost of a single score value (0 for anything outside 8–15)."
+  @spec cost_for(integer()) :: non_neg_integer()
+  def cost_for(value), do: Map.get(@point_buy_costs, value, 0)
+
+  @doc "Total point-buy cost of a score map (lenient: out-of-range values count 0)."
+  @spec point_buy_cost(score_map()) :: non_neg_integer()
+  def point_buy_cost(scores) when is_map(scores) do
+    Enum.reduce(@abilities, 0, fn ab, acc -> acc + cost_for(Map.get(scores, ab)) end)
+  end
+
+  @doc "Points still spendable under the point-buy budget (budget − cost)."
+  @spec point_buy_remaining(score_map()) :: integer()
+  def point_buy_remaining(scores), do: @point_buy_budget - point_buy_cost(scores)
+
+  @doc """
+  Adjust one ability by `delta`, clamping to the 8–15 point-buy range. Lowering
+  a score is always allowed; raising is only allowed while the budget holds.
+  Returns `{:ok, new_scores}` or `{:error, :no_budget}`.
+  """
+  @spec apply_delta(score_map(), atom(), integer()) :: {:ok, score_map()} | {:error, :no_budget}
+  def apply_delta(scores, ability, delta) do
+    current = Map.get(scores, ability, 8)
+    desired = max(8, min(15, current + delta))
+    tentative = Map.put(scores, ability, desired)
+
+    if point_buy_remaining(tentative) >= 0 or desired < current do
+      {:ok, tentative}
+    else
+      {:error, :no_budget}
+    end
+  end
+
   @doc """
   Resolve the user's score input into a concrete `score_map` of base scores
   (pre-racial).

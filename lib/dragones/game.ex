@@ -30,7 +30,10 @@ defmodule Dragones.Game do
   use GenServer
   require Logger
 
-  alias Dragones.{DM, Games, PCAgent, RollLog}
+  alias Dragones.{Brief, DM, Games, PCAgent, RollLog}
+  alias Dragones.Game.Guardrails
+  alias Dragones.Game.Instructions
+  alias Dragones.Game.{Beat, PendingRetry}
   alias Dragones.TurnPolicy.WorldDriven
   alias ExAgent.{Server, Session}
   alias ExAgent.Session.{Participant, SharedState}
@@ -49,7 +52,6 @@ defmodule Dragones.Game do
   # burning up to 3 retries (~14s total worst case) is far better UX than the
   # 5-fallback streaks a transitory outage used to produce.
   @max_transient_retries 3
-  @default_transient_backoffs [1_000, 3_000, 10_000]
 
   # If this many consecutive beats fall through to the soft fallback (titubea),
   # the loop PAUSES instead of feeding another round. Without this, a persistent
@@ -538,7 +540,7 @@ defmodule Dragones.Game do
   # `{:retry_beat, turn_id}` tuple below (a 2-tuple carrying an atom, not a ref).
   def handle_info({ref, result}, %{busy: busy} = state) when is_reference(ref) do
     cond do
-      is_map(busy) and busy.ref == ref ->
+      match?(%Beat{ref: ^ref}, busy) ->
         Process.demonitor(ref, [:flush])
         {:noreply, handle_beat_result(state, result)}
 
@@ -549,7 +551,7 @@ defmodule Dragones.Game do
   end
 
   # A beat Task crashed.
-  def handle_info({:DOWN, ref, :process, _pid, reason}, %{busy: %{ref: ref}} = state) do
+  def handle_info({:DOWN, ref, :process, _pid, reason}, %{busy: %Beat{ref: ref}} = state) do
     Process.demonitor(ref, [:flush])
     Logger.warning("dragones game #{state.game_id} beat crashed: #{inspect(reason)}")
     {:noreply, handle_beat_result(state, {:error, {:crashed, reason}})}
@@ -560,12 +562,12 @@ defmodule Dragones.Game do
   # (no Task ref) so `advance/1` did NOT kick a competing beat and the turn
   # position stayed put. If the user paused during the window, re-arm the timer
   # and wait for resume rather than firing a beat under a paused loop.
-  def handle_info({:retry_beat, turn_id}, %{busy: %{turn_id: turn_id, pending_retry: true}} = state) do
+  def handle_info({:retry_beat, turn_id}, %{busy: %PendingRetry{turn_id: turn_id}} = state) do
     if state.status != :running do
       Process.send_after(self(), {:retry_beat, turn_id}, 500)
       {:noreply, state}
     else
-      %{
+      %PendingRetry{
         participant: participant,
         instruction: instruction,
         transient_retries: tr,
@@ -614,7 +616,7 @@ defmodule Dragones.Game do
             # its last two narrations and, when they're near-duplicates, stitches
             # a hard anti-loop nudge onto the instruction forcing a DIFFERENT
             # concrete action this turn.
-            instruction = with_pc_anti_loop(state.game_id, current, base)
+            instruction = Guardrails.with_pc_anti_loop(state.game_id, current, base)
             state = run_beat(state, current, instruction, turn_id, world)
             %{state | status: :running}
 
@@ -646,31 +648,31 @@ defmodule Dragones.Game do
             #     instruction forcing an avance instead of "¿qué hacéis?".
             instruction =
               cond do
-                post_combat_limbo?(state.game_id) ->
-                  dm_post_combat_instruction()
+                Guardrails.post_combat_limbo?(state.game_id) ->
+                  Instructions.dm_post_combat_instruction()
 
-                exploration_limbo?(state.game_id, world) ->
+                Guardrails.exploration_limbo?(state.game_id, world) ->
                   Logger.info("dragones game #{state.game_id} exploration limbo — forcing DM avance")
-                  dm_advance_instruction()
+                  Instructions.dm_advance_instruction()
 
                 true ->
-                  dm_instruction()
+                  Instructions.dm_instruction()
               end
 
             # Bug #4: the DM occasionally narrates a PC acting ("*Lyra ataca al
             # goblin*"). Rule 14 forbids it but prompts alone leak through, so
             # when the DM's LAST narration matches "<pc> <action verb>", this
             # turn's instruction gets a rule-14 reminder stitched on top.
-            instruction = with_dm_no_puppet_nudge(state.game_id, world, instruction)
+            instruction = Guardrails.with_dm_no_puppet_nudge(state.game_id, world, instruction)
             # Anti-repeat: keep DM narration varied (no "se desvanece en humo
             # sulfúrico" x N). Applied after the puppet nudge so both can stack.
-            instruction = with_dm_anti_repeat(state.game_id, instruction)
+            instruction = Guardrails.with_dm_anti_repeat(state.game_id, instruction)
             # Ghost combat v2: if the DM narrated a hostile appearing without
             # spawning it, force a spawn_monster this turn.
-            instruction = with_dm_unspawned_hostile_nudge(state.game_id, world, instruction)
+            instruction = Guardrails.with_dm_unspawned_hostile_nudge(state.game_id, world, instruction)
             # Language guard: DeepSeek sometimes drifts into English mid-scene.
             # If the DM's last narration reads English, force Spanish this turn.
-            instruction = with_dm_spanish_nudge(state.game_id, instruction)
+            instruction = Guardrails.with_dm_spanish_nudge(state.game_id, instruction)
 
             state = run_beat(state, current, instruction, turn_id, world)
             %{state | status: :running}
@@ -711,29 +713,21 @@ defmodule Dragones.Game do
 
     Games.save_intents(state.game_id, intents)
 
-    state = run_beat(state, participant, human_instruction(participant, text), turn_id, world)
+    state = run_beat(state, participant, Instructions.human_instruction(participant, text), turn_id, world)
     %{state | status: :running}
   end
 
   defp handle_beat_result(state, result) do
-    current = state.busy.participant
-    # The phase the beat STARTED in. A beat that began in exploration may flip
-    # into combat (the DM rolled initiative) — that's the combat-START beat, not
-    # a wrap, so round advancement must ignore it.
-    beat_phase = Map.get(state.busy, :phase)
-    beat_instruction = Map.get(state.busy, :instruction)
-    beat_turn_id = Map.get(state.busy, :turn_id)
-    # Separate retry budgets: a max_tokens retry and a transient-provider retry
-    # are independent failure modes, so each gets its own counter. Keeping them
-    # apart means a beat that fails max_tokens, then on retry hits a 503, can
-    # still exhaust its transient budget (and vice-versa).
-    beat_max_token_retries = Map.get(state.busy, :max_token_retries, 0)
-    beat_transient_retries = Map.get(state.busy, :transient_retries, 0)
-    # Living enemy names when the beat STARTED. Compared against the post-beat
-    # world to detect "ghost combat": the DM spawned/narrated a hostile entering
-    # the scene but never called roll_initiative, leaving the loop stuck in
-    # exploration while everyone roleplays a fight that isn't sequenced.
-    beat_enemies_before = Map.get(state.busy, :enemies_before, MapSet.new())
+    %Beat{
+      participant: current,
+      phase: beat_phase,
+      instruction: beat_instruction,
+      turn_id: beat_turn_id,
+      max_token_retries: beat_max_token_retries,
+      transient_retries: beat_transient_retries,
+      enemies_before: beat_enemies_before
+    } = state.busy
+
     state = %{state | busy: nil}
 
     case result do
@@ -784,7 +778,7 @@ defmodule Dragones.Game do
 
       {:error, reason} ->
         cond do
-          is_max_tokens(reason) and beat_max_token_retries < 1 ->
+          Beat.max_tokens_error?(reason) and beat_max_token_retries < 1 ->
             # The model burned through max_tokens mid-output. With shared history
             # the agents have a lot of context to weave into prose, so the FIRST
             # response can run long. Instead of giving up (and rendering "X
@@ -803,11 +797,11 @@ defmodule Dragones.Game do
             Games.delete_narrations_for_turn(state.game_id, beat_turn_id)
 
             world = Session.read_state(state.session)
-            brief = brief_retry_instruction(beat_instruction, current)
+            brief = Beat.brief_retry_instruction(beat_instruction, current)
             retries = %{max_token_retries: beat_max_token_retries + 1, transient_retries: 0}
             run_beat(%{state | status: :running}, current, brief, beat_turn_id, world, retries)
 
-          transient_provider_error?(reason) and beat_transient_retries < @max_transient_retries ->
+          Beat.transient_provider_error?(reason) and beat_transient_retries < @max_transient_retries ->
             # Provider hiccup (5xx / 429 / timeout / connection drop / overload).
             # These resolve themselves within seconds, so retry with exponential
             # backoff instead of rendering "X titubea" — which, during a real
@@ -863,7 +857,7 @@ defmodule Dragones.Game do
       end)
 
     unless already_narrated do
-      fallback = fallback_narration(current, reason)
+      fallback = Beat.fallback_narration(current, reason)
       {:ok, _} = Games.append_event(state.game_id, :narration, current, "all", %{text: fallback})
     end
 
@@ -903,69 +897,7 @@ defmodule Dragones.Game do
     end
   end
 
-  # Brevity nudge for a max_tokens retry. Prepends a hard "keep it tight"
-  # instruction to whatever the original beat instruction was, so the model
-  # lands a complete response inside max_tokens on the second shot.
-  defp brief_retry_instruction(original, actor) do
-    brief =
-      "⏱ INTENTA ANTERIORMENTE: tu respuesta se cortó a mitad por el límite de tokens. " <>
-        "ESTA VEZ SÉ EXTREMADAMENTE BREVE: 1-2 frases de narración como mucho, " <>
-        "una sola llamada a herramienta si la necesitas, y reacciona en una frase corta. " <>
-        "NADA de párrafos largos, listas, ni descripciones elaboradas. Conciso y al grano.\n\n"
-
-    brief <> (original || "Es el turno de #{actor}. Actúa en personaje.")
-  end
-
-  # True when the beat failed because the model hit max_tokens (either bare
-  # atom or the {:max_tokens_exceeded, model_name} tuple shape).
-  defp is_max_tokens(:max_tokens_exceeded), do: true
-  defp is_max_tokens({:max_tokens_exceeded, _}), do: true
-  defp is_max_tokens(_), do: false
-
-  # True when the beat failed because of a transient provider fault — one that
-  # retrying is likely to fix. DeepSeek/OpenRouter surface these as
-  # `{:model_request_failed, %ExAgent.RequestError{}}`. We treat as transient:
-  #   * HTTP 5xx and 429 (overloaded / rate-limited / gateway blip)
-  #   * transport-level :timeout and :request_failed (connection drops)
-  #   * :provider_error bodies that read as overload/rate/unavailable
-  # Non-transient (4xx other than 429, missing_credentials, malformed request)
-  # fall straight through to the soft fallback — retrying those just wastes time.
-  defp transient_provider_error?({:model_request_failed, %ExAgent.RequestError{} = err}) do
-    case err.reason do
-      :timeout -> true
-      :request_failed -> true
-      :http_error -> err.status == 429 or (is_integer(err.status) and err.status >= 500)
-      :provider_error -> transient_body?(err.body)
-      _ -> false
-    end
-  end
-
-  # A crashed Task is not a provider fault; don't retry it.
-  defp transient_provider_error?({:crashed, _}), do: false
-  defp transient_provider_error?(_), do: false
-
-  defp transient_body?(body) when is_binary(body) do
-    down = String.downcase(body)
-
-    String.contains?(down, "rate") or String.contains?(down, "overload") or
-      String.contains?(down, "capacity") or String.contains?(down, "temporarily") or
-      String.contains?(down, "try again") or String.contains?(down, "timeout") or
-      String.contains?(down, "unavailable") or String.contains?(down, "503") or
-      String.contains?(down, "529") or String.contains?(down, "internal error")
-  end
-
-  defp transient_body?(body) when is_map(body), do: transient_body?(inspect(body))
-  defp transient_body?(_), do: false
-
-  # Backoff slot for the Nth transient retry (0-indexed): 1s, 3s, 10s, then cap.
-  # Overridable via `{:dragones, :transient_backoffs}` app env so tests can shrink
-  # the windows to milliseconds instead of sleeping through real seconds.
-  defp transient_backoff(attempt) when attempt >= 0 do
-    backoffs = Application.get_env(:dragones, :transient_backoffs, @default_transient_backoffs)
-    Enum.at(backoffs, attempt, List.last(backoffs))
-  end
-
-  # Park the beat as `pending_retry` and arm a timer. While sleeping, `busy` is
+  # Park the beat as a PendingRetry and arm a timer. While sleeping, `busy` is
   # non-nil (so `advance/1` won't fire a competing beat) but carries no Task ref
   # (so stale `{ref, _}` / `:DOWN` messages can't match it). The retry lands in
   # `handle_info({:retry_beat, turn_id})`.
@@ -979,7 +911,7 @@ defmodule Dragones.Game do
          max_token_retries,
          reason
        ) do
-    backoff = transient_backoff(transient_retries)
+    backoff = Beat.transient_backoff(transient_retries)
 
     Logger.warning(
       "dragones game #{state.game_id} transient provider error for #{current} " <>
@@ -994,8 +926,7 @@ defmodule Dragones.Game do
     %{
       state
       | status: :running,
-        busy: %{
-          pending_retry: true,
+        busy: %PendingRetry{
           participant: current,
           phase: beat_phase,
           turn_id: turn_id,
@@ -1004,34 +935,6 @@ defmodule Dragones.Game do
           max_token_retries: max_token_retries
         }
     }
-  end
-
-  # One line of in-fiction prose for a beat that failed at the engine level.
-  # Keeps the partida flowing instead of pausing on bot/DM hiccups. The actual
-  # cause is logged + appended as a dm-only :system event for debugging.
-  defp fallback_narration(actor, reason) do
-    cond do
-      reason == :max_tokens_exceeded or match?({:max_tokens_exceeded, _}, reason) ->
-        if actor == "dm" do
-          "La escena se queda a medias; el narrador recupera el hilo un instante después."
-        else
-          "#{actor} empieza a decir algo, pero se queda pensando y no concluye su acción."
-        end
-
-      match?({:unexpected_model_behavior, _}, reason) ->
-        if actor == "dm" do
-          "El mundo contiene la respiración un momento, a la espera del siguiente movimiento."
-        else
-          "#{actor} duda, sin terminar de decidir qué hacer este turno."
-        end
-
-      true ->
-        if actor == "dm" do
-          "Una pausa breve se instala en la mesa antes de que la escena continúe."
-        else
-          "#{actor} titubea y el turno pasa de largo."
-        end
-    end
   end
 
   defp log_token_usage(game_id, %{input_tokens: input} = usage) when is_integer(input) do
@@ -1072,7 +975,7 @@ defmodule Dragones.Game do
     agent = agent_for(state, participant)
     # name -> :ai | :human, so the DM knows who auto-acts and who waits for input.
     kinds = state.participants |> Map.new(fn {n, p} -> {n, p.kind} end)
-    prompt = DM.turn_prompt(world, participant, instruction, "dm", kinds)
+    prompt = Brief.turn_prompt(world, participant, instruction, "dm", kinds)
     shared = SharedState.new(session, participant)
 
     beat = %{
@@ -1149,7 +1052,7 @@ defmodule Dragones.Game do
         result
       end)
 
-    %{state | busy: %{ref: task.ref, participant: participant, phase: world.phase, turn_id: turn_id, instruction: instruction, max_token_retries: retries.max_token_retries, transient_retries: retries.transient_retries, enemies_before: living_enemies(world)}}
+    %{state | busy: %Beat{ref: task.ref, participant: participant, phase: world.phase, turn_id: turn_id, instruction: instruction, max_token_retries: retries.max_token_retries, transient_retries: retries.transient_retries, enemies_before: Dragones.World.living_enemies(world)}}
   end
 
   # Select the right agent for a turn: AI PCs have their own agent; everything
@@ -1186,460 +1089,6 @@ defmodule Dragones.Game do
     Map.get(world.characters, name)
   end
 
-  defp human_instruction(name, text),
-    do:
-      "Es el turno de #{name}. Estás proponiendo COMO #{name}: en CADA llamada a una herramienta " <>
-        "el atacante/conjurador/quien DEBE ser \"#{name}\" (nunca un monstruo — que un monstruo actúe " <>
-        "ahora es RECHAZADO). #{name} (un personaje jugador) declara: \"#{if text == "", do: "(pasa)", else: text}\". " <>
-        "Resuélvelo por las reglas (llama a la herramienta adecuada con \"#{name}\" como actor) y luego narra. Responde en castellano."
-
-  defp dm_instruction,
-    do:
-      "Actúa por cualquier monstruo/PNJ cuyo turno sea. " <>
-        "Si los jugadores han pedido algo concreto (combate, explorar, hablar con un PNJ), " <>
-        "EJECÚTALO ahora: usa spawn_monster si piden pelea, narra lo que encuentran si exploran, " <>
-        "responde si preguntan. NO narres que un PNJ 'espera' o 'no responde' — haz que ACTÚE. " <>
-        "Si la escena lleva parada más de un turno, introduce algo NUEVO (enemigo, evento, revelación). " <>
-        "NO repitas la misma descripción de escena. Narra en 1-3 frases y responde en castellano."
-
-  # Special DM instruction fired when we detect post-combate limbo — combate
-  # ended but the timeline hasn't moved past it. The DM is FORCED to advance:
-  # invoke a new threat, change scene, introduce a PNJ with news. The "¿qué
-  # hacéis?" open question is explicitly banned here because that's exactly
-  # what creates the loop where every PC re-declares "seguimos con lo siguiente".
-  defp dm_post_combat_instruction,
-    do:
-      "⚠️ AVANCE OBLIGATORIO ⚠️ El combate acaba de terminar y la partida está ATASCADA " <>
-        "pidiendo a los jugadores '¿qué hacéis?' en bucle. ESTE TURNO DEBES AVANZAR LA " <>
-        "ESCENA, NO abrir la pregunta al grupo. Elige UNA de estas opciones y EJECÚTALA:\n" <>
-        "1. spawn_monster(\"<kind>\", \"<name>\") — una nueva oleada/hostil aparece (si la biblia " <>
-        "lo permite: goblin, kobold, skeleton, orc, wolf, training_dummy...).\n" <>
-        "2. Un PNJ llega con noticias o un nuevo encargo (narrado + diálogo del PNJ).\n" <>
-        "3. set_scene(\"<nueva localización o situación>\") — la party es trasladada a otra " <>
-        "zona (biblioteca, taberna, mazmorra, lo que dicte la biblia).\n" <>
-        "4. Un evento ambiental: la puerta cede, suena una alarma, llega el anochecer...\n\n" <>
-        "NUNCA termines este turno con '¿qué hacéis?' o '¿qué deseáis hacer?'. " <>
-        "Sé BREVE (2-4 frases): describe el nuevo elemento y TERMINA. Los PCs reaccionarán " <>
-        "en sus turnos. Responde en castellano."
-
-  # Exploration-stall avance: the partida has been cycling through pure narration
-  # with nobody acting (no checks, no spawns, no scene changes). The DM is forced
-  # to break the statu quo itself rather than re-asking "¿qué hacéis?". Similar
-  # in spirit to the post-combate instruction but pitched for a stalled
-  # exploration scene.
-  defp dm_advance_instruction,
-    do:
-      "⚠️ AVANCE OBLIGATORIO ⚠️ La escena lleva VARIOS turnos sin progreso: todo el grupo " <>
-        "narra y re-declara intenciones ('¿empezamos con X?', '¿vamos a Y?') pero NADIE actúa. " <>
-        "ESTE TURNO DEBES ROMPER EL STATU QUO y mover la partida. NO abras con '¿qué hacéis?'. " <>
-        "Elige UNA opción y EJECÚTALA:\n" <>
-        "1. spawn_monster(\"<kind>\", \"<name>\") — una amenaza irrumpe y FUERZA el combate " <>
-        "(goblin, kobold, skeleton, orc, wolf… lo que dicte la biblia).\n" <>
-        "2. Un PNJ llega o reacciona con información/urgencia que exija respuesta inmediata.\n" <>
-        "3. set_scene(\"<nueva localización o situación>\") — traslada al grupo a otra zona.\n" <>
-        "4. Un evento ambiental que cambie las condiciones (la puerta cede, suena una alarma, " <>
-        "cruje el suelo, se apagan las antorchas…).\n" <>
-        "5. Si un PC pidió algo concreto en su último turno, RESUÉLVELO ahora (ability_check, " <>
-        "lo que encuentran al investigar, la respuesta del PNJ).\n\n" <>
-        "Sé BREVE (2-3 frases): introduce el cambio y TERMINA. Los PCs reaccionarán después. " <>
-        "Responde en castellano."
-
-  # True when the most recent :system "El combate termina" marker hasn't been
-  # followed by any meaningful advancement (a new spawn_monster, set_scene, or
-  # at least a narration that introduces a new element). We look back at the
-  # last few events: if the combate-end is the most recent :system AND there
-  # are no more than 2 narration events since, we're in limbo.
-  defp post_combat_limbo?(game_id) do
-    events = Games.recent_events(game_id, 12)
-
-    # Find the index of the most recent "El combate termina" system event.
-    end_idx =
-      events
-      |> Enum.with_index()
-      |> Enum.find_value(fn {e, idx} ->
-        if e.type == :system and combat_end_note?(e.payload), do: idx
-      end)
-
-    if end_idx do
-      # Count narrations + actions AFTER the combate-end marker. If 0 or just
-      # the immediate aftermath, we're in limbo. Allow up to 3 narrations
-      # (the post-combate reactions of each PC) before declaring the limbo
-      # over — by then the DM should have moved on.
-      events_after = Enum.drop(events, end_idx + 1)
-
-      narrations_after =
-        Enum.count(events_after, fn e -> e.type in [:narration, :action] end)
-
-      # Also check that no scene-setting tool ran after the combate ended.
-      scene_moved? =
-        Enum.any?(events_after, fn e ->
-          e.type == :system and (e.payload["note"] || "") =~ ~r/escena cambiada|set_scene/i
-        end)
-
-      narrations_after <= 4 and not scene_moved?
-    else
-      false
-    end
-  end
-
-  defp combat_end_note?(%{"note" => note}) when is_binary(note),
-    do: note =~ "El combate termina" or note =~ "combate termina"
-
-  defp combat_end_note?(_), do: false
-
-  # ---------------------------------------------------------------------------
-  # Bug #4 — the DM sometimes narrates a PC acting on its behalf ("*Lyra
-  # desenvaina y ataca*"). Rule 14 forbids this but the model still leaks. When
-  # the DM's most recent narration matches "<pc-name> <action-verb>" in the same
-  # clause, we reinforce rule 14 on the NEXT DM instruction. We DON'T scrub the
-  # offending text (that risks mangling legitimate narration like "Lyra cae
-  # herida"); a targeted reminder is enough to correct course on the next beat.
-  @puppet_action_verbs ~w(
-    ataca ataco atacar ataque
-    lanza lanzo lanzar
-    conjura conjuro conjurar
-    golpea golpeo golpear
-    dispara disparo disparar
-    desenvaina desenvainar
-    carga cargo cargar
-    salta salto saltar
-    corre correr
-    persigue perseguir
-    hechiza hechizar
-    arremete arremeter
-    embiste embestir
-    invoca invocar
-    avanza avanzar
-    sube subir baja bajar
-    entra entrar sale salir
-    mueve mover
-    abre abrir cierra cerrar
-    empuja empujar tira tirar
-    agarra coge toma deja
-    gira voltea
-    examina examinar inspecciona inspeccionar
-    busca buscar registra estudia
-    dice hablar habla
-    grita susurrar susurra
-    pregunta preguntar responde responder exclama replica
-  )
-
-  defp with_dm_no_puppet_nudge(game_id, world, base_instruction) do
-    if dm_puppeted_a_pc?(game_id, world) do
-      Logger.info("dragones game #{game_id} DM narrated a PC acting — reinforcing rule 14")
-      dm_no_puppet_nudge() <> "\n\n" <> base_instruction
-    else
-      base_instruction
-    end
-  end
-
-  defp dm_puppeted_a_pc?(game_id, %Dragones.World{} = world) do
-    pc_names = living_pc_names(world)
-
-    if pc_names == [] do
-      false
-    else
-      case last_dm_narration(game_id) do
-        nil -> false
-        text -> Regex.match?(puppet_pattern(pc_names), text)
-      end
-    end
-  end
-
-  # The DM's narration texts, most recent first. We sort by `seq` descending
-  # explicitly (rather than relying on `recent_events`'s query order) so the
-  # ordering is unambiguous regardless of how the query returns rows. Shared by
-  # the anti-puppet check (needs the latest) and the anti-repeat check (needs
-  # the last two).
-  defp dm_narration_texts(game_id) do
-    game_id
-    |> Games.recent_events(20)
-    |> Enum.filter(fn e -> e.type == :narration and e.actor == "dm" end)
-    |> Enum.sort_by(& &1.seq, :desc)
-    |> Enum.map(fn e -> e.payload["text"] || "" end)
-    |> Enum.reject(&(&1 == ""))
-  end
-
-  defp last_dm_narration(game_id), do: List.first(dm_narration_texts(game_id))
-
-  defp living_pc_names(%Dragones.World{characters: chars}) do
-    chars
-    |> Enum.filter(fn {_, c} -> c.side == "pc" and (c.hp || 0) > 0 end)
-    |> Enum.map(&elem(&1, 0))
-  end
-
-  # Build a regex that matches a PC name followed (within one clause, ~50 chars)
-  # by a proactive action verb, OR a verb followed by a PC. Anchored on word
-  # boundaries so "Thane" doesn't match "Thanelong" and vice-versa.
-  defp puppet_pattern(pc_names) do
-    names_alt = pc_names |> Enum.map(&Regex.escape/1) |> Enum.join("|")
-    verbs_alt = @puppet_action_verbs |> Enum.join("|")
-    pattern = "(?:\\b#{names_alt}\\b)[^.!?]{0,50}\\b(?:#{verbs_alt})\\b|(?:\\b#{verbs_alt}\\b)[^.!?]{0,30}(?:\\b#{names_alt}\\b)"
-
-    case Regex.compile(pattern, "i") do
-      {:ok, re} -> re
-      {:error, _} -> ~r/^$/
-    end
-  end
-
-  defp dm_no_puppet_nudge do
-    "⚠️ REGLA 14 — RECORDATORIO URGENTE ⚠️ En tu ÚLTIMA narración describiste a un " <>
-      "personaje jugador (PC) HACIENDO algo: atacar, moverse, conjurar, hablar, desenvainar… " <>
-      "ESTÁ PROHIBIDO narrar las acciones, decisiones o diálogos de los PCs. Ellos actúan en " <>
-      "SU turno; tú NUNCA los mueves, los haces hablar, ni decides por ellos. Tu narración " <>
-      "describe SOLO el mundo, los monstruos, los PNJ y las consecuencias de lo que YA ocurrió. " <>
-      "Si un PC aún no ha actuado, ESPERA — no rellenes con su comportamiento."
-  end
-
-  # DM anti-repeat: when the DM reuses nearly the same line ("se desvanece en
-  # una nube de humo sulfúrico" x N) it reads as a broken record. We compare the
-  # last two DM narrations and, on a near-duplicate (Jaccard >= 0.7), force a
-  # freshly-worded description this turn. Mirrors the PC anti-loop, but pitched
-  # for narration variety rather than forcing a different action.
-  @dm_repeat_threshold 0.7
-
-  defp with_dm_anti_repeat(game_id, base_instruction) do
-    case dm_narration_texts(game_id) do
-      [a, b | _] when is_binary(a) and is_binary(b) ->
-        if text_similarity(a, b) >= @dm_repeat_threshold do
-          Logger.info("dragones game #{game_id} DM repeating narration — enforcing variety")
-          dm_anti_repeat_nudge(a, base_instruction)
-        else
-          base_instruction
-        end
-
-      _ ->
-        base_instruction
-    end
-  end
-
-  defp dm_anti_repeat_nudge(last_text, base) do
-    snippet = String.slice(String.trim(last_text), 0, 120)
-
-    "⚠️ EVITA REPETIRTE ⚠️ Tu narración anterior fue prácticamente: «#{snippet}». " <>
-      "NO reutilices esas mismas palabras ni esa misma imagen. Esta vez describe la " <>
-      "escena, la criatura o la acción con un lenguaje y un enfoque NUEVOS y vívidos: " <>
-      "cambia el detalle sensorial (olor, sonido, luz), el ángulo de la cámara, o el " <>
-      "rasgo que destacas. Varía el ritmo y el vocabulario. Sé breve, pero fresco.\n\n" <>
-      base
-  end
-
-  # Ghost combat v2: the DM narrates "aparece un esqueleto" / "se materializa un
-  # demonio" but never calls spawn_monster, so no enemy exists in the World and
-  # maybe_force_combat can't fire. The partida loops with the DM re-narrating
-  # the appearance every turn. When the DM's last narration describes a hostile
-  # appearing while we're in exploration with NO living enemies at all, we nudge
-  # it to actually spawn the creature (the engine then forces initiative).
-  @hostile_appear_verbs ~w(aparece aparecen materializa materializan irrumpe irrumpen surge surgen emerge emergen brota salen asoma asoman conjura invoca)
-  @hostile_creatures ~w(goblin kobold bandit skeleton esqueleto wolf lobo orc orco hobgoblin ogre imp demonio diablillo diablo espinodemonio espinodemon trasgo draco dragon no-muerto muerto-viviente zombi zombie criatura monstruo bestia engendro siervo esbirro aberracion aberración elemental gargola gárgola licantropo licántropo vampiro espectro fantasma wraith)
-
-  defp with_dm_unspawned_hostile_nudge(game_id, %Dragones.World{phase: :exploration} = world, base) do
-    enemies = living_enemies(world)
-
-    if MapSet.size(enemies) == 0 do
-      case last_dm_narration(game_id) do
-        nil ->
-          base
-
-        text ->
-          if narrates_hostile_appearing?(text) do
-            Logger.info(
-              "dragones game #{game_id} DM narrated a hostile appearing without spawn_monster — nudging"
-            )
-
-            dm_spawn_nudge(base)
-          else
-            base
-          end
-      end
-    else
-      base
-    end
-  end
-
-  defp with_dm_unspawned_hostile_nudge(_game_id, _world, base), do: base
-
-  defp narrates_hostile_appearing?(text) do
-    verbs = @hostile_appear_verbs |> Enum.join("|")
-    creatures = @hostile_creatures |> Enum.join("|")
-    pattern = "(?:#{verbs})\\b[^.!?]{0,40}\\b(?:#{creatures})\\b"
-
-    case Regex.compile(pattern, "i") do
-      {:ok, re} -> Regex.match?(re, text)
-      {:error, _} -> false
-    end
-  end
-
-  defp dm_spawn_nudge(base) do
-    "⚠️ HOSTIL SIN SPAWN ⚠️ En tu última narración describiste que un hostil aparece, " <>
-      "pero NO existe en el mundo (no llamaste spawn_monster). ESTE TURNO DEBES materializarlo " <>
-      "con spawn_monster(\"<kind>\", \"<nombre>\") — kinds disponibles: goblin, kobold, bandit, " <>
-      "skeleton, wolf, orc, hobgoblin, ogre, training_dummy, archery_target — y el motor " <>
-      "tirará iniciativa automáticamente. Si NO quieres combate real, NO narres que un hostil " <>
-      "aparece: describe solo el entorno o un PNJ no hostil.\n\n" <> base
-  end
-
-  # Language guard. DeepSeek-v4-flash occasionally drifts into English for a
-  # whole paragraph even though the system prompt says "responde en castellano".
-  # We flag it by counting clearly-English stopwords (the/and/was/were/…) that
-  # don't occur in normal Spanish prose; on a hit we reinforce the language rule
-  # for the next beat. Conservative list: every marker here is unambiguously
-  # English (no false friends with common Spanish words).
-  @english_markers MapSet.new(~w(
-    the and was were has have had will would should could might must shall
-    this that these those they them their theirs its our ours your yours
-    been being into onto upon about against through during before after without
-    himself herself itself ourselves yourselves themselves there here from with
-  ))
-
-  defp with_dm_spanish_nudge(game_id, base) do
-    case last_dm_narration(game_id) do
-      nil ->
-        base
-
-      text ->
-        if looks_english?(text) do
-          Logger.info("dragones game #{game_id} DM drifted into English — enforcing Spanish")
-          dm_spanish_nudge(base)
-        else
-          base
-        end
-    end
-  end
-
-  defp dm_spanish_nudge(base) do
-    "⚠️ IDIOMA ⚠️ Tu última narración contenía frases en INGLÉS. " <>
-      "DEBES narrar, describir y dialogar EXCLUSIVAMENTE en CASTELLANO. " <>
-      "Reescribe cualquier término, descripción o línea de diálogo en español. " <>
-      "El inglés SOLO está permitido para nombres propios de lugares o personas que la biblia " <>
-      "defina explícitamente en ese idioma; todo lo demás, en castellano.\n\n" <> base
-  end
-
-  # True when a text carries enough clearly-English function words to read as
-  # English (threshold 5 — a Spanish paragraph almost never hits even 2).
-  defp looks_english?(text) do
-    words =
-      text
-      |> String.downcase()
-      |> String.replace(~r/[^\p{L}\s]/u, " ")
-      |> String.split(~r/\s+/, trim: true)
-
-    Enum.count(words, &MapSet.member?(@english_markers, &1)) >= 5
-  end
-
-  # Exploration stall: a long run of pure narration with NO mechanical progress
-  # (no ability check → :dice, no player declaration → :action, no spawn/scene →
-  # :system note, no combat start). This is the "¿empezamos con el círculo?" x 10
-  # turns pattern where everyone keeps re-declaring intentions without anyone
-  # acting. When it hits, the DM is forced to advance the scene itself. Only
-  # fires in exploration (combat has its own end-combat path) and only once a
-  # meaningful backlog of narration has piled up, so a couple of scene-setting
-  # lines right after setup don't trip it.
-  defp exploration_limbo?(game_id, %Dragones.World{phase: :exploration}) do
-    recent =
-      game_id
-      |> Games.recent_events(20)
-      |> Enum.reject(fn e -> e.type in [:turn] end)
-      |> Enum.take(8)
-
-    # Need enough history to call it a stall (not a fresh partida), and every
-    # recent meaningful event must be bare narration — any :dice, :action or
-    # scene/spawn :system in the window means someone made progress.
-    length(recent) >= 6 and Enum.all?(recent, &narration_only?/1)
-  end
-
-  defp exploration_limbo?(_, _), do: false
-
-  defp narration_only?(%{type: :narration}), do: true
-  defp narration_only?(%{type: :system, payload: %{"note" => note}})
-       when is_binary(note),
-       do: not (note =~ ~r/escena cambiada|set_scene|spawn|toma la iniciativa|combate/i)
-  defp narration_only?(%{type: :system}), do: true
-  defp narration_only?(_), do: false
-
-  # ---------------------------------------------------------------------------
-  # PC anti-loop: detect when an AI PC re-declares the same non-action turn
-  # after turn ("¿subimos al círculo?" x N, "voy a calentar el brazo" x N) and
-  # force a different concrete action. The system prompt already forbids this,
-  # but prompts alone weren't enough — so we compare the bot's last two
-  # narrations and, on a near-duplicate, stitch a hard nudge onto the instruction.
-  # Jaccard similarity over word sets (>0.75) catches verbatim repeats and light
-  # reformulations without firing on legitimately related turns.
-  @pc_stopwords MapSet.new(~w(el la los las un una unos unas de del a al en y o u que se su sus es son por para con sin como mas pero si no ya yo tu él me te le nos os les esto eso aque mi tu sus nuestrouestra al acabo apenas cuando donde mientras tras etecera))
-  @pc_repeat_threshold 0.75
-
-  defp with_pc_anti_loop(game_id, current, base_instruction) do
-    case pc_repetition(game_id, current) do
-      {:repeating, last_text} ->
-        Logger.info("dragones game #{game_id} PC #{current} stuck in a loop — injecting anti-loop nudge")
-        pc_anti_loop_nudge(last_text, base_instruction)
-
-      :ok ->
-        base_instruction
-    end
-  end
-
-  # Pull the last two :narration events by this actor and flag a repeat if the
-  # texts are highly similar. Ignores tool-only turns (no narration) and the
-  # very first turn (nothing to compare against).
-  defp pc_repetition(game_id, current) do
-    texts =
-      game_id
-      |> Games.recent_events(40)
-      |> Enum.filter(fn e -> e.type == :narration and e.actor == current end)
-      |> Enum.map(fn e -> e.payload["text"] || "" end)
-      |> Enum.reject(&(&1 == ""))
-      |> Enum.take(2)
-
-    case texts do
-      [a, b] when is_binary(a) and is_binary(b) ->
-        if text_similarity(a, b) >= @pc_repeat_threshold, do: {:repeating, a}, else: :ok
-
-      _ ->
-        :ok
-    end
-  end
-
-  defp pc_anti_loop_nudge(last_text, base) do
-    snippet = String.slice(String.trim(last_text), 0, 140)
-
-    "⚠️ ANTIBUCLE DETECTADO ⚠️ En tu último turno dijiste prácticamente lo mismo: «#{snippet}». " <>
-      "ESTÁ PROHIBIDO repetir o reformular esa misma intención, pregunta o declaración de propósitos. " <>
-      "ESTE TURNO DEBES hacer algo DISTINTO y CONCRETO que la partida aún no haya visto: " <>
-      "caminar hacia una salida/puuesta/objeto, abrir o inspeccionar algo físico, hablar con un PNJ " <>
-      "mencionado por el DM, usar ability_check(\"<tu nombre>\", \"<str|dex|int|wis|cha>\", <DC>) para " <>
-      "intentar algo con riesgo real, o proponer y EJECUTAR una acción nueva en una o dos frases. " <>
-      "Si la vía anterior no avanza, CAMBIA de enfoque. Responde en castellano.\n\n" <>
-      base
-  end
-
-  # Jaccard similarity over normalized word sets. Robust to punctuation,
-  # accents, and casing; stopwords are dropped so short function words don't
-  # inflate the score. Returns 0.0 for empty inputs.
-  defp text_similarity(a, b) do
-    set_a = tokenize(a)
-    set_b = tokenize(b)
-
-    if MapSet.size(set_a) == 0 or MapSet.size(set_b) == 0 do
-      0.0
-    else
-      inter = MapSet.intersection(set_a, set_b) |> MapSet.size()
-      union = MapSet.union(set_a, set_b) |> MapSet.size()
-      inter / union
-    end
-  end
-
-  defp tokenize(text) do
-    text
-    |> String.downcase()
-    |> String.normalize(:nfd)
-    |> String.replace(~r/[\x{0300}-\x{036F}]/u, "")
-    |> String.replace(~r/[^\p{L}\p{N}\s]/u, " ")
-    |> String.split(~r/\s+/, trim: true)
-    |> Enum.reject(&MapSet.member?(@pc_stopwords, &1))
-    |> MapSet.new()
-  end
-
   # Engine-driven combat resolution. The DM used to be solely responsible for
   # calling end_combat when every enemy was down — and frequently forgot, leaving
   # the loop cycling turns through dead enemies. Now the engine ends combat the
@@ -1673,7 +1122,7 @@ defmodule Dragones.Game do
 
     newly_hostile =
       world
-      |> living_enemies()
+      |> Dragones.World.living_enemies()
       |> MapSet.difference(enemies_before)
 
     cond do
@@ -1683,7 +1132,7 @@ defmodule Dragones.Game do
       MapSet.size(newly_hostile) == 0 ->
         state
 
-      not has_living_pcs?(world) ->
+      not Dragones.World.has_living_pcs?(world) ->
         # Nobody to fight back — don't start combat against an empty party.
         state
 
@@ -1704,17 +1153,6 @@ defmodule Dragones.Game do
 
         state
     end
-  end
-
-  defp living_enemies(%Dragones.World{characters: chars}) do
-    chars
-    |> Enum.filter(fn {_, c} -> c.side == "enemy" and (c.hp || 0) > 0 end)
-    |> Enum.map(fn {name, _} -> name end)
-    |> MapSet.new()
-  end
-
-  defp has_living_pcs?(%Dragones.World{characters: chars}) do
-    Enum.any?(chars, fn {_, c} -> c.side == "pc" and (c.hp || 0) > 0 end)
   end
 
   # Advance the round counter when the initiative cycle wraps. A round = one
