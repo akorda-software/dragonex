@@ -186,7 +186,7 @@ defmodule Dragones.Heroes.Classes do
         spellcasting: %{
           ability: :wis,
           cantrips: 3,
-          spells_level1: 0,
+          spells_level1: 5,
           prepared: true,
           defaults: %{
             cantrips: ["guidance", "sacred flame", "thaumaturgy"],
@@ -227,7 +227,7 @@ defmodule Dragones.Heroes.Classes do
         spellcasting: %{
           ability: :wis,
           cantrips: 2,
-          spells_level1: 0,
+          spells_level1: 4,
           prepared: true,
           defaults: %{
             cantrips: ["druidcraft", "produce flame"],

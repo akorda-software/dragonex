@@ -153,6 +153,16 @@ defmodule DragonesWeb.HeroLiveTest do
       assert render(view) =~ "TRUCOS (3/3)"
     end
 
+    test "clérigo y druida muestran cupo de nivel 1 coherente con sus defaults", %{conn: conn} do
+      {:ok, cleric_view, _html} = live(conn, "/heroes/new")
+      navigate_to_details(cleric_view, "cleric")
+      assert render(cleric_view) =~ "NIVEL 1 (5/5)"
+
+      {:ok, druid_view, _html} = live(conn, "/heroes/new")
+      navigate_to_details(druid_view, "druid")
+      assert render(druid_view) =~ "NIVEL 1 (4/4)"
+    end
+
     test "el paso Linaje deja elegir habilidades y se muestran en el preview", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/heroes/new")
 
@@ -247,5 +257,18 @@ defmodule DragonesWeb.HeroLiveTest do
       assert html =~ "Editar héroe"
       assert html =~ "Actualizar héroe"
     end
+  end
+
+  defp navigate_to_details(view, class_key) do
+    view
+    |> element("input[name='name']")
+    |> render_change(%{"_target" => "name", "name" => "Caster"})
+
+    view |> element("[phx-value-field='race'][phx-value-value='human']") |> render_click()
+    view |> element("[phx-value-field='class'][phx-value-value='#{class_key}']") |> render_click()
+    view |> render_click("next")
+    view |> element("[phx-value-field='background'][phx-value-value='acolyte']") |> render_click()
+    view |> render_click("next")
+    view |> render_click("next")
   end
 end
