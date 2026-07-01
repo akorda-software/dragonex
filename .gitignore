@@ -31,3 +31,10 @@ dragones-*.tar
 # path dep via `mix dic_ex.install` (or `cp ../dic_ex/priv/static/* priv/static/assets/`).
 # Build artifacts, not source; regenerate after upgrading dic_ex.
 /priv/static/assets/
+
+# SRD importer cache (regenerable via scripts/import_srd_spells.py)
+/priv/srd/.cache/
+
+# Python bytecode
+__pycache__/
+*.pyc

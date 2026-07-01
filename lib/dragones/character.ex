@@ -49,6 +49,18 @@ defmodule Dragones.Character do
     field(:conditions, {:array, :map}, default: [])
     field(:death_saves, :map, default: %{successes: 0, fails: 0})
     field(:saving_proficiencies, {:array, :string}, default: [])
+
+    # Construido de nivel 1 (ver Dragones.Heroes):
+    #   skill_proficiencies — skills de clase (elegidas) + trasfondo
+    #   languages           — idiomas de raza/trasfondo + extra elegidos
+    #   racial_traits       — rasgos raciales (claves estables)
+    #   class_features      — características de clase a nivel 1
+    #   background_feature  — la característica del trasfondo
+    field(:skill_proficiencies, {:array, :string}, default: [])
+    field(:languages, {:array, :string}, default: [])
+    field(:racial_traits, {:array, :string}, default: [])
+    field(:class_features, {:array, :string}, default: [])
+    field(:background_feature, :string)
   end
 
   def changeset(schema, attrs) do
@@ -79,7 +91,12 @@ defmodule Dragones.Character do
         :inventory,
         :conditions,
         :death_saves,
-        :saving_proficiencies
+        :saving_proficiencies,
+        :skill_proficiencies,
+        :languages,
+        :racial_traits,
+        :class_features,
+        :background_feature
       ]
     )
     |> Ecto.Changeset.validate_required([:name, :class])
@@ -134,7 +151,12 @@ defmodule Dragones.Character do
       inventory: [],
       conditions: [],
       death_saves: %{successes: 0, fails: 0},
-      saving_proficiencies: []
+      saving_proficiencies: [],
+      skill_proficiencies: [],
+      languages: [],
+      racial_traits: [],
+      class_features: [],
+      background_feature: nil
     ]
 
     struct(__MODULE__, Keyword.merge(defaults, opts))

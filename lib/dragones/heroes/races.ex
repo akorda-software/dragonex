@@ -1,14 +1,19 @@
 defmodule Dragones.Heroes.Races do
   @moduledoc """
-  SRD 5.1 races (level 1).
+  SRD 5.1 razas (nivel 1).
 
-  Each race declares ability bonuses, speed, size, racial traits, and optional
-  subraces. Half-Elf is a special case (two floating +1 bonuses); the builder
-  applies them via `choose_bonus` defaults.
+  Cada raza declara bonificadores de característica, velocidad, tamaño, rasgos
+  raciales (`traits`, claves estables que `Translations` localiza), idiomas
+  (`languages`) y subrazas opcionales. El Half-Elf es un caso especial
+  (dos +1 flotantes); el builder los aplica vía `choose_bonus`.
 
-  Ability bonuses are applied **after** the base scores are chosen (standard
-  array / point buy), so the pre-racial range is 8–15 and the final result must
-  stay within 1–20.
+  Los bonificadores se aplican **después** de elegir las puntuaciones base
+  (standard array / point buy), así que el rango pre-racial es 8–15 y el
+  resultado final debe quedar en 1–20.
+
+  Idiomas: `languages` son los fijos (Común + racial). `extra_languages` es
+  el nº de idiomas adicionales a elegir (human +1, half-elf +1, alto elfo +1
+  vía subraza). El builder los ofrece en el creador.
   """
 
   @type ability :: :str | :dex | :con | :int | :wis | :cha
@@ -20,7 +25,8 @@ defmodule Dragones.Heroes.Races do
           traits: [String.t()],
           hp_bonus: non_neg_integer(),
           speed: non_neg_integer() | nil,
-          choose_bonus: pos_integer() | nil
+          choose_bonus: pos_integer() | nil,
+          extra_languages: non_neg_integer()
         }
 
   @type race :: %{
@@ -31,6 +37,8 @@ defmodule Dragones.Heroes.Races do
           bonuses: %{ability() => integer()},
           traits: [String.t()],
           hp_bonus: non_neg_integer(),
+          languages: [String.t()],
+          extra_languages: non_neg_integer(),
           subraces: [subrace()],
           choose_bonus: pos_integer() | nil
         }
@@ -79,27 +87,31 @@ defmodule Dragones.Heroes.Races do
         size: :medium,
         speed: 25,
         bonuses: %{con: 2},
-        traits: ["darkvision", "dwarven resilience", "stonecunning", "tool proficiency"],
+        traits: ~w(darkvision dwarven_resilience stonecunning tool_proficiency),
         hp_bonus: 0,
+        languages: ~w(common dwarvish),
+        extra_languages: 0,
         choose_bonus: nil,
         subraces: [
           %{
             key: "mountain",
             name: "Mountain Dwarf",
             bonuses: %{str: 2},
-            traits: ["dwarven armor training"],
+            traits: ~w(dwarven_armor_training),
             hp_bonus: 0,
             speed: nil,
-            choose_bonus: nil
+            choose_bonus: nil,
+            extra_languages: 0
           },
           %{
             key: "hill",
             name: "Hill Dwarf",
             bonuses: %{wis: 1},
-            traits: ["dwarven toughness"],
+            traits: ~w(dwarven_toughness),
             hp_bonus: 1,
             speed: nil,
-            choose_bonus: nil
+            choose_bonus: nil,
+            extra_languages: 0
           }
         ]
       },
@@ -109,36 +121,41 @@ defmodule Dragones.Heroes.Races do
         size: :medium,
         speed: 30,
         bonuses: %{dex: 2},
-        traits: ["darkvision", "fey ancestry", "trance"],
+        traits: ~w(darkvision fey_ancestry trance),
         hp_bonus: 0,
+        languages: ~w(common elvish),
+        extra_languages: 0,
         choose_bonus: nil,
         subraces: [
           %{
             key: "high elf",
             name: "High Elf",
             bonuses: %{int: 1},
-            traits: ["elf weapon training", "cantrip", "extra language"],
+            traits: ~w(elf_weapon_training cantrip extra_language),
             hp_bonus: 0,
             speed: nil,
-            choose_bonus: nil
+            choose_bonus: nil,
+            extra_languages: 1
           },
           %{
             key: "wood elf",
             name: "Wood Elf",
             bonuses: %{wis: 1},
-            traits: ["elf weapon training", "mask of the wild", "fleet of foot"],
+            traits: ~w(elf_weapon_training mask_of_the_wild fleet_of_foot),
             hp_bonus: 0,
             speed: 35,
-            choose_bonus: nil
+            choose_bonus: nil,
+            extra_languages: 0
           },
           %{
             key: "dark elf",
             name: "Dark Elf (Drow)",
             bonuses: %{cha: 1},
-            traits: ["superior darkvision", "sunlight sensitivity", "drow magic", "drow weapon training"],
+            traits: ~w(superior_darkvision sunlight_sensitivity drow_magic drow_weapon_training),
             hp_bonus: 0,
             speed: nil,
-            choose_bonus: nil
+            choose_bonus: nil,
+            extra_languages: 0
           }
         ]
       },
@@ -148,27 +165,31 @@ defmodule Dragones.Heroes.Races do
         size: :small,
         speed: 25,
         bonuses: %{dex: 2},
-        traits: ["lucky", "brave", "halfling nimbleness"],
+        traits: ~w(lucky brave halfling_nimbleness),
         hp_bonus: 0,
+        languages: ~w(common halfling),
+        extra_languages: 0,
         choose_bonus: nil,
         subraces: [
           %{
             key: "lightfoot",
             name: "Lightfoot Halfling",
             bonuses: %{cha: 1},
-            traits: ["naturally stealthy"],
+            traits: ~w(naturally_stealthy),
             hp_bonus: 0,
             speed: nil,
-            choose_bonus: nil
+            choose_bonus: nil,
+            extra_languages: 0
           },
           %{
             key: "stout",
             name: "Stout Halfling",
             bonuses: %{con: 1},
-            traits: ["stout resilience"],
+            traits: ~w(stout_resilience),
             hp_bonus: 0,
             speed: nil,
-            choose_bonus: nil
+            choose_bonus: nil,
+            extra_languages: 0
           }
         ]
       },
@@ -178,8 +199,10 @@ defmodule Dragones.Heroes.Races do
         size: :medium,
         speed: 30,
         bonuses: %{str: 1, dex: 1, con: 1, int: 1, wis: 1, cha: 1},
-        traits: ["extra language"],
+        traits: ~w(extra_language),
         hp_bonus: 0,
+        languages: ~w(common),
+        extra_languages: 1,
         choose_bonus: nil,
         subraces: []
       },
@@ -189,8 +212,10 @@ defmodule Dragones.Heroes.Races do
         size: :medium,
         speed: 30,
         bonuses: %{str: 2, cha: 1},
-        traits: ["draconic ancestry", "breath weapon", "damage resistance"],
+        traits: ~w(draconic_ancestry breath_weapon damage_resistance),
         hp_bonus: 0,
+        languages: ~w(common draconic),
+        extra_languages: 0,
         choose_bonus: nil,
         subraces: []
       },
@@ -200,27 +225,31 @@ defmodule Dragones.Heroes.Races do
         size: :small,
         speed: 25,
         bonuses: %{int: 2},
-        traits: ["darkvision", "gnome cunning"],
+        traits: ~w(darkvision gnome_cunning),
         hp_bonus: 0,
+        languages: ~w(common gnomish),
+        extra_languages: 0,
         choose_bonus: nil,
         subraces: [
           %{
             key: "forest gnome",
             name: "Forest Gnome",
             bonuses: %{dex: 1},
-            traits: ["natural illusionist", "speak with small beasts"],
+            traits: ~w(natural_illusionist speak_with_small_beasts),
             hp_bonus: 0,
             speed: nil,
-            choose_bonus: nil
+            choose_bonus: nil,
+            extra_languages: 0
           },
           %{
             key: "rock gnome",
             name: "Rock Gnome",
             bonuses: %{con: 1},
-            traits: ["artificer's lore", "tinker"],
+            traits: ~w(artificers_lore tinker),
             hp_bonus: 0,
             speed: nil,
-            choose_bonus: nil
+            choose_bonus: nil,
+            extra_languages: 0
           }
         ]
       },
@@ -230,8 +259,10 @@ defmodule Dragones.Heroes.Races do
         size: :medium,
         speed: 30,
         bonuses: %{cha: 2},
-        traits: ["darkvision", "fey ancestry", "skill versatility"],
+        traits: ~w(darkvision fey_ancestry skill_versatility extra_language),
         hp_bonus: 0,
+        languages: ~w(common elvish),
+        extra_languages: 1,
         choose_bonus: 2,
         subraces: []
       },
@@ -241,8 +272,10 @@ defmodule Dragones.Heroes.Races do
         size: :medium,
         speed: 30,
         bonuses: %{str: 2, con: 1},
-        traits: ["darkvision", "menacing", "relentless endurance", "savage attacks"],
+        traits: ~w(darkvision menacing relentless_endurance savage_attacks),
         hp_bonus: 0,
+        languages: ~w(common orc),
+        extra_languages: 0,
         choose_bonus: nil,
         subraces: []
       },
@@ -252,8 +285,10 @@ defmodule Dragones.Heroes.Races do
         size: :medium,
         speed: 30,
         bonuses: %{int: 1, cha: 2},
-        traits: ["darkvision", "hellish resistance", "infernal legacy"],
+        traits: ~w(darkvision hellish_resistance infernal_legacy),
         hp_bonus: 0,
+        languages: ~w(common infernal),
+        extra_languages: 0,
         choose_bonus: nil,
         subraces: []
       }
@@ -266,6 +301,7 @@ defmodule Dragones.Heroes.Races do
 
   defp find_subrace(race, sub_key) do
     lower = String.downcase(sub_key)
+
     Enum.find(race.subraces, fn sub ->
       String.downcase(sub.key) == lower or
         String.downcase(sub.name) == lower
@@ -283,6 +319,8 @@ defmodule Dragones.Heroes.Races do
       bonuses: merged_bonuses,
       traits: race.traits ++ sub.traits,
       hp_bonus: race.hp_bonus + sub.hp_bonus,
+      languages: race.languages,
+      extra_languages: (race.extra_languages || 0) + (sub.extra_languages || 0),
       choose_bonus: race.choose_bonus,
       subraces: []
     }

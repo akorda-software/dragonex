@@ -6,7 +6,7 @@ defmodule DragonesWeb.HeroLive.Index do
 
   use Phoenix.LiveView, layout: {DragonesWeb.Layouts, :app}
 
-  alias Dragones.Accounts
+  alias Dragones.{Accounts, Heroes.Catalog}
 
   @impl true
   def mount(_params, session, socket) do
@@ -16,15 +16,34 @@ defmodule DragonesWeb.HeroLive.Index do
 
       user ->
         heroes = Accounts.list_heroes(user)
-        {:ok, assign(socket, current_user: user, heroes: heroes)}
+
+        {:ok,
+         assign(socket,
+           current_user: user,
+           heroes: heroes,
+           used_hero_ids: MapSet.new(Accounts.used_hero_ids(user)),
+           error: nil
+         )}
     end
   end
 
   @impl true
   def handle_event("delete", %{"id" => id}, socket) do
-    _ = Accounts.delete_hero(id)
+    error =
+      case Accounts.delete_hero(id) do
+        {:ok, _} -> nil
+        {:error, :in_game} -> "No puedes borrar un héroe que ya está en una partida."
+        {:error, _} -> "No se pudo borrar el héroe."
+      end
+
     heroes = Accounts.list_heroes(socket.assigns.current_user)
-    {:noreply, assign(socket, :heroes, heroes)}
+
+    {:noreply,
+     assign(socket,
+       heroes: heroes,
+       used_hero_ids: MapSet.new(Accounts.used_hero_ids(socket.assigns.current_user)),
+       error: error
+     )}
   end
 
   @impl true
@@ -48,6 +67,10 @@ defmodule DragonesWeb.HeroLive.Index do
         .btn:hover{background:#4a3520;}
         .btn-danger{background:#2a1a1a;border-color:#744;color:#f99;font-size:.75rem;padding:.3rem .6rem;}
         .btn-danger:hover{background:#3a2222;}
+        .btn-ghost{background:#202020;border-color:#3a3a3a;color:#9cd;font-size:.75rem;padding:.3rem .6rem;}
+        .btn-ghost:hover{background:#282828;}
+        .locked-note{font-size:.72rem;color:#777;}
+        .error{margin:.8rem 0;color:#f99;background:#2a1a1a;border:1px solid #633;border-radius:8px;padding:.7rem;font-size:.85rem;}
         .empty{text-align:center;color:#666;font-style:italic;padding:4rem;background:rgba(20,20,20,.65);border:1px dashed #333;border-radius:12px;}
         .nav-link{color:#7ab;text-decoration:none;font-size:.85rem;}
         @media(max-width:640px){.gallery{width:min(100% - 1rem,1180px);}.gallery-header{align-items:flex-start;flex-direction:column;}.cards{grid-template-columns:1fr;}}
@@ -65,15 +88,21 @@ defmodule DragonesWeb.HeroLive.Index do
         <.link navigate="/heroes/new" class="btn">+ Forjar nuevo héroe</.link>
       </div>
 
+      <div :if={@error} class="error">{@error}</div>
+
       <div class="cards">
         <div :for={h <- @heroes} :key={h.id} class="hero-card">
           <.link navigate={"/heroes/#{h.id}"}>
             <h3>{h.name}</h3>
-            <div class="role">{String.capitalize(h.race)} · {String.capitalize(h.class)} · Nivel {h.level}</div>
+            <div class="role">{Catalog.race_label(h.race)} · {Catalog.class_label(h.class)} · Nivel {h.level}</div>
           </.link>
           <div class="hero-card-footer">
-            <span class="hero-badge">D&D 5e</span>
-            <button class="btn btn-danger" phx-click="delete" phx-value-id={h.id} data-confirm="¿Borrar este héroe?">borrar</button>
+            <span class="hero-badge">{if hero_used?(@used_hero_ids, h), do: "En partida", else: "Editable"}</span>
+            <div style="display:flex;gap:.4rem;align-items:center;">
+              <.link :if={!hero_used?(@used_hero_ids, h)} navigate={"/heroes/#{h.id}/edit"} class="btn btn-ghost">editar</.link>
+              <button :if={!hero_used?(@used_hero_ids, h)} class="btn btn-danger" phx-click="delete" phx-value-id={h.id} data-confirm="¿Borrar este héroe?">borrar</button>
+              <span :if={hero_used?(@used_hero_ids, h)} class="locked-note">bloqueado</span>
+            </div>
           </div>
         </div>
       </div>
@@ -84,4 +113,6 @@ defmodule DragonesWeb.HeroLive.Index do
     </div>
     """
   end
+
+  defp hero_used?(used_hero_ids, hero), do: MapSet.member?(used_hero_ids, hero.id)
 end

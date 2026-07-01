@@ -43,8 +43,26 @@ defmodule Dragones.Heroes do
   """
 
   alias Dragones.{Character, Item, Spell}
-  alias Dragones.Heroes.{Backgrounds, Classes, Equipment, Races, Scoring, Spells}
+  alias Dragones.Heroes.{Backgrounds, Classes, Equipment, Races, Scoring, Spells, Translations}
   alias Dragones.Rules.Ability
+
+  @default_pb %{str: 8, dex: 8, con: 8, int: 8, wis: 8, cha: 8}
+
+  @point_buy_shapes [
+    [15, 14, 13, 12, 10, 8],
+    [15, 15, 14, 10, 8, 8],
+    [15, 14, 14, 10, 10, 8],
+    [14, 14, 14, 12, 10, 8],
+    [15, 13, 13, 12, 12, 8]
+  ]
+
+  @random_names ~w(
+    Aelar Aelwyn Aldric Amara Arannis Arden Astrid Bastian Brina Bryn Calder
+    Cora Corin Darian Delia Dorin Drask Eira Elara Eldrin Emera Fenris Garruk
+    Halra Ilyra Isolde Joren Kael Ketha Kieran Liora Lyra Maelis Mira Naeris
+    Nessa Nyssa Orin Pip Riven Rhogar Sable Selene Sylva Talia Tara Thane Toren
+    Varek Vesper Vex Yara Zephyra Zorren
+  )
 
   @type choices :: %{
           required(:name) => String.t(),
@@ -90,16 +108,19 @@ defmodule Dragones.Heroes do
     with {:ok, race} <- resolve_race(choices),
          {:ok, class} <- fetch(Classes, choices[:class], "class"),
          {:ok, bg} <- fetch(Backgrounds, choices[:background], "background"),
-         {:ok, _skills} <- validate_skills(class, choices[:skills]),
+         {:ok, skills} <- validate_skills(class, choices[:skills]),
          {:ok, base} <- Scoring.resolve(choices[:scores], class.priority),
          bonuses <- resolve_bonuses(race, class),
          final <- Scoring.apply_bonuses(base, bonuses),
          :ok <- validate_final_scores(final),
-         eq <- process_equipment(class.equipment ++ bg.equipment),
+         class_slots <- resolve_equipment(class, choices[:equipment_picks]),
+         eq <- process_equipment(class_slots ++ bg.equipment),
          hp <- compute_hp(class, final, race, choices[:level] || 1),
          ac <- compute_ac(eq, class, final),
          spells <- build_spells(class, choices[:spells]),
-         attrs = to_attrs(choices, race, class, final, hp, ac, eq, spells),
+         languages <- resolve_languages(race, bg, choices[:extra_languages]),
+         attrs =
+           to_attrs(choices, race, class, bg, final, hp, ac, eq, spells, skills, languages),
          :ok <- validate_changeset(attrs) do
       {:ok, struct(Character, attrs)}
     end
@@ -123,6 +144,30 @@ defmodule Dragones.Heroes do
   @spec subraces(String.t()) :: [String.t()]
   def subraces(race_key), do: Races.subrace_keys(race_key)
 
+  @doc "Skill keys offered by a class for the player to pick, plus how many."
+  @spec class_skill_options(String.t()) ::
+          %{list: [String.t()] | :any, count: pos_integer()} | nil
+  def class_skill_options(nil), do: nil
+
+  def class_skill_options(class_key) do
+    case Classes.get(class_key) do
+      {:ok, %{skill_list: list, skill_count: count}} -> %{list: list, count: count}
+      _ -> nil
+    end
+  end
+
+  @doc "Extra language slots the current choices grant (race + subrace + background)."
+  @spec extra_language_slots(String.t() | nil, String.t() | nil, String.t() | nil) ::
+          non_neg_integer()
+  def extra_language_slots(race_key, subrace_key, bg_key) do
+    with {:ok, race} <- Races.get(race_key || "", subrace_key),
+         {:ok, bg} <- fetch(Backgrounds, bg_key, "background") do
+      (race.extra_languages || 0) + (bg.extra_languages || 0)
+    else
+      _ -> 0
+    end
+  end
+
   @doc """
   A random coherent set of hero choices (race + matching subrace, class,
   background, sex, name) for the creator's draft button. The caller owns the
@@ -134,20 +179,119 @@ defmodule Dragones.Heroes do
           subrace: String.t() | nil,
           class: String.t(),
           background: String.t(),
-          sex: String.t()
+          sex: String.t(),
+          score_method: String.t(),
+          pb: map(),
+          spells: [String.t()] | nil,
+          equipment: map(),
+          skills_choice: [String.t()],
+          extra_langs: [String.t()],
+          backstory: String.t()
         }
   def random_draft do
     race = Enum.random(list_races())
     subs = subraces(race)
+    subrace = if(subs != [], do: Enum.random(subs), else: nil)
+    class = Enum.random(list_classes())
+    background = Enum.random(list_backgrounds())
+    {:ok, class_data} = Classes.get(class)
+    score_method = if :rand.uniform(3) == 1, do: "pointbuy", else: "auto"
 
     %{
-      name: Dragones.Scenarios.random_name(),
+      name: random_hero_name(),
       race: race,
-      subrace: if(subs != [], do: Enum.random(subs), else: nil),
-      class: Enum.random(list_classes()),
-      background: Enum.random(list_backgrounds()),
-      sex: Enum.random(["hombre", "mujer", "no binario"])
+      subrace: subrace,
+      class: class,
+      background: background,
+      sex: Enum.random(["hombre", "mujer", "no binario"]),
+      score_method: score_method,
+      pb: if(score_method == "pointbuy", do: random_point_buy(class_data), else: @default_pb),
+      spells: random_spells(class_data),
+      equipment: random_equipment(class_data),
+      skills_choice: random_skills(class_data, background),
+      extra_langs: random_extra_languages(race, subrace, background),
+      backstory: random_backstory(race, subrace, class, background)
     }
+  end
+
+  defp random_hero_name, do: Enum.random(@random_names)
+
+  defp random_point_buy(%{priority: priority}) do
+    @point_buy_shapes
+    |> Enum.random()
+    |> then(fn scores -> Enum.zip(priority, scores) end)
+    |> Map.new()
+  end
+
+  defp random_equipment(%{equipment_groups: groups}) do
+    Map.new(groups, fn %{id: id, options: options} ->
+      {id, Enum.random(0..(length(options) - 1))}
+    end)
+  end
+
+  defp random_skills(%{skill_list: list, skill_count: count}, background) do
+    bg_skills =
+      case Backgrounds.get(background) do
+        {:ok, bg} -> bg.skills
+        _ -> []
+      end
+
+    pool = if list == :any, do: Translations.skill_keys(), else: list
+    preferred = Enum.reject(pool, &(&1 in bg_skills))
+    pool = if length(preferred) >= count, do: preferred, else: pool
+
+    pool
+    |> Enum.shuffle()
+    |> Enum.take(count)
+  end
+
+  defp random_extra_languages(race, subrace, background) do
+    count = extra_language_slots(race, subrace, background)
+
+    fixed =
+      case Races.get(race || "", subrace) do
+        {:ok, race_data} -> race_data.languages
+        _ -> []
+      end
+
+    Translations.languages()
+    |> Enum.reject(&(&1 in fixed))
+    |> Enum.shuffle()
+    |> Enum.take(count)
+  end
+
+  defp random_spells(%{spellcasting: nil}), do: nil
+
+  defp random_spells(%{key: class_key, spellcasting: sc}) do
+    spells = Spells.by_class(class_key)
+    cantrip_pool = Enum.filter(spells, &(&1.level == 0))
+    level1_pool = Enum.filter(spells, &(&1.level == 1))
+    level1_count = if sc.spells_level1 > 0, do: sc.spells_level1, else: length(sc.defaults.spells)
+
+    random_spell_names(cantrip_pool, sc.cantrips, sc.defaults.cantrips) ++
+      random_spell_names(level1_pool, level1_count, sc.defaults.spells)
+  end
+
+  defp random_spell_names(pool, count, fallback) do
+    pool
+    |> Enum.map(& &1.name)
+    |> Enum.shuffle()
+    |> then(fn names -> if length(names) >= count, do: names, else: fallback end)
+    |> Enum.take(count)
+  end
+
+  defp random_backstory(race, subrace, class, background) do
+    race_label = Translations.race_display(subrace || race, Dragones.I18n.locale())
+    class_label = Translations.class(class)
+    background_label = Translations.background(background)
+
+    Enum.random([
+      "#{race_label} #{class_label} de origen #{background_label}, en busca de una deuda que saldar.",
+      "Tras años como #{String.downcase(background_label)}, aprendió que la gloria no espera a nadie.",
+      "Una vieja promesa empuja a este #{String.downcase(class_label)} a aceptar trabajos peligrosos.",
+      "No habla mucho de su pasado, pero cada cicatriz tiene nombre propio.",
+      "Persigue una pista menor que quizá revele una amenaza mucho mayor."
+    ])
   end
 
   # ---------------------------------------------------------------- race
@@ -202,6 +346,35 @@ defmodule Dragones.Heroes do
 
   # --------------------------------------------------------------- equipment
 
+  @doc """
+  Resuelve los grupos de equipo inicial de una clase aplicando las picks del
+  usuario.
+
+  `picks` es un mapa `%{group_id => option_index}` (atom o string keys). Las
+  `key` que faltan o índices fuera de rango caen a la **opción 0** (el default
+  histórico), así una llamada sin picks reproduce el comportamiento previo.
+
+  Devuelve la lista plana de slots (los que entiende `process_equipment/1`).
+  """
+  @spec resolve_equipment(map(), map() | nil) :: [map()]
+  def resolve_equipment(class, picks) when is_map(class) do
+    pick_map = normalize_pick_map(picks)
+
+    Enum.flat_map(class.equipment_groups, fn %{id: gid, options: options} ->
+      idx = Map.get(pick_map, gid, 0)
+      Enum.at(options, idx, hd(options))
+    end)
+  end
+
+  defp normalize_pick_map(nil), do: %{}
+
+  defp normalize_pick_map(picks) when is_map(picks) do
+    Map.new(picks, fn
+      {k, v} when is_atom(k) -> {k, v}
+      {k, v} when is_binary(k) -> {String.to_atom(k), v}
+    end)
+  end
+
   defp process_equipment(slots) do
     Enum.reduce(slots, %{weapons: [], inventory: [], armor: nil, shield: false}, fn
       %{weapon: name}, acc ->
@@ -212,12 +385,23 @@ defmodule Dragones.Heroes do
 
       %{armor: name}, acc ->
         case Equipment.armor(name) do
-          nil -> acc
-          a -> %{acc | armor: a, inventory: acc.inventory ++ [%Item{name: name, qty: 1, kind: :armor}]}
+          nil ->
+            acc
+
+          a ->
+            %{
+              acc
+              | armor: a,
+                inventory: acc.inventory ++ [%Item{name: name, qty: 1, kind: :armor}]
+            }
         end
 
       %{shield: true}, acc ->
-        %{acc | shield: true, inventory: acc.inventory ++ [%Item{name: "shield", qty: 1, kind: :armor}]}
+        %{
+          acc
+          | shield: true,
+            inventory: acc.inventory ++ [%Item{name: "shield", qty: 1, kind: :armor}]
+        }
 
       %{gear: name}, acc ->
         %{acc | inventory: acc.inventory ++ [%Item{name: name, qty: 1, kind: :gear}]}
@@ -317,10 +501,15 @@ defmodule Dragones.Heroes do
   defp validate_skills(class, nil), do: {:ok, default_skills(class)}
 
   defp validate_skills(%{skill_list: :any, skill_count: count}, skills) when is_list(skills) do
-    if length(skills) == count do
-      {:ok, skills}
-    else
-      {:error, "expected #{count} skills, got #{length(skills)}"}
+    cond do
+      length(skills) != count ->
+        {:error, "expected #{count} skills, got #{length(skills)}"}
+
+      length(Enum.uniq(skills)) != length(skills) ->
+        {:error, "duplicate skills in: #{inspect(skills)}"}
+
+      true ->
+        {:ok, skills}
     end
   end
 
@@ -330,6 +519,9 @@ defmodule Dragones.Heroes do
     cond do
       length(skills) != count ->
         {:error, "expected #{count} skills from the class list, got #{length(skills)}"}
+
+      length(Enum.uniq(skills)) != length(skills) ->
+        {:error, "duplicate skills in: #{inspect(skills)}"}
 
       invalid != [] ->
         {:error, "skills not on the class list: #{inspect(invalid)}"}
@@ -362,8 +554,14 @@ defmodule Dragones.Heroes do
 
   # -------------------------------------------------------------- attrs
 
-  defp to_attrs(choices, race, class, scores, hp, ac, eq, spells) do
+  defp to_attrs(choices, race, class, bg, scores, hp, ac, eq, spells, skills, languages) do
     race_label = race_display(race, choices)
+
+    # skills de clase (elegidas o default) + skills del trasfondo (extra, sin
+    # contar contra el cupo de la clase). Dedup conservando el orden.
+    skill_proficiencies =
+      (skills ++ Map.get(bg, :skills, []))
+      |> Enum.uniq()
 
     %{
       name: to_string(choices[:name]),
@@ -389,11 +587,60 @@ defmodule Dragones.Heroes do
       inventory: eq.inventory,
       conditions: [],
       death_saves: %{successes: 0, fails: 0},
-      saving_proficiencies: Enum.map(class.saves, &Atom.to_string/1)
+      saving_proficiencies: Enum.map(class.saves, &Atom.to_string/1),
+      skill_proficiencies: skill_proficiencies,
+      languages: languages,
+      racial_traits: race.traits,
+      class_features: class.features,
+      background_feature: bg.feature
     }
   end
 
   defp race_display(%{name: name}, _choices), do: String.downcase(name)
+
+  # Idiomas fijos de raza (+ subraza ya mezclada) + extras elegidos por el
+  # usuario. `extra` es el nº total de idiomas extra que tocan (raza + trasfondo,
+  # p. ej. humano/acólito/alto elfo). Si el usuario elige duplicados o idiomas
+  # que ya tiene por raza, se descartan y se rellenan con defaults para que el
+  # personaje reciba siempre el nº de idiomas que le corresponden.
+  defp resolve_languages(race, bg, user_extras) do
+    extras_needed = (race.extra_languages || 0) + (bg.extra_languages || 0)
+    known = race.languages
+
+    chosen =
+      user_extras
+      |> normalize_list()
+      # descarta los que ya sabe por raza y los duplicados entre los elegidos
+      |> Enum.reject(&(&1 in known))
+      |> Enum.uniq()
+
+    filled = pad_languages(chosen, extras_needed, known)
+    (known ++ filled) |> Enum.uniq()
+  end
+
+  defp normalize_list(nil), do: []
+
+  defp normalize_list(list) when is_list(list) do
+    Enum.flat_map(list, fn
+      v when is_binary(v) and v != "" -> [v]
+      _ -> []
+    end)
+  end
+
+  defp normalize_list(_), do: []
+
+  # rellena hasta `needed` idiomas extra: respeta los elegidos válidos y
+  # completa con defaults del SRD si faltan.
+  defp pad_languages(chosen, needed, _known) when length(chosen) >= needed,
+    do: Enum.take(chosen, needed)
+
+  defp pad_languages(chosen, needed, known) do
+    remaining = needed - length(chosen)
+    taken = (chosen ++ known) |> MapSet.new()
+    defaults = ["elvish", "dwarvish", "draconic", "giant", "gnomish"]
+    fill = defaults |> Enum.reject(&MapSet.member?(taken, &1)) |> Enum.take(remaining)
+    chosen ++ fill
+  end
 
   defp default_backstory(race, class, choices) do
     bg = choices[:background] || "unknown origin"

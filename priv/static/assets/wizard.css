@@ -54,6 +54,8 @@
 .spell-chip{padding:.25rem .6rem;background:#1a1a1a;border:1px solid #333;border-radius:12px;color:#888;font-size:.78rem;cursor:pointer;font-family:inherit;}
 .spell-chip.sel{background:#3a2a1a;border-color:#a72;color:#fc8;}
 .spell-chip:hover{border-color:#555;}
+.spell-chip.locked{opacity:.35;cursor:not-allowed;}
+.spell-chip.locked:hover{border-color:#333;}
 
 /* ---- game creator ---- */
 .wizard{max-width:680px;margin:0 auto;padding:1.5rem;font-family:Georgia,'Times New Roman',serif;}

@@ -81,7 +81,12 @@ defmodule Dragones.Codec do
       "inventory" => Enum.map(c.inventory, &encode_item/1),
       "conditions" => c.conditions,
       "death_saves" => encode_saves(c.death_saves),
-      "saving_proficiencies" => c.saving_proficiencies
+      "saving_proficiencies" => c.saving_proficiencies,
+      "skill_proficiencies" => c.skill_proficiencies || [],
+      "languages" => c.languages || [],
+      "racial_traits" => c.racial_traits || [],
+      "class_features" => c.class_features || [],
+      "background_feature" => c.background_feature
     }
   end
 
@@ -112,7 +117,12 @@ defmodule Dragones.Codec do
       inventory: Enum.map(c["inventory"] || [], &decode_item/1),
       conditions: c["conditions"] || [],
       death_saves: decode_saves(c["death_saves"]),
-      saving_proficiencies: c["saving_proficiencies"] || []
+      saving_proficiencies: c["saving_proficiencies"] || [],
+      skill_proficiencies: c["skill_proficiencies"] || [],
+      languages: c["languages"] || [],
+      racial_traits: c["racial_traits"] || [],
+      class_features: c["class_features"] || [],
+      background_feature: c["background_feature"]
     }
   end
 
