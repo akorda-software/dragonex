@@ -66,7 +66,9 @@ defmodule Dragones.GhostCombatTest do
     roller = seq_roller([20, 1])
 
     pid =
-      ExUnit.Callbacks.start_supervised!({Dragones.Game, {game.id, [model: %Test{script: script}, roller: roller]}})
+      ExUnit.Callbacks.start_supervised!(
+        {Dragones.Game, {game.id, [model: %Test{script: script}, roller: roller]}}
+      )
 
     assert :ok == Game.await(pid, fn s -> s.status == :waiting end, 5_000)
 
@@ -99,13 +101,16 @@ defmodule Dragones.GhostCombatTest do
     script = [text("El goblin os observa desde la maleza, sin moverse todavía.")]
 
     pid =
-      ExUnit.Callbacks.start_supervised!({Dragones.Game, {game.id, [model: %Test{script: script}, roller: fn _ -> 10 end]}})
+      ExUnit.Callbacks.start_supervised!(
+        {Dragones.Game, {game.id, [model: %Test{script: script}, roller: fn _ -> 10 end]}}
+      )
 
     # Wait until the human (Thane) is waiting — by then the DM (and possibly the
     # goblin) have taken their exploration beats without forcing combat.
     assert :ok == Game.await(pid, fn s -> s.status == :waiting end, 5_000)
 
     world = Game.world(pid)
+
     assert world.phase == :exploration,
            "pre-existing enemies must NOT auto-trigger combat — only newly introduced ones"
 

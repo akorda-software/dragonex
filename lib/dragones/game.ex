@@ -88,7 +88,10 @@ defmodule Dragones.Game do
   """
   @spec start_link({term(), keyword()}) :: GenServer.on_start()
   def start_link({game_id, opts}),
-    do: GenServer.start_link(__MODULE__, {game_id, opts}, name: Dragones.Game.Supervisor.via(game_id))
+    do:
+      GenServer.start_link(__MODULE__, {game_id, opts},
+        name: Dragones.Game.Supervisor.via(game_id)
+      )
 
   # :transient so a crash restarts (rehydrating from DB) but a clean
   # `stop_game/1` (:normal) does not — the partida is paused in Postgres.
@@ -135,8 +138,10 @@ defmodule Dragones.Game do
   resolves through the tools; an impossible/contradictory one is narrated away or
   ignored by the engine's control guard.
   """
-  @spec declare(GenServer.server(), term(), String.t()) :: {:ok, :resolving | :queued} | {:error, term()}
-  def declare(server, participant, text), do: GenServer.call(server, {:declare, participant, text})
+  @spec declare(GenServer.server(), term(), String.t()) ::
+          {:ok, :resolving | :queued} | {:error, term()}
+  def declare(server, participant, text),
+    do: GenServer.call(server, {:declare, participant, text})
 
   @doc "Clear a participant's pending intent (e.g. they changed their mind)."
   @spec clear_intent(GenServer.server(), term()) :: :ok
@@ -173,11 +178,17 @@ defmodule Dragones.Game do
       if predicate.(snapshot(server)), do: :done, else: :wait
     end)
     |> Enum.find_value(fn
-      :done -> :ok
+      :done ->
+        :ok
+
       :wait ->
         if System.monotonic_time(:millisecond) >= deadline,
           do: :timeout,
-          else: (Process.sleep(10); nil)
+          else:
+            (
+              Process.sleep(10)
+              nil
+            )
     end)
   end
 
@@ -193,11 +204,17 @@ defmodule Dragones.Game do
       if current(server) == participant, do: :done, else: :wait
     end)
     |> Enum.find_value(fn
-      :done -> :ok
+      :done ->
+        :ok
+
       :wait ->
         if System.monotonic_time(:millisecond) >= deadline,
           do: :timeout,
-          else: (Process.sleep(10); nil)
+          else:
+            (
+              Process.sleep(10)
+              nil
+            )
     end)
   end
 
@@ -254,25 +271,25 @@ defmodule Dragones.Game do
     # broadcasts once via `RollLog.on_close` with the full labeled entry (reason
     # + dice + total + against + outcome), so the modal opens exactly once per
     # roll with everything it needs, never twice.
-    roller = Keyword.get(opts, :roller) || &Dragones.Dice.roll/1
+    roller = Keyword.get(opts, :roller) || (&Dragones.Dice.roll/1)
 
     # Modelo-por-rol + caching: the DM bakes the (stable) story bible into its
     # system prefix, and a cheap summarizer powers compaction of old history.
     summarizer = Keyword.get(opts, :summarizer) || Dragones.Models.summarizer()
 
-      dm_agent =
-        DM.new(model,
-          story_bible: game.story_bible || %{},
-          summarizer: summarizer,
-          max_tokens: Dragones.Models.dm_max_tokens(),
-          # With shared-history reconstruction from game_events, the history
-          # reflects the partida's full timeline (not just the DM's). Cap at
-          # 250k tokens — most modern long-context models (1M window) handle
-          # 200-300k comfortably, and compacting sooner would discard the
-          # hard-won cross-agent context that's the whole point.
-          compaction_threshold: env_int("DRAGONES_COMPACTION_THRESHOLD", 250_000),
-          compaction_keep_recent: env_int("DRAGONES_COMPACTION_KEEP_RECENT", 12)
-        )
+    dm_agent =
+      DM.new(model,
+        story_bible: game.story_bible || %{},
+        summarizer: summarizer,
+        max_tokens: Dragones.Models.dm_max_tokens(),
+        # With shared-history reconstruction from game_events, the history
+        # reflects the partida's full timeline (not just the DM's). Cap at
+        # 250k tokens — most modern long-context models (1M window) handle
+        # 200-300k comfortably, and compacting sooner would discard the
+        # hard-won cross-agent context that's the whole point.
+        compaction_threshold: env_int("DRAGONES_COMPACTION_THRESHOLD", 250_000),
+        compaction_keep_recent: env_int("DRAGONES_COMPACTION_KEEP_RECENT", 12)
+      )
 
     {:ok, dm} =
       Server.start_link(
@@ -340,6 +357,7 @@ defmodule Dragones.Game do
       {:error, _} -> :ok
     end
   end
+
   # --------------------------------------------------------------- calls
 
   @impl true
@@ -435,7 +453,8 @@ defmodule Dragones.Game do
     {:reply, :ok, %{state | status: :paused}}
   end
 
-  def handle_call(:pause, _from, state), do: {:reply, {:error, {:not_running, state.status}}, state}
+  def handle_call(:pause, _from, state),
+    do: {:reply, {:error, {:not_running, state.status}}, state}
 
   def handle_call(:resume, _from, %{status: :paused} = state) do
     {:ok, _} = Games.set_status(state.game_id, :running)
@@ -576,7 +595,17 @@ defmodule Dragones.Game do
 
       world = Session.read_state(state.session)
       retries = %{transient_retries: tr, max_token_retries: mr}
-      state = run_beat(%{state | busy: nil, status: :running}, participant, instruction, turn_id, world, retries)
+
+      state =
+        run_beat(
+          %{state | busy: nil, status: :running},
+          participant,
+          instruction,
+          turn_id,
+          world,
+          retries
+        )
+
       {:noreply, state}
     end
   end
@@ -610,7 +639,14 @@ defmodule Dragones.Game do
             append_turn_marker(state.game_id, current, turn_id, world)
 
             character = world_character(state, current)
-            base = PCAgent.instruction(current, character || Dragones.Character.new(name: current), world)
+
+            base =
+              PCAgent.instruction(
+                current,
+                character || Dragones.Character.new(name: current),
+                world
+              )
+
             # Prompts alone couldn't stop a bot from re-declaring the same
             # non-action ("¿subimos al círculo?" x N) every turn. This compares
             # its last two narrations and, when they're near-duplicates, stitches
@@ -652,7 +688,10 @@ defmodule Dragones.Game do
                   Instructions.dm_post_combat_instruction()
 
                 Guardrails.exploration_limbo?(state.game_id, world) ->
-                  Logger.info("dragones game #{state.game_id} exploration limbo — forcing DM avance")
+                  Logger.info(
+                    "dragones game #{state.game_id} exploration limbo — forcing DM avance"
+                  )
+
                   Instructions.dm_advance_instruction()
 
                 true ->
@@ -669,7 +708,9 @@ defmodule Dragones.Game do
             instruction = Guardrails.with_dm_anti_repeat(state.game_id, instruction)
             # Ghost combat v2: if the DM narrated a hostile appearing without
             # spawning it, force a spawn_monster this turn.
-            instruction = Guardrails.with_dm_unspawned_hostile_nudge(state.game_id, world, instruction)
+            instruction =
+              Guardrails.with_dm_unspawned_hostile_nudge(state.game_id, world, instruction)
+
             # Language guard: DeepSeek sometimes drifts into English mid-scene.
             # If the DM's last narration reads English, force Spanish this turn.
             instruction = Guardrails.with_dm_spanish_nudge(state.game_id, instruction)
@@ -713,7 +754,15 @@ defmodule Dragones.Game do
 
     Games.save_intents(state.game_id, intents)
 
-    state = run_beat(state, participant, Instructions.human_instruction(participant, text), turn_id, world)
+    state =
+      run_beat(
+        state,
+        participant,
+        Instructions.human_instruction(participant, text),
+        turn_id,
+        world
+      )
+
     %{state | status: :running}
   end
 
@@ -801,7 +850,8 @@ defmodule Dragones.Game do
             retries = %{max_token_retries: beat_max_token_retries + 1, transient_retries: 0}
             run_beat(%{state | status: :running}, current, brief, beat_turn_id, world, retries)
 
-          Beat.transient_provider_error?(reason) and beat_transient_retries < @max_transient_retries ->
+          Beat.transient_provider_error?(reason) and
+              beat_transient_retries < @max_transient_retries ->
             # Provider hiccup (5xx / 429 / timeout / connection drop / overload).
             # These resolve themselves within seconds, so retry with exponential
             # backoff instead of rendering "X titubea" — which, during a real
@@ -1003,7 +1053,11 @@ defmodule Dragones.Game do
     # completes — the stream is purely a UI live-preview.
     on_text_delta = fn chunk ->
       try do
-        Phoenix.PubSub.broadcast(Dragones.PubSub, topic(game_id), {:text_delta, game_id, turn_id, participant, chunk})
+        Phoenix.PubSub.broadcast(
+          Dragones.PubSub,
+          topic(game_id),
+          {:text_delta, game_id, turn_id, participant, chunk}
+        )
       catch
         _, _ -> :ok
       end
@@ -1033,7 +1087,14 @@ defmodule Dragones.Game do
         # beat Task and ExAgent's run Task / parallel tool tasks unscathed.
         {:ok, recorder} = RollLog.start(on_close: on_roll_closed)
         roll_log = %RollLog{base: roller, recorder: recorder}
-        deps = %{state: shared, roller: roller, roll_log: roll_log, beat: beat, on_text_delta: on_text_delta}
+
+        deps = %{
+          state: shared,
+          roller: roller,
+          roll_log: roll_log,
+          beat: beat,
+          on_text_delta: on_text_delta
+        }
 
         result =
           case Server.chat(agent, prompt,
@@ -1052,7 +1113,19 @@ defmodule Dragones.Game do
         result
       end)
 
-    %{state | busy: %Beat{ref: task.ref, participant: participant, phase: world.phase, turn_id: turn_id, instruction: instruction, max_token_retries: retries.max_token_retries, transient_retries: retries.transient_retries, enemies_before: Dragones.World.living_enemies(world)}}
+    %{
+      state
+      | busy: %Beat{
+          ref: task.ref,
+          participant: participant,
+          phase: world.phase,
+          turn_id: turn_id,
+          instruction: instruction,
+          max_token_retries: retries.max_token_retries,
+          transient_retries: retries.transient_retries,
+          enemies_before: Dragones.World.living_enemies(world)
+        }
+    }
   end
 
   # Select the right agent for a turn: AI PCs have their own agent; everything
@@ -1100,7 +1173,9 @@ defmodule Dragones.Game do
       with next when not is_nil(next) <- Session.current(state.session),
            {:ok, _} <- Session.update_state(state.session, next, Dragones.World.end_combat()) do
         {:ok, _} =
-          Games.append_event(state.game_id, :system, "system", "all", %{note: "⚔ El combate termina."})
+          Games.append_event(state.game_id, :system, "system", "all", %{
+            note: "⚔ El combate termina."
+          })
       end
     end
 

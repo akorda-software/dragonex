@@ -328,7 +328,7 @@ defmodule Dragones.History do
         end
       end)
 
-    parts = parts ++ [against, outcome] |> Enum.reject(&(&1 in ["", nil]))
+    parts = (parts ++ [against, outcome]) |> Enum.reject(&(&1 in ["", nil]))
     Enum.join(parts, " ")
   end
 

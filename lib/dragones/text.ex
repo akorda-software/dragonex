@@ -253,6 +253,7 @@ defmodule Dragones.Text do
       line
     )
   end
+
   # These appear when the model recaps HP per combatant. Drop the whole block:
   # the header line + any following list of "<name>: ... pg" / "<name> (X/Y)".
   # Accept markdown bold on either side of the colon: `**Estado del Combate:**`,

@@ -12,6 +12,39 @@ defmodule Dragones.HeroesTest do
 
   alias Dragones.{Character, Heroes}
 
+  describe "random_draft/0" do
+    test "generates complete drafts that build successfully" do
+      for _ <- 1..30 do
+        draft = Heroes.random_draft()
+
+        scores =
+          if draft.score_method == "pointbuy" do
+            %{method: :point_buy, scores: draft.pb}
+          end
+
+        assert {:ok, character} =
+                 Heroes.build(%{
+                   name: draft.name,
+                   race: draft.race,
+                   subrace: draft.subrace,
+                   class: draft.class,
+                   sex: draft.sex,
+                   background: draft.background,
+                   scores: scores,
+                   spells: draft.spells,
+                   equipment_picks: draft.equipment,
+                   skills: draft.skills_choice,
+                   extra_languages: draft.extra_langs,
+                   backstory: draft.backstory
+                 })
+
+        assert character.name == draft.name
+        assert character.skill_proficiencies != []
+        assert is_map(draft.equipment)
+      end
+    end
+  end
+
   # ============================================================ all classes
 
   describe "every class builds a valid level-1 character" do
@@ -33,9 +66,11 @@ defmodule Dragones.HeroesTest do
       {:ok, c} = build_human("barbarian")
       # str=15+1, con=14+1, dex=13+1 → con_mod=+2, dex_mod=+2
       assert c.str == 16 and c.con == 15 and c.dex == 14
-      assert c.hp == 12 + 2  # d12 + con_mod(15)=+2
+      # d12 + con_mod(15)=+2
+      assert c.hp == 12 + 2
       assert c.max_hp == c.hp
-      assert c.ac == 10 + 2 + 2  # unarmored: 10 + dex + con
+      # unarmored: 10 + dex + con
+      assert c.ac == 10 + 2 + 2
       assert c.saving_proficiencies == ["str", "con"]
     end
 
@@ -43,8 +78,10 @@ defmodule Dragones.HeroesTest do
       {:ok, c} = build_human("wizard")
       # int=15+1=16 → +3, level 1 → prof +2
       assert c.int == 16
-      assert c.hp == 6 + 2  # d6 + con_mod(15)=+2
-      assert c.ac == 10 + 2  # unarmored: 10 + dex_mod(14)=+2
+      # d6 + con_mod(15)=+2
+      assert c.hp == 6 + 2
+      # unarmored: 10 + dex_mod(14)=+2
+      assert c.ac == 10 + 2
 
       fire_bolt = find_spell(c, "fire bolt")
       assert fire_bolt.casting_ability == :int
@@ -55,8 +92,10 @@ defmodule Dragones.HeroesTest do
 
     test "fighter: chain mail + shield → AC 18" do
       {:ok, c} = build_human("fighter")
-      assert c.ac == 18  # chain_mail(16) + shield(2)
-      assert c.hp == 10 + 2  # d10 + con_mod(15)=+2
+      # chain_mail(16) + shield(2)
+      assert c.ac == 18
+      # d10 + con_mod(15)=+2
+      assert c.hp == 10 + 2
       assert [%{name: "longsword"}, %{name: "light crossbow"} | _] = c.weapons
       assert hd(c.weapons).attack_ability == :str
     end
@@ -64,14 +103,17 @@ defmodule Dragones.HeroesTest do
     test "monk: unarmored defense uses DEX + WIS" do
       {:ok, c} = build_human("monk")
       # dex=15+1=16→+3, wis=14+1=15→+2
-      assert c.ac == 10 + 3 + 2  # 15
-      assert c.hp == 8 + 2  # d8 + con_mod(14)=+2
+      # 15
+      assert c.ac == 10 + 3 + 2
+      # d8 + con_mod(14)=+2
+      assert c.hp == 8 + 2
     end
 
     test "cleric: scale mail + shield → AC 17" do
       {:ok, c} = build_human("cleric")
       # scale_mail(14) + min(dex_mod, 2) + shield(2); dex=12+1=13→+1
-      assert c.ac == 14 + 1 + 2  # 17
+      # 17
+      assert c.ac == 14 + 1 + 2
       assert c.saving_proficiencies == ["wis", "cha"]
     end
 
@@ -87,8 +129,10 @@ defmodule Dragones.HeroesTest do
 
     test "sorcerer: no armor, low HP" do
       {:ok, c} = build_human("sorcerer")
-      assert c.hp == 6 + 2  # d6 + con_mod(15)=+2
-      assert c.ac == 10 + 2  # 10 + dex_mod(14)=+2
+      # d6 + con_mod(15)=+2
+      assert c.hp == 6 + 2
+      # 10 + dex_mod(14)=+2
+      assert c.ac == 10 + 2
     end
 
     test "paladin: chain mail + shield → AC 18" do
@@ -136,19 +180,29 @@ defmodule Dragones.HeroesTest do
 
   describe "racial bonuses are applied correctly" do
     test "mountain dwarf: STR +2 and CON +2" do
-      {:ok, c} = Heroes.build(%{
-        name: "Grim", race: "dwarf", subrace: "mountain",
-        class: "fighter", background: "soldier"
-      })
+      {:ok, c} =
+        Heroes.build(%{
+          name: "Grim",
+          race: "dwarf",
+          subrace: "mountain",
+          class: "fighter",
+          background: "soldier"
+        })
+
       # standard array: str=15, con=14 → +mountain: str+2, con+2
       assert c.str == 17 and c.con == 16
     end
 
     test "hill dwarf: CON +2, WIS +1, hp_bonus +1" do
-      {:ok, c} = Heroes.build(%{
-        name: "Dolgrin", race: "dwarf", subrace: "hill",
-        class: "cleric", background: "acolyte"
-      })
+      {:ok, c} =
+        Heroes.build(%{
+          name: "Dolgrin",
+          race: "dwarf",
+          subrace: "hill",
+          class: "cleric",
+          background: "acolyte"
+        })
+
       # wis=15+1, con=14+2
       assert c.con == 16 and c.wis == 16
       # cleric d8, con_mod(16)=+3, +hill dwarf hp_bonus 1
@@ -156,84 +210,130 @@ defmodule Dragones.HeroesTest do
     end
 
     test "high elf: DEX +2, INT +1" do
-      {:ok, c} = Heroes.build(%{
-        name: "Lyra", race: "elf", subrace: "high elf",
-        class: "wizard", background: "sage"
-      })
+      {:ok, c} =
+        Heroes.build(%{
+          name: "Lyra",
+          race: "elf",
+          subrace: "high elf",
+          class: "wizard",
+          background: "sage"
+        })
+
       assert c.dex == 15 and c.int == 16
       assert c.speed == 30
     end
 
     test "wood elf: speed 35" do
-      {:ok, c} = Heroes.build(%{
-        name: "Sylva", race: "elf", subrace: "wood elf",
-        class: "ranger", background: "outlander"
-      })
+      {:ok, c} =
+        Heroes.build(%{
+          name: "Sylva",
+          race: "elf",
+          subrace: "wood elf",
+          class: "ranger",
+          background: "outlander"
+        })
+
       assert c.speed == 35
-      assert c.wis == 15  # wis=14 base + 1 wood elf
+      # wis=14 base + 1 wood elf
+      assert c.wis == 15
     end
 
     test "halfling: Small size, speed 25, DEX +2" do
-      {:ok, c} = Heroes.build(%{
-        name: "Pip", race: "halfling", subrace: "lightfoot",
-        class: "rogue", background: "criminal"
-      })
+      {:ok, c} =
+        Heroes.build(%{
+          name: "Pip",
+          race: "halfling",
+          subrace: "lightfoot",
+          class: "rogue",
+          background: "criminal"
+        })
+
       assert c.speed == 25
-      assert c.dex == 17  # 15 + 2
-      assert c.cha == 11  # 10 + 1 lightfoot
+      # 15 + 2
+      assert c.dex == 17
+      # 10 + 1 lightfoot
+      assert c.cha == 11
     end
 
     test "dragonborn: STR +2, CHA +1" do
-      {:ok, c} = Heroes.build(%{
-        name: "Rhogar", race: "dragonborn",
-        class: "paladin", background: "noble"
-      })
+      {:ok, c} =
+        Heroes.build(%{
+          name: "Rhogar",
+          race: "dragonborn",
+          class: "paladin",
+          background: "noble"
+        })
+
       # str=15+2, cha=14+1
       assert c.str == 17 and c.cha == 15
       assert c.speed == 30
     end
 
     test "half-elf: CHA +2, two floating +1 by class priority" do
-      {:ok, c} = Heroes.build(%{
-        name: "Vael", race: "half-elf",
-        class: "wizard", background: "sage"
-      })
+      {:ok, c} =
+        Heroes.build(%{
+          name: "Vael",
+          race: "half-elf",
+          class: "wizard",
+          background: "sage"
+        })
+
       # CHA +2, plus +1 to INT and CON (wizard priority, skip CHA)
-      assert c.cha == 12  # 10 + 2
-      assert c.int == 16  # 15 + 1
-      assert c.con == 15  # 14 + 1
+      # 10 + 2
+      assert c.cha == 12
+      # 15 + 1
+      assert c.int == 16
+      # 14 + 1
+      assert c.con == 15
     end
 
     test "half-orc: STR +2, CON +1" do
-      {:ok, c} = Heroes.build(%{
-        name: "Grom", race: "half-orc",
-        class: "barbarian", background: "folk hero"
-      })
+      {:ok, c} =
+        Heroes.build(%{
+          name: "Grom",
+          race: "half-orc",
+          class: "barbarian",
+          background: "folk hero"
+        })
+
       assert c.str == 17 and c.con == 15
     end
 
     test "tiefling: INT +1, CHA +2" do
-      {:ok, c} = Heroes.build(%{
-        name: "Lilith", race: "tiefling",
-        class: "warlock", background: "charlatan"
-      })
+      {:ok, c} =
+        Heroes.build(%{
+          name: "Lilith",
+          race: "tiefling",
+          class: "warlock",
+          background: "charlatan"
+        })
+
       assert c.int == 13 and c.cha == 17
     end
 
     test "gnome forest: INT +2, DEX +1" do
-      {:ok, c} = Heroes.build(%{
-        name: "Fizzle", race: "gnome", subrace: "forest gnome",
-        class: "wizard", background: "sage"
-      })
+      {:ok, c} =
+        Heroes.build(%{
+          name: "Fizzle",
+          race: "gnome",
+          subrace: "forest gnome",
+          class: "wizard",
+          background: "sage"
+        })
+
       assert c.int == 17 and c.dex == 14
       assert c.speed == 25
     end
 
     test "subrace passed as race key also works" do
-      {:ok, c} = Heroes.build(%{
-        name: "Lyra", race: "high elf",
-        class: "wizard", background: "sage"
-      })
+      {:ok, c} =
+        Heroes.build(%{
+          name: "Lyra",
+          race: "high elf",
+          class: "wizard",
+          background: "sage"
+        })
+
       assert c.int == 16 and c.dex == 15
     end
   end
@@ -274,11 +374,26 @@ defmodule Dragones.HeroesTest do
     end
 
     test "user can override default spell picks" do
-      {:ok, c} = Heroes.build(%{
-        name: "Lyra", race: "elf", subrace: "high elf",
-        class: "wizard", background: "sage",
-        spells: ["fire bolt", "ray of frost", "prestidigitation", "magic missile", "shield", "mage armor", "sleep", "detect magic", "charm person"]
-      })
+      {:ok, c} =
+        Heroes.build(%{
+          name: "Lyra",
+          race: "elf",
+          subrace: "high elf",
+          class: "wizard",
+          background: "sage",
+          spells: [
+            "fire bolt",
+            "ray of frost",
+            "prestidigitation",
+            "magic missile",
+            "shield",
+            "mage armor",
+            "sleep",
+            "detect magic",
+            "charm person"
+          ]
+        })
+
       names = Enum.map(c.spells, & &1.name)
       assert "fire bolt" in names
       assert "ray of frost" in names
@@ -324,27 +439,49 @@ defmodule Dragones.HeroesTest do
     end
 
     test "explicit scores are accepted" do
-      {:ok, c} = Heroes.build(%{
-        name: "X", race: "human", class: "fighter", background: "soldier",
-        scores: %{str: 15, dex: 14, con: 14, int: 10, wis: 10, cha: 10}
-      })
-      assert c.str == 16 and c.con == 15  # + human +1
+      {:ok, c} =
+        Heroes.build(%{
+          name: "X",
+          race: "human",
+          class: "fighter",
+          background: "soldier",
+          scores: %{str: 15, dex: 14, con: 14, int: 10, wis: 10, cha: 10}
+        })
+
+      # + human +1
+      assert c.str == 16 and c.con == 15
     end
 
     test "point buy validates the 27-point budget" do
-      {:ok, c} = Heroes.build(%{
-        name: "X", race: "human", class: "fighter", background: "soldier",
-        scores: %{method: :point_buy, scores: %{str: 15, dex: 14, con: 15, int: 8, wis: 10, cha: 8}}
-      })
-      assert c.str == 16  # 15 + 1 human
+      {:ok, c} =
+        Heroes.build(%{
+          name: "X",
+          race: "human",
+          class: "fighter",
+          background: "soldier",
+          scores: %{
+            method: :point_buy,
+            scores: %{str: 15, dex: 14, con: 15, int: 8, wis: 10, cha: 8}
+          }
+        })
+
+      # 15 + 1 human
+      assert c.str == 16
     end
 
     test "point buy rejects wrong budget" do
       # 3×15 (27) + 9 (1) = 28, exceeds the 27-point budget
-      assert {:error, _} = Heroes.build(%{
-        name: "X", race: "human", class: "fighter", background: "soldier",
-        scores: %{method: :point_buy, scores: %{str: 15, dex: 15, con: 15, int: 9, wis: 8, cha: 8}}
-      })
+      assert {:error, _} =
+               Heroes.build(%{
+                 name: "X",
+                 race: "human",
+                 class: "fighter",
+                 background: "soldier",
+                 scores: %{
+                   method: :point_buy,
+                   scores: %{str: 15, dex: 15, con: 15, int: 9, wis: 8, cha: 8}
+                 }
+               })
     end
   end
 

@@ -135,9 +135,26 @@ defmodule Dragones.Heroes.Equipment do
     }
   end
 
-  defp light(name, ac, stealth?), do: %{name: name, type: :light, base_ac: ac, max_dex: :unlimited, stealth_disadvantage: stealth?}
-  defp medium(name, ac, max_dex, stealth?), do: %{name: name, type: :medium, base_ac: ac, max_dex: max_dex, stealth_disadvantage: stealth?}
-  defp heavy(name, ac, stealth?), do: %{name: name, type: :heavy, base_ac: ac, max_dex: 0, stealth_disadvantage: stealth?}
+  defp light(name, ac, stealth?),
+    do: %{
+      name: name,
+      type: :light,
+      base_ac: ac,
+      max_dex: :unlimited,
+      stealth_disadvantage: stealth?
+    }
+
+  defp medium(name, ac, max_dex, stealth?),
+    do: %{
+      name: name,
+      type: :medium,
+      base_ac: ac,
+      max_dex: max_dex,
+      stealth_disadvantage: stealth?
+    }
+
+  defp heavy(name, ac, stealth?),
+    do: %{name: name, type: :heavy, base_ac: ac, max_dex: 0, stealth_disadvantage: stealth?}
 
   # --------------------------------------------------------- AC computation
 

@@ -147,8 +147,12 @@ defmodule Dragones.TextTest do
 
     test "strips English (AC/HP) stat leaks and parenthesised stat blocks" do
       # The DM dropped an English stat line straight into prose.
-      refute Text.scrub("Aparece un espinodemonio de prueba (AC 12, HP 13, daño 1d4+2 con tridente).", "dm") =~
+      refute Text.scrub(
+               "Aparece un espinodemonio de prueba (AC 12, HP 13, daño 1d4+2 con tridente).",
+               "dm"
+             ) =~
                "AC 12"
+
       # The whole parenthesis is gone.
       refute Text.scrub("Aparece un espinodemonio de prueba (AC 12, HP 13).", "dm") =~ "("
       # Bare English AC/HP in a sentence.

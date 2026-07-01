@@ -267,9 +267,13 @@ defmodule Dragones.Flows.CombatLoopTest do
          agent:
            agent(
              [
-               tool_calls(
-                 [call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})]
-               ),
+               tool_calls([
+                 call("make_attack", %{
+                   "attacker" => "goblin",
+                   "target" => "Thane",
+                   "weapon" => "scimitar"
+                 })
+               ]),
                text("done")
              ],
              "You are Thane."

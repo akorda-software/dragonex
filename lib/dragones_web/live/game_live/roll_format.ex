@@ -12,13 +12,13 @@ defmodule DragonesWeb.GameLive.RollFormat do
 
   # outcome -> {inline_chat_marker, modal_label, css_class}
   @outcomes %{
-    hit:       {"→ ¡ACIERTO!",   "¡Acierto!",          "dg-win"},
-    crit:      {"→ ¡CRÍTICO!",   "¡Crítico!",          "dg-win"},
-    miss:      {"→ fallo",       "Fallo",              "dg-lose"},
-    success:   {"→ éxito",       "Éxito",              "dg-win"},
-    failure:   {"→ fallo",       "Fallo",              "dg-lose"},
-    revive:    {"→ ¡revive!",    "¡Revive!",           "dg-win"},
-    crit_fail: {"→ ¡PIFIA!",     "¡Pifia! (2 fallos)", "dg-lose"}
+    hit: {"→ ¡ACIERTO!", "¡Acierto!", "dg-win"},
+    crit: {"→ ¡CRÍTICO!", "¡Crítico!", "dg-win"},
+    miss: {"→ fallo", "Fallo", "dg-lose"},
+    success: {"→ éxito", "Éxito", "dg-win"},
+    failure: {"→ fallo", "Fallo", "dg-lose"},
+    revive: {"→ ¡revive!", "¡Revive!", "dg-win"},
+    crit_fail: {"→ ¡PIFIA!", "¡Pifia! (2 fallos)", "dg-lose"}
   }
 
   @doc "Normalize an outcome value (atom or string) to its atom key, or nil."

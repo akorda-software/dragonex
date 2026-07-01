@@ -14,8 +14,16 @@ defmodule Dragones.Game.Beat do
   with no coupling to the GenServer state.
   """
 
-  defstruct [:ref, :participant, :phase, :turn_id, :instruction, :enemies_before,
-              max_token_retries: 0, transient_retries: 0]
+  defstruct [
+    :ref,
+    :participant,
+    :phase,
+    :turn_id,
+    :instruction,
+    :enemies_before,
+    max_token_retries: 0,
+    transient_retries: 0
+  ]
 
   @type t :: %__MODULE__{
           ref: reference() | nil,

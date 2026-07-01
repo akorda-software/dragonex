@@ -10,6 +10,7 @@ defmodule DragonesWeb.UserSessionController do
 
   alias Dragones.Accounts
   alias DragonesWeb.UserAuth
+
   def login_form(conn, _params) do
     if conn.assigns[:current_user] do
       redirect(conn, to: "/")

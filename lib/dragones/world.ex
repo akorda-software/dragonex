@@ -279,7 +279,11 @@ defmodule Dragones.World do
 
         true ->
           {:ok,
-           %{w | initiative_order: w.initiative_order ++ [name], log: log(w, "dm", "#{name} joins the fight")}}
+           %{
+             w
+             | initiative_order: w.initiative_order ++ [name],
+               log: log(w, "dm", "#{name} joins the fight")
+           }}
       end
     end
   end
@@ -327,9 +331,13 @@ defmodule Dragones.World do
   def has_slot?(%__MODULE__{spell_slots: slots}, name, level) do
     cond do
       # No slot tracking → backward compat (spells always work)
-      slots == %{} -> true
+      slots == %{} ->
+        true
+
       # Character not tracked → no enforcement
-      not is_map_key(slots, name) -> true
+      not is_map_key(slots, name) ->
+        true
+
       # Tracked: check the count
       true ->
         slots
@@ -390,12 +398,22 @@ defmodule Dragones.World do
           con_mod = Dragones.Rules.Ability.modifier(c.con)
           avg_hp = div(hit_die, 2) + 1
 
-          leveled = %{c | level: lvl + 1, max_hp: max_hp + avg_hp + con_mod, hp: c.hp + avg_hp + con_mod}
+          leveled = %{
+            c
+            | level: lvl + 1,
+              max_hp: max_hp + avg_hp + con_mod,
+              hp: c.hp + avg_hp + con_mod
+          }
+
           w2 = put_char(w, name, leveled)
 
           # Refresh spell slots to the new level's maximum
           slots = Dragones.SpellSlots.for_class(class, lvl + 1)
-          w3 = if slots != %{}, do: %{w2 | spell_slots: Map.put(w2.spell_slots, name, slots)}, else: w2
+
+          w3 =
+            if slots != %{},
+              do: %{w2 | spell_slots: Map.put(w2.spell_slots, name, slots)},
+              else: w2
 
           {:ok, w3}
 

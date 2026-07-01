@@ -188,15 +188,23 @@ defmodule Dragones.PCAgent do
 
       cond_line =
         case c.conditions || [] do
-          [] -> ""
+          [] ->
+            ""
+
           conds ->
-            names = Enum.map(conds, fn
-              %{condition: cd} -> cd
-              %{"condition" => cd} -> cd
-              cd when is_binary(cd) -> cd
-              _ -> nil
-            end) |> Enum.reject(&is_nil/1)
-            if names == [], do: "", else: "- AVISO: estás #{Enum.join(names, ", ")}. Esto puede afectar a tus tiradas de ataque.\n"
+            names =
+              Enum.map(conds, fn
+                %{condition: cd} -> cd
+                %{"condition" => cd} -> cd
+                cd when is_binary(cd) -> cd
+                _ -> nil
+              end)
+              |> Enum.reject(&is_nil/1)
+
+            if names == [],
+              do: "",
+              else:
+                "- AVISO: estás #{Enum.join(names, ", ")}. Esto puede afectar a tus tiradas de ataque.\n"
         end
 
       if combat? do
@@ -210,10 +218,13 @@ defmodule Dragones.PCAgent do
 
         spell_line =
           if spells != "",
-            do: "- Conjurar: cast_spell(\"#{c.name}\", \"<hechizo>\", \"<objetivo de la lista>\") — hechizos: #{spells}.\n",
+            do:
+              "- Conjurar: cast_spell(\"#{c.name}\", \"<hechizo>\", \"<objetivo de la lista>\") — hechizos: #{spells}.\n",
             else: ""
 
-        base <> spell_line <> cond_line <>
+        base <>
+          spell_line <>
+          cond_line <>
           "Elige UNA acción y llama a la herramienta. Luego reacciona en 1-2 frases. Responde en castellano."
       else
         # Exploration (or combat with no living enemies): NO fuerces un tool.
@@ -274,44 +285,55 @@ defmodule Dragones.PCAgent do
   defp personality(%Character{class: c, backstory: story}) do
     class_trait = class_personality(c)
 
-    parts = [
-      "PERSONALIDAD: #{class_trait}",
-      if(story && story != "", do: "TRASFONDO: #{story}", else: nil)
-    ]
-    |> Enum.reject(&is_nil/1)
+    parts =
+      [
+        "PERSONALIDAD: #{class_trait}",
+        if(story && story != "", do: "TRASFONDO: #{story}", else: nil)
+      ]
+      |> Enum.reject(&is_nil/1)
 
     Enum.join(parts, "\n")
   end
 
   defp class_personality("barbarian"),
-    do: "Eres fiero, primitivo y te enfadas con facilidad. Cargas al combate con un rugido, confías en tus instintos y resuelves los problemas con fuerza bruta. Eres ferozmente leal a tus aliados."
+    do:
+      "Eres fiero, primitivo y te enfadas con facilidad. Cargas al combate con un rugido, confías en tus instintos y resuelves los problemas con fuerza bruta. Eres ferozmente leal a tus aliados."
 
   defp class_personality("bard"),
-    do: "Eres carismático, creativo y siempre tienes una frase o una canción a punto. Encantas en las situaciones sociales e inspiras a tus aliados con palabras y música."
+    do:
+      "Eres carismático, creativo y siempre tienes una frase o una canción a punto. Encantas en las situaciones sociales e inspiras a tus aliados con palabras y música."
 
   defp class_personality("cleric"),
-    do: "Eres devoto, compasivo y te guía la fe. Curas a los heridos, proteges a los inocentes y hablas con la autoridad serena de quien sirve a un poder superior."
+    do:
+      "Eres devoto, compasivo y te guía la fe. Curas a los heridos, proteges a los inocentes y hablas con la autoridad serena de quien sirve a un poder superior."
 
   defp class_personality("druid"),
-    do: "Eres sabio, sintonizado con la naturaleza y protector de lo salvaje. Prefieres las formas antiguas, hablas erior a través de las artes marciales."
+    do:
+      "Eres sabio, sintonizado con la naturaleza y protector de lo salvaje. Prefieres las formas antiguas, hablas erior a través de las artes marciales."
 
   defp class_personality("paladin"),
-    do: "Eres honorable, justo y estás vinculado por un juramento sagrado. Luchas por la justicia, proteges a los débiles y preferirías morir antes que romper tu palabra. Tu convicción es tu fuerza."
+    do:
+      "Eres honorable, justo y estás vinculado por un juramento sagrado. Luchas por la justicia, proteges a los débiles y preferirías morir antes que romper tu palabra. Tu convicción es tu fuerza."
 
   defp class_personality("ranger"),
-    do: "Eres paciente, observador y te sientes en casa en la naturaleza. Rastreas a tu presa, golpeas a distancia y confías en la tierra. Eres autosuficiente y práctico."
+    do:
+      "Eres paciente, observador y te sientes en casa en la naturaleza. Rastreas a tu presa, golpeas a distancia y confías en la tierra. Eres autosuficiente y práctico."
 
   defp class_personality("rogue"),
-    do: "Eres astuto, sigiloso y oportunista. Buscas el ángulo, aprovechas los puntos débiles y golpeas cuando llega el momento. Tienes la lengua afilada y los reflejos aún más."
+    do:
+      "Eres astuto, sigiloso y oportunista. Buscas el ángulo, aprovechas los puntos débiles y golpeas cuando llega el momento. Tienes la lengua afilada y los reflejos aún más."
 
   defp class_personality("sorcerer"),
-    do: "Eres seguro, intuitivo y desbordas poder crudo. La magia fluye por ti de forma natural — no la estudias, la sientes. Eres audaz y a veces temerario."
+    do:
+      "Eres seguro, intuitivo y desbordas poder crudo. La magia fluye por ti de forma natural — no la estudias, la sientes. Eres audaz y a veces temerario."
 
   defp class_personality("warlock"),
-    do: "Eres ambicioso, misterioso y estás atado por un pacto con un poder más allá del entendimiento mortal. Buscas conocimiento y ventaja, y tu magia tiene un precio que aceptas de buen grado."
+    do:
+      "Eres ambicioso, misterioso y estás atado por un pacto con un poder más allá del entendimiento mortal. Buscas conocimiento y ventaja, y tu magia tiene un precio que aceptas de buen grado."
 
   defp class_personality("wizard"),
-    do: "Eres curioso, metódico y estás fascinado sin fin por la magia. Afrontas los problemas de forma analítica, valoras el conocimiento por encima de todo y siempre tienes el hechizo adecuado para la situación."
+    do:
+      "Eres curioso, metódico y estás fascinado sin fin por la magia. Afrontas los problemas de forma analítica, valoras el conocimiento por encima de todo y siempre tienes el hechizo adecuado para la situación."
 
   defp class_personality(_),
     do: "Eres un aventurero capaz con tus propias motivaciones y estilo."
@@ -323,7 +345,11 @@ defmodule Dragones.PCAgent do
       if s == [] do
         ""
       else
-        spells = s |> Enum.map(&"#{&1.name} (#{if &1.level == 0, do: "truco", else: "nivel #{&1.level}"})") |> Enum.join(", ")
+        spells =
+          s
+          |> Enum.map(&"#{&1.name} (#{if &1.level == 0, do: "truco", else: "nivel #{&1.level}"})")
+          |> Enum.join(", ")
+
         "\n- Hechizos conocidos: #{spells}."
       end
 

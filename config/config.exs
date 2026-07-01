@@ -6,8 +6,7 @@ config :dragones, :generators, timestamp_type: :naive_datetime
 
 config :dragones, ecto_repos: [Dragones.Repo]
 
-config :dragones, Dragones.Repo,
-  migration_timestamps: [type: :naive_datetime]
+config :dragones, Dragones.Repo, migration_timestamps: [type: :naive_datetime]
 
 config :dragones, DragonesWeb.Endpoint,
   url: [host: "localhost"],

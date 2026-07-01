@@ -32,7 +32,14 @@ defmodule Dragones.Heroes.Scoring do
 
   @type method :: :standard_array | :point_buy | :custom
 
-  @type score_map :: %{str: integer(), dex: integer(), con: integer(), int: integer(), wis: integer(), cha: integer()}
+  @type score_map :: %{
+          str: integer(),
+          dex: integer(),
+          con: integer(),
+          int: integer(),
+          wis: integer(),
+          cha: integer()
+        }
 
   @doc "The standard array values."
   @spec standard_array() :: [integer()]
@@ -117,7 +124,8 @@ defmodule Dragones.Heroes.Scoring do
     if Enum.sort(values) == Enum.sort(@standard_array) do
       :ok
     else
-      {:error, "standard array must be exactly #{inspect(@standard_array)}, got: #{inspect(values)}"}
+      {:error,
+       "standard array must be exactly #{inspect(@standard_array)}, got: #{inspect(values)}"}
     end
   end
 

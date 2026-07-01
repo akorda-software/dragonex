@@ -44,9 +44,14 @@ defmodule Dragones.Flows.LiveDMTest do
     unless live_ready?(),
       do: flunk("set DRAGONES_RUN_LIVE=1 and OPENROUTER_API_KEY to run this test")
 
-    {:ok, dm} = Server.start_link(agent: DM.new(model()), agent_id: "dm-init-#{unique()}", pubsub: :local)
+    {:ok, dm} =
+      Server.start_link(agent: DM.new(model()), agent_id: "dm-init-#{unique()}", pubsub: :local)
 
-    world = build(World.new(), [World.add_character(Archetypes.fighter()), World.add_character(Monsters.goblin())])
+    world =
+      build(World.new(), [
+        World.add_character(Archetypes.fighter()),
+        World.add_character(Monsters.goblin())
+      ])
 
     {:ok, game} = session(world, dm)
 
@@ -56,7 +61,11 @@ defmodule Dragones.Flows.LiveDMTest do
     assert {:ok, %{usage: usage}} =
              Server.chat(
                dm,
-                Brief.turn_prompt(Session.read_state(game), "dm", "Begin the fight: roll initiative."),
+               Brief.turn_prompt(
+                 Session.read_state(game),
+                 "dm",
+                 "Begin the fight: roll initiative."
+               ),
                deps: deps
              )
 
@@ -70,7 +79,8 @@ defmodule Dragones.Flows.LiveDMTest do
     unless live_ready?(),
       do: flunk("set DRAGONES_RUN_LIVE=1 and OPENROUTER_API_KEY to run this test")
 
-    {:ok, dm} = Server.start_link(agent: DM.new(model()), agent_id: "dm-atk-#{unique()}", pubsub: :local)
+    {:ok, dm} =
+      Server.start_link(agent: DM.new(model()), agent_id: "dm-atk-#{unique()}", pubsub: :local)
 
     world =
       build(World.new(), [
@@ -94,11 +104,11 @@ defmodule Dragones.Flows.LiveDMTest do
     assert {:ok, _} =
              Server.chat(
                dm,
-                Brief.turn_prompt(
-                  Session.read_state(game),
-                  "dm",
-                  "Run the goblin's turn: it attacks Thane. Call the right tool, then narrate."
-                ),
+               Brief.turn_prompt(
+                 Session.read_state(game),
+                 "dm",
+                 "Run the goblin's turn: it attacks Thane. Call the right tool, then narrate."
+               ),
                deps: %{state: SharedState.new(game, "dm"), roller: roller}
              )
 

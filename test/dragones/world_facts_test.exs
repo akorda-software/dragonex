@@ -34,18 +34,29 @@ defmodule Dragones.WorldFactsTest do
 
     # The DM records a concrete hook on its first beat.
     script = [
-      tool_calls([call("establish_fact", %{"fact" => "Un mensajero del Concejo entregó a Thane un pergamino con una misión en Thornwood"})]),
+      tool_calls([
+        call("establish_fact", %{
+          "fact" =>
+            "Un mensajero del Concejo entregó a Thane un pergamino con una misión en Thornwood"
+        })
+      ]),
       text("Un mensajero cruza la taberna y entrega un pergamino a Thane.")
     ]
 
     pid =
-      ExUnit.Callbacks.start_supervised!({Dragones.Game, {game.id, [model: %Test{script: script}, roller: fn _ -> 10 end]}})
+      ExUnit.Callbacks.start_supervised!(
+        {Dragones.Game, {game.id, [model: %Test{script: script}, roller: fn _ -> 10 end]}}
+      )
 
     # Wait until the DM beat (and its tool call) has run.
     assert :ok ==
-             Game.await(pid, fn s ->
-               Game.world(pid).facts != []
-             end, 5_000)
+             Game.await(
+               pid,
+               fn s ->
+                 Game.world(pid).facts != []
+               end,
+               5_000
+             )
 
     facts = Game.world(pid).facts
     assert Enum.any?(facts, &String.contains?(&1, "mensajero del Concejo"))

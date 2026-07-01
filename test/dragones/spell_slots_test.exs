@@ -11,19 +11,48 @@ defmodule Dragones.SpellSlotsTest do
   defp fixed(value), do: Dragones.Dice.always(value)
 
   defp wizard_world do
-    wiz = Character.new(
-      name: "Lyra",
-      class: "wizard",
-      hp: 8, max_hp: 8, ac: 10,
-      str: 8, dex: 14, con: 14, int: 16, wis: 12, cha: 10,
-      level: 1,
-      weapons: [%Dragones.Weapon{name: "quarterstaff", dice: "1d6", damage_type: "bludgeoning", attack_ability: :str}],
-      spells: [
-        %Dragones.Spell{name: "fire bolt", level: 0, kind: :attack, casting_ability: :int, dice: "1d10", damage_type: "fire"},
-        %Dragones.Spell{name: "magic missile", level: 1, kind: :automatic, casting_ability: :int, dice: "3d4+3", damage_type: "force"}
-      ],
-      side: "pc"
-    )
+    wiz =
+      Character.new(
+        name: "Lyra",
+        class: "wizard",
+        hp: 8,
+        max_hp: 8,
+        ac: 10,
+        str: 8,
+        dex: 14,
+        con: 14,
+        int: 16,
+        wis: 12,
+        cha: 10,
+        level: 1,
+        weapons: [
+          %Dragones.Weapon{
+            name: "quarterstaff",
+            dice: "1d6",
+            damage_type: "bludgeoning",
+            attack_ability: :str
+          }
+        ],
+        spells: [
+          %Dragones.Spell{
+            name: "fire bolt",
+            level: 0,
+            kind: :attack,
+            casting_ability: :int,
+            dice: "1d10",
+            damage_type: "fire"
+          },
+          %Dragones.Spell{
+            name: "magic missile",
+            level: 1,
+            kind: :automatic,
+            casting_ability: :int,
+            dice: "3d4+3",
+            damage_type: "force"
+          }
+        ],
+        side: "pc"
+      )
 
     gob = Character.new(name: "goblin", class: "monster", hp: 7, max_hp: 7, ac: 15, side: "enemy")
 
@@ -143,15 +172,35 @@ defmodule Dragones.SpellSlotsTest do
 
   describe "backward compat" do
     test "untracked world (no init_spell_slots) casts freely" do
-      wiz = Character.new(
-        name: "Lyra", class: "wizard", level: 1,
-        hp: 8, max_hp: 8, ac: 10,
-        str: 8, dex: 14, con: 14, int: 16, wis: 12, cha: 10,
-        spells: [%Dragones.Spell{name: "magic missile", level: 1, kind: :automatic, casting_ability: :int, dice: "3d4+3", damage_type: "force"}],
-        side: "pc"
-      )
+      wiz =
+        Character.new(
+          name: "Lyra",
+          class: "wizard",
+          level: 1,
+          hp: 8,
+          max_hp: 8,
+          ac: 10,
+          str: 8,
+          dex: 14,
+          con: 14,
+          int: 16,
+          wis: 12,
+          cha: 10,
+          spells: [
+            %Dragones.Spell{
+              name: "magic missile",
+              level: 1,
+              kind: :automatic,
+              casting_ability: :int,
+              dice: "3d4+3",
+              damage_type: "force"
+            }
+          ],
+          side: "pc"
+        )
 
-      gob = Character.new(name: "goblin", class: "monster", hp: 7, max_hp: 7, ac: 15, side: "enemy")
+      gob =
+        Character.new(name: "goblin", class: "monster", hp: 7, max_hp: 7, ac: 15, side: "enemy")
 
       # World without init_spell_slots
       {:ok, w} = World.add_character(wiz).(World.new())

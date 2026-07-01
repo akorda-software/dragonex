@@ -11,18 +11,48 @@ defmodule Dragones.HealingAndBestiaryTest do
 
   describe "healing spells" do
     test "cure_wounds heals the target (not damages)" do
-      cleric = Character.new(
-        name: "Elder", class: "cleric", level: 1, hp: 8, max_hp: 8, ac: 16,
-        str: 14, dex: 10, con: 13, int: 10, wis: 16, cha: 12,
-        spells: [%Dragones.Spell{name: "cure wounds", level: 1, kind: :automatic, casting_ability: :wis, dice: "1d8"}],
-        side: "pc"
-      )
+      cleric =
+        Character.new(
+          name: "Elder",
+          class: "cleric",
+          level: 1,
+          hp: 8,
+          max_hp: 8,
+          ac: 16,
+          str: 14,
+          dex: 10,
+          con: 13,
+          int: 10,
+          wis: 16,
+          cha: 12,
+          spells: [
+            %Dragones.Spell{
+              name: "cure wounds",
+              level: 1,
+              kind: :automatic,
+              casting_ability: :wis,
+              dice: "1d8"
+            }
+          ],
+          side: "pc"
+        )
 
-      fighter = Character.new(
-        name: "Thane", class: "fighter", level: 1, hp: 3, max_hp: 12, ac: 16,
-        str: 16, dex: 12, con: 14, int: 10, wis: 10, cha: 10,
-        side: "pc"
-      )
+      fighter =
+        Character.new(
+          name: "Thane",
+          class: "fighter",
+          level: 1,
+          hp: 3,
+          max_hp: 12,
+          ac: 16,
+          str: 16,
+          dex: 12,
+          con: 14,
+          int: 10,
+          wis: 10,
+          cha: 10,
+          side: "pc"
+        )
 
       {:ok, w} = World.add_character(cleric).(World.new())
       {:ok, w} = World.add_character(fighter).(w)
@@ -33,18 +63,47 @@ defmodule Dragones.HealingAndBestiaryTest do
 
       assert msg =~ "se cura"
       {:ok, w2} = change.(w)
-      assert w2.characters["Thane"].hp == 11  # 3 + 8 = 11 (capped at 12? no: 3+8=11)
+      # 3 + 8 = 11 (capped at 12? no: 3+8=11)
+      assert w2.characters["Thane"].hp == 11
     end
 
     test "healing_word heals and consumes a slot" do
-      cleric = Character.new(
-        name: "Elder", class: "cleric", level: 1, hp: 8, max_hp: 8, ac: 16,
-        str: 14, dex: 10, con: 13, int: 10, wis: 16, cha: 12,
-        spells: [%Dragones.Spell{name: "healing word", level: 1, kind: :automatic, casting_ability: :wis, dice: "1d4"}],
-        side: "pc"
-      )
+      cleric =
+        Character.new(
+          name: "Elder",
+          class: "cleric",
+          level: 1,
+          hp: 8,
+          max_hp: 8,
+          ac: 16,
+          str: 14,
+          dex: 10,
+          con: 13,
+          int: 10,
+          wis: 16,
+          cha: 12,
+          spells: [
+            %Dragones.Spell{
+              name: "healing word",
+              level: 1,
+              kind: :automatic,
+              casting_ability: :wis,
+              dice: "1d4"
+            }
+          ],
+          side: "pc"
+        )
 
-      ally = Character.new(name: "Ally", class: "fighter", level: 1, hp: 2, max_hp: 10, ac: 16, side: "pc")
+      ally =
+        Character.new(
+          name: "Ally",
+          class: "fighter",
+          level: 1,
+          hp: 2,
+          max_hp: 10,
+          ac: 16,
+          side: "pc"
+        )
 
       {:ok, w} = World.add_character(cleric).(World.new())
       {:ok, w} = World.add_character(ally).(w)
@@ -56,16 +115,37 @@ defmodule Dragones.HealingAndBestiaryTest do
       {:ok, w2} = change.(w)
       # d4 = 3, WIS +3 → heal 6, capped at 10-2=8
       assert w2.characters["Ally"].hp == 8
-      assert w2.spell_slots["Elder"][1] == 1  # consumed one
+      # consumed one
+      assert w2.spell_slots["Elder"][1] == 1
     end
 
     test "healing does not affect damage spells (magic missile still damages)" do
-      wizard = Character.new(
-        name: "Lyra", class: "wizard", level: 1, hp: 8, max_hp: 8, ac: 10,
-        str: 8, dex: 14, con: 14, int: 16, wis: 12, cha: 10,
-        spells: [%Dragones.Spell{name: "magic missile", level: 1, kind: :automatic, casting_ability: :int, dice: "3d4+3", damage_type: "force"}],
-        side: "pc"
-      )
+      wizard =
+        Character.new(
+          name: "Lyra",
+          class: "wizard",
+          level: 1,
+          hp: 8,
+          max_hp: 8,
+          ac: 10,
+          str: 8,
+          dex: 14,
+          con: 14,
+          int: 16,
+          wis: 12,
+          cha: 10,
+          spells: [
+            %Dragones.Spell{
+              name: "magic missile",
+              level: 1,
+              kind: :automatic,
+              casting_ability: :int,
+              dice: "3d4+3",
+              damage_type: "force"
+            }
+          ],
+          side: "pc"
+        )
 
       gob = Character.new(name: "gob", class: "monster", hp: 7, max_hp: 7, ac: 15, side: "enemy")
 

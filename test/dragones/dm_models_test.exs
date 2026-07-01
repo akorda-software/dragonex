@@ -20,7 +20,8 @@ defmodule Dragones.DMModelsTest do
 
   describe "DM.new/2 compaction wiring" do
     test "wires a Compaction.Summary capability when a summarizer is given" do
-      agent = DM.new(%ExAgent.Models.Test{label: "x"}, summarizer: %ExAgent.Models.Test{label: "s"})
+      agent =
+        DM.new(%ExAgent.Models.Test{label: "x"}, summarizer: %ExAgent.Models.Test{label: "s"})
 
       assert Enum.any?(agent.capabilities, &match?(%Compaction.Capability{}, &1))
     end
@@ -53,7 +54,8 @@ defmodule Dragones.DMModelsTest do
           capabilities: [compaction]
         )
 
-      {:ok, server} = Server.start_link(agent: agent, agent_id: "compact-#{System.unique_integer([:positive])}")
+      {:ok, server} =
+        Server.start_link(agent: agent, agent_id: "compact-#{System.unique_integer([:positive])}")
 
       # Several short chats build up history well past the 20-token threshold.
       for n <- 1..6, do: assert({:ok, _} = Server.chat(server, "turn #{n}"))

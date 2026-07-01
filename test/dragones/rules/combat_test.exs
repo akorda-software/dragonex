@@ -175,7 +175,8 @@ defmodule Dragones.Rules.CombatTest do
       # STR +3; seq [10,15] -> advantage keeps 15 -> 18 vs DC 18 -> success.
       assert {15, 18, true} = Combat.ability_check(f, :str, 18, seq([10, 15]), false, :advantage)
       # seq [10,15] -> disadvantage keeps 10 -> 13 vs DC 18 -> failure.
-      assert {10, 13, false} = Combat.ability_check(f, :str, 18, seq([10, 15]), false, :disadvantage)
+      assert {10, 13, false} =
+               Combat.ability_check(f, :str, 18, seq([10, 15]), false, :disadvantage)
     end
   end
 end

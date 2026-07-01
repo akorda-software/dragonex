@@ -48,8 +48,8 @@ defmodule Dragones.GameRetryTest.FlakyModel do
   # Returns true while failures remain (and decrements); false once exhausted.
   defp dec(counter) do
     Agent.get_and_update(counter, fn
-      0 -> {:false, 0}
-      n -> {:true, n - 1}
+      0 -> {false, 0}
+      n -> {true, n - 1}
     end)
   end
 
@@ -134,7 +134,9 @@ defmodule Dragones.GameRetryTest do
   defp run_until_thane_waits(game_id, model) do
     capture_log(fn ->
       pid =
-        ExUnit.Callbacks.start_supervised!({Dragones.Game, {game_id, [model: model, roller: hit_roller()]}})
+        ExUnit.Callbacks.start_supervised!(
+          {Dragones.Game, {game_id, [model: model, roller: hit_roller()]}}
+        )
 
       assert :ok == Game.await(pid, waiting_on("Thane"), 8_000)
     end)
@@ -157,7 +159,12 @@ defmodule Dragones.GameRetryTest do
     {_counter, model} =
       flaky(
         2,
-        %RequestError{provider: :openrouter, status: 503, reason: :http_error, body: "overloaded"},
+        %RequestError{
+          provider: :openrouter,
+          status: 503,
+          reason: :http_error,
+          body: "overloaded"
+        },
         @recovery
       )
 
@@ -195,7 +202,12 @@ defmodule Dragones.GameRetryTest do
     {_counter, model} =
       flaky(
         99,
-        %RequestError{provider: :openrouter, status: 503, reason: :http_error, body: "overloaded"},
+        %RequestError{
+          provider: :openrouter,
+          status: 503,
+          reason: :http_error,
+          body: "overloaded"
+        },
         @recovery
       )
 
@@ -214,7 +226,12 @@ defmodule Dragones.GameRetryTest do
     {_counter, model} =
       flaky(
         99,
-        %RequestError{provider: :openrouter, status: 400, reason: :http_error, body: "bad request"},
+        %RequestError{
+          provider: :openrouter,
+          status: 400,
+          reason: :http_error,
+          body: "bad request"
+        },
         @recovery
       )
 
@@ -233,8 +250,12 @@ defmodule Dragones.GameRetryTest do
     {_counter, model} =
       flaky(
         1,
-        %RequestError{provider: :openrouter, status: 200, reason: :provider_error,
-          body: "Rate limit exceeded, please try again"},
+        %RequestError{
+          provider: :openrouter,
+          status: 200,
+          reason: :provider_error,
+          body: "Rate limit exceeded, please try again"
+        },
         @recovery
       )
 
@@ -261,12 +282,19 @@ defmodule Dragones.GameRetryTest do
     {_counter, model} =
       flaky(
         99,
-        %RequestError{provider: :openrouter, status: 400, reason: :http_error, body: "bad request"},
+        %RequestError{
+          provider: :openrouter,
+          status: 400,
+          reason: :http_error,
+          body: "bad request"
+        },
         @recovery
       )
 
     pid =
-      ExUnit.Callbacks.start_supervised!({Dragones.Game, {game.id, [model: model, roller: hit_roller()]}})
+      ExUnit.Callbacks.start_supervised!(
+        {Dragones.Game, {game.id, [model: model, roller: hit_roller()]}}
+      )
 
     assert :ok == Game.await(pid, fn s -> s.status == :paused end, 15_000),
            "the partida should auto-pause after a streak of fallback beats"
@@ -277,7 +305,9 @@ defmodule Dragones.GameRetryTest do
 
     assert Enum.any?(
              events,
-             fn e -> e.type == :system and (e.payload["note"] || "") =~ "pausado automáticamente" end
+             fn e ->
+               e.type == :system and (e.payload["note"] || "") =~ "pausado automáticamente"
+             end
            ),
            "a system note should explain the auto-pause"
 

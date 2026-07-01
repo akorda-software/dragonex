@@ -19,13 +19,43 @@ defmodule Dragones.Roster do
   @spec catalog() :: [map()]
   def catalog do
     [
-      %{key: "fighter", name: "Thane", role: "fighter", side: "pc", builder: &Archetypes.fighter/0},
+      %{
+        key: "fighter",
+        name: "Thane",
+        role: "fighter",
+        side: "pc",
+        builder: &Archetypes.fighter/0
+      },
       %{key: "wizard", name: "Lyra", role: "wizard", side: "pc", builder: &Archetypes.wizard/0},
       %{key: "rogue", name: "Vex", role: "rogue", side: "pc", builder: &Archetypes.rogue/0},
-      %{key: "goblin", name: "goblin", role: "monster", side: "enemy", builder: &Monsters.goblin/0},
-      %{key: "kobold", name: "kobold", role: "monster", side: "enemy", builder: &Monsters.kobold/0},
-      %{key: "bandit", name: "bandit", role: "monster", side: "enemy", builder: &Monsters.bandit/0},
-      %{key: "skeleton", name: "skeleton", role: "monster", side: "enemy", builder: &Monsters.skeleton/0},
+      %{
+        key: "goblin",
+        name: "goblin",
+        role: "monster",
+        side: "enemy",
+        builder: &Monsters.goblin/0
+      },
+      %{
+        key: "kobold",
+        name: "kobold",
+        role: "monster",
+        side: "enemy",
+        builder: &Monsters.kobold/0
+      },
+      %{
+        key: "bandit",
+        name: "bandit",
+        role: "monster",
+        side: "enemy",
+        builder: &Monsters.bandit/0
+      },
+      %{
+        key: "skeleton",
+        name: "skeleton",
+        role: "monster",
+        side: "enemy",
+        builder: &Monsters.skeleton/0
+      },
       %{key: "wolf", name: "wolf", role: "monster", side: "enemy", builder: &Monsters.wolf/0},
       %{key: "orc", name: "orc", role: "monster", side: "enemy", builder: &Monsters.orc/0},
       %{key: "ogre", name: "ogre", role: "monster", side: "enemy", builder: &Monsters.ogre/0}

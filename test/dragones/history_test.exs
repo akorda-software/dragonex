@@ -20,7 +20,12 @@ defmodule Dragones.HistoryTest do
     do: %GameEvent{type: :narration, actor: actor, payload: %{"text" => text}, seq: seq}
 
   defp turn(actor, round, phase, seq),
-    do: %GameEvent{type: :turn, actor: actor, payload: %{"kind" => "start", "round" => round, "phase" => phase}, seq: seq}
+    do: %GameEvent{
+      type: :turn,
+      actor: actor,
+      payload: %{"kind" => "start", "round" => round, "phase" => phase},
+      seq: seq
+    }
 
   defp responses(messages), do: Enum.filter(messages, &match?(%Response{}, &1))
 

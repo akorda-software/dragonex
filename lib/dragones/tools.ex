@@ -78,23 +78,40 @@ defmodule Dragones.Tools do
 
   @doc "Roll `count` d`sides`, optionally with advantage/disadvantage."
   deftool roll_dice(ctx, count :: pos_integer(), sides :: pos_integer()) do
-    {:ok, msg} = Dragones.Actions.roll(count, sides, :normal, ctx.deps.roller, ctx.deps[:roll_log])
+    {:ok, msg} =
+      Dragones.Actions.roll(count, sides, :normal, ctx.deps.roller, ctx.deps[:roll_log])
+
     {:ok, msg}
   end
 
   @doc "Roll initiative for every conscious combatant and begin combat."
   deftool roll_initiative(ctx) do
-    with {:ok, msg, change} <- Dragones.Actions.initiative(world(ctx), ctx.deps.roller, ctx.deps[:roll_log]),
+    with {:ok, msg, change} <-
+           Dragones.Actions.initiative(world(ctx), ctx.deps.roller, ctx.deps[:roll_log]),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
     end
   end
 
   @doc "Resolve a weapon attack from `attacker` onto `target` by the rules. Pass mode \"advantage\"/\"disadvantage\" when it applies."
-  deftool make_attack(ctx, attacker :: String.t(), target :: String.t(), weapon :: String.t(), mode :: String.t()) do
+  deftool make_attack(
+            ctx,
+            attacker :: String.t(),
+            target :: String.t(),
+            weapon :: String.t(),
+            mode :: String.t()
+          ) do
     with :ok <- assert_controls(ctx, attacker),
          {:ok, msg, change} <-
-           Dragones.Actions.attack(world(ctx), attacker, target, weapon, ctx.deps.roller, parse_mode(mode), ctx.deps[:roll_log]),
+           Dragones.Actions.attack(
+             world(ctx),
+             attacker,
+             target,
+             weapon,
+             ctx.deps.roller,
+             parse_mode(mode),
+             ctx.deps[:roll_log]
+           ),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
     end
@@ -104,7 +121,14 @@ defmodule Dragones.Tools do
   deftool cast_spell(ctx, caster :: String.t(), spell :: String.t(), target :: String.t()) do
     with :ok <- assert_controls(ctx, caster),
          {:ok, msg, change} <-
-           Dragones.Actions.spell(world(ctx), caster, spell, target, ctx.deps.roller, ctx.deps[:roll_log]),
+           Dragones.Actions.spell(
+             world(ctx),
+             caster,
+             spell,
+             target,
+             ctx.deps.roller,
+             ctx.deps[:roll_log]
+           ),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
     end
@@ -113,7 +137,13 @@ defmodule Dragones.Tools do
   @doc "Make a death saving throw for a down `character`."
   deftool make_death_save(ctx, character :: String.t()) do
     with :ok <- assert_controls(ctx, character),
-         {:ok, msg, change} <- Dragones.Actions.death_save(world(ctx), character, ctx.deps.roller, ctx.deps[:roll_log]),
+         {:ok, msg, change} <-
+           Dragones.Actions.death_save(
+             world(ctx),
+             character,
+             ctx.deps.roller,
+             ctx.deps[:roll_log]
+           ),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
     end
@@ -127,7 +157,8 @@ defmodule Dragones.Tools do
 
   @doc "Short rest: spend a hit die to recover HP. Available outside combat."
   deftool short_rest(ctx, target :: String.t()) do
-    with {:ok, msg, change} <- Dragones.Actions.short_rest(world(ctx), target, ctx.deps.roller, ctx.deps[:roll_log]),
+    with {:ok, msg, change} <-
+           Dragones.Actions.short_rest(world(ctx), target, ctx.deps.roller, ctx.deps[:roll_log]),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
     end
@@ -159,19 +190,25 @@ defmodule Dragones.Tools do
     if monster do
       # Add the monster AND join it to the initiative order when mid-combat
       # (join_initiative is a no-op in exploration, so composing is always safe).
-      change = compose(Dragones.World.add_character(monster), Dragones.World.join_initiative(monster.name))
+      change =
+        compose(
+          Dragones.World.add_character(monster),
+          Dragones.World.join_initiative(monster.name)
+        )
 
       with {:ok, _} <- propose(ctx, change) do
         {:ok, "¡Aparece #{name} (#{kind})! PG #{monster.hp}, CA #{monster.ac}."}
       end
     else
-      {:ok, "Tipo de monstruo desconocido '#{kind}'. Disponibles: #{Enum.join(Dragones.Monsters.keys(), ", ")}"}
+      {:ok,
+       "Tipo de monstruo desconocido '#{kind}'. Disponibles: #{Enum.join(Dragones.Monsters.keys(), ", ")}"}
     end
   end
 
   @doc "Heal `target` by a dice expression (e.g. \"1d8+3\"); caps at max hp, clears death saves."
   deftool heal(ctx, target :: String.t(), dice :: String.t()) do
-    with {:ok, msg, change} <- Dragones.Actions.heal(world(ctx), target, dice, ctx.deps.roller, ctx.deps[:roll_log]),
+    with {:ok, msg, change} <-
+           Dragones.Actions.heal(world(ctx), target, dice, ctx.deps.roller, ctx.deps[:roll_log]),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
     end
@@ -183,7 +220,13 @@ defmodule Dragones.Tools do
   `proficient` (optional, the DM asserts it) adds the proficiency bonus.
   Pass mode "advantage"/"disadvantage" when it applies.
   """
-  deftool ability_check(ctx, who :: String.t(), ability :: String.t(), dc :: integer(), mode :: String.t()) do
+  deftool ability_check(
+            ctx,
+            who :: String.t(),
+            ability :: String.t(),
+            dc :: integer(),
+            mode :: String.t()
+          ) do
     with :ok <- assert_controls(ctx, who),
          {:ok, msg, change} <-
            Dragones.Actions.check(

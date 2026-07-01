@@ -30,7 +30,13 @@ defmodule Dragones.Rules.Combat do
     * nat 1  — automatic miss.
     * else   — hit when the total meets the AC.
   """
-  @spec attack_roll(Character.t(), Weapon.t(), non_neg_integer(), roller(), :normal | :advantage | :disadvantage) :: attack_outcome()
+  @spec attack_roll(
+          Character.t(),
+          Weapon.t(),
+          non_neg_integer(),
+          roller(),
+          :normal | :advantage | :disadvantage
+        ) :: attack_outcome()
   def attack_roll(%Character{} = attacker, %Weapon{} = weapon, target_ac, roller, mode \\ :normal) do
     d20 = roll_d20(roller, mode)
     total = d20 + Ability.proficiency(attacker.level) + ability_for_weapon(attacker, weapon)
@@ -75,7 +81,13 @@ defmodule Dragones.Rules.Combat do
   Returns `{d20, total, success?}`. Adds the proficiency bonus when the target
   is proficient in the relevant ability save.
   """
-  @spec saving_throw(Character.t(), ability(), integer(), roller(), :normal | :advantage | :disadvantage) ::
+  @spec saving_throw(
+          Character.t(),
+          ability(),
+          integer(),
+          roller(),
+          :normal | :advantage | :disadvantage
+        ) ::
           {pos_integer(), integer(), boolean()}
   def saving_throw(%Character{} = target, save_ability, dc, roller, mode \\ :normal) do
     d20 = roll_d20(roller, mode)
@@ -95,7 +107,14 @@ defmodule Dragones.Rules.Combat do
   proficiencies aren't modelled on the character yet, so the caller (the DM)
   asserts it for now.
   """
-  @spec ability_check(Character.t(), ability(), integer(), roller(), boolean(), :normal | :advantage | :disadvantage) ::
+  @spec ability_check(
+          Character.t(),
+          ability(),
+          integer(),
+          roller(),
+          boolean(),
+          :normal | :advantage | :disadvantage
+        ) ::
           {pos_integer(), integer(), boolean()}
   def ability_check(%Character{} = c, ability, dc, roller, proficient \\ false, mode \\ :normal) do
     d20 = roll_d20(roller, mode)

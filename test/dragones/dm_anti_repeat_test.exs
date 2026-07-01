@@ -44,7 +44,9 @@ defmodule Dragones.DMAntiRepeatTest do
     log =
       capture_log(fn ->
         pid =
-          ExUnit.Callbacks.start_supervised!({Dragones.Game, {game.id, [model: model, roller: fn _ -> 10 end]}})
+          ExUnit.Callbacks.start_supervised!(
+            {Dragones.Game, {game.id, [model: model, roller: fn _ -> 10 end]}}
+          )
 
         # The nudge lands on the THIRD DM turn (comparing the previous two);
         # wait for at least three DM narrations so the log captures it.
@@ -74,7 +76,9 @@ defmodule Dragones.DMAntiRepeatTest do
     log =
       capture_log(fn ->
         pid =
-          ExUnit.Callbacks.start_supervised!({Dragones.Game, {game.id, [model: model, roller: fn _ -> 10 end]}})
+          ExUnit.Callbacks.start_supervised!(
+            {Dragones.Game, {game.id, [model: model, roller: fn _ -> 10 end]}}
+          )
 
         assert :ok ==
                  Game.await(pid, fn _s -> dm_narration_count(game.id) >= 3 end, 10_000)
@@ -99,7 +103,9 @@ defmodule Dragones.DMAntiRepeatTest do
     log =
       capture_log(fn ->
         pid =
-          ExUnit.Callbacks.start_supervised!({Dragones.Game, {game.id, [model: model, roller: fn _ -> 10 end]}})
+          ExUnit.Callbacks.start_supervised!(
+            {Dragones.Game, {game.id, [model: model, roller: fn _ -> 10 end]}}
+          )
 
         assert :ok ==
                  Game.await(pid, fn _s -> dm_narration_count(game.id) >= 2 end, 10_000)

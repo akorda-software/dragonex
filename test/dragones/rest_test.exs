@@ -11,15 +11,21 @@ defmodule Dragones.RestTest do
   defp fixed(value), do: Dragones.Dice.always(value)
 
   defp world_with_hurt_fighter do
-    fighter = Character.new(
-      name: "hero",
-      class: "fighter",
-      hp: 5,
-      max_hp: 12,
-      ac: 16,
-      str: 16, dex: 12, con: 14, int: 10, wis: 10, cha: 10,
-      side: "pc"
-    )
+    fighter =
+      Character.new(
+        name: "hero",
+        class: "fighter",
+        hp: 5,
+        max_hp: 12,
+        ac: 16,
+        str: 16,
+        dex: 12,
+        con: 14,
+        int: 10,
+        wis: 10,
+        cha: 10,
+        side: "pc"
+      )
 
     world = World.new()
     {:ok, w} = World.add_character(fighter).(world)
@@ -27,15 +33,21 @@ defmodule Dragones.RestTest do
   end
 
   defp world_with_hurt_wizard do
-    wizard = Character.new(
-      name: "mage",
-      class: "wizard",
-      hp: 2,
-      max_hp: 8,
-      ac: 10,
-      str: 8, dex: 14, con: 14, int: 16, wis: 12, cha: 10,
-      side: "pc"
-    )
+    wizard =
+      Character.new(
+        name: "mage",
+        class: "wizard",
+        hp: 2,
+        max_hp: 8,
+        ac: 10,
+        str: 8,
+        dex: 14,
+        con: 14,
+        int: 16,
+        wis: 12,
+        cha: 10,
+        side: "pc"
+      )
 
     world = World.new()
     {:ok, w} = World.add_character(wizard).(world)

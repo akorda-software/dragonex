@@ -80,9 +80,15 @@ defmodule Dragones.Brief do
     {ai, humans} = Enum.split_with(pcs, fn n -> kinds[n] == :ai end)
 
     case {ai, humans} do
-      {[], []} -> ""
-      {[], _} -> "Control: #{Enum.join(humans, ", ")} son jugadores humanos (esperan su input)."
-      {_, []} -> "Control: #{Enum.join(ai, ", ")} son PJ gestionados por IA (juegan solos en su turno; NO les pidas su acción)."
+      {[], []} ->
+        ""
+
+      {[], _} ->
+        "Control: #{Enum.join(humans, ", ")} son jugadores humanos (esperan su input)."
+
+      {_, []} ->
+        "Control: #{Enum.join(ai, ", ")} son PJ gestionados por IA (juegan solos en su turno; NO les pidas su acción)."
+
       {_, _} ->
         "Control: #{Enum.join(humans, ", ")} son jugadores humanos (esperan su input); " <>
           "#{Enum.join(ai, ", ")} son PJ gestionados por IA (juegan solos; NO les pidas su acción)."
@@ -114,14 +120,19 @@ defmodule Dragones.Brief do
 
     cond_str =
       case c.conditions || [] do
-        [] -> ""
+        [] ->
+          ""
+
         conds ->
-          names = Enum.map(conds, fn
-            %{condition: cd} -> cd
-            %{"condition" => cd} -> cd
-            cd when is_binary(cd) -> cd
-            _ -> nil
-          end) |> Enum.reject(&is_nil/1)
+          names =
+            Enum.map(conds, fn
+              %{condition: cd} -> cd
+              %{"condition" => cd} -> cd
+              cd when is_binary(cd) -> cd
+              _ -> nil
+            end)
+            |> Enum.reject(&is_nil/1)
+
           if names == [], do: "", else: " [#{Enum.join(names, ", ")}]"
       end
 

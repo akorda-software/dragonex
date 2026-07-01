@@ -11,23 +11,54 @@ defmodule Dragones.ConditionsTest do
   defp fixed(value), do: Dragones.Dice.always(value)
 
   defp world_with_fighter_and_goblin do
-    fighter = Character.new(
-      name: "hero",
-      class: "fighter",
-      hp: 12, max_hp: 12, ac: 16,
-      str: 16, dex: 12, con: 14, int: 10, wis: 10, cha: 10,
-      weapons: [%Dragones.Weapon{name: "longsword", dice: "1d8", damage_type: "slashing", attack_ability: :str}],
-      side: "pc"
-    )
+    fighter =
+      Character.new(
+        name: "hero",
+        class: "fighter",
+        hp: 12,
+        max_hp: 12,
+        ac: 16,
+        str: 16,
+        dex: 12,
+        con: 14,
+        int: 10,
+        wis: 10,
+        cha: 10,
+        weapons: [
+          %Dragones.Weapon{
+            name: "longsword",
+            dice: "1d8",
+            damage_type: "slashing",
+            attack_ability: :str
+          }
+        ],
+        side: "pc"
+      )
 
-    goblin = Character.new(
-      name: "goblin",
-      class: "monster",
-      hp: 7, max_hp: 7, ac: 15,
-      str: 8, dex: 14, con: 10, int: 10, wis: 8, cha: 8,
-      weapons: [%Dragones.Weapon{name: "shortbow", dice: "1d6", damage_type: "piercing", attack_ability: :dex, ranged: true}],
-      side: "enemy"
-    )
+    goblin =
+      Character.new(
+        name: "goblin",
+        class: "monster",
+        hp: 7,
+        max_hp: 7,
+        ac: 15,
+        str: 8,
+        dex: 14,
+        con: 10,
+        int: 10,
+        wis: 8,
+        cha: 8,
+        weapons: [
+          %Dragones.Weapon{
+            name: "shortbow",
+            dice: "1d6",
+            damage_type: "piercing",
+            attack_ability: :dex,
+            ranged: true
+          }
+        ],
+        side: "enemy"
+      )
 
     world =
       World.new()

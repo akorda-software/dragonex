@@ -56,7 +56,9 @@ defmodule Dragones.DMPuppetPCTest do
     log =
       capture_log(fn ->
         pid =
-          ExUnit.Callbacks.start_supervised!({Dragones.Game, {game.id, [model: model, roller: fn _ -> 10 end]}})
+          ExUnit.Callbacks.start_supervised!(
+            {Dragones.Game, {game.id, [model: model, roller: fn _ -> 10 end]}}
+          )
 
         # Wait for at least two DM narrations — the second one runs WITH the
         # rule-14 nudge stitched onto its instruction.
@@ -92,7 +94,9 @@ defmodule Dragones.DMPuppetPCTest do
     log =
       capture_log(fn ->
         pid =
-          ExUnit.Callbacks.start_supervised!({Dragones.Game, {game.id, [model: model, roller: fn _ -> 10 end]}})
+          ExUnit.Callbacks.start_supervised!(
+            {Dragones.Game, {game.id, [model: model, roller: fn _ -> 10 end]}}
+          )
 
         assert :ok ==
                  Game.await(

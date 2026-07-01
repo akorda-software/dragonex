@@ -57,7 +57,9 @@ defmodule Dragones.RollLog do
   """
   @spec start(keyword()) :: Agent.on_start()
   def start(opts \\ []) do
-    Agent.start_link(fn -> %{groups: %{}, entries: [], on_close: Keyword.get(opts, :on_close)} end)
+    Agent.start_link(fn ->
+      %{groups: %{}, entries: [], on_close: Keyword.get(opts, :on_close)}
+    end)
   end
 
   @doc "All closed groups this beat, in the order they were closed."

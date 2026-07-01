@@ -44,7 +44,9 @@ defmodule Dragones.PCAntiLoopTest do
     log =
       capture_log(fn ->
         pid =
-          ExUnit.Callbacks.start_supervised!({Dragones.Game, {game.id, [model: model, roller: fn _ -> 10 end]}})
+          ExUnit.Callbacks.start_supervised!(
+            {Dragones.Game, {game.id, [model: model, roller: fn _ -> 10 end]}}
+          )
 
         # Wait until the fighter has produced at least 3 narrations — by the 3rd
         # turn its previous two lines are near-identical, so the engine injects
@@ -81,7 +83,9 @@ defmodule Dragones.PCAntiLoopTest do
     log =
       capture_log(fn ->
         pid =
-          ExUnit.Callbacks.start_supervised!({Dragones.Game, {game.id, [model: model, roller: fn _ -> 10 end]}})
+          ExUnit.Callbacks.start_supervised!(
+            {Dragones.Game, {game.id, [model: model, roller: fn _ -> 10 end]}}
+          )
 
         assert :ok ==
                  Game.await(

@@ -30,31 +30,38 @@ defmodule Dragones.Scenarios do
         title: "La Taberna del Dragón Rojo",
         scene: "una taberna rústica junto a un camino comercial, olor a madera y estofado",
         dm_style: "acogedor pero con tensión creciente",
-        hook: "Los aventureros se conocen en una taberna. El posadero les ofrece oro por investigar unos asaltos goblin a las caravanas del camino cercano.",
+        hook:
+          "Los aventureros se conocen en una taberna. El posadero les ofrece oro por investigar unos asaltos goblin a las caravanas del camino cercano.",
         tone: "fantasía heroica clásica, comunidad amenazada",
         npcs: "Borin el posadero (humano, nervioso), la guardia Sable (humana, estoica)",
-        locations: "la taberna del Dragón Rojo, el camino comercial, el campamento goblin en las colinas",
+        locations:
+          "la taberna del Dragón Rojo, el camino comercial, el campamento goblin en las colinas",
         suggested_enemies: ["goblin", "goblin", "wolf"],
-        summary: "Clásico inicio de taberna: goblins asaltan caravanas y los héroes deben limpiar su campamento."
+        summary:
+          "Clásico inicio de taberna: goblins asaltan caravanas y los héroes deben limpiar su campamento."
       },
       %{
         key: "crypt",
         title: "La Cripta del Rey Olvidado",
         scene: "la entrada de piedra de una cripta antigua recién desenterrada, runas mortecinas",
         dm_style: "gótico, opresivo, descriptivo de olores y frío",
-        hook: "Unas excavaciones han destapado una cripta milenaria. Esta noche, luces espectrales brillan en su interior y los aldeanos han desaparecido.",
+        hook:
+          "Unas excavaciones han destapado una cripta milenaria. Esta noche, luces espectrales brillan en su interior y los aldeanos han desaparecido.",
         tone: "terror gótico, tensión constante",
         npcs: "el anciano Aldric (erudito, aterrorizado), la guardiana Mira (paladín, resuelta)",
         locations: "la cripta del Rey Olvidado, la aldea de Valle Oscuro, el cementerio viejo",
         suggested_enemies: ["skeleton", "skeleton", "skeleton"],
-        summary: "No-muerto en una cripta antigua. Los héroes deben descender y poner a descansar a los muertos."
+        summary:
+          "No-muerto en una cripta antigua. Los héroes deben descender y poner a descansar a los muertos."
       },
       %{
         key: "siege",
         title: "El Asedio a Pueblo Roble",
-        scene: "un pueblo fronterizo amurallado con hogueras de orcos visibles en el horizonte al atardecer",
+        scene:
+          "un pueblo fronterizo amurallado con hogueras de orcos visibles en el horizonte al atardecer",
         dm_style: "urgente, militar, decisiones bajo presión",
-        hook: "Pueblo Roble está asediado por una banda de orcos. Los héroes llegan como refuerzos justo antes del asalto final al amanecer.",
+        hook:
+          "Pueblo Roble está asediado por una banda de orcos. Los héroes llegan como refuerzos justo antes del asalto final al amanecer.",
         tone: "urgencia bélica, defensa desesperada",
         npcs: "el capitán Joren (veterano curtido), la curandera Pip (halfling, decidida)",
         locations: "Pueblo Roble, la empalizada, las colinas donde acampan los orcos",
@@ -66,7 +73,8 @@ defmodule Dragones.Scenarios do
         title: "La Torre de Aldric",
         scene: "una torre solitaria de piedra oscura, luces antinaturales parpadean en su cima",
         dm_style: "misterioso, inquietante, revelaciones graduales",
-        hook: "El mago Aldric llevaba meses sin salir de su torre. Ayer, un destello de energía iluminó el cielo y desde entonces extrañas criaturas merodean los alrededores.",
+        hook:
+          "El mago Aldric llevaba meses sin salir de su torre. Ayer, un destello de energía iluminó el cielo y desde entonces extrañas criaturas merodean los alrededores.",
         tone: "misterio arcana, exploración de lo desconocido",
         npcs: "la aprendiz Sable (joven maga, asustada), el fantasma de Aldric (aparición)",
         locations: "la torre de Aldric, el pueblo de Valle Verde, el claro encantado",
@@ -78,18 +86,23 @@ defmodule Dragones.Scenarios do
         title: "Cazadores en el Bosque Negro",
         scene: "un sendero que se adentra en un bosque denso y oscuro, niebla entre los árboles",
         dm_style: "atmosférico, survival, tensión creciente",
-        hook: "Los lobos del Bosque Negro han atacado al ganado durante semanas, pero los aldeanos sospechan que algo los controla. Los héroes deben encontrar la fuente.",
+        hook:
+          "Los lobos del Bosque Negro han atacado al ganado durante semanas, pero los aldeanos sospechan que algo los controla. Los héroes deben encontrar la fuente.",
         tone: "supervivencia en naturaleza, caza y ser cazado",
-        npcs: "el guardabosques Kael (elfo, conocedor del bosque), la lendra Mira (aldeana valiente)",
+        npcs:
+          "el guardabosques Kael (elfo, conocedor del bosque), la lendra Mira (aldeana valiente)",
         locations: "el Bosque Negro, la aldea de los Claros, la cueva oculta en lo profundo",
         suggested_enemies: ["wolf", "wolf", "orc"],
-        summary: "Persigue lobos en un bosque oscuro y descubre qué los controla. Supervivencia y exploración."
+        summary:
+          "Persigue lobos en un bosque oscuro y descubre qué los controla. Supervivencia y exploración."
       },
       %{
         key: "arena",
         title: "Arena de Pruebas",
-        scene: "una arena de entrenamiento cerrada con maniquíes de paja, dianas, barriles, un círculo de invocación para criaturas de prueba y carteles que delimitan cada zona de práctica",
-        dm_style: "metódico y didáctico: guía al jugador por cada mecánica del motor, una a una. Anima a experimentar con ventaja, desventaja, condiciones, magia y descansos. Usa spawn_monster para invocar diferentes enemigos y prueba cada tipo de arma y hechizo",
+        scene:
+          "una arena de entrenamiento cerrada con maniquíes de paja, dianas, barriles, un círculo de invocación para criaturas de prueba y carteles que delimitan cada zona de práctica",
+        dm_style:
+          "metódico y didáctico: guía al jugador por cada mecánica del motor, una a una. Anima a experimentar con ventaja, desventaja, condiciones, magia y descansos. Usa spawn_monster para invocar diferentes enemigos y prueba cada tipo de arma y hechizo",
         hook:
           "ESTO NO ES UNA AVENTURA — es un campo de pruebas cerrado para ejercitar TODAS las mecánicas del motor. " <>
             "El objetivo no es la narrativa sino verificar que cada sistema funciona.\n" <>
@@ -119,11 +132,24 @@ defmodule Dragones.Scenarios do
             "• TÁCTICO: roll_initiative para iniciar combate, spawn_monster para refuerzos " <>
             "(probar cada CR: goblin, kobold, bandit, skeleton, wolf, orc, hobgoblin, ogre), end_combat para terminar.\n" <>
             "Empieza preguntando al jugador qué mecánica quiere probar primero.",
-        tone: "experimental y didáctico, sin stakes narrativos — lo que importa es ejercitar mecánicas, no la historia",
-        npcs: "maniquíes de práctica (objetos inertes para atacar — crear vía spawn_monster), dianas, un mayordomo de arena neutral que explica las opciones disponibles",
-        locations: "ÚNICAMENTE la Arena de Pruebas: zona de cuerpo a cuerpo, zona de tiro al blanco, círculo de invocación, zona de magia, zona de descanso. Nada más.",
-        suggested_enemies: ["goblin", "kobold", "bandit", "skeleton", "wolf", "orc", "hobgoblin", "ogre"],
-        summary: "Campo de pruebas: no es una aventura. Ejercita todas las mecánicas (combate, magia, salvaciones, condiciones, descansos, niveles, refuerzos) en un entorno controlado. Sin trama externa, sin salida."
+        tone:
+          "experimental y didáctico, sin stakes narrativos — lo que importa es ejercitar mecánicas, no la historia",
+        npcs:
+          "maniquíes de práctica (objetos inertes para atacar — crear vía spawn_monster), dianas, un mayordomo de arena neutral que explica las opciones disponibles",
+        locations:
+          "ÚNICAMENTE la Arena de Pruebas: zona de cuerpo a cuerpo, zona de tiro al blanco, círculo de invocación, zona de magia, zona de descanso. Nada más.",
+        suggested_enemies: [
+          "goblin",
+          "kobold",
+          "bandit",
+          "skeleton",
+          "wolf",
+          "orc",
+          "hobgoblin",
+          "ogre"
+        ],
+        summary:
+          "Campo de pruebas: no es una aventura. Ejercita todas las mecánicas (combate, magia, salvaciones, condiciones, descansos, niveles, refuerzos) en un entorno controlado. Sin trama externa, sin salida."
       }
     ]
   end
@@ -140,14 +166,17 @@ defmodule Dragones.Scenarios do
       "tone" => tone,
       "npcs" => npcs,
       "locations" => loc,
-      "enemies" => "The DM may introduce these foes as the story calls for it: #{Enum.join(enemies, ", ")}"
+      "enemies" =>
+        "The DM may introduce these foes as the story calls for it: #{Enum.join(enemies, ", ")}"
     }
   end
 
   @doc "A list of random fantasy hero names."
   @spec random_name() :: String.t()
   def random_name do
-    names = ~w(Lyra Thane Vex Bryn Dorin Kael Sylva Rhogar Pip Fizzle Gronk Aldric Mira Joren Sable Tara Corin Drask Elara Fenris Nyssa)
+    names =
+      ~w(Lyra Thane Vex Bryn Dorin Kael Sylva Rhogar Pip Fizzle Gronk Aldric Mira Joren Sable Tara Corin Drask Elara Fenris Nyssa)
+
     Enum.random(names)
   end
 end

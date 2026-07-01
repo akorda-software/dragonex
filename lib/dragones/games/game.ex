@@ -22,10 +22,12 @@ defmodule Dragones.Games.Game do
     field(:dm_style, :string, default: "vivid but brief")
     field(:dice_engine, :string, default: "2d")
     field(:world, :map)
+
     field(:status, Ecto.Enum,
       values: [:configuring, :running, :paused, :waiting, :ended],
       default: :configuring
     )
+
     field(:round, :integer, default: 1)
     field(:current_participant, :string)
     field(:intents, :map, default: %{})

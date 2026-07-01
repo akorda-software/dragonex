@@ -22,24 +22,30 @@ defmodule Dragones.Actions do
           | {:error, String.t()}
 
   @doc "Roll one or more dice and report the total (no world side-effect)."
-  @spec roll(pos_integer(), pos_integer(), :normal | :advantage | :disadvantage, roller(), RollLog.t() | nil) ::
+  @spec roll(
+          pos_integer(),
+          pos_integer(),
+          :normal | :advantage | :disadvantage,
+          roller(),
+          RollLog.t() | nil
+        ) ::
           {:ok, String.t()}
   def roll(count, sides, mode \\ :normal, roller, roll_log \\ nil) do
     {r, close} = RollLog.open(roll_log, roller, nil, :roll, "tirada de #{count}d#{sides}")
 
     result =
       case mode do
-      :normal ->
-        {:ok, "tirada #{count}d#{sides} = #{sum(count, sides, r)}"}
+        :normal ->
+          {:ok, "tirada #{count}d#{sides} = #{sum(count, sides, r)}"}
 
-      mode when mode in [:advantage, :disadvantage] ->
-        kept =
-          for _ <- 1..max(count, 1) do
-            {k, _, _} = Dice.roll_advantage(sides, mode, r)
-            k
-          end
+        mode when mode in [:advantage, :disadvantage] ->
+          kept =
+            for _ <- 1..max(count, 1) do
+              {k, _, _} = Dice.roll_advantage(sides, mode, r)
+              k
+            end
 
-        {:ok, "tirada #{count}d#{sides} (#{mode}) = #{Enum.sum(kept)}"}
+          {:ok, "tirada #{count}d#{sides} (#{mode}) = #{Enum.sum(kept)}"}
       end
 
     RollLog.close(close, total: nil, against: nil, outcome: nil)
@@ -51,7 +57,15 @@ defmodule Dragones.Actions do
   damage roll, applied to the target's hp. The attacker and target must already
   be in the world, and the attacker must wield the named weapon.
   """
-  @spec attack(World.t(), String.t(), String.t(), String.t(), roller(), :normal | :advantage | :disadvantage, RollLog.t() | nil) :: result()
+  @spec attack(
+          World.t(),
+          String.t(),
+          String.t(),
+          String.t(),
+          roller(),
+          :normal | :advantage | :disadvantage,
+          RollLog.t() | nil
+        ) :: result()
   def attack(world, attacker, target, weapon_name, roller, mode \\ :normal, roll_log \\ nil) do
     cond do
       is_nil(World.character(world, attacker)) ->
@@ -71,7 +85,15 @@ defmodule Dragones.Actions do
           weapon ->
             effective_mode = adjust_mode_for_conditions(mode, a, t, weapon)
 
-            {r, close_atk} = RollLog.open(roll_log, roller, attacker, :attack, "ataque a #{target} con #{weapon.name}")
+            {r, close_atk} =
+              RollLog.open(
+                roll_log,
+                roller,
+                attacker,
+                :attack,
+                "ataque a #{target} con #{weapon.name}"
+              )
+
             {kind, d20, total} = Combat.attack_roll(a, weapon, t.ac, r, effective_mode)
             RollLog.close(close_atk, total: total, against: {:ac, t.ac}, outcome: kind)
 
@@ -82,9 +104,22 @@ defmodule Dragones.Actions do
                  noop()}
 
               k ->
-                {r2, close_dmg} = RollLog.open(roll_log, roller, attacker, :damage, "daño #{weapon.damage_type} a #{target}")
+                {r2, close_dmg} =
+                  RollLog.open(
+                    roll_log,
+                    roller,
+                    attacker,
+                    :damage,
+                    "daño #{weapon.damage_type} a #{target}"
+                  )
+
                 dmg = Combat.damage_roll(a, weapon, k, r2)
-                RollLog.close(close_dmg, total: dmg, against: nil, outcome: if(k == :crit, do: :crit, else: nil))
+
+                RollLog.close(close_dmg,
+                  total: dmg,
+                  against: nil,
+                  outcome: if(k == :crit, do: :crit, else: nil)
+                )
 
                 verb = if k == :crit, do: "CRÍTICO", else: "acierta"
 
@@ -108,9 +143,14 @@ defmodule Dragones.Actions do
 
     advantage? =
       cond do
-        "prone" in target_conds and not weapon.ranged -> true
-        Enum.any?(target_conds, &(&1 in ~w(blinded stunned paralyzed unconscious restrained))) -> true
-        true -> false
+        "prone" in target_conds and not weapon.ranged ->
+          true
+
+        Enum.any?(target_conds, &(&1 in ~w(blinded stunned paralyzed unconscious restrained))) ->
+          true
+
+        true ->
+          false
       end
 
     cond do
@@ -138,7 +178,8 @@ defmodule Dragones.Actions do
     * `:attack`    — spell attack vs AC (nat 20 auto-hits, nat 1 auto-misses).
     * `:save`      — target saves vs DC; success halves the damage (5e default).
   """
-  @spec spell(World.t(), String.t(), String.t(), String.t(), roller(), RollLog.t() | nil) :: result()
+  @spec spell(World.t(), String.t(), String.t(), String.t(), roller(), RollLog.t() | nil) ::
+          result()
   def spell(world, caster_name, spell_name, target_name, roller, roll_log \\ nil) do
     cond do
       is_nil(World.character(world, caster_name)) ->
@@ -246,8 +287,7 @@ defmodule Dragones.Actions do
         RollLog.close(close, total: rolled, against: nil, outcome: nil)
         applied = min(rolled, max_hp - hp)
 
-        {:ok,
-         "#{target} se cura #{applied} pg (#{hp} → #{hp + applied}).",
+        {:ok, "#{target} se cura #{applied} pg (#{hp} → #{hp + applied}).",
          World.heal(target, rolled)}
     end
   end
@@ -270,7 +310,9 @@ defmodule Dragones.Actions do
           hit_die = World.hit_die_size(c.class)
           con_mod = Character.modifier(c, :con)
 
-          {r, close} = RollLog.open(roll_log, roller, name, :heal, "descanso corto (1d#{hit_die})")
+          {r, close} =
+            RollLog.open(roll_log, roller, name, :heal, "descanso corto (1d#{hit_die})")
+
           rolled = r.(hit_die) + con_mod
           RollLog.close(close, total: rolled, against: nil, outcome: nil)
           applied = min(rolled, max_hp - hp)
@@ -318,16 +360,32 @@ defmodule Dragones.Actions do
   `d20 + ability modifier` and reports success/failure. No world side-effect —
   the DM narrates the consequences and may then call other tools.
   """
-  @spec check(World.t(), String.t(), atom(), integer(), boolean(), roller(), :normal | :advantage | :disadvantage, RollLog.t() | nil) :: result()
+  @spec check(
+          World.t(),
+          String.t(),
+          atom(),
+          integer(),
+          boolean(),
+          roller(),
+          :normal | :advantage | :disadvantage,
+          RollLog.t() | nil
+        ) :: result()
   def check(world, who, ability, dc, proficient, roller, mode \\ :normal, roll_log \\ nil) do
     case World.character(world, who) do
       nil ->
         {:error, "no existe el personaje: #{who}"}
 
       %Character{} = c ->
-        {r, close} = RollLog.open(roll_log, roller, who, :check, "chequeo de #{ability_es(ability)}")
+        {r, close} =
+          RollLog.open(roll_log, roller, who, :check, "chequeo de #{ability_es(ability)}")
+
         {d20, total, success?} = Combat.ability_check(c, ability, dc, r, proficient, mode)
-        RollLog.close(close, total: total, against: {:dc, dc}, outcome: if(success?, do: :success, else: :failure))
+
+        RollLog.close(close,
+          total: total,
+          against: {:dc, dc},
+          outcome: if(success?, do: :success, else: :failure)
+        )
 
         mod = Character.modifier(c, ability)
         prof = if proficient, do: Ability.proficiency(c.level), else: 0
@@ -362,7 +420,13 @@ defmodule Dragones.Actions do
           spell.damage_type == nil and amount > 0 ->
             cast_mod = Character.modifier(c, spell.casting_ability)
             total_heal = amount + cast_mod
-            RollLog.close(close, kind: :heal, reason: "curación de #{spell.name}", total: total_heal, outcome: nil)
+
+            RollLog.close(close,
+              kind: :heal,
+              reason: "curación de #{spell.name}",
+              total: total_heal,
+              outcome: nil
+            )
 
             {:ok,
              "#{caster_name} conjura #{spell.name}; #{target_name} se cura #{total_heal} pg (#{amount} + #{cast_mod}).",
@@ -371,7 +435,13 @@ defmodule Dragones.Actions do
           # Damage spell (magic missile, etc.)
           amount > 0 ->
             verb = spell_damage_verb(spell, amount)
-            RollLog.close(close, kind: :damage, reason: "daño de #{spell.name} (#{spell.damage_type})", total: amount, outcome: nil)
+
+            RollLog.close(close,
+              kind: :damage,
+              reason: "daño de #{spell.name} (#{spell.damage_type})",
+              total: amount,
+              outcome: nil
+            )
 
             {:ok,
              "#{caster_name} conjura #{spell.name}; #{target_name} recibe #{amount} de daño #{spell.damage_type}#{verb}.",
@@ -389,14 +459,29 @@ defmodule Dragones.Actions do
       :attack ->
         bonus = Combat.spell_attack_bonus(c, spell)
 
-        {r, close_atk} = RollLog.open(roll_log, roller, caster_name, :attack, "ataque con #{spell.name}")
+        {r, close_atk} =
+          RollLog.open(roll_log, roller, caster_name, :attack, "ataque con #{spell.name}")
+
         d20 = r.(20)
         total = d20 + bonus
         hit? = d20 == 20 or (d20 != 1 and total >= t.ac)
-        RollLog.close(close_atk, total: total, against: {:ac, t.ac}, outcome: if(d20 == 20, do: :crit, else: (if hit?, do: :hit, else: :miss)))
+
+        RollLog.close(close_atk,
+          total: total,
+          against: {:ac, t.ac},
+          outcome: if(d20 == 20, do: :crit, else: if(hit?, do: :hit, else: :miss))
+        )
 
         if hit? do
-          {r2, close_dmg} = RollLog.open(roll_log, roller, caster_name, :damage, "daño de #{spell.name} (#{spell.damage_type})")
+          {r2, close_dmg} =
+            RollLog.open(
+              roll_log,
+              roller,
+              caster_name,
+              :damage,
+              "daño de #{spell.name} (#{spell.damage_type})"
+            )
+
           dmg = dice_with(spell, r2)
           RollLog.close(close_dmg, total: dmg, against: nil, outcome: nil)
 
@@ -412,11 +497,32 @@ defmodule Dragones.Actions do
       :save ->
         dc = Combat.spell_save_dc(c, spell)
 
-        {r, close_save} = RollLog.open(roll_log, roller, target_name, :save, "salvación de #{ability_es(spell.save_ability)} contra #{spell.name}")
-        {d20, stotal, success?} = Combat.saving_throw(t, spell.save_ability, dc, r)
-        RollLog.close(close_save, total: stotal, against: {:dc, dc}, outcome: if(success?, do: :success, else: :failure))
+        {r, close_save} =
+          RollLog.open(
+            roll_log,
+            roller,
+            target_name,
+            :save,
+            "salvación de #{ability_es(spell.save_ability)} contra #{spell.name}"
+          )
 
-        {r2, close_dmg} = RollLog.open(roll_log, roller, caster_name, :damage, "daño de #{spell.name} (#{spell.damage_type})")
+        {d20, stotal, success?} = Combat.saving_throw(t, spell.save_ability, dc, r)
+
+        RollLog.close(close_save,
+          total: stotal,
+          against: {:dc, dc},
+          outcome: if(success?, do: :success, else: :failure)
+        )
+
+        {r2, close_dmg} =
+          RollLog.open(
+            roll_log,
+            roller,
+            caster_name,
+            :damage,
+            "daño de #{spell.name} (#{spell.damage_type})"
+          )
+
         full = dice_with(spell, r2)
         RollLog.close(close_dmg, total: full, against: nil, outcome: nil)
 

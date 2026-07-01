@@ -12,7 +12,8 @@ defmodule Dragones.Game.BeatTest do
   alias ExAgent.RequestError
 
   defp provider_error(body),
-    do: {:model_request_failed, %RequestError{provider: :test, reason: :provider_error, body: body}}
+    do:
+      {:model_request_failed, %RequestError{provider: :test, reason: :provider_error, body: body}}
 
   describe "max_tokens_error?/1" do
     test "the bare atom and the {atom, model} tuple" do
@@ -29,15 +30,35 @@ defmodule Dragones.Game.BeatTest do
 
   describe "transient_provider_error?/1" do
     test "transport-level faults are transient" do
-      assert Beat.transient_provider_error?({:model_request_failed, %RequestError{provider: :test, reason: :timeout}})
-      assert Beat.transient_provider_error?({:model_request_failed, %RequestError{provider: :test, reason: :request_failed}})
+      assert Beat.transient_provider_error?(
+               {:model_request_failed, %RequestError{provider: :test, reason: :timeout}}
+             )
+
+      assert Beat.transient_provider_error?(
+               {:model_request_failed, %RequestError{provider: :test, reason: :request_failed}}
+             )
     end
 
     test "HTTP 429 and any 5xx are transient; 4xx is not" do
-      assert Beat.transient_provider_error?({:model_request_failed, %RequestError{provider: :test, reason: :http_error, status: 429}})
-      assert Beat.transient_provider_error?({:model_request_failed, %RequestError{provider: :test, reason: :http_error, status: 503}})
-      assert Beat.transient_provider_error?({:model_request_failed, %RequestError{provider: :test, reason: :http_error, status: 529}})
-      refute Beat.transient_provider_error?({:model_request_failed, %RequestError{provider: :test, reason: :http_error, status: 400}})
+      assert Beat.transient_provider_error?(
+               {:model_request_failed,
+                %RequestError{provider: :test, reason: :http_error, status: 429}}
+             )
+
+      assert Beat.transient_provider_error?(
+               {:model_request_failed,
+                %RequestError{provider: :test, reason: :http_error, status: 503}}
+             )
+
+      assert Beat.transient_provider_error?(
+               {:model_request_failed,
+                %RequestError{provider: :test, reason: :http_error, status: 529}}
+             )
+
+      refute Beat.transient_provider_error?(
+               {:model_request_failed,
+                %RequestError{provider: :test, reason: :http_error, status: 400}}
+             )
     end
 
     # Every keyword `transient_body?/1` looks for. A provider_error body carrying
@@ -89,7 +110,9 @@ defmodule Dragones.Game.BeatTest do
   describe "fallback_narration/2" do
     test "max_tokens: DM vs PC get distinct lines" do
       assert Beat.fallback_narration("dm", :max_tokens_exceeded) =~ "narrador recupera el hilo"
-      assert Beat.fallback_narration("Lyra", {:max_tokens_exceeded, "x"}) =~ "empieza a decir algo"
+
+      assert Beat.fallback_narration("Lyra", {:max_tokens_exceeded, "x"}) =~
+               "empieza a decir algo"
     end
 
     test "unexpected_model_behavior: DM vs PC distinct lines" do

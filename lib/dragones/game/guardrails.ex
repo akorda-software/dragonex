@@ -151,7 +151,9 @@ defmodule Dragones.Game.Guardrails do
   defp puppet_pattern(pc_names) do
     names_alt = pc_names |> Enum.map(&Regex.escape/1) |> Enum.join("|")
     verbs_alt = @puppet_action_verbs |> Enum.join("|")
-    pattern = "(?:\\b#{names_alt}\\b)[^.!?]{0,50}\\b(?:#{verbs_alt})\\b|(?:\\b#{verbs_alt}\\b)[^.!?]{0,30}(?:\\b#{names_alt}\\b)"
+
+    pattern =
+      "(?:\\b#{names_alt}\\b)[^.!?]{0,50}\\b(?:#{verbs_alt})\\b|(?:\\b#{verbs_alt}\\b)[^.!?]{0,30}(?:\\b#{names_alt}\\b)"
 
     case Regex.compile(pattern, "i") do
       {:ok, re} -> re
@@ -332,9 +334,11 @@ defmodule Dragones.Game.Guardrails do
   def exploration_limbo?(_, _), do: false
 
   defp narration_only?(%{type: :narration}), do: true
+
   defp narration_only?(%{type: :system, payload: %{"note" => note}})
        when is_binary(note),
        do: not (note =~ ~r/escena cambiada|set_scene|spawn|toma la iniciativa|combate/i)
+
   defp narration_only?(%{type: :system}), do: true
   defp narration_only?(_), do: false
 
@@ -346,14 +350,19 @@ defmodule Dragones.Game.Guardrails do
   # narrations and, on a near-duplicate, stitch a hard nudge onto the instruction.
   # Jaccard similarity over word sets (>0.75) catches verbatim repeats and light
   # reformulations without firing on legitimately related turns.
-  @pc_stopwords MapSet.new(~w(el la los las un una unos unas de del a al en y o u que se su sus es son por para con sin como mas pero si no ya yo tu él me te le nos os les esto eso aque mi tu sus nuestrouestra al acabo apenas cuando donde mientras tras etecera))
+  @pc_stopwords MapSet.new(
+                  ~w(el la los las un una unos unas de del a al en y o u que se su sus es son por para con sin como mas pero si no ya yo tu él me te le nos os les esto eso aque mi tu sus nuestrouestra al acabo apenas cuando donde mientras tras etecera)
+                )
   @pc_repeat_threshold 0.75
 
   @spec with_pc_anti_loop(term(), String.t(), String.t()) :: String.t()
   def with_pc_anti_loop(game_id, current, base_instruction) do
     case pc_repetition(game_id, current) do
       {:repeating, last_text} ->
-        Logger.info("dragones game #{game_id} PC #{current} stuck in a loop — injecting anti-loop nudge")
+        Logger.info(
+          "dragones game #{game_id} PC #{current} stuck in a loop — injecting anti-loop nudge"
+        )
+
         pc_anti_loop_nudge(last_text, base_instruction)
 
       :ok ->

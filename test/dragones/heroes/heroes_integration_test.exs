@@ -15,10 +15,14 @@ defmodule Dragones.HeroesIntegrationTest do
 
   describe "Codec round-trip preserves every field" do
     test "elf wizard survives encode → decode" do
-      {:ok, lyra} = Heroes.build(%{
-        name: "Lyra", race: "elf", subrace: "high elf",
-        class: "wizard", background: "sage"
-      })
+      {:ok, lyra} =
+        Heroes.build(%{
+          name: "Lyra",
+          race: "elf",
+          subrace: "high elf",
+          class: "wizard",
+          background: "sage"
+        })
 
       world = add(World.new(), World.add_character(lyra))
       decoded = Codec.decode(Codec.encode(world)).characters["Lyra"]
@@ -44,10 +48,14 @@ defmodule Dragones.HeroesIntegrationTest do
     end
 
     test "dwarf fighter survives a JSON round-trip (Jason encode + decode)" do
-      {:ok, grim} = Heroes.build(%{
-        name: "Grim", race: "dwarf", subrace: "mountain",
-        class: "fighter", background: "soldier"
-      })
+      {:ok, grim} =
+        Heroes.build(%{
+          name: "Grim",
+          race: "dwarf",
+          subrace: "mountain",
+          class: "fighter",
+          background: "soldier"
+        })
 
       world = add(World.new(), World.add_character(grim))
       encoded = Codec.encode(world)
@@ -78,10 +86,14 @@ defmodule Dragones.HeroesIntegrationTest do
       ]
 
       for {race, sub, class} <- combos do
-        {:ok, c} = Heroes.build(%{
-          name: "hero", race: race, subrace: sub,
-          class: class, background: "soldier"
-        })
+        {:ok, c} =
+          Heroes.build(%{
+            name: "hero",
+            race: race,
+            subrace: sub,
+            class: class,
+            background: "soldier"
+          })
 
         world = add(World.new(), World.add_character(c))
         decoded = Codec.decode(Codec.encode(world)).characters["hero"]
@@ -100,10 +112,14 @@ defmodule Dragones.HeroesIntegrationTest do
 
   describe "a built character fights in the combat engine" do
     test "fighter attacks a goblin and deals damage (hit)" do
-      {:ok, hero} = Heroes.build(%{
-        name: "Hero", race: "dwarf", subrace: "mountain",
-        class: "fighter", background: "soldier"
-      })
+      {:ok, hero} =
+        Heroes.build(%{
+          name: "Hero",
+          race: "dwarf",
+          subrace: "mountain",
+          class: "fighter",
+          background: "soldier"
+        })
 
       world =
         World.new()
@@ -111,7 +127,8 @@ defmodule Dragones.HeroesIntegrationTest do
         |> add(World.add_character(Monsters.goblin()))
 
       # d20=15: prof(2) + str_mod(3) + 15 = 20 vs goblin AC 15 → hit
-      {:ok, msg, change} = Actions.attack(world, "Hero", "goblin", "longsword", fixed(15), :normal)
+      {:ok, msg, change} =
+        Actions.attack(world, "Hero", "goblin", "longsword", fixed(15), :normal)
 
       assert msg =~ "acierta"
       new_world = elem(change.(world), 1)
@@ -119,9 +136,13 @@ defmodule Dragones.HeroesIntegrationTest do
     end
 
     test "fighter misses on a low roll" do
-      {:ok, hero} = Heroes.build(%{
-        name: "Hero", race: "human", class: "fighter", background: "soldier"
-      })
+      {:ok, hero} =
+        Heroes.build(%{
+          name: "Hero",
+          race: "human",
+          class: "fighter",
+          background: "soldier"
+        })
 
       world =
         World.new()
@@ -136,10 +157,14 @@ defmodule Dragones.HeroesIntegrationTest do
     end
 
     test "wizard casts fire bolt (spell attack) at a goblin" do
-      {:ok, lyra} = Heroes.build(%{
-        name: "Lyra", race: "elf", subrace: "high elf",
-        class: "wizard", background: "sage"
-      })
+      {:ok, lyra} =
+        Heroes.build(%{
+          name: "Lyra",
+          race: "elf",
+          subrace: "high elf",
+          class: "wizard",
+          background: "sage"
+        })
 
       world =
         World.new()
@@ -157,10 +182,14 @@ defmodule Dragones.HeroesIntegrationTest do
     end
 
     test "wizard casts magic missile (automatic, always hits)" do
-      {:ok, lyra} = Heroes.build(%{
-        name: "Lyra", race: "elf", subrace: "high elf",
-        class: "wizard", background: "sage"
-      })
+      {:ok, lyra} =
+        Heroes.build(%{
+          name: "Lyra",
+          race: "elf",
+          subrace: "high elf",
+          class: "wizard",
+          background: "sage"
+        })
 
       world =
         World.new()
@@ -177,9 +206,13 @@ defmodule Dragones.HeroesIntegrationTest do
     end
 
     test "cleric casts sacred flame (DEX save cantrip)" do
-      {:ok, priest} = Heroes.build(%{
-        name: "Elder", race: "human", class: "cleric", background: "acolyte"
-      })
+      {:ok, priest} =
+        Heroes.build(%{
+          name: "Elder",
+          race: "human",
+          class: "cleric",
+          background: "acolyte"
+        })
 
       world =
         World.new()
@@ -198,9 +231,13 @@ defmodule Dragones.HeroesIntegrationTest do
     end
 
     test "goblin attacks the built fighter (saves work on built characters)" do
-      {:ok, hero} = Heroes.build(%{
-        name: "Hero", race: "human", class: "fighter", background: "soldier"
-      })
+      {:ok, hero} =
+        Heroes.build(%{
+          name: "Hero",
+          race: "human",
+          class: "fighter",
+          background: "soldier"
+        })
 
       world =
         World.new()
@@ -217,16 +254,21 @@ defmodule Dragones.HeroesIntegrationTest do
     end
 
     test "a nat-20 is a critical hit" do
-      {:ok, hero} = Heroes.build(%{
-        name: "Hero", race: "human", class: "fighter", background: "soldier"
-      })
+      {:ok, hero} =
+        Heroes.build(%{
+          name: "Hero",
+          race: "human",
+          class: "fighter",
+          background: "soldier"
+        })
 
       world =
         World.new()
         |> add(World.add_character(hero))
         |> add(World.add_character(Monsters.goblin()))
 
-      {:ok, msg, _change} = Actions.attack(world, "Hero", "goblin", "longsword", fixed(20), :normal)
+      {:ok, msg, _change} =
+        Actions.attack(world, "Hero", "goblin", "longsword", fixed(20), :normal)
 
       assert msg =~ "CRÍTICO"
     end

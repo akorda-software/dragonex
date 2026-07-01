@@ -44,7 +44,9 @@ defmodule Dragones.ExplorationLimboTest do
     log =
       capture_log(fn ->
         pid =
-          ExUnit.Callbacks.start_supervised!({Dragones.Game, {game.id, [model: model, roller: fn _ -> 10 end]}})
+          ExUnit.Callbacks.start_supervised!(
+            {Dragones.Game, {game.id, [model: model, roller: fn _ -> 10 end]}}
+          )
 
         # Wait until enough narration has piled up for the limbo detector to
         # trip on the DM's turn (it needs >= 6 pure-narration events).
@@ -82,7 +84,9 @@ defmodule Dragones.ExplorationLimboTest do
     log =
       capture_log(fn ->
         pid =
-          ExUnit.Callbacks.start_supervised!({Dragones.Game, {game.id, [model: model, roller: fn _ -> 15 end]}})
+          ExUnit.Callbacks.start_supervised!(
+            {Dragones.Game, {game.id, [model: model, roller: fn _ -> 15 end]}}
+          )
 
         assert :ok ==
                  Game.await(

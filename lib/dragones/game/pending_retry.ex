@@ -8,8 +8,14 @@ defmodule Dragones.Game.PendingRetry do
   it. The retry lands in `handle_info({:retry_beat, turn_id})`.
   """
 
-  defstruct [:participant, :phase, :turn_id, :instruction,
-              max_token_retries: 0, transient_retries: 0]
+  defstruct [
+    :participant,
+    :phase,
+    :turn_id,
+    :instruction,
+    max_token_retries: 0,
+    transient_retries: 0
+  ]
 
   @type t :: %__MODULE__{
           participant: String.t(),

@@ -45,13 +45,23 @@ defmodule Dragones.GamePhase0Test do
   defp script do
     [
       # beat 1 — DM (goblin) attacks Thane
-      tool_calls([call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})]),
+      tool_calls([
+        call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})
+      ]),
       text("The goblin lunges at Thane."),
       # beat 2 — Thane (human) attacks the goblin
-      tool_calls([call("make_attack", %{"attacker" => "Thane", "target" => "goblin", "weapon" => "longsword"})]),
+      tool_calls([
+        call("make_attack", %{
+          "attacker" => "Thane",
+          "target" => "goblin",
+          "weapon" => "longsword"
+        })
+      ]),
       text("Thane brings his longsword down."),
       # beat 3 — DM (goblin) attacks Thane again
-      tool_calls([call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})]),
+      tool_calls([
+        call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})
+      ]),
       text("The goblin strikes once more.")
     ]
   end
@@ -72,7 +82,9 @@ defmodule Dragones.GamePhase0Test do
     game_id = game.id
 
     pid =
-      ExUnit.Callbacks.start_supervised!({Dragones.Game, {game_id, [model: %Test{script: script()}, roller: hit_roller()]}})
+      ExUnit.Callbacks.start_supervised!(
+        {Dragones.Game, {game_id, [model: %Test{script: script()}, roller: hit_roller()]}}
+      )
 
     # 1 — The DM auto-acts (goblin attacks Thane), then it's Thane's turn.
     assert :ok == Game.await(pid, waiting_on("Thane"))
@@ -82,7 +94,8 @@ defmodule Dragones.GamePhase0Test do
 
     # 2 — The human acts: Thane attacks the goblin. Wait for the goblin's hp to
     # drop (beat #2's effect) and the loop to settle back on Thane's turn.
-    assert {:ok, :resolving} = Game.declare(pid, "Thane", "I attack the goblin with my longsword.")
+    assert {:ok, :resolving} =
+             Game.declare(pid, "Thane", "I attack the goblin with my longsword.")
 
     assert :ok ==
              Game.await(pid, fn s ->
@@ -116,7 +129,11 @@ defmodule Dragones.GamePhase0Test do
     Process.exit(pid, :kill)
 
     pid2 =
-      poll_until(fn -> Dragones.Game.Supervisor.whereis(game_id) end, fn p -> p not in [nil, old_pid] end, 5_000) ||
+      poll_until(
+        fn -> Dragones.Game.Supervisor.whereis(game_id) end,
+        fn p -> p not in [nil, old_pid] end,
+        5_000
+      ) ||
         flunk("Game process did not restart after kill")
 
     # Resumed exactly where it left off: Thane's turn, :waiting, same hp.
@@ -136,7 +153,9 @@ defmodule Dragones.GamePhase0Test do
       )
 
     pid =
-      ExUnit.Callbacks.start_supervised!({Dragones.Game, {game.id, [model: %Test{script: script()}, roller: hit_roller()]}})
+      ExUnit.Callbacks.start_supervised!(
+        {Dragones.Game, {game.id, [model: %Test{script: script()}, roller: hit_roller()]}}
+      )
 
     assert :ok == Game.await(pid, waiting_on("Thane"))
     assert :ok == Game.pause(pid)
@@ -161,7 +180,9 @@ defmodule Dragones.GamePhase0Test do
       )
 
     pid =
-      ExUnit.Callbacks.start_supervised!({Dragones.Game, {game.id, [model: %Test{script: script()}, roller: hit_roller()]}})
+      ExUnit.Callbacks.start_supervised!(
+        {Dragones.Game, {game.id, [model: %Test{script: script()}, roller: hit_roller()]}}
+      )
 
     # DM (goblin) auto-acts, then Thane's turn. Thane declares while still the
     # DM is acting (busy) — it queues and persists.
@@ -187,24 +208,40 @@ defmodule Dragones.GamePhase0Test do
       Games.create_game(
         title: "multi-human",
         scene: "a ruin",
-        roster: [{Archetypes.fighter(), :human}, {Archetypes.wizard(), :human}, {Monsters.goblin(), :ai}],
+        roster: [
+          {Archetypes.fighter(), :human},
+          {Archetypes.wizard(), :human},
+          {Monsters.goblin(), :ai}
+        ],
         initiative: ["goblin", "Thane", "Lyra"]
       )
 
     script = [
       # beat 1 — goblin (dm) attacks Thane
-      tool_calls([call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})]),
+      tool_calls([
+        call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})
+      ]),
       text("The goblin snarls and lunges at Thane."),
       # beat 2 — Thane (human) attacks the goblin
-      tool_calls([call("make_attack", %{"attacker" => "Thane", "target" => "goblin", "weapon" => "longsword"})]),
+      tool_calls([
+        call("make_attack", %{
+          "attacker" => "Thane",
+          "target" => "goblin",
+          "weapon" => "longsword"
+        })
+      ]),
       text("Thane brings his blade down."),
       # beat 3 — Lyra (human) casts at the goblin (consumed from her queued intent)
-      tool_calls([call("cast_spell", %{"caster" => "Lyra", "spell" => "firebolt", "target" => "goblin"})]),
+      tool_calls([
+        call("cast_spell", %{"caster" => "Lyra", "spell" => "firebolt", "target" => "goblin"})
+      ]),
       text("Lyra hurls a bolt of fire.")
     ]
 
     pid =
-      ExUnit.Callbacks.start_supervised!({Dragones.Game, {game.id, [model: %Test{script: script}, roller: hit_roller()]}})
+      ExUnit.Callbacks.start_supervised!(
+        {Dragones.Game, {game.id, [model: %Test{script: script}, roller: hit_roller()]}}
+      )
 
     # DM auto-acts (goblin), then it's Thane's turn.
     assert :ok == Game.await(pid, fn s -> s.status == :waiting and s.current == "Thane" end)
@@ -244,28 +281,48 @@ defmodule Dragones.GamePhase0Test do
       Games.create_game(
         title: "self-correct",
         scene: "a ruin",
-        roster: [{Archetypes.fighter(), :human}, {Archetypes.wizard(), :human}, {Monsters.goblin(), :ai}],
+        roster: [
+          {Archetypes.fighter(), :human},
+          {Archetypes.wizard(), :human},
+          {Monsters.goblin(), :ai}
+        ],
         initiative: ["goblin", "Thane", "Lyra"]
       )
 
     script = [
       # beat 1 — goblin (dm) attacks Thane
-      tool_calls([call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})]),
+      tool_calls([
+        call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})
+      ]),
       text("The goblin lunges."),
       # beat 2 — Thane attacks the goblin
-      tool_calls([call("make_attack", %{"attacker" => "Thane", "target" => "goblin", "weapon" => "longsword"})]),
+      tool_calls([
+        call("make_attack", %{
+          "attacker" => "Thane",
+          "target" => "goblin",
+          "weapon" => "longsword"
+        })
+      ]),
       text("Thane swings."),
       # beat 3 — Lyra's turn: DM mis-acts (goblin) → REFUSED → retry → corrects (Lyra)
-      tool_calls([call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})]),
-      tool_calls([call("cast_spell", %{"caster" => "Lyra", "spell" => "firebolt", "target" => "goblin"})]),
+      tool_calls([
+        call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})
+      ]),
+      tool_calls([
+        call("cast_spell", %{"caster" => "Lyra", "spell" => "firebolt", "target" => "goblin"})
+      ]),
       text("Lyra hurls a bolt of fire."),
       # beat 4 — goblin (dm) attacks Thane again (keeps the loop from exhausting)
-      tool_calls([call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})]),
+      tool_calls([
+        call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})
+      ]),
       text("The goblin snaps back.")
     ]
 
     pid =
-      ExUnit.Callbacks.start_supervised!({Dragones.Game, {game.id, [model: %Test{script: script}, roller: hit_roller()]}})
+      ExUnit.Callbacks.start_supervised!(
+        {Dragones.Game, {game.id, [model: %Test{script: script}, roller: hit_roller()]}}
+      )
 
     # DM (goblin) → Thane's turn. Thane declares on his turn.
     assert :ok == Game.await(pid, fn s -> s.status == :waiting and s.current == "Thane" end)
@@ -296,24 +353,47 @@ defmodule Dragones.GamePhase0Test do
       Games.create_game(
         title: "dm-last",
         scene: "a ruin",
-        roster: [{Archetypes.fighter(), :human}, {Archetypes.wizard(), :human}, {Monsters.goblin(), :ai}],
+        roster: [
+          {Archetypes.fighter(), :human},
+          {Archetypes.wizard(), :human},
+          {Monsters.goblin(), :ai}
+        ],
         initiative: ["Thane", "Lyra", "goblin"]
       )
 
     # cycle [Thane, Lyra, dm]; beats: Thane, Lyra, dm, Thane, Lyra, dm
     script = [
-      tool_calls([call("make_attack", %{"attacker" => "Thane", "target" => "goblin", "weapon" => "longsword"})]),
+      tool_calls([
+        call("make_attack", %{
+          "attacker" => "Thane",
+          "target" => "goblin",
+          "weapon" => "longsword"
+        })
+      ]),
       text("Thane ataca."),
-      tool_calls([call("make_attack", %{"attacker" => "Lyra", "target" => "goblin", "spell" => "firebolt"})]),
+      tool_calls([
+        call("make_attack", %{"attacker" => "Lyra", "target" => "goblin", "spell" => "firebolt"})
+      ]),
       text("Lyra conjura."),
-      tool_calls([call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})]),
-      text("El goblin ataca."),  # dm acts (last) → bump round 2, wrap to Thane
-      tool_calls([call("make_attack", %{"attacker" => "Thane", "target" => "goblin", "weapon" => "longsword"})]),
+      tool_calls([
+        call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})
+      ]),
+      # dm acts (last) → bump round 2, wrap to Thane
+      text("El goblin ataca."),
+      tool_calls([
+        call("make_attack", %{
+          "attacker" => "Thane",
+          "target" => "goblin",
+          "weapon" => "longsword"
+        })
+      ]),
       text("Thane ataca de nuevo.")
     ]
 
     pid =
-      ExUnit.Callbacks.start_supervised!({Dragones.Game, {game.id, [model: %Test{script: script}, roller: hit_roller()]}})
+      ExUnit.Callbacks.start_supervised!(
+        {Dragones.Game, {game.id, [model: %Test{script: script}, roller: hit_roller()]}}
+      )
 
     # Thane (human, top of order) is first → waiting immediately.
     assert :ok == Game.await(pid, waiting_on("Thane"))
@@ -325,7 +405,11 @@ defmodule Dragones.GamePhase0Test do
 
     # Lyra acts (beat 2) → dm auto-acts (beat 3, last) → bump to round 2 → Thane.
     assert {:ok, :resolving} = Game.declare(pid, "Lyra", "cast firebolt")
-    assert :ok == Game.await(pid, fn s -> s.status == :waiting and s.current == "Thane" and s.round == 2 end)
+
+    assert :ok ==
+             Game.await(pid, fn s ->
+               s.status == :waiting and s.current == "Thane" and s.round == 2
+             end)
   end
 
   defp poll_until(thunk, predicate, timeout_ms) do
@@ -334,9 +418,15 @@ defmodule Dragones.GamePhase0Test do
     Stream.repeatedly(thunk)
     |> Enum.find_value(fn value ->
       cond do
-        predicate.(value) -> value
-        System.monotonic_time(:millisecond) >= deadline -> nil
-        true -> Process.sleep(10); nil
+        predicate.(value) ->
+          value
+
+        System.monotonic_time(:millisecond) >= deadline ->
+          nil
+
+        true ->
+          Process.sleep(10)
+          nil
       end
     end)
   end

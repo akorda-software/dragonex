@@ -86,7 +86,8 @@ defmodule Dragones.ActionsTest do
       log = %RollLog{base: seq([10, 4]), recorder: rec}
 
       # seq: d20=10 -> 15 vs AC 12 hit; d8=4 +3 = 7.
-      assert {:ok, _msg, _change} = Actions.attack(w, "Thane", "goblin", "longsword", seq([10, 4]), :normal, log)
+      assert {:ok, _msg, _change} =
+               Actions.attack(w, "Thane", "goblin", "longsword", seq([10, 4]), :normal, log)
 
       [atk, dmg] = RollLog.entries(rec)
       assert atk.who == "Thane" and atk.kind == :attack
