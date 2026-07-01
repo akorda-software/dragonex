@@ -13,6 +13,7 @@ defmodule Dragones.Games.Character do
 
   schema "characters" do
     belongs_to(:game, Dragones.Games.Game)
+    belongs_to(:hero, Dragones.Accounts.Hero)
     field(:name, :string)
     field(:sheet, :map)
     field(:kind, Ecto.Enum, values: [:ai, :human], default: :human)

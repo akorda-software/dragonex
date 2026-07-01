@@ -68,9 +68,9 @@ defmodule DragonesWeb.GameLive.Show do
             {:ok,
              assign(socket,
                connected: true,
-                current_user: user,
-                show_waiting_room: true,
-                waiting_game: game,
+               current_user: user,
+               show_waiting_room: true,
+               waiting_game: game,
                waiting_heroes: heroes,
                is_creator: user && game.user_id == user.id
              )}
@@ -83,9 +83,9 @@ defmodule DragonesWeb.GameLive.Show do
             {:ok,
              assign(socket,
                connected: true,
-                current_user: user,
-                show_waiting_room: false
-              )}
+               current_user: user,
+               show_waiting_room: false
+             )}
 
           # No access → go away
           true ->
@@ -134,7 +134,7 @@ defmodule DragonesWeb.GameLive.Show do
       game = Games.get_game(socket.assigns.game_id)
       sheet = Dragones.Accounts.hero_sheet(hero)
 
-      case Games.join_game(game, user, sheet) do
+      case Games.join_game(game, user, sheet, hero_id: hero.id) do
         {:ok, updated_game} ->
           Phoenix.PubSub.broadcast(
             Dragones.PubSub,
@@ -146,8 +146,8 @@ defmodule DragonesWeb.GameLive.Show do
           {:noreply,
            socket
            |> assign(
-              show_waiting_room: true,
-              waiting_game: Dragones.Repo.preload(updated_game, [:participants, :characters])
+             show_waiting_room: true,
+             waiting_game: Dragones.Repo.preload(updated_game, [:participants, :characters])
            )}
 
         {:error, _} ->
@@ -339,7 +339,10 @@ defmodule DragonesWeb.GameLive.Show do
   # capability persists the final text as a :narration event and the next
   # `{:game_updated, _}` re-render flushes the live bubble (its text now lives
   # in the chat timeline as a real narration entry).
-  def handle_info({:text_delta, game_id, turn_id, actor, chunk}, %{assigns: %{game_id: game_id}} = socket) do
+  def handle_info(
+        {:text_delta, game_id, turn_id, actor, chunk},
+        %{assigns: %{game_id: game_id}} = socket
+      ) do
     prev_turn = socket.assigns[:live_turn_id]
 
     # New turn or new actor → start a fresh bubble (drop the previous preview).
@@ -366,10 +369,11 @@ defmodule DragonesWeb.GameLive.Show do
     # Pull the dice of THIS group into the tumble hand, and stack the labeled
     # entry into the cards list. Both reset on each new group burst after the
     # hold timer fires (see :hide_dice).
-    new_hand = Enum.map(entry["dice"] || entry[:dice] || [], fn
-      [s, v] -> %{sides: s, value: v}
-      {s, v} -> %{sides: s, value: v}
-    end)
+    new_hand =
+      Enum.map(entry["dice"] || entry[:dice] || [], fn
+        [s, v] -> %{sides: s, value: v}
+        {s, v} -> %{sides: s, value: v}
+      end)
 
     hand = socket.assigns.dice_hand ++ new_hand
     groups = socket.assigns.dice_groups ++ [entry]
@@ -410,7 +414,8 @@ defmodule DragonesWeb.GameLive.Show do
   def handle_info({:flush_dice, _stale_token}, socket), do: {:noreply, socket}
 
   def handle_info(:hide_dice, socket) do
-    {:noreply, assign(socket, dice_show: false, dice_hand: [], dice_groups: [], dice_hide_ref: nil)}
+    {:noreply,
+     assign(socket, dice_show: false, dice_hand: [], dice_groups: [], dice_hide_ref: nil)}
   end
 
   def handle_info(_msg, socket), do: {:noreply, socket}
@@ -679,7 +684,15 @@ defmodule DragonesWeb.GameLive.Show do
             [block | acc]
 
           _ ->
-            line = %{seq: e.seq, type: e.type, actor: e.actor, role: chat_role(e), who: chat_who(e), text: chat_text(e), outcome: chat_outcome(e)}
+            line = %{
+              seq: e.seq,
+              type: e.type,
+              actor: e.actor,
+              role: chat_role(e),
+              who: chat_who(e),
+              text: chat_text(e),
+              outcome: chat_outcome(e)
+            }
 
             case cur do
               nil ->
@@ -1099,7 +1112,11 @@ defmodule DragonesWeb.GameLive.Show do
 
   defp dice_group_card(assigns) do
     assigns =
-      assign(assigns, :outcome_css, RollFormat.outcome_css(assigns.g[:outcome] || assigns.g["outcome"]))
+      assign(
+        assigns,
+        :outcome_css,
+        RollFormat.outcome_css(assigns.g[:outcome] || assigns.g["outcome"])
+      )
 
     ~H"""
     <div class={"dice-group #{@outcome_css}"}>

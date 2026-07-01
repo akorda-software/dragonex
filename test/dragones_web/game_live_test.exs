@@ -32,16 +32,23 @@ defmodule DragonesWeb.GameLiveTest do
     {:ok, conn: conn, user: user}
   end
 
-  defp await_render(view, pred, timeout_ms \\ 4_000) when is_function(pred, 1) or is_binary(pred) do
+  defp await_render(view, pred, timeout_ms \\ 4_000)
+       when is_function(pred, 1) or is_binary(pred) do
     test? = if is_binary(pred), do: &(&1 =~ pred), else: pred
     deadline = System.monotonic_time(:millisecond) + timeout_ms
 
     Stream.repeatedly(fn -> render(view) end)
     |> Enum.find_value(fn html ->
       cond do
-        test?.(html) -> html
-        System.monotonic_time(:millisecond) >= deadline -> nil
-        true -> Process.sleep(15); nil
+        test?.(html) ->
+          html
+
+        System.monotonic_time(:millisecond) >= deadline ->
+          nil
+
+        true ->
+          Process.sleep(15)
+          nil
       end
     end)
   end
@@ -67,7 +74,14 @@ defmodule DragonesWeb.GameLiveTest do
     end
 
     test "deletes a partida", %{conn: conn, user: user} do
-      {:ok, game} = Games.create_game(title: "Efímera", scene: "x", user_id: user.id, roster: [{Archetypes.fighter(), :human}])
+      {:ok, game} =
+        Games.create_game(
+          title: "Efímera",
+          scene: "x",
+          user_id: user.id,
+          roster: [{Archetypes.fighter(), :human}]
+        )
+
       {:ok, view, _html} = live(conn, "/")
 
       view |> element("button", "Borrar") |> render_click(%{"id" => to_string(game.id)})
@@ -134,7 +148,9 @@ defmodule DragonesWeb.GameLiveTest do
       refute html =~ "¿Quién eres?"
 
       # The DM auto-acts (goblin) then it's Thane's turn
-      html = await_render(view, fn h -> h =~ "Es tu turno" and not (h =~ "el DM está pensando") end)
+      html =
+        await_render(view, fn h -> h =~ "Es tu turno" and not (h =~ "el DM está pensando") end)
+
       assert html =~ "TÚ"
     end
 

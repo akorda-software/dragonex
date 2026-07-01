@@ -5,40 +5,41 @@ defmodule DragonesWeb.Router do
   import DragonesWeb.UserAuth
 
   pipeline :browser do
-    plug :accepts, ["html"]
-    plug :fetch_session
-    plug :fetch_live_flash
-    plug :put_root_layout, {DragonesWeb.Layouts, :root}
-    plug :protect_from_forgery
-    plug :fetch_current_user
+    plug(:accepts, ["html"])
+    plug(:fetch_session)
+    plug(:fetch_live_flash)
+    plug(:put_root_layout, {DragonesWeb.Layouts, :root})
+    plug(:protect_from_forgery)
+    plug(:fetch_current_user)
   end
 
   pipeline :auth do
-    plug :require_login
+    plug(:require_login)
   end
 
   scope "/", DragonesWeb do
-    pipe_through :browser
+    pipe_through(:browser)
 
     # Auth (public)
-    get "/register", UserSessionController, :register_form
-    post "/register", UserSessionController, :register
-    get "/login", UserSessionController, :login_form
-    post "/login", UserSessionController, :login
-    delete "/logout", UserSessionController, :logout
+    get("/register", UserSessionController, :register_form)
+    post("/register", UserSessionController, :register)
+    get("/login", UserSessionController, :login_form)
+    post("/login", UserSessionController, :login)
+    delete("/logout", UserSessionController, :logout)
 
     # Lobby — accessible to all (shows prompt if not logged in).
-    live "/", GameLive.Index, :index
+    live("/", GameLive.Index, :index)
 
     # Protected routes
     scope "/" do
-      pipe_through :auth
+      pipe_through(:auth)
 
-      live "/heroes", HeroLive.Index, :index
-      live "/heroes/new", HeroLive.New, :new
-      live "/heroes/:id", HeroLive.Show, :show
-      live "/games/new", GameLive.New, :new
-      live "/games/:game_id", GameLive.Show, :show
+      live("/heroes", HeroLive.Index, :index)
+      live("/heroes/new", HeroLive.New, :new)
+      live("/heroes/:id/edit", HeroLive.New, :edit)
+      live("/heroes/:id", HeroLive.Show, :show)
+      live("/games/new", GameLive.New, :new)
+      live("/games/:game_id", GameLive.Show, :show)
     end
   end
 end

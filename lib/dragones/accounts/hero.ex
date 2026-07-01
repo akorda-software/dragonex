@@ -18,6 +18,7 @@ defmodule Dragones.Accounts.Hero do
     field(:class, :string)
     field(:level, :integer, default: 1)
     field(:sheet, :map)
+    field(:draft, :map)
 
     timestamps(type: :naive_datetime)
   end

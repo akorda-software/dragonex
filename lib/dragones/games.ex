@@ -51,7 +51,14 @@ defmodule Dragones.Games do
     changeset =
       %Game{}
       |> Ecto.Changeset.cast(
-        %{title: title, story_bible: story_bible, dm_style: dm_style, dice_engine: dice_engine, user_id: user_id, open_slots: open_slots},
+        %{
+          title: title,
+          story_bible: story_bible,
+          dm_style: dm_style,
+          dice_engine: dice_engine,
+          user_id: user_id,
+          open_slots: open_slots
+        },
         [:title, :story_bible, :dm_style, :dice_engine, :user_id, :open_slots]
       )
       |> Ecto.Changeset.put_change(:world, Dragones.Codec.encode(world))
@@ -95,9 +102,9 @@ defmodule Dragones.Games do
       |> Enum.filter(fn {_key, sel} -> Map.get(sel, "include") == "on" end)
       |> Enum.sort_by(fn {key, _} -> {monster_first?(key), key} end)
       |> Enum.map(fn {key, sel} ->
-        {sheet, side} = resolve_roster_entry(key, user_id)
+        {sheet, side, hero_id} = resolve_roster_entry(key, user_id)
         kind = if side == "pc", do: parse_kind(Map.get(sel, "kind")), else: :ai
-        {sheet, kind}
+        {sheet, kind, hero_id}
       end)
 
     if roster == [] do
@@ -157,8 +164,7 @@ defmodule Dragones.Games do
   # back to the wizard's custom_* fields then to safe defaults; a picked scenario
   # contributes its own bible + fields.
   defp resolve_scenario_fields(%{scenario: %{key: "custom"}} = ch) do
-    {%{},
-     Map.get(ch, :custom_title) || "Nueva partida",
+    {%{}, Map.get(ch, :custom_title) || "Nueva partida",
      Map.get(ch, :custom_scene) || "an unremarkable crossroads",
      Map.get(ch, :custom_dm_style) || "vivid but brief"}
   end
@@ -206,25 +212,30 @@ defmodule Dragones.Games do
     # Only allow importing the hero if it belongs to the user (or no user gate).
     cond do
       sheet == nil ->
-        {Dragones.Archetypes.fighter(), "pc"}
+        {Dragones.Archetypes.fighter(), "pc", nil}
 
       user_id != nil && hero.user_id != user_id ->
-        {Dragones.Archetypes.fighter(), "pc"}
+        {Dragones.Archetypes.fighter(), "pc", nil}
 
       true ->
-        {sheet, "pc"}
+        {sheet, "pc", hero.id}
     end
   end
 
   defp resolve_roster_entry(key, _user_id) do
     entry = Dragones.Roster.catalog_entry(key)
-    {entry.builder.(), entry.side}
+    {entry.builder.(), entry.side, nil}
   end
 
   defp parse_kind("ai"), do: :ai
   defp parse_kind(_), do: :human
 
-  defp monster_first?(key), do: if(String.starts_with?(key, "hero_") or Dragones.Roster.catalog_entry(key).side == "enemy", do: 0, else: 1)
+  defp monster_first?(key),
+    do:
+      if(String.starts_with?(key, "hero_") or Dragones.Roster.catalog_entry(key).side == "enemy",
+        do: 0,
+        else: 1
+      )
 
   defp scene_from(_roster, nil), do: "an unremarkable crossroads"
   defp scene_from(_roster, ""), do: "an unremarkable crossroads"
@@ -236,8 +247,16 @@ defmodule Dragones.Games do
 
     {participants, characters, add_fns} =
       roster
-      |> Enum.reduce({[dm], [], []}, fn {sheet, kind}, {ps, cs, fs} ->
-        c = struct(Character, %{name: sheet.name, sheet: Dragones.Codec.encode_character(sheet), kind: kind})
+      |> Enum.reduce({[dm], [], []}, fn entry, {ps, cs, fs} ->
+        {sheet, kind, hero_id} = normalize_roster_entry(entry)
+
+        c =
+          struct(Character, %{
+            name: sheet.name,
+            sheet: Dragones.Codec.encode_character(sheet),
+            kind: kind,
+            hero_id: hero_id
+          })
 
         # Only PCs are participants. The creator's PC (kind :human) gets the
         # creator's user_id so the viewer auto-assigns correctly.
@@ -265,16 +284,26 @@ defmodule Dragones.Games do
         nw
       end)
       |> Dragones.World.init_spell_slots()
-      |> then(fn w -> {:ok, w2} = Dragones.World.set_scene(scene).(w); w2 end)
+      |> then(fn w ->
+        {:ok, w2} = Dragones.World.set_scene(scene).(w)
+        w2
+      end)
       |> then(fn w ->
         case initiative do
-          [] -> w
-          order -> {:ok, w3} = Dragones.World.begin_combat(order).(w); w3
+          [] ->
+            w
+
+          order ->
+            {:ok, w3} = Dragones.World.begin_combat(order).(w)
+            w3
         end
       end)
 
     {world, participants, characters}
   end
+
+  defp normalize_roster_entry({sheet, kind, hero_id}), do: {sheet, kind, hero_id}
+  defp normalize_roster_entry({sheet, kind}), do: {sheet, kind, nil}
 
   defp opening_for(scene), do: "La escena está preparada: #{scene}."
 
@@ -298,7 +327,9 @@ defmodule Dragones.Games do
       from(g in Game,
         where:
           g.user_id == ^user_id or
-            g.id in subquery(from(p in Participant, where: p.user_id == ^user_id, select: p.game_id)),
+            g.id in subquery(
+              from(p in Participant, where: p.user_id == ^user_id, select: p.game_id)
+            ),
         order_by: [desc: g.inserted_at],
         preload: [:participants]
       )
@@ -310,10 +341,19 @@ defmodule Dragones.Games do
   user), adds the character to the live world (if running), and decrements
   `open_slots`. Returns `{:ok, game}` or `{:error, reason}`.
   """
-  @spec join_game(Game.t(), Dragones.Accounts.User.t(), Dragones.Character.t()) ::
+  @spec join_game(Game.t(), Dragones.Accounts.User.t(), Dragones.Character.t(), keyword()) ::
           {:ok, Game.t()} | {:error, term()}
-  def join_game(%Game{id: game_id, open_slots: open} = _game, user, %Dragones.Character{} = sheet)
+  def join_game(game, user, sheet, opts \\ [])
+
+  def join_game(
+        %Game{id: game_id, open_slots: open} = _game,
+        user,
+        %Dragones.Character{} = sheet,
+        opts
+      )
       when open > 0 do
+    hero_id = Keyword.get(opts, :hero_id)
+
     Repo.transaction(fn ->
       # Create the participant (linked to the user)
       {:ok, _participant} =
@@ -328,8 +368,14 @@ defmodule Dragones.Games do
       {:ok, _char} =
         %Character{}
         |> Ecto.Changeset.cast(
-          %{game_id: game_id, name: sheet.name, sheet: Dragones.Codec.encode_character(sheet), kind: :human},
-          [:game_id, :name, :sheet, :kind]
+          %{
+            game_id: game_id,
+            hero_id: hero_id,
+            name: sheet.name,
+            sheet: Dragones.Codec.encode_character(sheet),
+            kind: :human
+          },
+          [:game_id, :hero_id, :name, :sheet, :kind]
         )
         |> Repo.insert()
 
@@ -346,7 +392,14 @@ defmodule Dragones.Games do
           end
 
         {:ok, _} =
-          save_state(game_id, world, game.current_participant, game.round, game.status, game.intents || %{})
+          save_state(
+            game_id,
+            world,
+            game.current_participant,
+            game.round,
+            game.status,
+            game.intents || %{}
+          )
       end
 
       # Decrement open_slots
@@ -360,7 +413,7 @@ defmodule Dragones.Games do
     end)
   end
 
-  def join_game(%Game{open_slots: 0}, _user, _sheet), do: {:error, :no_open_slots}
+  def join_game(%Game{open_slots: 0}, _user, _sheet, _opts), do: {:error, :no_open_slots}
 
   @doc "Can the given user access this game (creator, participant, or open slots)?"
   @spec can_access?(Game.t(), Dragones.Accounts.User.t() | nil) :: boolean()
@@ -388,12 +441,14 @@ defmodule Dragones.Games do
   def open_games(%Dragones.Accounts.User{id: uid}) do
     Repo.all(
       from(g in Game,
-        where: g.open_slots > 0 and g.user_id != ^uid and g.status in ^[:running, :waiting, :paused],
+        where:
+          g.open_slots > 0 and g.user_id != ^uid and g.status in ^[:running, :waiting, :paused],
         order_by: [desc: g.inserted_at],
         preload: [:participants]
       )
     )
   end
+
   @spec delete_game(term()) :: {:ok, Game.t()} | {:error, :not_found}
   def delete_game(id) do
     case Repo.get(Game, id) do
@@ -426,7 +481,9 @@ defmodule Dragones.Games do
   @doc "The last `n` events (for agent context / chat render)."
   @spec recent_events(term(), pos_integer()) :: [GameEvent.t()]
   def recent_events(game_id, n \\ 200) do
-    Repo.all(from(e in GameEvent, where: e.game_id == ^game_id, order_by: [desc: e.seq], limit: ^n))
+    Repo.all(
+      from(e in GameEvent, where: e.game_id == ^game_id, order_by: [desc: e.seq], limit: ^n)
+    )
     |> Enum.reverse()
   end
 
