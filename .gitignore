@@ -24,7 +24,9 @@ dragones-*.tar
 
 
 .env
+.env.dev
 .env.dokploy
+!.env.dev.example
 !.env.dokploy.example
 
 # Vendored dic_ex dice assets (JS bundle + CSS) — copied from the ../dic_ex
