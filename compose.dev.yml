@@ -1,0 +1,64 @@
+# Entorno de desarrollo local: Postgres+PostGIS + app Elixir (mix phx.server con
+# source mount y code reload). Reutiliza el volumen infra_postgres-data para
+# conservar toda la data existente (dragones_dev, dragones_test, etc.).
+#
+# Uso:
+#   docker stop infra-postgres-1            # libera puerto 5432 y el volumen
+#   docker compose -f compose.dev.yml up -d --build
+#
+# Puertos en host: 5455 -> Postgres, 4035 -> app (http://localhost:4035)
+
+services:
+  postgres:
+    image: postgis/postgis:17-3.5-alpine
+    container_name: dragones-postgres
+    ports:
+      - "5455:5432"
+    environment:
+      POSTGRES_DB: snack_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: dragones-app
+    ports:
+      - "4035:4001"
+    environment:
+      # Dentro de la red de compose la app apunta al servicio `postgres:5432`
+      # (no a 127.0.0.1) y bindea 0.0.0.0 para ser alcanzable desde el host.
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      PHX_BIND_IP: "0.0.0.0"
+    env_file:
+      - path: .env.dev
+        required: false
+    volumes:
+      - .:/app
+      - deps:/app/deps
+      - _build:/app/_build
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # deps.get (idempotente), migra (idempotente) y arranca Phoenix.
+    command: sh -c "mix deps.get && mix ecto.migrate && mix phx.server"
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+    # Volumen creado originalmente por el proyecto compose `infra`. Externo para
+    # conservar la data y para que un `compose down` nunca lo borre.
+    name: infra_postgres-data
+    external: true
+  deps: {}
+  _build: {}
