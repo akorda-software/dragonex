@@ -66,26 +66,25 @@ defmodule DragonesWeb.CustomContentLive do
     {:noreply, assign(socket, :editing, nil)}
   end
 
-  # Campos editables del form (allowlist de strings): protege contra `_target`
-  # forjado y evita inflar la tabla de átomos con `String.to_atom`.
-  @editable_fields_string ~w(name notes dice damage_type attack_ability finesse ranged level spell_kind save_ability effect qty item_kind)
+  # Campos del form serializados por LiveView (allowlist de strings para no
+  # inflar la tabla de átomos). Los checkboxes (finesse/ranged) van aparte: un
+  # checkbox DESMARCADO no se envía en el payload, así que se leen por presencia.
+  @text_fields ~w(name notes dice damage_type attack_ability level spell_kind save_ability effect qty item_kind)
+  @checkbox_fields ~w(finesse ranged)
 
   # --------------------------------------------------------- cambios del form
 
+  # El <form phx-change> serializa TODOS los campos en cada cambio; los
+  # mergeamos en `editing` para que sea la fuente de verdad de la UI (inputs
+  # controlados: así no se resetean al re-renderizar tras un toggle/cambio).
   @impl true
-  def handle_event("change", %{"_target" => [field]} = params, socket)
-      when field in @editable_fields_string do
-    value = Map.get(params, field)
-
+  def handle_event("change", params, socket) do
     {:noreply,
-     update(socket, :editing, fn e ->
-       e && Map.put(e, String.to_existing_atom(field), normalize(field, value))
+     update(socket, :editing, fn
+       nil -> nil
+       e -> apply_form(e, params)
      end)}
   end
-
-  # Cualquier otro evento change (path anidado, sin _target, campo desconocido):
-  # ignorar sin romper el LiveView.
-  def handle_event("change", _params, socket), do: {:noreply, socket}
 
   @impl true
   def handle_event("toggle_class", %{"class" => class}, socket) do
@@ -150,7 +149,7 @@ defmodule DragonesWeb.CustomContentLive do
       name: "",
       notes: "",
       dice: "",
-      damage_type: "",
+      damage_type: if(kind == "weapon", do: "slashing", else: ""),
       attack_ability: "str",
       finesse: false,
       ranged: false,
@@ -256,6 +255,8 @@ defmodule DragonesWeb.CustomContentLive do
 
   defp classes_list, do: Dragones.Heroes.Classes.keys()
 
+  defp chip_class(classes, c), do: if(c in classes, do: "chip sel", else: "chip")
+
   # --------------------------------------------------------- render
 
   @impl true
@@ -321,13 +322,13 @@ defmodule DragonesWeb.CustomContentLive do
 
         <div :if={@error} class="error">{@error}</div>
 
-        <div :if={@editing} class="form-card">
+        <form :if={@editing} phx-change="change" phx-submit="save" class="form-card">
           <.form_fields editing={@editing} />
           <div style="display:flex;gap:.5rem;margin-top:.6rem;">
-            <button class="btn btn-primary" phx-click="save">{if @editing.id, do: "Guardar cambios", else: "Crear"}</button>
-            <button class="btn btn-ghost" phx-click="cancel">Cancelar</button>
+            <button class="btn btn-primary" type="submit">{if @editing.id, do: "Guardar cambios", else: "Crear"}</button>
+            <button class="btn btn-ghost" type="button" phx-click="cancel">Cancelar</button>
           </div>
-        </div>
+        </form>
 
         <div :if={!@editing}>
           <div :for={cc <- @items} :key={cc.id} class="row">
@@ -354,19 +355,18 @@ defmodule DragonesWeb.CustomContentLive do
     ~H"""
     <div class="field">
       <label>Nombre</label>
-      <input type="text" name="name" value={@editing.name} phx-change="change" />
+      <input type="text" name="name" value={@editing.name} />
     </div>
     <div class="inline">
       <div class="field">
         <label>Dados (p. ej. 2d6, 1d8+2)</label>
-        <input type="text" name="dice" value={@editing.dice} phx-change="change" />
+        <input type="text" name="dice" value={@editing.dice} />
         <span :if={dice_status(@editing.dice) == :invalid} class="hint bad">no válido (usa 2d6, 1d8+2…)</span>
         <span :if={dice_status(@editing.dice) == :valid} class="hint ok">✓ válido</span>
       </div>
       <div class="field">
         <label>Tipo de daño</label>
-        <select name="damage_type" phx-change="change">
-          <option value="" selected={@editing.damage_type in ["", nil]}>(sin daño)</option>
+        <select name="damage_type">
           <%= for dt <- damage_types() do %>
             <option value={dt} selected={@editing.damage_type == dt}>{Translations.damage_type(dt, :es)}</option>
           <% end %>
@@ -376,7 +376,7 @@ defmodule DragonesWeb.CustomContentLive do
     <div class="inline">
       <div class="field">
         <label>Característica de ataque</label>
-        <select name="attack_ability" phx-change="change">
+        <select name="attack_ability">
           <%= for a <- abilities() do %>
             <option value={a} selected={@editing.attack_ability == a}>{Translations.ability(a, :es)}</option>
           <% end %>
@@ -386,17 +386,17 @@ defmodule DragonesWeb.CustomContentLive do
         <label>Propiedades</label>
         <div style="display:flex;gap:1rem;padding-top:.4rem;">
           <label class="check">
-            <input type="checkbox" name="finesse" phx-change="change" checked={@editing.finesse} /> Agilidad (finesse)
+            <input type="checkbox" name="finesse" checked={@editing.finesse} /> Agilidad (finesse)
           </label>
           <label class="check">
-            <input type="checkbox" name="ranged" phx-change="change" checked={@editing.ranged} /> A distancia
+            <input type="checkbox" name="ranged" checked={@editing.ranged} /> A distancia
           </label>
         </div>
       </div>
     </div>
     <div class="field">
       <label>Notas (opcional)</label>
-      <textarea name="notes" phx-change="change">{@editing.notes}</textarea>
+      <textarea name="notes">{@editing.notes}</textarea>
     </div>
     """
   end
@@ -405,12 +405,12 @@ defmodule DragonesWeb.CustomContentLive do
     ~H"""
     <div class="field">
       <label>Nombre</label>
-      <input type="text" name="name" value={@editing.name} phx-change="change" />
+      <input type="text" name="name" value={@editing.name} />
     </div>
     <div class="inline">
       <div class="field">
         <label>Nivel (0–9)</label>
-        <select name="level" phx-change="change">
+        <select name="level">
           <%= for n <- 0..9 do %>
             <option value={n} selected={@editing.level == n}>{n}</option>
           <% end %>
@@ -418,7 +418,7 @@ defmodule DragonesWeb.CustomContentLive do
       </div>
       <div class="field">
         <label>Tipo de tirada</label>
-        <select name="spell_kind" phx-change="change">
+        <select name="spell_kind">
           <%= for k <- spell_kinds() do %>
             <option value={k} selected={@editing.spell_kind == k}>{Translations.kind(k, :es)}</option>
           <% end %>
@@ -428,7 +428,7 @@ defmodule DragonesWeb.CustomContentLive do
     <div class="inline">
       <div class="field">
         <label>Característica de salvación (si aplica)</label>
-        <select name="save_ability" phx-change="change">
+        <select name="save_ability">
           <option value="" selected={@editing.save_ability in ["", nil]}>(ninguna)</option>
           <%= for a <- abilities() do %>
             <option value={a} selected={@editing.save_ability == a}>{Translations.ability(a, :es)}</option>
@@ -437,13 +437,13 @@ defmodule DragonesWeb.CustomContentLive do
       </div>
       <div class="field">
         <label>Dados (opcional)</label>
-        <input type="text" name="dice" value={@editing.dice} phx-change="change" placeholder="6d6" />
+        <input type="text" name="dice" value={@editing.dice} placeholder="6d6" />
         <span :if={dice_status(@editing.dice) == :invalid} class="hint bad">no válido (usa 6d6, 3d8+2…)</span>
       </div>
     </div>
     <div class="field">
       <label>Tipo de daño (opcional)</label>
-      <select name="damage_type" phx-change="change">
+      <select name="damage_type">
         <option value="" selected={@editing.damage_type in ["", nil]}>(ninguno)</option>
         <%= for dt <- damage_types() do %>
           <option value={dt} selected={@editing.damage_type == dt}>{Translations.damage_type(dt, :es)}</option>
@@ -452,13 +452,13 @@ defmodule DragonesWeb.CustomContentLive do
     </div>
     <div class="field">
       <label>Efecto / descripción</label>
-      <textarea name="effect" phx-change="change">{@editing.effect}</textarea>
+      <textarea name="effect">{@editing.effect}</textarea>
     </div>
     <div class="field">
       <label>Clases que pueden elegirlo</label>
       <div class="chips">
         <%= for c <- classes_list() do %>
-          <button type="button" class={"chip #{if c in @editing.classes, do: "sel", else: ""}"}
+          <button type="button" class={chip_class(@editing.classes, c)}
                   phx-click="toggle_class" phx-value-class={c}>
             {Translations.class(c, :es)}
           </button>
@@ -472,16 +472,16 @@ defmodule DragonesWeb.CustomContentLive do
     ~H"""
     <div class="field">
       <label>Nombre</label>
-      <input type="text" name="name" value={@editing.name} phx-change="change" />
+      <input type="text" name="name" value={@editing.name} />
     </div>
     <div class="inline">
       <div class="field">
         <label>Cantidad</label>
-        <input type="number" name="qty" value={@editing.qty} min="1" phx-change="change" />
+        <input type="number" name="qty" value={@editing.qty} min="1" />
       </div>
       <div class="field">
         <label>Tipo de objeto</label>
-        <select name="item_kind" phx-change="change">
+        <select name="item_kind">
           <%= for k <- item_kinds() do %>
             <option value={k} selected={@editing.item_kind == k}>{Catalog.item_kind_label(k, :es)}</option>
           <% end %>
@@ -490,11 +490,11 @@ defmodule DragonesWeb.CustomContentLive do
     </div>
     <div class="field">
       <label>Efecto / notas (opcional)</label>
-      <textarea name="effect" phx-change="change">{@editing.effect}</textarea>
+      <textarea name="effect">{@editing.effect}</textarea>
     </div>
     <div class="field">
       <label>Notas</label>
-      <textarea name="notes" phx-change="change">{@editing.notes}</textarea>
+      <textarea name="notes">{@editing.notes}</textarea>
     </div>
     """
   end
@@ -512,11 +512,25 @@ defmodule DragonesWeb.CustomContentLive do
     if Dragones.Dice.valid?(dice), do: :valid, else: :invalid
   end
 
-  defp normalize("finesse", v), do: v == "true"
-  defp normalize("ranged", v), do: v == "true"
   defp normalize("level", v), do: parse_int(v)
   defp normalize("qty", v), do: parse_int(v)
   defp normalize(_, v), do: v
+
+  # Mergea los campos del form en `editing`. Texto/selects: solo si están
+  # presentes en el payload. Checkboxes: presencia = true, ausencia = false.
+  defp apply_form(e, params) do
+    e =
+      Enum.reduce(@checkbox_fields, e, fn field, acc ->
+        Map.put(acc, String.to_existing_atom(field), Map.has_key?(params, field))
+      end)
+
+    Enum.reduce(@text_fields, e, fn field, acc ->
+      case Map.fetch(params, field) do
+        {:ok, v} -> Map.put(acc, String.to_existing_atom(field), normalize(field, v))
+        :error -> acc
+      end
+    end)
+  end
 
   defp parse_int(v) when is_binary(v) do
     case Integer.parse(v) do

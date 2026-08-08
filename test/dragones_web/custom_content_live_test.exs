@@ -47,6 +47,32 @@ defmodule DragonesWeb.CustomContentLiveTest do
     assert created.definition["dice"] == "2d6"
   end
 
+  test "un arma con checkbox (finesse) y todos los campos se guarda entera", %{
+    conn: conn,
+    user: user
+  } do
+    {:ok, view, _html} = live(conn, "/mi-contenido")
+    view |> render_click("new") =~ "Nombre"
+
+    # Cambio del form con todos los campos a la vez (como serializa el browser),
+    # incluyendo el checkbox finesse marcado (presente en el payload).
+    render_change(view, "change", %{
+      "name" => "Daga Veloz",
+      "dice" => "1d4",
+      "damage_type" => "piercing",
+      "attack_ability" => "dex",
+      "finesse" => "on"
+    })
+
+    view |> render_click("save")
+
+    [created] = Accounts.list_custom_content(user, "weapon")
+    assert created.name_es == "Daga Veloz"
+    assert created.definition["attack_ability"] == "dex"
+    assert created.definition["finesse"] == true
+    assert created.definition["ranged"] == false
+  end
+
   test "EDITAR contenido actualiza la fila en vez de crear una nueva", %{conn: conn, user: user} do
     {:ok, cc} =
       Accounts.create_custom_content(user, %{
