@@ -263,6 +263,10 @@ defmodule Dragones.Actions do
       %Character{hp: hp} when hp > 0 ->
         {:error, "#{name} no está caído (pg #{hp})"}
 
+      %Character{death_saves: %{fails: fails}} when fails >= 3 ->
+        {:error,
+         "#{name} ya está muerto (3 fallos de salvación de muerte) — no puede tirar más salvaciones"}
+
       %Character{} ->
         {r, close} = RollLog.open(roll_log, roller, name, :death_save, "salvación de muerte")
         result = Combat.death_save(r)

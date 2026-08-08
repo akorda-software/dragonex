@@ -385,40 +385,37 @@ defmodule Dragones.World do
     end
   end
 
-  @doc "Increase a character's level by 1: bump the level, add HP (avg hit die), refresh slots."
-  @spec level_up(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
-  def level_up(name) do
+  @doc """
+  Sube el nivel de un personaje: nivel +1, PG (dado medio + CON), y refresca los
+  huecos de conjuro. Si se pasan `choices` (`spells_added`, `asi`, `custom`),
+  también aplica hechizos nuevos, mejora de característica (a niveles ASI) y las
+  features de clase del nuevo nivel. La lógica vive en
+  `Dragones.Heroes.apply_level_up/2`; aquí solo la aplicamos al `Character` del
+  mundo y refrescamos los spell slots.
+  """
+  @spec level_up(String.t(), map()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def level_up(name, choices \\ %{}) do
     fn w ->
       case character(w, name) do
         nil ->
           {:error, "no such character: #{name}"}
 
-        %Character{level: lvl, max_hp: max_hp, class: class} = c when lvl < 20 ->
-          hit_die = hit_die_size(class)
-          con_mod = Dragones.Rules.Ability.modifier(c.con)
-          avg_hp = div(hit_die, 2) + 1
-
-          leveled = %{
-            c
-            | level: lvl + 1,
-              max_hp: max_hp + avg_hp + con_mod,
-              hp: c.hp + avg_hp + con_mod
-          }
-
-          w2 = put_char(w, name, leveled)
-
-          # Refresh spell slots to the new level's maximum
-          slots = Dragones.SpellSlots.for_class(class, lvl + 1)
-
-          w3 =
-            if slots != %{},
-              do: %{w2 | spell_slots: Map.put(w2.spell_slots, name, slots)},
-              else: w2
-
-          {:ok, w3}
-
         %Character{level: 20} ->
           {:error, "#{name} is already at max level (20)"}
+
+        %Character{} = c ->
+          case Dragones.Heroes.LevelUp.apply(c, choices) do
+            {:ok, leveled} ->
+              w2 = put_char(w, name, leveled)
+              slots = Dragones.SpellSlots.for_class(leveled.class, leveled.level)
+
+              if slots != %{},
+                do: {:ok, %{w2 | spell_slots: Map.put(w2.spell_slots, name, slots)}},
+                else: {:ok, w2}
+
+            {:error, _} = err ->
+              err
+          end
       end
     end
   end

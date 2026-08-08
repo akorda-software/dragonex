@@ -461,6 +461,121 @@ defmodule Dragones.Games do
   @spec load_world(Game.t()) :: Dragones.World.t()
   def load_world(%Game{world: world}), do: Dragones.Codec.decode(world)
 
+  @doc "IDs de partidas que usan un héroe concreto (vía `Characters.hero_id`)."
+  @spec games_using_hero(term()) :: [term()]
+  def games_using_hero(hero_id) do
+    Repo.all(
+      from(c in Character,
+        where: c.hero_id == ^hero_id,
+        select: c.game_id,
+        distinct: true
+      )
+    )
+  end
+
+  @doc """
+  Sincroniza una subida de nivel del héroe al `Character` vivo de una partida.
+
+  Aplica los deltas (nivel, max_hp, hp escalado, atributos ASI, hechizos nuevos,
+  class_features, xp) **sin pisar** el estado transitorio del combate (hp actual
+  ya dañado, condiciones, death_saves, temp_hp, slots usados). También actualiza
+  el snapshot `characters.sheet`.
+
+  Limitación v1: si el proceso `Game` está activo procesando beats, su próxima
+  persistencia podría sobreescribir el `world`. Para partidas en espera/pausada
+  la sincronización es inmediata y durable.
+  """
+  @spec sync_hero_level_up(term(), term(), Dragones.Character.t()) ::
+          {:ok, Game.t()} | {:error, :not_found | term()}
+  def sync_hero_level_up(game_id, hero_id, %Dragones.Character{} = new_sheet) do
+    game = get_game(game_id)
+    gc = Enum.find((game && game.characters) || [], &(&1.hero_id == hero_id))
+
+    cond do
+      is_nil(game) or is_nil(gc) ->
+        {:error, :not_found}
+
+      true ->
+        world = merge_character_level_up(load_world(game), gc.name, new_sheet)
+
+        Repo.transaction(fn ->
+          {:ok, _} =
+            gc
+            |> Ecto.Changeset.cast(%{sheet: Dragones.Codec.encode_character(new_sheet)}, [:sheet])
+            |> Repo.update()
+
+          {:ok, _game} =
+            save_state(
+              game_id,
+              world,
+              game.current_participant,
+              game.round,
+              game.status,
+              game.intents || %{}
+            )
+        end)
+    end
+  end
+
+  @doc """
+  Merge puro de una subida de nivel sobre el `Character` vivo de un `World`.
+  Aplica los deltas (nivel, max_hp, hp escalado, atributos, spells, features, xp)
+  sin pisar el estado transitorio. Público para que el `Game` GenServer lo use
+  dentro de un `Session.update_state` (single-writer).
+  """
+  @spec merge_character_level_up(Dragones.World.t(), String.t(), Dragones.Character.t()) ::
+          Dragones.World.t()
+  def merge_character_level_up(world, name, %Dragones.Character{} = new_sheet),
+    do: do_merge_character_level_up(world, name, new_sheet)
+
+  @doc "Actualiza el snapshot `characters.sheet` del héroe en una partida."
+  @spec update_character_sheet(term(), term(), Dragones.Character.t()) ::
+          {:ok, term()}
+  def update_character_sheet(game_id, hero_id, %Dragones.Character{} = sheet) do
+    {count, _} =
+      Repo.update_all(
+        from(c in Character, where: c.game_id == ^game_id and c.hero_id == ^hero_id),
+        set: [sheet: Dragones.Codec.encode_character(sheet)]
+      )
+
+    {:ok, count}
+  end
+
+  defp do_merge_character_level_up(world, name, new_sheet) do
+    case world.characters[name] do
+      nil ->
+        world
+
+      live ->
+        hp_delta = new_sheet.max_hp - live.max_hp
+
+        merged =
+          %{
+            live
+            | level: new_sheet.level,
+              max_hp: new_sheet.max_hp,
+              hp: max(0, live.hp + hp_delta),
+              xp: new_sheet.xp,
+              str: new_sheet.str,
+              dex: new_sheet.dex,
+              con: new_sheet.con,
+              int: new_sheet.int,
+              wis: new_sheet.wis,
+              cha: new_sheet.cha,
+              spells: new_sheet.spells,
+              class_features: new_sheet.class_features
+          }
+
+        world = %{world | characters: Map.put(world.characters, name, merged)}
+
+        slots = Dragones.SpellSlots.for_class(merged.class, merged.level)
+
+        if slots != %{},
+          do: %{world | spell_slots: Map.put(world.spell_slots, name, slots)},
+          else: world
+    end
+  end
+
   @doc "The monotonic next seq for a game's event log."
   @spec next_seq(term()) :: non_neg_integer()
   def next_seq(game_id) do

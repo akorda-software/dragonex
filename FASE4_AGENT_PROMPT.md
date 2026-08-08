@@ -29,7 +29,7 @@ partidas.
    computen resultados 5e correctos (modificadores, AC, save DC, etc.).
 
 Arranca el stack y deja verde la base antes de cambiar nada:
-`docker start infra-postgres-1` → `mix compile` →
+`docker compose -f compose.dev.yml up -d` → `mix compile` →
 `MIX_ENV=test mix test` (debe dar **135 passed, 3 excluded**).
 
 ---

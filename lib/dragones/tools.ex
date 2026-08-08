@@ -172,10 +172,62 @@ defmodule Dragones.Tools do
     end
   end
 
-  @doc "Award a level to a character (milestone leveling). Increases HP and spell slots."
-  deftool level_up(ctx, target :: String.t()) do
-    with {:ok, _} <- propose(ctx, Dragones.World.level_up(target)) do
-      {:ok, "¡#{target} sube de nivel!"}
+  @doc """
+  Otorga un nivel a un personaje (subida por hito). Sube PG y refresca huecos de
+  conjuro. **No aplica a PCs humanos** (los controla una persona real, incluso en
+  auto-play): esos suben siempre desde su ficha (`/heroes/:id/level-up`). Para
+  NPCs, enemigos y PCs IA, la subida la decide el DM aquí.
+
+  `opts` lleva las elecciones del nuevo nivel (ignoradas para PCs humanos):
+    * `"spells"` — keys de hechizos nuevos que aprende (builtin/SRD).
+    * `"asi"` — `%{"str" => 2}` repartiendo 2 puntos a niveles 4/8/12/16/19.
+  Pasa `{}` cuando no toque elegir nada. La validación de cupo la hace el motor.
+  """
+  deftool level_up(ctx, target :: String.t(), opts :: map()) do
+    cond do
+      human_pc?(ctx, target) ->
+        {:ok,
+         "#{target} es un jugador humano: debe subir de nivel desde su ficha (/heroes/:id/level-up), no por la mesa."}
+
+      true ->
+        change = Dragones.World.level_up(target, normalize_level_up_opts(opts))
+
+        with {:ok, _} <- propose(ctx, change) do
+          {:ok, "¡#{target} sube de nivel!"}
+        end
+    end
+  end
+
+  defp normalize_level_up_opts(nil), do: %{}
+
+  defp normalize_level_up_opts(opts) when is_map(opts) do
+    %{
+      spells_added: List.wrap(opts["spells"] || opts["spells_added"]),
+      asi: normalize_asi(opts["asi"]),
+      custom: %{}
+    }
+  end
+
+  defp normalize_level_up_opts(_), do: %{}
+
+  defp normalize_asi(asi) when is_map(asi) do
+    Enum.reduce(asi, %{}, fn
+      {ab, n}, acc when ab in ~w(str dex con int wis cha) and is_integer(n) ->
+        Map.put(acc, String.to_existing_atom(ab), n)
+
+      _, acc ->
+        acc
+    end)
+  end
+
+  defp normalize_asi(_), do: %{}
+
+  # ¿El target es un PC controlado por un humano? El Game inyecta `human_pcs`
+  # (MapSet de nombres) en el `deps` de cada beat.
+  defp human_pc?(ctx, target) do
+    case ctx.deps[:human_pcs] do
+      %MapSet{} = set -> MapSet.member?(set, target)
+      _ -> false
     end
   end
 

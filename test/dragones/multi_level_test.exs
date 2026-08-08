@@ -184,4 +184,60 @@ defmodule Dragones.MultiLevelTest do
       assert msg =~ "max level"
     end
   end
+
+  describe "World.level_up/2 con choices" do
+    test "aplica ASI a nivel 4 conservando el estado transitorio" do
+      hero =
+        Character.new(
+          name: "h",
+          class: "fighter",
+          level: 3,
+          hp: 5,
+          max_hp: 26,
+          ac: 16,
+          str: 16,
+          dex: 12,
+          con: 14,
+          int: 10,
+          wis: 10,
+          cha: 10,
+          side: "pc",
+          conditions: [%{condition: "prone"}]
+        )
+
+      {:ok, w} = World.add_character(hero).(World.new())
+      {:ok, w2} = World.level_up("h", %{asi: %{str: 2}}).(w)
+      h2 = w2.characters["h"]
+
+      assert h2.level == 4
+      assert h2.str == 18
+      # HP actual escala con el delta pero conserva el daño sufrido (5 → 5 + delta)
+      assert h2.hp == 5 + (h2.max_hp - hero.max_hp)
+      # Estado transitorio conservado
+      assert h2.conditions == [%{condition: "prone"}]
+    end
+
+    test "añade hechizos elegidos y refresca slots" do
+      wizard =
+        Character.new(
+          name: "w",
+          class: "wizard",
+          level: 1,
+          hp: 8,
+          max_hp: 8,
+          str: 8,
+          dex: 14,
+          con: 14,
+          int: 16,
+          wis: 12,
+          cha: 10,
+          side: "pc"
+        )
+
+      {:ok, w} = World.add_character(wizard).(World.new())
+      {:ok, w2} = World.level_up("w", %{spells_added: ["shield"]}).(w)
+
+      assert Enum.any?(w2.characters["w"].spells, &(&1.name == "shield"))
+    end
+  end
 end

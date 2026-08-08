@@ -220,6 +220,18 @@ defmodule Dragones.ActionsTest do
       w = then_apply(w, World.add_character(up))
       assert {:error, "up no está caído (pg 10)"} = Actions.death_save(w, "up", always(10))
     end
+
+    test "refuses a dead character (3 fails) so death saves don't loop forever", %{world: w} do
+      # Three failed saves kill the character...
+      w = then_apply(w, then_change(Actions.death_save(w, "hero", always(5))))
+      w = then_apply(w, then_change(Actions.death_save(w, "hero", always(5))))
+      w = then_apply(w, then_change(Actions.death_save(w, "hero", always(5))))
+      assert World.dead?(w, "hero")
+
+      # ...and the engine must NOT accept any further death save on a corpse.
+      assert {:error, msg} = Actions.death_save(w, "hero", always(10))
+      assert msg =~ "muerto"
+    end
   end
 
   describe "roll/4" do

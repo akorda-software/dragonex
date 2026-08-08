@@ -9,13 +9,11 @@ Eres un agente que continúa **Dragones**, un juego de D&D 5e con DM por IA sobr
 
 ```sh
 cd /home/kukapu/dev/projects/dragones
-docker start infra-postgres-1
-export $(cat .env | xargs)
-mix phx.server          # http://localhost:4001
-MIX_ENV=test mix test   # 267 passed, 3 excluded
+docker compose -f compose.dev.yml up -d   # Postgres + app en http://localhost:4035
+MIX_ENV=test mix test                      # DB_PORT=5457 vía .env (runtime.exs)
 ```
 
-Si la DB se cae tras un reinicio: `docker start infra-postgres-1`.
+Si la DB se cae tras un reinicio: `docker compose -f compose.dev.yml up -d` (el volumen externo `infra_postgres-data` conserva los datos).
 
 ---
 

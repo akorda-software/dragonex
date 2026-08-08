@@ -78,8 +78,9 @@ defmodule Dragones.Heroes.Races do
     end
   end
 
+  @doc "All race entries (parent + subraces), the catalogue source of truth."
   @spec all() :: [race()]
-  defp all do
+  def all do
     [
       %{
         key: "dwarf",

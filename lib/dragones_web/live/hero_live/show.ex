@@ -16,15 +16,33 @@ defmodule DragonesWeb.HeroLive.Show do
 
       user ->
         hero = Accounts.get_user_hero(user, id)
-        sheet = hero && Accounts.hero_sheet(hero)
 
-        {:ok,
-         assign(socket,
-           current_user: user,
-           hero: hero,
-           sheet: sheet,
-           can_edit: hero && !Accounts.hero_used?(hero)
-         )}
+        socket =
+          socket
+          |> assign(:current_user, user)
+          |> assign(:hero, hero)
+          |> assign(:sheet, hero && Accounts.hero_sheet(hero))
+          |> assign(:can_edit, hero && !Accounts.hero_used?(hero))
+          |> assign(:error, nil)
+
+        {:ok, load_progress(socket)}
+    end
+  end
+
+  defp load_progress(socket) do
+    case socket.assigns.hero do
+      nil ->
+        socket
+
+      %{level: level} ->
+        xp = (socket.assigns.sheet && socket.assigns.sheet.xp) || 0
+
+        assign(socket,
+          level: level,
+          xp: xp,
+          can_level_up: level < 20,
+          target_level: min(level + 1, 20)
+        )
     end
   end
 
@@ -69,6 +87,11 @@ defmodule DragonesWeb.HeroLive.Show do
         .hero-sheet-empty{text-align:center;color:#666;padding:3rem;background:rgba(20,20,20,.65);border:1px dashed #333;border-radius:14px;}
         @media(max-width:900px){.hero-sheet-layout{grid-template-columns:1fr;}.hero-sheet-main{grid-template-columns:repeat(2,minmax(0,1fr));}.hero-sheet-abilities{grid-template-columns:repeat(3,minmax(0,1fr));}}
         @media(max-width:640px){.hero-sheet-page{width:min(100% - 1rem,1180px);padding-top:1rem;}.hero-sheet-main{grid-template-columns:1fr;}.hero-sheet-abilities,.hero-sheet-stats{grid-template-columns:repeat(2,minmax(0,1fr));}.hero-sheet-header{text-align:left;}.hero-sheet-role{justify-content:flex-start;}.hero-sheet-role span{border-radius:8px;}}
+        .level-up-callout{margin-top:.7rem;background:#241c14;border:1px solid #a72;border-radius:10px;padding:.7rem;display:flex;align-items:center;justify-content:space-between;gap:.6rem;color:#fc8;font-size:.85rem;}
+        .level-up-callout .btn{background:#3a2a1a;border:1px solid #a72;color:#fc8;padding:.35rem .7rem;border-radius:8px;text-decoration:none;font-size:.8rem;font-family:inherit;}
+        .xp-actions{margin-top:.6rem;display:flex;gap:.4rem;flex-wrap:wrap;}
+        .xp-actions .btn,.btn-sm{background:#202020;border:1px solid #3a3a3a;color:#9cd;padding:.35rem .6rem;border-radius:8px;font-size:.75rem;font-family:inherit;cursor:pointer;}
+        .error{margin:.8rem 0;color:#f99;background:#2a1a1a;border:1px solid #633;border-radius:8px;padding:.7rem;font-size:.85rem;}
       </style>
 
       <div class="hero-sheet-top">
@@ -127,6 +150,24 @@ defmodule DragonesWeb.HeroLive.Show do
               <div class="hero-sheet-save">
                 <span>Salvaciones</span>
                 {fallback(Catalog.saving_throws(@sheet.saving_proficiencies || []), "Ninguna")}
+              </div>
+            </section>
+
+            <section class="hero-sheet-panel">
+              <h2>Progresión</h2>
+              <div class="hero-sheet-stats">
+                <div class="hero-sheet-stat">
+                  <span>Progresión</span>
+                  <strong>Por hitos</strong>
+                </div>
+                <div class="hero-sheet-stat">
+                  <span>Experiencia</span>
+                  <strong>{@xp} XP</strong>
+                </div>
+              </div>
+              <div :if={@can_level_up} class="level-up-callout">
+                <strong>¡Puede subir a nivel {@target_level}!</strong>
+                <.link navigate={"/heroes/#{@hero.id}/level-up"} class="btn">Subir de nivel →</.link>
               </div>
             </section>
           </div>

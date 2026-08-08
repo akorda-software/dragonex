@@ -603,11 +603,10 @@ tópico `dragones:game:<id>` y re-fetch del snapshot al recibir
 
 ## Cómo correr una partida de prueba
 
-1. `docker start infra-postgres-1` (si Postgres parado).
-2. `setsid bash -c 'mix phx.server > /tmp/dragones_dev.log 2>&1' < /dev/null > /dev/null 2>&1 &` (puerto 4001).
-3. Navegador → `/games/new` → escenario "Arena de Pruebas".
-4. Toggle auto-play en un PC para observar sin input humano.
-5. Pausar/reanudar cuando haga falta. Logs en `/tmp/dragones_dev.log`.
+1. `docker compose -f compose.dev.yml up -d` (levanta Postgres + app; http://localhost:4035).
+2. Navegador → http://localhost:4035/games/new → escenario "Arena de Pruebas".
+3. Toggle auto-play en un PC para observar sin input humano.
+4. Pausar/reanudar cuando haga falta. Logs: `docker logs -f dragones-app`.
 
 ## Tests
 - `MIX_ENV=test mix test` → suite verde (**320** actualmente).

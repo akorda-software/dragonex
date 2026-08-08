@@ -51,6 +51,22 @@ defmodule Dragones.DMTest do
     assert brief =~ "[CAÍDO]"
   end
 
+  test "a dead character (3 fails) is flagged [MUERTO], not [CAÍDO]" do
+    w =
+      World.new()
+      |> add(World.add_character(Archetypes.wizard()))
+      |> add(World.add_character(Monsters.goblin()))
+
+    %Character{} = lyra = w.characters["Lyra"]
+
+    dead = %Character{lyra | hp: 0, death_saves: %{successes: 0, fails: 3}}
+    w = %{w | characters: Map.put(w.characters, "Lyra", dead)}
+
+    brief = Brief.world_brief(w, "Lyra")
+    assert brief =~ "[MUERTO]"
+    refute brief =~ "[CAÍDO]"
+  end
+
   defp add(world, change) do
     {:ok, w} = change.(world)
     w

@@ -142,6 +142,44 @@ defmodule Dragones.PCAgentTest do
       assert instr =~ "NO hay enemigos"
     end
 
+    test "a downed (0 hp) PC is steered to make_death_save" do
+      c =
+        Character.new(
+          name: "Thane",
+          race: "human",
+          class: "fighter",
+          level: 1,
+          hp: 0,
+          max_hp: 12,
+          side: "pc"
+        )
+
+      instr = PCAgent.instruction("Thane", c, World.new())
+
+      assert instr =~ "CAÍDO"
+      assert instr =~ "make_death_save"
+    end
+
+    test "a dead (3 fails) PC is NOT told to call make_death_save again" do
+      c =
+        Character.new(
+          name: "Thane",
+          race: "human",
+          class: "fighter",
+          level: 1,
+          hp: 0,
+          max_hp: 12,
+          death_saves: %{successes: 0, fails: 3},
+          side: "pc"
+        )
+
+      instr = PCAgent.instruction("Thane", c, World.new())
+
+      assert instr =~ "MUERTO"
+      # The dead branch must never hand the bot a death-save tool call.
+      refute instr =~ "make_death_save(\"Thane\")"
+    end
+
     test "includes spells for casters in combat" do
       c =
         Character.new(

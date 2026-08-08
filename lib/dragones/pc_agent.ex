@@ -174,89 +174,23 @@ defmodule Dragones.PCAgent do
   def instruction(name, %Character{} = c, world) when c.name == name do
     # A downed (0 hp) character can only make a death saving throw on its turn —
     # it cannot attack, cast, or act. Steer the agent there explicitly so it
-    # doesn't try to fight while unconscious.
-    if c.max_hp not in [nil, 0] and (c.hp || 0) <= 0 do
-      "Es TU turno (#{c.name}). Estás CAÍDO (0 pg) e inconsciente: lo único que " <>
-        "puedes hacer es una salvación de muerte. Llama a " <>
-        "make_death_save(\"#{c.name}\") y reacciona en personaje (1 frase). Responde en castellano."
-    else
-      weapons = c.weapons |> Enum.map(& &1.name) |> Enum.join(", ")
-      spells = if c.spells == [], do: [], else: c.spells |> Enum.map(& &1.name) |> Enum.join(", ")
+    # doesn't try to fight while unconscious. A DEAD character (3 fails) cannot
+    # act at all: it must NOT call make_death_save again, or the engine would
+    # loop salvations forever on a corpse.
+    cond do
+      c.max_hp not in [nil, 0] and (c.hp || 0) <= 0 and (c.death_saves[:fails] || 0) >= 3 ->
+        "Es TU turno (#{c.name}). Estás MUERTO (3 fallos de salvación de muerte). NO puedes " <>
+          "actuar ni tirar salvaciones: describe en 1-2 frases, en personaje y en pasado, el " <>
+          "último estertor o el silencio final de tu cuerpo. NO llames a ninguna herramienta " <>
+          "(en especial make_death_save). Responde en castellano."
 
-      enemies = living_enemies(world, c)
-      combat? = world != nil and world.phase == :combat and enemies != []
+      c.max_hp not in [nil, 0] and (c.hp || 0) <= 0 ->
+        "Es TU turno (#{c.name}). Estás CAÍDO (0 pg) e inconsciente: lo único que " <>
+          "puedes hacer es una salvación de muerte. Llama a " <>
+          "make_death_save(\"#{c.name}\") y reacciona en personaje (1 frase). Responde en castellano."
 
-      cond_line =
-        case c.conditions || [] do
-          [] ->
-            ""
-
-          conds ->
-            names =
-              Enum.map(conds, fn
-                %{condition: cd} -> cd
-                %{"condition" => cd} -> cd
-                cd when is_binary(cd) -> cd
-                _ -> nil
-              end)
-              |> Enum.reject(&is_nil/1)
-
-            if names == [],
-              do: "",
-              else:
-                "- AVISO: estás #{Enum.join(names, ", ")}. Esto puede afectar a tus tiradas de ataque.\n"
-        end
-
-      if combat? do
-        # Combat with real enemies: list them so the bot never proposes a
-        # non-existent target. Tools are the right path here.
-        targets = Enum.map_join(enemies, ", ", &"\"#{&1}\"")
-
-        base =
-          "Es TU turno (#{c.name}). Estás en COMBATE. Objetivos VÁLIDOS (único tipo de objetivo que el motor acepta): #{targets}.\n" <>
-            "- Atacar: make_attack(\"#{c.name}\", \"<objetivo de la lista>\", \"<arma>\") — armas: #{weapons}.\n"
-
-        spell_line =
-          if spells != "",
-            do:
-              "- Conjurar: cast_spell(\"#{c.name}\", \"<hechizo>\", \"<objetivo de la lista>\") — hechizos: #{spells}.\n",
-            else: ""
-
-        base <>
-          spell_line <>
-          cond_line <>
-          "Elige UNA acción y llama a la herramienta. Luego reacciona en 1-2 frases. Responde en castellano."
-      else
-        # Exploration (or combat with no living enemies): NO fuerces un tool.
-        # The bot may speak, observe, plan, move — all text-only. Only call a
-        # tool if attempting something with a real chance of failure (force a
-        # door, persuade an NPC, search for traps…).
-        #
-        # PROACTIVIDAD: el bot debe AVANZAR la escena, no pasar turnos en
-        # pasivo. Si el DM ofreció opciones, ELIGE uno. Si nadie lidera, toma
-        # la iniciativa. Nunca termines un turno sólo con "espero" o "mi turno
-        # termina" — eso hace que la partida loopee.
-        "Es TU turno (#{c.name}). NO hay enemigos a la vista.\n" <>
-          "COMO PERSONAJE ACTIVO: eres un aventurero con motivación propia, NO un espectador. Avanza la escena: " <>
-          "explora un área nueva, abre una puerta, habla con un PNJ, inspecciona un detalle, propone un plan al grupo, " <>
-          "toma una decisión. Si el DM ha ofrecido opciones en su último turno, ELIGE UNA y ejecútala. " <>
-          "Si la escena está parada, propón una acción concreta que la mueva.\n" <>
-          "COORDINACIÓN CON EL GRUPO: lee lo que tus compañeros acaban de hacer en sus turnos y REACCIONA en " <>
-          "persona — apoya, matiza, desvío, propón alternativa, o suma tu parte al plan. NO ignores lo que otro " <>
-          "miembro propuso para abrir un hilo paralelo desconectado; la partida fluye mejor cuando los PCs responden " <>
-          "unos a otros y avanzan juntos hacia un mismo objetivo.\n" <>
-          "NUNCA termines tu turno diciendo sólo 'espero', 'paso', 'no hago nada', 'mi turno termina' — siempre " <>
-          "debes haber HECHO o PROPUESTO algo concreto, en una o dos frases con personalidad.\n" <>
-          "SOLO llama a una herramienta si intentas algo con riesgo real de fallo " <>
-          "(forzar una puerta, persuadir a un PNJ, detectar una trampa, etc.): " <>
-          "ability_check(\"#{c.name}\", \"<str|dex|con|int|wis|cha>\", <DC>).\n" <>
-          "Si introducen o revelan algo duradero (un PNJ llega, un descubrimiento, un encargo), el DM lo registrará " <>
-          "con establish_fact; tú NO necesitas llamarlo. " <>
-          "NO inventes make_attack contra objetos, PNJ sin hostilidad, o nombres que no estén en el mundo. " <>
-          "Si no sabes qué hacer, propone UNA acción concreta (abrir X, hablar con Y, ir a Z) en personaje.\n" <>
-          cond_line <>
-          "Responde en castellano."
-      end
+      true ->
+        pc_combat_or_exploration_instruction(c, world)
     end
   end
 
@@ -266,6 +200,88 @@ defmodule Dragones.PCAgent do
 
   def instruction(name, _, _) do
     "Es el turno de #{name}. Actúa en personaje. Responde en castellano."
+  end
+
+  # The combat / exploration instruction for a conscious PC (hp > 0). Extracted
+  # from `instruction/3` so the dead/downed branches stay readable.
+  defp pc_combat_or_exploration_instruction(c, world) do
+    weapons = c.weapons |> Enum.map(& &1.name) |> Enum.join(", ")
+    spells = if c.spells == [], do: [], else: c.spells |> Enum.map(& &1.name) |> Enum.join(", ")
+
+    enemies = living_enemies(world, c)
+    combat? = world != nil and world.phase == :combat and enemies != []
+
+    cond_line =
+      case c.conditions || [] do
+        [] ->
+          ""
+
+        conds ->
+          names =
+            Enum.map(conds, fn
+              %{condition: cd} -> cd
+              %{"condition" => cd} -> cd
+              cd when is_binary(cd) -> cd
+              _ -> nil
+            end)
+            |> Enum.reject(&is_nil/1)
+
+          if names == [],
+            do: "",
+            else:
+              "- AVISO: estás #{Enum.join(names, ", ")}. Esto puede afectar a tus tiradas de ataque.\n"
+      end
+
+    if combat? do
+      # Combat with real enemies: list them so the bot never proposes a
+      # non-existent target. Tools are the right path here.
+      targets = Enum.map_join(enemies, ", ", &"\"#{&1}\"")
+
+      base =
+        "Es TU turno (#{c.name}). Estás en COMBATE. Objetivos VÁLIDOS (único tipo de objetivo que el motor acepta): #{targets}.\n" <>
+          "- Atacar: make_attack(\"#{c.name}\", \"<objetivo de la lista>\", \"<arma>\") — armas: #{weapons}.\n"
+
+      spell_line =
+        if spells != "",
+          do:
+            "- Conjurar: cast_spell(\"#{c.name}\", \"<hechizo>\", \"<objetivo de la lista>\") — hechizos: #{spells}.\n",
+          else: ""
+
+      base <>
+        spell_line <>
+        cond_line <>
+        "Elige UNA acción y llama a la herramienta. Luego reacciona en 1-2 frases. Responde en castellano."
+    else
+      # Exploration (or combat with no living enemies): NO fuerces un tool.
+      # The bot may speak, observe, plan, move — all text-only. Only call a
+      # tool if attempting something with a real chance of failure (force a
+      # door, persuade an NPC, search for traps…).
+      #
+      # PROACTIVIDAD: el bot debe AVANZAR la escena, no pasar turnos en
+      # pasivo. Si el DM ofreció opciones, ELIGE uno. Si nadie lidera, toma
+      # la iniciativa. Nunca termines un turno sólo con "espero" o "mi turno
+      # termina" — eso hace que la partida loopee.
+      "Es TU turno (#{c.name}). NO hay enemigos a la vista.\n" <>
+        "COMO PERSONAJE ACTIVO: eres un aventurero con motivación propia, NO un espectador. Avanza la escena: " <>
+        "explora un área nueva, abre una puerta, habla con un PNJ, inspecciona un detalle, propone un plan al grupo, " <>
+        "toma una decisión. Si el DM ha ofrecido opciones en su último turno, ELIGE UNA y ejecútala. " <>
+        "Si la escena está parada, propón una acción concreta que la mueva.\n" <>
+        "COORDINACIÓN CON EL GRUPO: lee lo que tus compañeros acaban de hacer en sus turnos y REACCIONA en " <>
+        "persona — apoya, matiza, desvío, propón alternativa, o suma tu parte al plan. NO ignores lo que otro " <>
+        "miembro propuso para abrir un hilo paralelo desconectado; la partida fluye mejor cuando los PCs responden " <>
+        "unos a otros y avanzan juntos hacia un mismo objetivo.\n" <>
+        "NUNCA termines tu turno diciendo sólo 'espero', 'paso', 'no hago nada', 'mi turno termina' — siempre " <>
+        "debes haber HECHO o PROPUESTO algo concreto, en una o dos frases con personalidad.\n" <>
+        "SOLO llama a una herramienta si intentas algo con riesgo real de fallo " <>
+        "(forzar una puerta, persuadir a un PNJ, detectar una trampa, etc.): " <>
+        "ability_check(\"#{c.name}\", \"<str|dex|con|int|wis|cha>\", <DC>).\n" <>
+        "Si introducen o revelan algo duradero (un PNJ llega, un descubrimiento, un encargo), el DM lo registrará " <>
+        "con establish_fact; tú NO necesitas llamarlo. " <>
+        "NO inventes make_attack contra objetos, PNJ sin hostilidad, o nombres que no estén en el mundo. " <>
+        "Si no sabes qué hacer, propone UNA acción concreta (abrir X, hablar con Y, ir a Z) en personaje.\n" <>
+        cond_line <>
+        "Responde en castellano."
+    end
   end
 
   # The valid attack/cast targets for this PC: every living character on the

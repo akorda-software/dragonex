@@ -83,7 +83,7 @@ defmodule Dragones.Game do
   @doc """
   Start a Game process for `game_id`, rehydrating from Postgres. Options:
 
-    * `:model`  — the LLM model for the DM agent (defaults to env/OpenRouter).
+    * `:model`  — the LLM model for the DM agent (defaults to env/provider config in `Dragones.Models`).
     * `:roller` — a `(sides -> value)` dice fn (defaults to `Dragones.Dice.roll`).
   """
   @spec start_link({term(), keyword()}) :: GenServer.on_start()
@@ -112,6 +112,47 @@ defmodule Dragones.Game do
     end
   end
 
+  @doc """
+  Restart the Game process for `game_id` (stop + rehydrate from Postgres).
+
+  Used by the Ajustes modal to apply a provider/model/thinking change: the model
+  is baked into the DM agent at start, so a config change needs a fresh process
+  to pick it up. The partida's world + turn position are persisted, so it
+  resumes at the same point with the new model wired in. Any in-flight beat is
+  discarded (its pre-beat state was already persisted).
+  """
+  @spec restart(term(), keyword()) :: {:ok, pid()} | {:error, term()}
+  def restart(game_id, opts \\ []) do
+    _ = Dragones.Game.Supervisor.stop_game(game_id)
+
+    # terminate_child is synchronous, but the Registry drops the key
+    # asynchronously on the process :DOWN. If we start immediately, ensure_started
+    # can see the stale (dead) pid and skip starting a fresh Game — leaving no
+    # live process and the LiveView stuck on "Cargando partida…". Poll briefly
+    # until the key is gone, then start a brand new process.
+    wait_until_gone(game_id)
+
+    case Dragones.Game.Supervisor.start_game(game_id, opts) do
+      {:ok, pid} -> {:ok, pid}
+      {:error, {:already_started, pid}} -> {:ok, pid}
+      other -> other
+    end
+  end
+
+  defp wait_until_gone(game_id), do: wait_until_gone(game_id, 100)
+  defp wait_until_gone(_game_id, 0), do: :ok
+
+  defp wait_until_gone(game_id, n) do
+    case Dragones.Game.Supervisor.whereis(game_id) do
+      nil ->
+        :ok
+
+      _ ->
+        Process.sleep(5)
+        wait_until_gone(game_id, n - 1)
+    end
+  end
+
   @doc "The participant whose turn it is."
   @spec current(GenServer.server()) :: term() | nil
   def current(server), do: GenServer.call(server, :current)
@@ -127,6 +168,19 @@ defmodule Dragones.Game do
   @doc "A snapshot for rendering: world, current, status, round."
   @spec snapshot(GenServer.server()) :: map()
   def snapshot(server), do: GenServer.call(server, :snapshot)
+
+  @doc """
+  Sincroniza una subida de nivel del héroe al `Character` vivo de la partida,
+  **dentro del GenServer** (respeta el single-writer): aplica el merge al `World`
+  del Session, actualiza el snapshot `characters.sheet`, persiste y avisa por
+  PubSub. Es la vía correcta desde el LiveView de level-up cuando la partida
+  está corriendo (evita que el siguiente `persist` pise el cambio).
+  """
+  @spec sync_hero_level_up(GenServer.server(), term(), Dragones.Character.t()) ::
+          :ok | {:error, :not_found | :sync_failed}
+  def sync_hero_level_up(server, hero_id, %Dragones.Character{} = new_sheet) do
+    GenServer.call(server, {:sync_hero_level_up, hero_id, new_sheet})
+  end
 
   @doc """
   A human **declares** an action as `participant` — anytime, even off-turn.
@@ -282,6 +336,9 @@ defmodule Dragones.Game do
         story_bible: game.story_bible || %{},
         summarizer: summarizer,
         max_tokens: Dragones.Models.dm_max_tokens(),
+        # Reasoning effort override (nil unless the Ajustes modal set one). Rides
+        # in ModelSettings.extra → the provider's reasoning knob.
+        reasoning: Dragones.Models.reasoning_extra(),
         # With shared-history reconstruction from game_events, the history
         # reflects the partida's full timeline (not just the DM's). Cap at
         # 250k tokens — most modern long-context models (1M window) handle
@@ -533,6 +590,48 @@ defmodule Dragones.Game do
     else
       {:reply, :ok, state}
     end
+  end
+
+  # Sincronización de level-up del héroe al world vivo. Entrada única desde el
+  # LiveView de level-up; respeta el single-writer (muta el Session, persiste y
+  # broadcast dentro del proceso). Mantiene el estado transitorio del combate.
+  def handle_call({:sync_hero_level_up, hero_id, %Dragones.Character{} = new_sheet}, _from, state) do
+    game = Games.get_game(state.game_id)
+    gc = Enum.find((game && game.characters) || [], &(&1.hero_id == hero_id))
+
+    result =
+      cond do
+        is_nil(gc) ->
+          {:error, :not_found}
+
+        true ->
+          # El level-up lo "propone" el propio personaje (o el current del turno si
+          # lo hay). `Session.update_state/3` no exige que `actor` sea el participante
+          # en turno: es solo quién origina el cambio, y un level-up no consume turno.
+          actor = Session.current(state.session) || gc.name
+
+          change = fn world ->
+            {:ok, Games.merge_character_level_up(world, gc.name, new_sheet)}
+          end
+
+          case Session.update_state(state.session, actor, change) do
+            {:ok, _} ->
+              {:ok, _} = Games.update_character_sheet(state.game_id, hero_id, new_sheet)
+              persist(state, state.status)
+              :ok
+
+            {:error, _} = err ->
+              Logger.warning(
+                "dragones game #{state.game_id}: sync_hero_level_up no aplicó al world " <>
+                  "(héroe #{hero_id}): #{inspect(err)}"
+              )
+
+              err
+          end
+      end
+
+    broadcast_updated(state)
+    {:reply, result, state}
   end
 
   # --------------------------------------------------------------- loop
@@ -1088,12 +1187,18 @@ defmodule Dragones.Game do
         {:ok, recorder} = RollLog.start(on_close: on_roll_closed)
         roll_log = %RollLog{base: roller, recorder: recorder}
 
+        # PCs controlados por una persona real (incluso en auto-play). La tool
+        # `level_up` los excluye: un jugador humano sube siempre desde su ficha.
+        human_pcs =
+          for {name, %{kind: :human}} <- state.participants, into: MapSet.new(), do: name
+
         deps = %{
           state: shared,
           roller: roller,
           roll_log: roll_log,
           beat: beat,
-          on_text_delta: on_text_delta
+          on_text_delta: on_text_delta,
+          human_pcs: human_pcs
         }
 
         result =

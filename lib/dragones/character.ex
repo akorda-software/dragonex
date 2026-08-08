@@ -27,6 +27,7 @@ defmodule Dragones.Character do
     field(:sex, :string)
     field(:side, :string, default: "pc")
     field(:level, :integer, default: 1)
+    field(:xp, :integer, default: 0)
 
     field(:hp, :integer, default: 0)
     field(:max_hp, :integer, default: 0)
@@ -74,6 +75,7 @@ defmodule Dragones.Character do
         :sex,
         :side,
         :level,
+        :xp,
         :hp,
         :max_hp,
         :temp_hp,
@@ -135,6 +137,7 @@ defmodule Dragones.Character do
       sex: nil,
       side: "pc",
       level: 1,
+      xp: 0,
       hp: 0,
       max_hp: 0,
       temp_hp: 0,

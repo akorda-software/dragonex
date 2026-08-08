@@ -37,6 +37,7 @@ defmodule DragonesWeb.Router do
       live("/heroes", HeroLive.Index, :index)
       live("/heroes/new", HeroLive.New, :new)
       live("/heroes/:id/edit", HeroLive.New, :edit)
+      live("/heroes/:id/level-up", HeroLive.LevelUp, :level_up)
       live("/heroes/:id", HeroLive.Show, :show)
       live("/mi-contenido", CustomContentLive, :index)
       live("/games/new", GameLive.New, :new)

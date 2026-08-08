@@ -115,7 +115,15 @@ defmodule Dragones.Brief do
   end
 
   defp describe_char(name, %Character{} = c, current, dm, spell_slots, kinds) do
-    status = if (c.hp || 0) <= 0 and c.max_hp not in [nil, 0], do: " [CAÍDO]", else: ""
+    fails = c.death_saves[:fails] || 0
+
+    status =
+      cond do
+        (c.hp || 0) <= 0 and c.max_hp not in [nil, 0] and fails >= 3 -> " [MUERTO]"
+        (c.hp || 0) <= 0 and c.max_hp not in [nil, 0] -> " [CAÍDO]"
+        true -> ""
+      end
+
     ai_tag = if kinds[name] == :ai, do: " IA", else: ""
 
     cond_str =
