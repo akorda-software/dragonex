@@ -38,6 +38,7 @@ defmodule DragonesWeb.Router do
       live("/heroes/new", HeroLive.New, :new)
       live("/heroes/:id/edit", HeroLive.New, :edit)
       live("/heroes/:id", HeroLive.Show, :show)
+      live("/mi-contenido", CustomContentLive, :index)
       live("/games/new", GameLive.New, :new)
       live("/games/:game_id", GameLive.Show, :show)
     end

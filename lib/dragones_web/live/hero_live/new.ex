@@ -27,6 +27,7 @@ defmodule DragonesWeb.HeroLive.New do
           |> assign(:current_user, user)
           |> assign(:locale, I18n.locale())
           |> assign(:error, nil)
+          |> assign(:custom, Dragones.Accounts.custom_bundle(user))
 
         mount_mode(params, user, socket)
     end
@@ -187,9 +188,10 @@ defmodule DragonesWeb.HeroLive.New do
         form = %{socket.assigns.form | spells: List.delete(current, name)}
         {:noreply, socket |> assign(:form, form) |> assign(:error, nil) |> refresh_preview()}
 
-      cap_reached?(class_key, current, name) ->
+      cap_reached?(class_key, current, name, socket.assigns[:custom] || %{}) ->
         # ya está al cupo de ese nivel: no añade más
-        {:noreply, assign(socket, :error, spell_cap_error(class_key, name))}
+        {:noreply,
+         assign(socket, :error, spell_cap_error(class_key, name, socket.assigns[:custom] || %{}))}
 
       true ->
         form = %{socket.assigns.form | spells: current ++ [name]}
@@ -198,6 +200,22 @@ defmodule DragonesWeb.HeroLive.New do
   end
 
   # --- text input change (form phx-change) ---
+
+  def handle_event("extra_weapon_toggle", %{"key" => key}, socket) do
+    form = socket.assigns.form
+    ee = Map.get(form, :extra_equipment) || %{weapons: [], items: []}
+    weapons = toggle_key(Map.get(ee, :weapons, []), key)
+    form = %{form | extra_equipment: Map.put(ee, :weapons, weapons)}
+    {:noreply, socket |> assign(:form, form) |> assign(:error, nil) |> refresh_preview()}
+  end
+
+  def handle_event("extra_item_toggle", %{"key" => key}, socket) do
+    form = socket.assigns.form
+    ee = Map.get(form, :extra_equipment) || %{weapons: [], items: []}
+    items = toggle_item(Map.get(ee, :items, []), key)
+    form = %{form | extra_equipment: Map.put(ee, :items, items)}
+    {:noreply, socket |> assign(:form, form) |> assign(:error, nil) |> refresh_preview()}
+  end
 
   def handle_event("change", params, socket) do
     field = List.first(params["_target"] || [])
@@ -311,7 +329,8 @@ defmodule DragonesWeb.HeroLive.New do
       spells: nil,
       equipment: %{},
       skills_choice: [],
-      extra_langs: []
+      extra_langs: [],
+      extra_equipment: %{weapons: [], items: []}
     }
   end
 
@@ -330,7 +349,8 @@ defmodule DragonesWeb.HeroLive.New do
       spells: normalize_optional_list(draft_get(draft, "spells")),
       equipment: normalize_equipment(draft_get(draft, "equipment", %{})),
       skills_choice: normalize_list(draft_get(draft, "skills_choice")),
-      extra_langs: normalize_list(draft_get(draft, "extra_langs"))
+      extra_langs: normalize_list(draft_get(draft, "extra_langs")),
+      extra_equipment: normalize_extra_equipment(draft_get(draft, "extra_equipment"))
     })
   end
 
@@ -350,7 +370,8 @@ defmodule DragonesWeb.HeroLive.New do
       spells: Enum.map(sheet.spells || [], & &1.name),
       skills_choice:
         class_skill_choices(sheet.class, sheet.skill_proficiencies || [], background),
-      extra_langs: extra_languages_from_sheet(sheet.languages || [], race, subrace, background)
+      extra_langs: extra_languages_from_sheet(sheet.languages || [], race, subrace, background),
+      extra_equipment: %{weapons: [], items: []}
     })
   end
 
@@ -368,17 +389,16 @@ defmodule DragonesWeb.HeroLive.New do
       "spells" => form.spells,
       "equipment" => stringify_map(form.equipment || %{}),
       "skills_choice" => form.skills_choice || [],
-      "extra_langs" => form.extra_langs || []
+      "extra_langs" => form.extra_langs || [],
+      "extra_equipment" => stringify_extra_equipment(form[:extra_equipment])
     }
   end
 
-  defp draft_get(map, key, default \\ nil) do
-    Map.get(map, key, Map.get(map, String.to_atom(key), default))
-  end
+  defp draft_get(map, key, default \\ nil), do: Dragones.MapUtil.get(map, key, default)
 
   defp normalize_pb(map) when is_map(map) do
     Map.new([:str, :dex, :con, :int, :wis, :cha], fn ability ->
-      value = Map.get(map, Atom.to_string(ability), Map.get(map, ability, 8))
+      value = Dragones.MapUtil.get(map, ability, 8)
       {ability, to_int(value, 8)}
     end)
   end
@@ -390,6 +410,59 @@ defmodule DragonesWeb.HeroLive.New do
   end
 
   defp normalize_equipment(_), do: %{}
+
+  defp normalize_extra_equipment(nil), do: %{weapons: [], items: []}
+
+  defp normalize_extra_equipment(map) when is_map(map) do
+    weapons = list_get(map, :weapons) |> Enum.map(&to_string/1)
+
+    items =
+      list_get(map, :items)
+      |> Enum.map(fn
+        %{key: k, qty: q} -> %{key: to_string(k), qty: to_int(q, 1)}
+        %{"key" => k, "qty" => q} -> %{key: to_string(k), qty: to_int(q, 1)}
+        %{"key" => k} -> %{key: to_string(k), qty: 1}
+        %{key: k} -> %{key: to_string(k), qty: 1}
+        k when is_binary(k) -> %{key: k, qty: 1}
+        _ -> nil
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    %{weapons: weapons, items: items}
+  end
+
+  defp list_get(map, key), do: Dragones.MapUtil.get(map, key, []) || []
+
+  defp stringify_extra_equipment(nil), do: %{"weapons" => [], "items" => []}
+
+  defp stringify_extra_equipment(ee) when is_map(ee) do
+    weapons = Enum.map(Dragones.MapUtil.get(ee, :weapons, []) || [], &to_string/1)
+
+    items =
+      Enum.map(Dragones.MapUtil.get(ee, :items, []) || [], fn
+        %{key: k, qty: q} -> %{"key" => to_string(k), "qty" => q}
+        _ -> nil
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    %{"weapons" => weapons, "items" => items}
+  end
+
+  defp toggle_key(list, key) do
+    if key in list, do: List.delete(list, key), else: list ++ [key]
+  end
+
+  defp toggle_item(list, key) do
+    existing = Enum.any?(list, &(item_key(&1) == key))
+
+    if existing,
+      do: Enum.reject(list, &(item_key(&1) == key)),
+      else: list ++ [%{key: key, qty: 1}]
+  end
+
+  defp item_key(%{key: k}), do: k
+  defp item_key(%{"key" => k}), do: k
+  defp item_key(_), do: nil
 
   defp normalize_list(list) when is_list(list), do: Enum.filter(list, &is_binary/1)
   defp normalize_list(_), do: []
@@ -531,7 +604,9 @@ defmodule DragonesWeb.HeroLive.New do
              equipment_picks: form.equipment,
              skills: form.skills_choice,
              extra_languages: form.extra_langs,
-             backstory: form.backstory
+             backstory: form.backstory,
+             custom: socket.assigns.custom,
+             extra_equipment: form.extra_equipment
            }) do
         {:ok, char} ->
           char = if form.name != "", do: %{char | name: form.name}, else: char
@@ -661,7 +736,7 @@ defmodule DragonesWeb.HeroLive.New do
             <% :equipment -> %>
               <.equipment_step form={@form} locale={@locale} />
             <% :details -> %>
-              <.details_step form={@form} locale={@locale} />
+              <.details_step form={@form} locale={@locale} custom={@custom} />
             <% :review -> %>
               <.review_step preview={@preview} locale={@locale} />
           <% end %>
@@ -923,13 +998,70 @@ defmodule DragonesWeb.HeroLive.New do
   defp details_step(assigns) do
     ~H"""
     <div>
-      <.spell_picker :if={Classes.caster?(@form.class)} form={@form} locale={@locale} />
+      <.spell_picker :if={Classes.caster?(@form.class)} form={@form} locale={@locale} custom={@custom} />
+      <.custom_picker :if={has_custom?(@custom)} form={@form} custom={@custom} locale={@locale} />
 
       <div class="step-label">Historia (opcional)</div>
       <textarea name="backstory" phx-change="change" placeholder="Un ex-soldado que empuñó la espada de nuevo cuando su aldea ardió…">{@form.backstory}</textarea>
       <div class="od" style="color:#555;font-size:.78rem;margin-top:.3rem;">Vacío = se genera una por defecto.</div>
     </div>
     """
+  end
+
+  defp has_custom?(custom) do
+    (custom[:weapons] || []) != [] or (custom[:items] || []) != []
+  end
+
+  attr(:form, :map, required: true)
+  attr(:custom, :map, required: true)
+  attr(:locale, :atom, default: :es)
+
+  defp custom_picker(assigns) do
+    ~H"""
+    <div>
+      <div class="step-label">Mi contenido (custom)</div>
+      <div class="od" style="color:#555;font-size:.78rem;margin-bottom:.4rem;">
+        Equipo que has creado en tu biblioteca. Toca para equipárselo (se añade al inicial).
+      </div>
+
+      <div :if={@custom.weapons != []} class="spell-group">
+        <strong style="color:#7ab;font-size:.75rem;">ARMAS</strong>
+        <div class="spell-chips">
+          <%= for w <- Enum.filter(Catalog.weapons(@locale, custom: @custom), &(&1.source == :custom)) do %>
+            <% selected = w.key in extra_weapons(@form) %>
+            <button type="button" class={"spell-chip #{if selected, do: "sel", else: ""}"}
+                    title={w.dice}
+                    phx-click="extra_weapon_toggle" phx-value-key={w.key}>
+              {w.label}
+            </button>
+          <% end %>
+        </div>
+      </div>
+
+      <div :if={@custom.items != []} class="spell-group" style="margin-top:.6rem;">
+        <strong style="color:#7ab;font-size:.75rem;">OBJETOS</strong>
+        <div class="spell-chips">
+          <%= for it <- Catalog.items(@locale, custom: @custom) do %>
+            <% selected = it.key in extra_item_keys(@form) %>
+            <button type="button" class={"spell-chip #{if selected, do: "sel", else: ""}"}
+                    phx-click="extra_item_toggle" phx-value-key={it.key}>
+              {it.label}
+            </button>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp extra_weapons(form), do: form[:extra_equipment][:weapons] || []
+
+  defp extra_item_keys(form) do
+    Enum.map(form[:extra_equipment][:items] || [], fn
+      %{key: k} -> k
+      %{"key" => k} -> k
+      _ -> nil
+    end)
   end
 
   defp spell_picker(assigns) do
@@ -941,11 +1073,12 @@ defmodule DragonesWeb.HeroLive.New do
       </div>
       <%= with {:ok, class} <- Classes.get(@form.class),
                 sc <- class.spellcasting,
-                picks <- Catalog.spells_for_class(@form.class, @locale) do %>
-        <% cantrips_full = count_selected(@form, 0) >= sc.cantrips
-           level1_full = count_selected(@form, 1) >= sc.spells_level1 %>
+                picks <- Catalog.spells_for_class(@form.class, @locale, custom: @custom),
+                custom <- @custom do %>
+        <% cantrips_full = count_selected(@form, 0, custom) >= sc.cantrips
+           level1_full = count_selected(@form, 1, custom) >= sc.spells_level1 %>
         <div class="spell-group">
-          <strong style="color:#7ab;font-size:.75rem;">TRUCOS ({count_selected(@form, 0)}/{sc.cantrips})</strong>
+          <strong style="color:#7ab;font-size:.75rem;">TRUCOS ({count_selected(@form, 0, custom)}/{sc.cantrips})</strong>
           <div class="spell-chips">
             <%= for entry <- picks.cantrips do %>
               <% selected = spell_selected?(@form, entry.key)
@@ -962,7 +1095,7 @@ defmodule DragonesWeb.HeroLive.New do
           </div>
         </div>
         <div class="spell-group" style="margin-top:.6rem;">
-          <strong style="color:#7ab;font-size:.75rem;">NIVEL 1 ({count_selected(@form, 1)}/{sc.spells_level1})</strong>
+          <strong style="color:#7ab;font-size:.75rem;">NIVEL 1 ({count_selected(@form, 1, custom)}/{sc.spells_level1})</strong>
           <div class="spell-chips">
             <%= for entry <- picks.level1 do %>
               <% selected = spell_selected?(@form, entry.key)
@@ -1100,45 +1233,55 @@ defmodule DragonesWeb.HeroLive.New do
 
   defp spell_selected?(%{spells: spells}, name), do: name in spells
 
-  defp count_selected(%{spells: nil, class: class}, level) do
-    Classes.default_spell_names(class)
-    |> Enum.count(fn name ->
-      case Spells.get(name) do
-        %{level: ^level} -> true
-        _ -> false
+  # Nivel de un hechizo por su key: si es `custom_*` mira el bundle inyectado,
+  # si no cae al catálogo builtin/SRD. Así los hechizos custom también cuentan
+  # hacia el cupo de trucos/nivel-1 de la clase.
+  defp spell_level(name, custom) do
+    name = to_string(name)
+
+    if String.starts_with?(name, "custom_") do
+      case Enum.find(custom[:spells] || [], &(&1.key == name)) do
+        nil -> nil
+        %{definition: d} -> Dragones.MapUtil.get(d, "level")
       end
+    else
+      case Spells.get(name) do
+        %{level: l} -> l
+        _ -> nil
+      end
+    end
+  end
+
+  defp count_selected(%{spells: nil, class: class}, level, custom) do
+    Enum.count(Classes.default_spell_names(class), fn name ->
+      spell_level(name, custom) == level
     end)
   end
 
-  defp count_selected(%{spells: spells}, level) do
-    Enum.count(spells, fn name ->
-      case Spells.get(name) do
-        %{level: ^level} -> true
-        _ -> false
-      end
-    end)
+  defp count_selected(%{spells: spells}, level, custom) do
+    Enum.count(spells, fn name -> spell_level(name, custom) == level end)
   end
 
   # ¿añadir `name` superaría el cupo de su nivel?
-  defp cap_reached?(class_key, current, name) do
-    with %{level: lvl} <- Spells.get(name),
+  defp cap_reached?(class_key, current, name, custom) do
+    with lvl when lvl != nil <- spell_level(name, custom),
          {:ok, %{spellcasting: sc}} when not is_nil(sc) <- Classes.get(class_key) do
       cap = if lvl == 0, do: sc.cantrips, else: sc.spells_level1
-      count = Enum.count(current, fn n -> match?(%{level: ^lvl}, Spells.get(n)) end)
+      count = Enum.count(current, fn n -> spell_level(n, custom) == lvl end)
       cap != nil and count >= cap
     else
       _ -> false
     end
   end
 
-  defp spell_cap_error(class_key, name) do
-    case Spells.get(name) do
-      %{level: 0} ->
+  defp spell_cap_error(class_key, name, custom) do
+    case spell_level(name, custom) do
+      0 ->
         {:ok, %{spellcasting: sc}} = Classes.get(class_key)
 
         "Límite alcanzado: #{sc.cantrips} trucos para #{Dragones.Heroes.Translations.class(class_key)}."
 
-      %{level: lvl} when lvl > 0 ->
+      lvl when lvl != nil ->
         {:ok, %{spellcasting: sc}} = Classes.get(class_key)
 
         "Límite alcanzado: #{sc.spells_level1} hechizos de nivel 1 para #{Dragones.Heroes.Translations.class(class_key)}."

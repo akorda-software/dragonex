@@ -16,6 +16,7 @@ defmodule Dragones.Accounts.User do
 
     has_many(:heroes, Dragones.Accounts.Hero)
     has_many(:games, Dragones.Games.Game)
+    has_many(:custom_contents, Dragones.Accounts.CustomContent)
 
     timestamps(type: :naive_datetime)
   end

@@ -36,6 +36,10 @@ defmodule Dragones.Heroes.Catalog do
 
   @type source :: :builtin | :srd | :custom
 
+  # Extrae una rama del bundle custom inyectado (`%{weapons: [...], ...}` o nil).
+  defp custom_list(nil, _kind), do: []
+  defp custom_list(bundle, kind) when is_map(bundle), do: Map.get(bundle, kind, [])
+
   # ============================================================ razas
 
   @doc """
@@ -125,22 +129,43 @@ defmodule Dragones.Heroes.Catalog do
   # ============================================================ armas
 
   @doc "Todas las armas del catálogo, localizadas, con sus mecánicas."
-  @spec weapons(atom()) :: [map()]
-  def weapons(locale \\ I18n.locale()) do
-    for {key, w} <- Equipment.weapons() do
+  @spec weapons(atom(), keyword()) :: [map()]
+  def weapons(locale \\ I18n.locale(), opts \\ []) do
+    builtin =
+      for {key, w} <- Equipment.weapons() do
+        %{
+          key: key,
+          label: Translations.weapon(key, locale),
+          source: :builtin,
+          dice: w.dice,
+          damage_type: w.damage_type,
+          damage_type_label: Translations.damage_type(w.damage_type, locale),
+          attack_ability: w.attack_ability,
+          finesse: w.finesse,
+          ranged: w.ranged
+        }
+      end
+
+    builtin ++ custom_weapon_entries(custom_list(opts[:custom], :weapons), locale)
+  end
+
+  defp custom_weapon_entries(entries, locale) do
+    for %{key: key, name: name, definition: d} <- entries do
       %{
         key: key,
-        label: Translations.weapon(key, locale),
-        source: :builtin,
-        dice: w.dice,
-        damage_type: w.damage_type,
-        damage_type_label: Translations.damage_type(w.damage_type, locale),
-        attack_ability: w.attack_ability,
-        finesse: w.finesse,
-        ranged: w.ranged
+        label: name,
+        source: :custom,
+        dice: d["dice"] || d[:dice],
+        damage_type: d["damage_type"] || d[:damage_type],
+        damage_type_label: Translations.damage_type(d["damage_type"] || d[:damage_type], locale),
+        attack_ability: to_atom(d["attack_ability"] || d[:attack_ability]),
+        finesse: d["finesse"] || d[:finesse] || false,
+        ranged: d["ranged"] || d[:ranged] || false
       }
     end
   end
+
+  defp to_atom(v), do: Dragones.MapUtil.to_atom(v)
 
   @doc "Etiqueta de un arma almacenada en un `Character` (mapa o `Weapon`)."
   @spec weapon_label(map() | String.t(), atom()) :: String.t()
@@ -192,22 +217,51 @@ defmodule Dragones.Heroes.Catalog do
   def spells(locale \\ I18n.locale(), opts \\ []) do
     level = Keyword.get(opts, :level)
 
-    for data <- Spells.all(), is_nil(level) or data.level == level do
+    builtin =
+      for data <- Spells.all(), is_nil(level) or data.level == level do
+        %{
+          key: data.name,
+          label: spell_name_label(data.name, locale),
+          source: Map.get(data, :source, :builtin),
+          level: data.level,
+          kind: data.kind,
+          kind_label: Translations.kind(data.kind, locale),
+          save_ability: data.save_ability,
+          dice: data.dice,
+          damage_type: data.damage_type,
+          damage_type_label: Translations.damage_type(data.damage_type, locale),
+          effect: data.effect
+        }
+      end
+
+    builtin ++ custom_spell_entries(custom_list(opts[:custom], :spells), locale, level)
+  end
+
+  defp custom_spell_entries(entries, locale, level) do
+    for %{key: key, name: name, definition: d} <- entries,
+        is_nil(level) or spell_def(d, "level") == level do
+      kind = spell_def(d, "kind")
+      damage = spell_def(d, "damage_type")
+
       %{
-        key: data.name,
-        label: spell_name_label(data.name, locale),
-        source: :builtin,
-        level: data.level,
-        kind: data.kind,
-        kind_label: Translations.kind(data.kind, locale),
-        save_ability: data.save_ability,
-        dice: data.dice,
-        damage_type: data.damage_type,
-        damage_type_label: Translations.damage_type(data.damage_type, locale),
-        effect: data.effect
+        key: key,
+        label: name,
+        source: :custom,
+        level: spell_def(d, "level"),
+        kind: to_atom(kind),
+        kind_label: Translations.kind(to_atom(kind), locale),
+        save_ability: spell_def(d, "save_ability"),
+        dice: spell_def(d, "dice"),
+        damage_type: damage,
+        damage_type_label: Translations.damage_type(damage, locale),
+        effect: spell_def(d, "effect"),
+        classes: spell_def(d, "classes") || [],
+        default: false
       }
     end
   end
+
+  defp spell_def(d, k), do: Dragones.MapUtil.get(d, k)
 
   @doc "Trucos (nivel 0) localizados."
   @spec cantrips(atom()) :: [map()]
@@ -239,23 +293,39 @@ defmodule Dragones.Heroes.Catalog do
   end
 
   @doc """
-  Hechizos que una clase puede elegir al nivel 1 (truco + nivel 1), localizados.
+  Hechizos que una clase puede elegir (truco + nivel 1), localizados.
 
   Devuelve **TODOS** los hechizos del catálogo que pertenecen a la lista de la
   clase (según `Spells.by_class/1`), no solo los defaults: el jugador elige
   libremente hasta el cupo de la clase. Los `defaults` de la clase se marcan
   aparte para que el UI los traiga pre-seleccionados.
+
+  `opts[:custom]` inyecta un bundle de contenido custom del usuario: sus hechizos
+  cuya lista `classes` incluye esta clase se añaden como entries `source: :custom`.
   """
-  @spec spells_for_class(String.t(), atom()) :: %{cantrips: [map()], level1: [map()]}
-  def spells_for_class(class_key, locale \\ I18n.locale()) do
+  @spec spells_for_class(String.t(), atom(), keyword()) :: %{cantrips: [map()], level1: [map()]}
+  def spells_for_class(class_key, locale \\ I18n.locale(), opts \\ []) do
+    by_level = spells_for_class_up_to(class_key, 1, locale, opts)
+    %{cantrips: by_level[0] || [], level1: by_level[1] || []}
+  end
+
+  @doc """
+  Hechizos que una clase puede conocer, agrupados por nivel, hasta `max_level`.
+
+  Útil para la pantalla de level-up: lista los hechizos de la clase (builtin/SRD
+  + custom del bundle) cuyo nivel ≤ `max_level`. Devuelve `%{0 => [...], 1 => [...], ...}`.
+  """
+  @spec spells_for_class_up_to(String.t(), non_neg_integer(), atom(), keyword()) ::
+          %{non_neg_integer() => [map()]}
+  def spells_for_class_up_to(class_key, max_level, locale \\ I18n.locale(), opts \\ []) do
     defaults = MapSet.new(Classes.default_spell_names(class_key))
 
-    entries =
-      for data <- Spells.by_class(class_key) do
+    builtin =
+      for data <- Spells.by_class(class_key), data.level <= max_level do
         %{
           key: data.name,
           label: spell_name_label(data.name, locale),
-          source: :builtin,
+          source: Map.get(data, :source, :builtin),
           level: data.level,
           kind: data.kind,
           kind_label: Translations.kind(data.kind, locale),
@@ -268,9 +338,15 @@ defmodule Dragones.Heroes.Catalog do
         }
       end
 
-    {cantrips, rest} = Enum.split_with(entries, &(&1.level == 0))
-    level1 = Enum.filter(rest, &(&1.level == 1))
-    %{cantrips: cantrips, level1: level1}
+    custom =
+      custom_list(opts[:custom], :spells)
+      |> Enum.filter(fn %{definition: d} ->
+        class_key in (spell_def(d, "classes") || []) and (spell_def(d, "level") || 0) <= max_level
+      end)
+      |> custom_spell_entries(locale, nil)
+      |> Enum.map(&Map.put(&1, :default, false))
+
+    (builtin ++ custom) |> Enum.group_by(& &1.level)
   end
 
   # ============================================================ inventario
@@ -284,6 +360,30 @@ defmodule Dragones.Heroes.Catalog do
   @doc "Etiqueta del `kind` de un objeto de inventario."
   @spec item_kind_label(atom() | String.t(), atom()) :: String.t()
   def item_kind_label(kind, locale \\ I18n.locale()), do: Translations.item_kind(kind, locale)
+
+  @doc """
+  Objetos custom del usuario (no hay lista builtin: el equipo inicial viene de la
+  clase). `opts[:custom]` inyecta el bundle; cada entrada se etiqueta con su
+  `name_es` y su `kind` traducido.
+  """
+  @spec items(atom(), keyword()) :: [map()]
+  def items(locale \\ I18n.locale(), opts \\ []) do
+    for %{key: key, name: name, definition: d} <- custom_list(opts[:custom], :items) do
+      kind = item_def(d, "kind")
+
+      %{
+        key: key,
+        label: name,
+        source: :custom,
+        kind: to_atom(kind),
+        kind_label: item_kind_label(kind, locale),
+        qty: item_def(d, "qty") || 1,
+        effect: item_def(d, "effect")
+      }
+    end
+  end
+
+  defp item_def(d, k), do: Dragones.MapUtil.get(d, k)
 
   # ============================================================ equipo inicial
 

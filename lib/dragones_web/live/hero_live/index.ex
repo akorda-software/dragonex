@@ -78,6 +78,8 @@ defmodule DragonesWeb.HeroLive.Index do
 
       <div>
         <.link navigate="/" class="nav-link">← partidas</.link>
+        <span class="nav-link" style="margin:0 .4rem;color:#444;">·</span>
+        <.link navigate="/mi-contenido" class="nav-link">mi contenido</.link>
       </div>
 
       <div class="gallery-header">

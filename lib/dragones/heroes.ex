@@ -42,8 +42,18 @@ defmodule Dragones.Heroes do
   progression is a future enhancement.
   """
 
-  alias Dragones.{Character, Item, Spell}
-  alias Dragones.Heroes.{Backgrounds, Classes, Equipment, Races, Scoring, Spells, Translations}
+  alias Dragones.{Character, Item, Spell, Weapon}
+
+  alias Dragones.Heroes.{
+    Backgrounds,
+    Classes,
+    Equipment,
+    Races,
+    Scoring,
+    Spells,
+    Translations
+  }
+
   alias Dragones.Rules.Ability
 
   @default_pb %{str: 8, dex: 8, con: 8, int: 8, wis: 8, cha: 8}
@@ -75,7 +85,11 @@ defmodule Dragones.Heroes do
           optional(:skills) => [String.t()],
           optional(:spells) => [String.t()],
           optional(:backstory) => String.t(),
-          optional(:level) => pos_integer()
+          optional(:level) => pos_integer(),
+          # Bundle de contenido custom del usuario (%{weapons/spells/items: [...]}).
+          optional(:custom) => map(),
+          # Equipo extra elegido por el jugador (armas/objetos custom o builtin).
+          optional(:extra_equipment) => map()
         }
 
   @type build_error :: {:error, String.t()}
@@ -114,10 +128,12 @@ defmodule Dragones.Heroes do
          final <- Scoring.apply_bonuses(base, bonuses),
          :ok <- validate_final_scores(final),
          class_slots <- resolve_equipment(class, choices[:equipment_picks]),
-         eq <- process_equipment(class_slots ++ bg.equipment),
+         custom <- choices[:custom] || %{},
+         eq0 <- process_equipment(class_slots ++ bg.equipment),
+         eq <- apply_extra_equipment(eq0, choices[:extra_equipment], custom),
          hp <- compute_hp(class, final, race, choices[:level] || 1),
          ac <- compute_ac(eq, class, final),
-         spells <- build_spells(class, choices[:spells]),
+         spells <- build_spells(class, choices[:spells], custom),
          languages <- resolve_languages(race, bg, choices[:extra_languages]),
          attrs =
            to_attrs(choices, race, class, bg, final, hp, ac, eq, spells, skills, languages),
@@ -215,6 +231,19 @@ defmodule Dragones.Heroes do
   end
 
   defp random_hero_name, do: Enum.random(@random_names)
+
+  # --------------------------------------------------------- level up
+
+  @doc """
+  Aplica una subida de nivel a un `Character` ya construido.
+
+  Thin wrapper que delega en `Dragones.Heroes.LevelUp.apply/2` (el módulo de
+  reglas de progresión, separado del builder). Ver ahí las reglas 5e aplicadas
+  y el formato de `choices` (`:spells_added`, `:asi`, `:custom`).
+  """
+  @spec apply_level_up(Character.t(), map()) :: {:ok, Character.t()} | {:error, String.t()}
+  def apply_level_up(%Character{} = c, choices \\ %{}),
+    do: Dragones.Heroes.LevelUp.apply(c, choices)
 
   defp random_point_buy(%{priority: priority}) do
     @point_buy_shapes
@@ -417,9 +446,87 @@ defmodule Dragones.Heroes do
     end)
   end
 
+  # ----------------------------------------------------------- custom / extras
+
+  # Añade equipo extra elegido por el jugador (armas/objetos custom o builtin)
+  # al resultado de `process_equipment/1`. No sustituye el equipo inicial.
+  defp apply_extra_equipment(eq, nil, _custom), do: eq
+
+  defp apply_extra_equipment(eq, extra, custom) when is_map(extra) do
+    weapons = list_field(extra, :weapons)
+    items = list_field(extra, :items)
+
+    new_weapons = Enum.flat_map(weapons, &resolve_extra_weapon(&1, custom))
+    new_items = Enum.flat_map(items, &resolve_extra_item(&1, custom))
+
+    %{eq | weapons: eq.weapons ++ new_weapons, inventory: eq.inventory ++ new_items}
+  end
+
+  defp list_field(map, key), do: Map.get(map, key, Map.get(map, to_string(key), [])) || []
+
+  defp resolve_extra_weapon(key, custom) do
+    key = to_string(key)
+
+    cond do
+      String.starts_with?(key, "custom_") ->
+        case Enum.find(custom[:weapons] || [], &(&1.key == key)) do
+          nil -> []
+          %{name: name, definition: d} -> [weapon_from_def(name, d)]
+        end
+
+      true ->
+        case Equipment.weapon(key) do
+          nil -> []
+          w -> [w]
+        end
+    end
+  end
+
+  defp weapon_from_def(name, d) do
+    %Weapon{
+      name: name,
+      dice: defv(d, "dice"),
+      damage_type: defv(d, "damage_type"),
+      attack_ability: to_atom(defv(d, "attack_ability")),
+      finesse: defv(d, "finesse") || false,
+      ranged: defv(d, "ranged") || false
+    }
+  end
+
+  defp resolve_extra_item(spec, custom) do
+    key = to_string(spec_field(spec, :key))
+    qty = spec_field(spec, :qty) || 1
+
+    cond do
+      String.starts_with?(key, "custom_") ->
+        case Enum.find(custom[:items] || [], &(&1.key == key)) do
+          nil ->
+            []
+
+          %{name: name, definition: d} ->
+            [%Item{name: name, qty: qty, kind: to_atom(defv(d, "kind"))}]
+        end
+
+      true ->
+        []
+    end
+  end
+
+  defp spec_field(spec, key), do: Map.get(spec, key, Map.get(spec, to_string(key)))
+
+  # Lee un campo de un `definition` con claves string o atom (helper compartido).
+  defp defv(d, k), do: Dragones.MapUtil.get(d, k)
+
+  defp to_atom(v), do: Dragones.MapUtil.to_atom(v)
+
   # ------------------------------------------------------------------- AC
 
-  defp compute_ac(eq, class, scores) do
+  @doc """
+  Cómputo de CA a partir del equipo derivado (`%{armor, shield}`), la clase (para
+  Defensa sin Armadura) y las puntuaciones. Público para que `Heroes.LevelUp`
+  recalcule la CA tras un ASI sin duplicar la regla.
+  """
+  def compute_ac(eq, class, scores) do
     dex_mod = Ability.modifier(scores[:dex])
 
     cond do
@@ -460,9 +567,9 @@ defmodule Dragones.Heroes do
 
   # ---------------------------------------------------------------- spells
 
-  defp build_spells(%{spellcasting: nil}, _user_picks), do: []
+  defp build_spells(%{spellcasting: nil}, _user_picks, _custom), do: []
 
-  defp build_spells(%{spellcasting: sc}, user_picks) do
+  defp build_spells(%{spellcasting: sc}, user_picks, custom) do
     {cantrip_names, spell_names} =
       case user_picks do
         nil ->
@@ -470,7 +577,7 @@ defmodule Dragones.Heroes do
 
         picks when is_list(picks) ->
           Enum.split_with(picks, fn name ->
-            case Spells.get(name) do
+            case resolve_spell(name, custom) do
               %{level: 0} -> true
               _ -> false
             end
@@ -478,9 +585,38 @@ defmodule Dragones.Heroes do
       end
 
     (cantrip_names ++ spell_names)
-    |> Enum.map(&Spells.get/1)
+    |> Enum.map(&resolve_spell(&1, custom))
     |> Enum.reject(&is_nil/1)
     |> Enum.map(&to_spell_struct(&1, sc.ability))
+  end
+
+  # Resuelve una key de hechizo: custom (`custom_*`) mira el bundle inyectado;
+  # el resto cae al catálogo builtin/SRD.
+  defp resolve_spell(name, custom) do
+    name = to_string(name)
+
+    if String.starts_with?(name, "custom_") do
+      case Enum.find(custom[:spells] || [], &(&1.key == name)) do
+        nil -> nil
+        %{name: n, definition: d} -> spell_data_from_def(n, d)
+      end
+    else
+      Spells.get(name)
+    end
+  end
+
+  defp spell_data_from_def(name, d) do
+    save = defv(d, "save_ability")
+
+    %{
+      name: name,
+      level: defv(d, "level"),
+      kind: to_atom(defv(d, "kind")),
+      save_ability: save && to_atom(save),
+      dice: defv(d, "dice"),
+      damage_type: defv(d, "damage_type"),
+      effect: defv(d, "effect")
+    }
   end
 
   defp to_spell_struct(data, casting_ability) do

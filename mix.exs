@@ -39,7 +39,7 @@ defmodule Dragones.MixProject do
       {:jason, "~> 1.4"},
       {:bcrypt_elixir, "~> 3.0"},
       {:lazy_html, ">= 0.1.0", only: :test},
-      {:dotenvy, "~> 1.1", only: :dev}
+      {:dotenvy, "~> 1.1", only: [:dev, :test]}
     ]
   end
 end

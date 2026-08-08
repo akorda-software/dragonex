@@ -223,10 +223,83 @@ defmodule Dragones.Heroes.CatalogTest do
 
   # --------------------------------------------------------- fuente (source)
 
-  test "todas las entradas builtin declaran source: :builtin (prepara custom/srd)" do
+  test "las entradas declaran source válido (builtin/srd; prepara custom)" do
     for r <- Catalog.races(:es), do: assert(r.source == :builtin)
     for c <- Catalog.classes(:es), do: assert(c.source == :builtin)
     for w <- Catalog.weapons(:es), do: assert(w.source == :builtin)
-    for s <- Catalog.spells(:es), do: assert(s.source == :builtin)
+    # Los hechizos builtin se mezclan con los SRD importados (source: :srd).
+    for s <- Catalog.spells(:es), do: assert(s.source in [:builtin, :srd])
+  end
+
+  describe "contenido custom inyectado (opts[:custom])" do
+    @bundle %{
+      weapons: [
+        %{
+          key: "custom_espada_llameante",
+          name: "Espada Llameante",
+          definition: %{
+            "dice" => "2d6",
+            "damage_type" => "fire",
+            "attack_ability" => "str",
+            "finesse" => false,
+            "ranged" => false
+          }
+        }
+      ],
+      spells: [
+        %{
+          key: "custom_tormenta",
+          name: "Tormenta de cuchillas",
+          definition: %{
+            "level" => 0,
+            "kind" => "save",
+            "save_ability" => "dex",
+            "dice" => "6d6",
+            "damage_type" => "slashing",
+            "effect" => "Cuchillas giran.",
+            "classes" => ["wizard", "sorcerer"]
+          }
+        }
+      ],
+      items: [
+        %{
+          key: "custom_piedra",
+          name: "Piedra solar",
+          definition: %{"qty" => 2, "kind" => "magic"}
+        }
+      ]
+    }
+
+    test "weapons/2 añade las armas custom con source: :custom" do
+      list = Catalog.weapons(:es, custom: @bundle)
+      custom = Enum.find(list, &(&1.key == "custom_espada_llameante"))
+      assert custom.source == :custom
+      assert custom.label == "Espada Llameante"
+      assert custom.dice == "2d6"
+      assert custom.damage_type_label == "fuego"
+    end
+
+    test "spells/2 añade los hechizos custom con source: :custom" do
+      list = Catalog.spells(:es, custom: @bundle)
+      custom = Enum.find(list, &(&1.key == "custom_tormenta"))
+      assert custom.source == :custom
+      assert custom.level == 0
+      assert custom.kind_label == "salvación"
+    end
+
+    test "spells_for_class/3 solo incluye custom si la clase está en classes" do
+      %{cantrips: wiz_cans} = Catalog.spells_for_class("wizard", :es, custom: @bundle)
+      assert Enum.any?(wiz_cans, &(&1.key == "custom_tormenta"))
+
+      %{cantrips: cleric_cans} = Catalog.spells_for_class("cleric", :es, custom: @bundle)
+      refute Enum.any?(cleric_cans, &(&1.key == "custom_tormenta"))
+    end
+
+    test "items/2 lista los objetos custom con su kind traducido" do
+      [item] = Catalog.items(:es, custom: @bundle)
+      assert item.key == "custom_piedra"
+      assert item.source == :custom
+      assert item.qty == 2
+    end
   end
 end
