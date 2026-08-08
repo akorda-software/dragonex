@@ -1,0 +1,33 @@
+{
+  "_comment": "Catálogo de reasoning de los modelos del plan OpenCode Go. OpenCode no expone metadatos de reasoning en /models, así que los niveles se curan aquí por slug (fuente: docs oficiales de cada proveedor + conocimiento del usuario). 'verified: true' = confirmado por docs/usuario; 'verified: false' = best-effort (familia/OpenRouter), por confirmar; reasoning 'unknown' = sin datos. El selector del modal lee este fichero. El parámetro que se envía es reasoning_effort (OpenAI-compatible).",
+  "models": {
+    "deepseek-v4-flash": {"reasoning": "yes", "efforts": ["low", "high", "max"], "default": "high", "verified": true, "source": "DeepSeek docs"},
+    "deepseek-v4-pro":   {"reasoning": "yes", "efforts": ["high", "max"],         "default": "high", "verified": true, "source": "DeepSeek docs"},
+    "glm-5":             {"reasoning": "yes", "efforts": ["high", "max"],         "default": "high", "verified": true, "source": "usuario (familia GLM)"},
+    "glm-5.1":           {"reasoning": "yes", "efforts": ["high", "max"],         "default": "high", "verified": true, "source": "usuario (familia GLM)"},
+    "glm-5.2":           {"reasoning": "yes", "efforts": ["high", "max"],         "default": "high", "verified": true, "source": "usuario"},
+    "kimi-k3":           {"reasoning": "yes", "efforts": ["low", "high", "max"], "default": "max",  "verified": true, "source": "Moonshot docs"},
+    "gpt-5.6-luna":      {"reasoning": "yes", "efforts": ["minimal", "low", "medium", "high"], "default": "medium", "verified": true, "source": "OpenAI reasoning_effort"},
+
+    "kimi-k2.5":         {"reasoning": "yes", "efforts": ["low", "high", "max"], "default": "high", "verified": false, "source": "familia Kimi (por confirmar)"},
+    "kimi-k2.6":         {"reasoning": "yes", "efforts": ["low", "high", "max"], "default": "high", "verified": false, "source": "familia Kimi (por confirmar)"},
+    "kimi-k2.7-code":    {"reasoning": "yes", "efforts": ["low", "high", "max"], "default": "high", "verified": false, "source": "familia Kimi (por confirmar)"},
+    "grok-4.5":          {"reasoning": "yes", "efforts": ["low", "medium", "high"], "default": "high", "verified": false, "source": "xAI (por confirmar)"},
+    "hy3":               {"reasoning": "yes", "efforts": ["low", "high"],        "default": "high", "verified": false, "source": "Tencent Hunyuan (por confirmar)"},
+    "hy3-preview":       {"reasoning": "yes", "efforts": ["low", "high"],        "default": "high", "verified": false, "source": "Tencent Hunyuan (por confirmar)"},
+    "qwen3.8-max":       {"reasoning": "yes", "efforts": ["minimal", "low", "medium", "high", "xhigh"], "default": "high", "verified": false, "source": "por confirmar"},
+
+    "minimax-m3":        {"reasoning": "no",   "verified": true,  "source": "probe (sin reasoning_content)"},
+
+    "mimo-v2-omni":      {"reasoning": "unknown", "verified": false, "source": "sin datos"},
+    "mimo-v2-pro":       {"reasoning": "unknown", "verified": false, "source": "sin datos"},
+    "mimo-v2.5":         {"reasoning": "unknown", "verified": false, "source": "sin datos"},
+    "mimo-v2.5-pro":     {"reasoning": "unknown", "verified": false, "source": "sin datos"},
+    "minimax-m2.5":      {"reasoning": "unknown", "verified": false, "source": "sin datos"},
+    "minimax-m2.7":      {"reasoning": "unknown", "verified": false, "source": "sin datos"},
+    "qwen3.5-plus":      {"reasoning": "unknown", "verified": false, "source": "sin datos"},
+    "qwen3.6-plus":      {"reasoning": "unknown", "verified": false, "source": "sin datos"},
+    "qwen3.7-max":       {"reasoning": "unknown", "verified": false, "source": "sin datos"},
+    "qwen3.7-plus":      {"reasoning": "unknown", "verified": false, "source": "sin datos"}
+  }
+}

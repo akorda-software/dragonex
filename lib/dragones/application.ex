@@ -8,6 +8,9 @@ defmodule Dragones.Application do
     children = [
       Dragones.Repo,
       {Phoenix.PubSub, name: Dragones.PubSub},
+      # Runtime override for provider/model/reasoning (Ajustes modal). Started
+      # before the Game supervisor so Games can consult it on (re)start.
+      Dragones.ModelConfig,
       {Registry, keys: :unique, name: Dragones.Game.Registry},
       {Dragones.Game.Supervisor, []},
       DragonesWeb.Endpoint

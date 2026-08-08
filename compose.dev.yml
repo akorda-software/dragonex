@@ -7,6 +7,8 @@
 #   docker compose -f compose.dev.yml up -d --build
 #
 # Puertos en host: 5455 -> Postgres, 4035 -> app (http://localhost:4035)
+# Internamente la app escucha en el puerto estándar 4000 (forzado por environment),
+# y el host publica 4035 -> contenedor 4000.
 
 services:
   postgres:
@@ -33,13 +35,16 @@ services:
       dockerfile: Dockerfile.dev
     container_name: dragones-app
     ports:
-      - "4035:4001"
+      - "4035:4000"
     environment:
       # Dentro de la red de compose la app apunta al servicio `postgres:5432`
       # (no a 127.0.0.1) y bindea 0.0.0.0 para ser alcanzable desde el host.
+      # PORT se fuerza a 4000 (estándar) para que pise cualquier valor traído
+      # por .env.dev; el host publica 4035 -> contenedor 4000.
       DB_HOST: postgres
       DB_PORT: "5432"
       PHX_BIND_IP: "0.0.0.0"
+      PORT: "4000"
     env_file:
       - path: .env.dev
         required: false

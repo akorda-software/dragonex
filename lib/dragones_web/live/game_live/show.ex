@@ -12,7 +12,7 @@ defmodule DragonesWeb.GameLive.Show do
 
   use Phoenix.LiveView, layout: {DragonesWeb.Layouts, :app}
 
-  alias Dragones.{Character, Game, Games, World}
+  alias Dragones.{Character, Game, Games, Heroes.Progression, World}
   alias DragonesWeb.GameLive.RollFormat
   import DragonesWeb.GameLive.Components
 
@@ -268,6 +268,126 @@ defmodule DragonesWeb.GameLive.Show do
     {:noreply, socket}
   end
 
+  # ----------------------------------------------------------- Ajustes de IA
+  #
+  # The gear button (creator-only) opens a modal to swap provider / DM model /
+  # reasoning effort at runtime. The selection is written to Dragones.ModelConfig
+  # and applied by restarting the Game process, which rehydrates from Postgres
+  # with the new model wired into the DM agent.
+
+  def handle_event("open_settings", _params, socket) do
+    provider = Dragones.Models.provider()
+    model = Dragones.Models.model()
+    reasoning = Dragones.Models.reasoning()
+
+    socket =
+      socket
+      |> assign(
+        show_settings: true,
+        settings_providers: Dragones.Models.providers(),
+        settings_provider: provider,
+        settings_model: model,
+        settings_custom_model: "",
+        settings_reasoning: reasoning,
+        settings_models: [],
+        settings_models_status: :loading
+      )
+      |> fetch_models()
+
+    {:noreply, socket}
+  end
+
+  def handle_event("close_settings", _params, socket),
+    do: {:noreply, assign(socket, show_settings: false)}
+
+  def handle_event("settings_select_provider", %{"provider" => pid}, socket) do
+    provider = String.to_existing_atom(pid)
+
+    socket =
+      socket
+      |> assign(
+        settings_provider: provider,
+        settings_models: [],
+        settings_model: nil,
+        settings_custom_model: "",
+        settings_reasoning: :none,
+        settings_models_status: :loading
+      )
+      |> fetch_models()
+
+    {:noreply, socket}
+  end
+
+  def handle_event("settings_select_model", %{"model" => model}, socket) do
+    reasoning =
+      default_reasoning_for(
+        socket.assigns.settings_provider,
+        socket.assigns.settings_models,
+        model
+      )
+
+    {:noreply,
+     assign(socket,
+       settings_model: model,
+       settings_custom_model: "",
+       settings_reasoning: reasoning
+     )}
+  end
+
+  def handle_event("settings_custom_model", %{"value" => value}, socket),
+    do: {:noreply, assign(socket, settings_custom_model: value || "")}
+
+  def handle_event("settings_set_reasoning", %{"level" => level}, socket) do
+    reasoning = if level == "none", do: :none, else: level
+    {:noreply, assign(socket, settings_reasoning: reasoning)}
+  end
+
+  def handle_event("settings_refresh_models", _params, socket) do
+    {:noreply, socket |> assign(settings_models_status: :loading) |> fetch_models()}
+  end
+
+  # Apply: persist the override, restart the partida with the new model, close.
+  def handle_event("settings_apply", _params, socket) do
+    provider = socket.assigns.settings_provider
+
+    # Custom slug wins over the dropdown when filled.
+    model =
+      case String.trim(socket.assigns.settings_custom_model || "") do
+        "" -> socket.assigns.settings_model
+        custom -> custom
+      end
+
+    # Clamp the reasoning to a value the chosen model actually accepts (so we
+    # never send e.g. "xhigh" to a model that only supports low/medium/high, or
+    # :none to a mandatory-reasoning model).
+    reasoning =
+      clamp_reasoning(
+        provider,
+        socket.assigns.settings_models,
+        model,
+        socket.assigns.settings_reasoning
+      )
+
+    :ok =
+      Dragones.ModelConfig.set(
+        provider: provider,
+        model: model,
+        reasoning: reasoning
+      )
+
+    # Restart rehydrates the same game_id from Postgres with the new model.
+    if socket.assigns.game_id,
+      do: {:ok, _} = Dragones.Game.restart(socket.assigns.game_id)
+
+    Phoenix.PubSub.broadcast(
+      Dragones.PubSub,
+      "dragones:game:#{socket.assigns.game_id}",
+      {:game_updated, socket.assigns.game_id}
+    )
+
+    {:noreply, assign(socket, show_settings: false)}
+  end
+
   def handle_event("dismiss_dice", _params, socket) do
     if ref = socket.assigns[:dice_flush_ref], do: Process.cancel_timer(ref)
     if ref = socket.assigns[:dice_hide_ref], do: Process.cancel_timer(ref)
@@ -418,6 +538,44 @@ defmodule DragonesWeb.GameLive.Show do
      assign(socket, dice_show: false, dice_hand: [], dice_groups: [], dice_hide_ref: nil)}
   end
 
+  # Live model catalogue for the Ajustes modal: a background task fetched the
+  # provider's /models endpoint. Reconcile the in-modal selection with the list
+  # (if the current model isn't offered, move it to the custom field so the
+  # dropdown stays valid) and clamp the reasoning to a value the model accepts.
+  def handle_info({:settings_models, provider, result}, socket) do
+    if socket.assigns.show_settings and socket.assigns.settings_provider == provider do
+      case result do
+        {:ok, models} ->
+          current = socket.assigns.settings_model
+
+          {model, custom} =
+            if current != nil and Enum.any?(models, &(&1.id == current)),
+              do: {current, ""},
+              else: {nil, current || ""}
+
+          reasoning =
+            clamp_reasoning(provider, models, model, socket.assigns.settings_reasoning)
+
+          {:noreply,
+           assign(socket,
+             settings_models: models,
+             settings_model: model,
+             settings_custom_model: custom,
+             settings_reasoning: reasoning,
+             settings_models_status: :ok
+           )}
+
+        {:error, :no_key} ->
+          {:noreply, assign(socket, settings_models: [], settings_models_status: :no_key)}
+
+        {:error, _} ->
+          {:noreply, assign(socket, settings_models: [], settings_models_status: :error)}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_info(_msg, socket), do: {:noreply, socket}
 
   # --------------------------------------------------------------- load
@@ -456,7 +614,19 @@ defmodule DragonesWeb.GameLive.Show do
       waiting_game: nil,
       join_error: nil,
       auto_play: false,
-      is_creator: false
+      is_creator: false,
+      viewer_level_up: nil,
+      viewer_level_up_cache: {nil, nil},
+      # Ajustes de IA modal (gear button). provider/model/reasoning are the
+      # in-modal selections; the effective config lives in Dragones.ModelConfig.
+      show_settings: false,
+      settings_providers: [],
+      settings_provider: nil,
+      settings_models: [],
+      settings_models_status: :idle,
+      settings_model: nil,
+      settings_custom_model: "",
+      settings_reasoning: :none
     )
   end
 
@@ -520,6 +690,14 @@ defmodule DragonesWeb.GameLive.Show do
               socket.assigns[:live_last_narration_seq]
             )
 
+          {vlu, vlu_cache} =
+            compute_viewer_level_up(
+              viewer,
+              game,
+              socket.assigns[:current_user],
+              socket.assigns[:viewer_level_up_cache]
+            )
+
           assign(socket,
             loaded: true,
             connected: true,
@@ -551,9 +729,55 @@ defmodule DragonesWeb.GameLive.Show do
             dice_flush_ref: socket.assigns[:dice_flush_ref] || nil,
             dice_hide_ref: socket.assigns[:dice_hide_ref] || nil,
             dice_engine: socket.assigns[:dice_engine] || (game && game.dice_engine) || "2d",
-            auto_play: viewer != nil and MapSet.member?(snap[:auto] || MapSet.new(), viewer)
+            auto_play: viewer != nil and MapSet.member?(snap[:auto] || MapSet.new(), viewer),
+            viewer_level_up: vlu,
+            viewer_level_up_cache: vlu_cache
           )
         end
+    end
+  end
+
+  # Banner de subida de nivel del viewer: su héroe de biblioteca puede subir.
+  # El nivel/XP se leen del `Hero.sheet` (fuente de verdad). Para no decodificar
+  # el sheet en cada broadcast, cacheamos por `(hero_id, hero.updated_at)`: solo
+  # refrescamos cuando el héroe cambia (gana XP / sube), que es lo único que mueve
+  # el banner.
+  defp compute_viewer_level_up(viewer, game, user, {prev_key, prev_val}) do
+    gc = Enum.find((game && game.characters) || [], &(&1.name == viewer))
+
+    with gc when gc != nil <- gc,
+         %{hero_id: hero_id} when hero_id != nil <- gc,
+         %{} = hero <- Dragones.Accounts.get_hero(hero_id) do
+      cache_key = {hero_id, hero.updated_at}
+
+      if cache_key == prev_key do
+        {prev_val, {cache_key, prev_val}}
+      else
+        sheet =
+          case user && Dragones.Accounts.get_user_hero(user, hero_id) do
+            nil -> nil
+            h -> Dragones.Accounts.hero_sheet(h)
+          end
+
+        val =
+          cond do
+            sheet == nil ->
+              nil
+
+            sheet.level >= 20 ->
+              nil
+
+            Progression.can_level_up?(sheet.level, sheet.xp || 0) ->
+              %{hero_id: hero_id, target: sheet.level + 1}
+
+            true ->
+              nil
+          end
+
+        {val, {cache_key, val}}
+      end
+    else
+      _ -> {nil, {nil, nil}}
     end
   end
 
@@ -772,6 +996,133 @@ defmodule DragonesWeb.GameLive.Show do
 
   defp server(_), do: nil
 
+  # Kick off a background fetch of the provider's live model list. The result
+  # lands in handle_info({:settings_models, ...}). Uses ExAgent's TaskSupervisor
+  # (already in the tree); start_child is fire-and-forget (no ref message).
+  defp fetch_models(socket) do
+    provider = socket.assigns.settings_provider
+
+    if provider do
+      parent = self()
+
+      Task.Supervisor.start_child(ExAgent.TaskSupervisor, fn ->
+        send(parent, {:settings_models, provider, Dragones.Models.list_models(provider)})
+      end)
+    end
+
+    socket
+  end
+
+  # --- thinking selector helpers -------------------------------------------
+  #
+  # The reasoning effort is dynamic per model: OpenRouter exposes each model's
+  # supported efforts (+ a default and a mandatory flag); OpenCode carries no
+  # metadata, so it falls back to a generic low/medium/high set.
+
+  # Find the model_info map for `model_id` in the fetched list (nil if absent,
+  # e.g. a custom slug typed in the free-text field).
+  defp find_model_info(_models, nil), do: nil
+
+  defp find_model_info(models, model_id),
+    do: Enum.find(models, &(&1.id == model_id))
+
+  # Resolve what the thinking section should render for the selected model:
+  #   * {:unsupported}                 — model explicitly has no reasoning
+  #   * {:unknown}                      — reasoning metadata not curated yet
+  #   * {:options, efforts, mandatory}  — render these effort buttons (+ Off unless mandatory)
+  defp thinking_state(_provider, models, model_id, custom) do
+    if custom != "" do
+      # Custom slug → no metadata, offer the generic set.
+      {:options, sort_efforts(Dragones.Models.generic_efforts()), false}
+    else
+      case find_model_info(models, model_id) do
+        %{reasoning?: false} ->
+          {:unsupported}
+
+        %{reasoning?: nil} ->
+          {:unknown}
+
+        %{efforts: efforts, mandatory: mandatory} ->
+          {:options, sort_efforts(efforts || Dragones.Models.generic_efforts()), mandatory}
+
+        _ ->
+          {:unknown}
+      end
+    end
+  end
+
+  defp sort_efforts(efforts) do
+    order = Dragones.Models.effort_order()
+
+    Enum.sort_by(efforts, fn e ->
+      case Enum.find_index(order, &(&1 == e)) do
+        nil -> 99
+        idx -> idx
+      end
+    end)
+  end
+
+  defp effort_label("none"), do: "Off"
+  defp effort_label("minimal"), do: "Mín"
+  defp effort_label("low"), do: "Bajo"
+  defp effort_label("medium"), do: "Medio"
+  defp effort_label("high"), do: "Alto"
+  defp effort_label("xhigh"), do: "Muy alto"
+  defp effort_label("max"), do: "Máx"
+  defp effort_label(other), do: String.capitalize(other)
+
+  # The gear button's live label: provider/model + (reasoning) for the currently
+  # effective config (override → env). Reflects what the running Game uses.
+  defp ai_button_label do
+    provider = Dragones.Models.provider()
+    model = Dragones.Models.model()
+    effort = Dragones.Models.reasoning() |> reasoning_short()
+    "#{provider}/#{model} (#{effort})"
+  end
+
+  defp reasoning_short(:none), do: "off"
+  defp reasoning_short(effort) when is_binary(effort), do: effort
+
+  # Default reasoning when a model is first selected: the model's own default
+  # effort, or :none (forced to a level when reasoning is mandatory).
+  defp default_reasoning_for(_provider, models, model_id) do
+    case find_model_info(models, model_id) do
+      %{reasoning?: false} -> :none
+      %{default_effort: effort} when is_binary(effort) -> effort
+      %{mandatory: true} -> "medium"
+      _ -> :none
+    end
+  end
+
+  # Clamp a reasoning choice to a value the model actually accepts, so we never
+  # send an invalid effort. `:none` is kept unless the model mandates reasoning.
+  defp clamp_reasoning(:openrouter, models, model_id, current) do
+    case find_model_info(models, model_id) do
+      nil ->
+        current
+
+      %{reasoning?: false} ->
+        :none
+
+      %{efforts: efforts, mandatory: mandatory, default_effort: default} ->
+        cond do
+          current == :none and mandatory -> default || "medium"
+          is_binary(current) and (is_nil(efforts) or current in efforts) -> current
+          true -> default || if mandatory, do: "medium", else: :none
+        end
+    end
+  end
+
+  # OpenCode has no per-model metadata → keep any generic low/medium/high, else :none.
+  defp clamp_reasoning(:opencode, _models, _model_id, current) do
+    case current do
+      effort when effort in ["low", "medium", "high"] -> effort
+      _ -> :none
+    end
+  end
+
+  defp clamp_reasoning(_, _, _, _), do: :none
+
   # --------------------------------------------------------------- render
 
   @impl true
@@ -813,6 +1164,17 @@ defmodule DragonesWeb.GameLive.Show do
             dice_engine={@dice_engine}
           />
       <% end %>
+
+      <.settings_modal
+        show={@show_settings}
+        providers={@settings_providers}
+        provider={@settings_provider}
+        models={@settings_models}
+        models_status={@settings_models_status}
+        model={@settings_model}
+        custom_model={@settings_custom_model}
+        reasoning={@settings_reasoning}
+      />
     </div>
     """
   end
@@ -839,6 +1201,14 @@ defmodule DragonesWeb.GameLive.Show do
           <.link navigate="/" class="ctl-btn">lobby</.link>
           <button :if={@status in [:running, :waiting]} class="ctl-btn" phx-click="pause">Pausa</button>
           <button :if={@status == :paused} class="ctl-btn" phx-click="resume">Reanudar</button>
+          <button :if={@is_creator} class="ctl-btn ai-btn" phx-click="open_settings" title={"Ajustes de IA: " <> ai_button_label()}>
+            <span class="ai-gear">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 4.889c-.02.12-.115.26-.297.348a7.493 7.493 0 0 0-.986.57c-.166.115-.334.126-.45.083L6.3 5.508a1.875 1.875 0 0 0-2.282.819l-.922 1.597a1.875 1.875 0 0 0 .432 2.385l.84.692c.095.078.17.229.154.43a7.598 7.598 0 0 0 0 1.139c.015.2-.059.352-.153.43l-.841.692a1.875 1.875 0 0 0-.432 2.385l.922 1.597a1.875 1.875 0 0 0 2.282.818l1.019-.382c.115-.043.283-.031.45.082.312.214.641.405.985.57.182.088.277.228.297.35l.178 1.071c.151.904.933 1.567 1.85 1.567h1.844c.916 0 1.699-.663 1.85-1.567l.178-1.072c.02-.12.114-.26.297-.349.344-.165.673-.356.985-.57.167-.114.335-.125.45-.082l1.02.382a1.875 1.875 0 0 0 2.28-.819l.923-1.597a1.875 1.875 0 0 0-.432-2.385l-.84-.692c-.095-.078-.17-.229-.154-.43a7.614 7.614 0 0 0 0-1.139c-.016-.2.059-.352.153-.43l.84-.692c.708-.582.891-1.59.433-2.385l-.922-1.597a1.875 1.875 0 0 0-2.282-.818l-1.02.382c-.114.043-.282.031-.449-.083a7.49 7.49 0 0 0-.985-.57c-.183-.087-.277-.227-.297-.348l-.179-1.072a1.875 1.875 0 0 0-1.85-1.567h-1.843ZM12 15.75a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5Z" />
+              </svg>
+            </span>
+            <span class="ai-label">{ai_button_label()}</span>
+          </button>
         </span>
       </div>
     </header>
@@ -927,6 +1297,17 @@ defmodule DragonesWeb.GameLive.Show do
     </section>
 
     <aside class="game-rail game-rail-right">
+      <%= if assigns[:viewer_level_up] do %>
+        <style>
+          .level-up-banner{background:#241c14;border:1px solid #a72;border-radius:12px;padding:.7rem .8rem;margin-bottom:.6rem;color:#fc8;font-size:.82rem;line-height:1.4;}
+          .level-up-banner strong{display:block;margin-bottom:.4rem;}
+          .level-up-banner .btn{display:inline-block;background:#3a2a1a;border:1px solid #a72;color:#fc8;border-radius:8px;padding:.3rem .7rem;text-decoration:none;font-size:.78rem;}
+        </style>
+        <div class="level-up-banner">
+          <strong>¡Tu héroe puede subir a nivel {assigns[:viewer_level_up].target}!</strong>
+          <.link navigate={"/heroes/#{assigns[:viewer_level_up].hero_id}/level-up"} class="btn">Gestionar subida →</.link>
+        </div>
+      <% end %>
       <%= if @world != nil and @world.phase == :combat and @viewer != "dm" and @world.characters[@viewer] != nil do %>
         <.detail_sheet card={@world.characters[@viewer]} />
       <% else %>
@@ -1099,6 +1480,115 @@ defmodule DragonesWeb.GameLive.Show do
         </div>
 
         <p class="muted">(click para cerrar)</p>
+      </div>
+    </div>
+    """
+  end
+
+  # The Ajustes de IA modal: provider switch, live model list (with free-text
+  # fallback) and reasoning-effort selector. Creator-only; writing the selection
+  # restarts the partida so the new model takes effect.
+  attr(:show, :boolean, default: false)
+  attr(:providers, :list, default: [])
+  attr(:provider, :atom, default: nil)
+  attr(:models, :list, default: [])
+  attr(:models_status, :atom, default: :idle)
+  attr(:model, :string, default: nil)
+  attr(:custom_model, :string, default: "")
+  attr(:reasoning, :any, default: :none)
+
+  defp settings_modal(assigns) do
+    ~H"""
+    <div :if={@show} class="modal settings-modal">
+      <div class="settings-backdrop" phx-click="close_settings"></div>
+      <div class="modal-box settings-box">
+        <h2>⚙ Ajustes de IA</h2>
+
+        <div class="settings-section">
+          <div class="settings-label">Provider</div>
+          <div class="settings-providers">
+            <button
+              :for={p <- @providers}
+              type="button"
+              phx-click="settings_select_provider"
+              phx-value-provider={p.id}
+              disabled={not p.configured}
+              class={"settings-pbtn #{if @provider == p.id, do: "sel", else: ""}#{if not p.configured, do: " disabled", else: ""}"}
+            >
+              <span class={"settings-dot #{if p.configured, do: "on", else: "off"}"}></span>
+              {p.name}
+            </button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-label">
+            Modelo
+            <button type="button" phx-click="settings_refresh_models" class="settings-refresh" title="Refrescar modelos">↻</button>
+          </div>
+          <%= cond do %>
+            <% @models_status == :loading -> %>
+              <div class="settings-msg">cargando modelos…</div>
+            <% @models_status == :no_key -> %>
+              <div class="settings-msg warn">sin API key para este provider — escribe el slug abajo</div>
+            <% @models_status == :error -> %>
+              <div class="settings-msg warn">no se pudieron cargar los modelos — escribe el slug abajo</div>
+            <% true -> %>
+              <form phx-change="settings_select_model">
+                <select name="model" class="settings-select">
+                  <option value="" disabled={@model == nil}>(elige modelo)</option>
+                  {Phoenix.HTML.Form.options_for_select(Enum.map(@models, &{&1.id, &1.id}), @model)}
+                </select>
+              </form>
+          <% end %>
+          <input
+            type="text"
+            class="settings-input"
+            phx-change="settings_custom_model"
+            value={@custom_model}
+            placeholder="o escribe un slug (ej: deepseek-v4-flash)"
+          />
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-label">Thinking (cuánto razona)</div>
+          <%= case thinking_state(@provider, @models, @model, @custom_model) do %>
+            <% {:unsupported} -> %>
+              <div class="settings-msg warn">este modelo no soporta thinking</div>
+            <% {:unknown} -> %>
+              <div class="settings-msg warn">nivel de thinking sin confirmar para este modelo</div>
+            <% {:options, efforts, mandatory} -> %>
+              <div class="settings-reasoning">
+                <button
+                  :if={not mandatory}
+                  type="button"
+                  phx-click="settings_set_reasoning"
+                  phx-value-level="none"
+                  class={"settings-rbtn #{if @reasoning == :none, do: "sel", else: ""}"}
+                >
+                  Off
+                </button>
+                <button
+                  :for={eff <- efforts}
+                  type="button"
+                  phx-click="settings_set_reasoning"
+                  phx-value-level={eff}
+                  class={"settings-rbtn #{if @reasoning == eff, do: "sel", else: ""}"}
+                >
+                  {effort_label(eff)}
+                </button>
+              </div>
+          <% end %>
+        </div>
+
+        <div class="settings-actions">
+          <button class="ctl-btn" phx-click="close_settings">Cancelar</button>
+          <button class="ctl-btn ctl-active" phx-click="settings_apply">Aplicar ⚡</button>
+        </div>
+        <p class="settings-hint">
+          Aplicar reinicia el proceso de la partida con el nuevo modelo/thinking.
+          El estado queda en Postgres, así que continúa en el mismo punto.
+        </p>
       </div>
     </div>
     """

@@ -1,15 +1,34 @@
 import Config
 
-# Solo en dev: carga las variables de .env en el entorno del sistema para que
-# System.get_env funcione en runtime sin tener que hacer `source .env`.
+# Solo en dev/test: carga las variables de .env.dev en el entorno del sistema
+# para que System.get_env funcione en runtime sin tener que hacer `source .env.dev`.
 # runtime.exs se evalúa cuando las dependencias ya están cargadas (a diferencia
 # de dev.exs), por lo que Dotenvy está disponible aquí. Los valores ya presentes
-# en el entorno real tienen prioridad sobre el .env.
-if config_env() == :dev do
-  case Dotenvy.source([".env", System.get_env()]) do
+# en el entorno real tienen prioridad sobre el .env.dev.
+if config_env() in [:dev, :test] do
+  case Dotenvy.source([".env.dev", System.get_env()]) do
     {:ok, vars} -> System.put_env(vars)
     {:error, _reason} -> :ok
   end
+
+  # Override de DB desde entorno (p.ej. dentro de compose.dev.yml: DB_HOST=postgres,
+  # o en host: DB_PORT=5455 vía .env.dev). Defaults que no cambian el flujo por defecto.
+  default_db = if config_env() == :test, do: "dragones_test", else: "dragones_dev"
+
+  config :dragones, Dragones.Repo,
+    hostname: System.get_env("DB_HOST", "127.0.0.1"),
+    port: String.to_integer(System.get_env("DB_PORT", "5432")),
+    username: System.get_env("DB_USER", "postgres"),
+    password: System.get_env("DB_PASS", "postgres"),
+    database: System.get_env("DB_NAME", default_db)
+end
+
+if config_env() == :dev do
+  {:ok, bind_ip} =
+    System.get_env("PHX_BIND_IP", "127.0.0.1") |> to_charlist() |> :inet.parse_address()
+
+  config :dragones, DragonesWeb.Endpoint,
+    http: [ip: bind_ip, port: String.to_integer(System.get_env("PORT", "4000"))]
 end
 
 # --- Producción (release) -----------------------------------------------------
