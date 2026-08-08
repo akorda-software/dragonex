@@ -264,6 +264,7 @@ defmodule DragonesWeb.CustomContentLive do
     <div class="cc">
       <style>
         .cc{width:min(1100px,calc(100% - 3rem));margin:0 auto;padding:clamp(1rem,2vw,2rem) 0 2.5rem;font-family:Georgia,'Times New Roman',serif;color:#ccc;}
+        .cc *{box-sizing:border-box;}
         .cc h1{font-size:clamp(1.4rem,2vw,1.9rem);color:#fc8;margin:.5rem 0 .2rem;}
         .cc .sub{color:#889;font-size:.9rem;margin-bottom:1rem;}
         .tabs{display:flex;gap:.4rem;margin-bottom:1rem;}
@@ -289,6 +290,9 @@ defmodule DragonesWeb.CustomContentLive do
         .field input,.field select,.field textarea{width:100%;padding:.5rem .6rem;background:#111;border:1px solid #333;border-radius:6px;color:#ddd;font-family:inherit;font-size:.9rem;}
         .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:#a72;}
         .field textarea{min-height:60px;resize:vertical;}
+        .hint{display:block;font-size:.74rem;margin-top:.25rem;}
+        .hint.bad{color:#f99;}
+        .hint.ok{color:#9c9;}
         .inline{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;}
         .check{display:flex;align-items:center;gap:.4rem;font-size:.85rem;color:#aa9;}
         .chips{display:flex;flex-wrap:wrap;gap:.35rem;}
@@ -356,10 +360,17 @@ defmodule DragonesWeb.CustomContentLive do
       <div class="field">
         <label>Dados (p. ej. 2d6, 1d8+2)</label>
         <input type="text" name="dice" value={@editing.dice} phx-change="change" />
+        <span :if={dice_status(@editing.dice) == :invalid} class="hint bad">no válido (usa 2d6, 1d8+2…)</span>
+        <span :if={dice_status(@editing.dice) == :valid} class="hint ok">✓ válido</span>
       </div>
       <div class="field">
         <label>Tipo de daño</label>
-        <input type="text" name="damage_type" value={@editing.damage_type} phx-change="change" placeholder="fire, slashing…" />
+        <select name="damage_type" phx-change="change">
+          <option value="" selected={@editing.damage_type in ["", nil]}>(sin daño)</option>
+          <%= for dt <- damage_types() do %>
+            <option value={dt} selected={@editing.damage_type == dt}>{Translations.damage_type(dt, :es)}</option>
+          <% end %>
+        </select>
       </div>
     </div>
     <div class="inline">
@@ -427,11 +438,17 @@ defmodule DragonesWeb.CustomContentLive do
       <div class="field">
         <label>Dados (opcional)</label>
         <input type="text" name="dice" value={@editing.dice} phx-change="change" placeholder="6d6" />
+        <span :if={dice_status(@editing.dice) == :invalid} class="hint bad">no válido (usa 6d6, 3d8+2…)</span>
       </div>
     </div>
     <div class="field">
       <label>Tipo de daño (opcional)</label>
-      <input type="text" name="damage_type" value={@editing.damage_type} phx-change="change" placeholder="slashing" />
+      <select name="damage_type" phx-change="change">
+        <option value="" selected={@editing.damage_type in ["", nil]}>(ninguno)</option>
+        <%= for dt <- damage_types() do %>
+          <option value={dt} selected={@editing.damage_type == dt}>{Translations.damage_type(dt, :es)}</option>
+        <% end %>
+      </select>
     </div>
     <div class="field">
       <label>Efecto / descripción</label>
@@ -486,6 +503,14 @@ defmodule DragonesWeb.CustomContentLive do
   defp spell_kinds, do: CustomContent.spell_kinds()
   defp item_kinds, do: CustomContent.item_kinds()
   defp tabs, do: @tabs
+  defp damage_types, do: Translations.damage_types()
+
+  defp dice_status(""), do: :empty
+  defp dice_status(nil), do: :empty
+
+  defp dice_status(dice) when is_binary(dice) do
+    if Dragones.Dice.valid?(dice), do: :valid, else: :invalid
+  end
 
   defp normalize("finesse", v), do: v == "true"
   defp normalize("ranged", v), do: v == "true"

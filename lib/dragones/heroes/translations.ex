@@ -417,6 +417,10 @@ defmodule Dragones.Heroes.Translations do
     I18n.label(Map.get(@damage_types, to_string(key)), locale, to_string(key))
   end
 
+  @doc "Lista de tipos de daño canónicos (SRD 5e), ordenada."
+  @spec damage_types() :: [String.t()]
+  def damage_types, do: @damage_types |> Map.keys() |> Enum.sort()
+
   # ============================================================ clases de efecto
 
   @kinds %{

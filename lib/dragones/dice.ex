@@ -57,6 +57,15 @@ defmodule Dragones.Dice do
     end
   end
 
+  @doc "True when `expr` is a well-formed dice expression (e.g. \"2d6\", \"1d8+2\")."
+  @spec valid?(String.t() | nil) :: boolean()
+  def valid?(expr) when is_binary(expr) do
+    String.trim(expr) != "" and
+      Regex.match?(~r/^(\d+)d(\d+)(?:([+-])(\d+))?$/, String.trim(expr))
+  end
+
+  def valid?(_), do: false
+
   # Convenience rollers for deps injection in tests.
   def always(value), do: fn _sides -> value end
 end

@@ -78,8 +78,6 @@ defmodule DragonesWeb.HeroLive.Index do
 
       <div>
         <.link navigate="/" class="nav-link">← partidas</.link>
-        <span class="nav-link" style="margin:0 .4rem;color:#444;">·</span>
-        <.link navigate="/mi-contenido" class="nav-link">mi contenido</.link>
       </div>
 
       <div class="gallery-header">
@@ -87,7 +85,10 @@ defmodule DragonesWeb.HeroLive.Index do
           <h1>Mis héroes</h1>
           <div class="sub">Tus personajes de D&D 5e, listos para jugar.</div>
         </div>
-        <.link navigate="/heroes/new" class="btn">+ Forjar nuevo héroe</.link>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+          <.link navigate="/mi-contenido" class="btn">+ Crear contenido</.link>
+          <.link navigate="/heroes/new" class="btn">+ Forjar nuevo héroe</.link>
+        </div>
       </div>
 
       <div :if={@error} class="error">{@error}</div>
