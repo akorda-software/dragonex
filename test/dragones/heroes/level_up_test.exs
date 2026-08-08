@@ -14,7 +14,9 @@ defmodule Dragones.Heroes.LevelUpTest do
       # fighter d10 → medio 6 + CON mod
       con_mod = div(c.con - 10, 2)
       assert c2.max_hp == c.max_hp + 6 + con_mod
-      assert c2.hp == c.hp + 6 + con_mod
+      # RAW 5e: subir de nivel NO cura. El hp_gain va solo al máximo; el hp
+      # actual no cambia (sin ASI de CON → con_retro = 0).
+      assert c2.hp == c.hp
     end
 
     test "aplica ASI a nivel 4 (cap 20)" do
@@ -253,6 +255,169 @@ defmodule Dragones.Heroes.LevelUpTest do
       # chain mail (heavy) AC fija 16; subir DEX no la cambia
       assert f4.dex == 14
       assert f4.ac == 16
+    end
+  end
+
+  describe "cobertura de gaps" do
+    test "MEDIA-3: ASI negativo no permite saltarse el cupo (str+3, con-1)" do
+      c =
+        Character.new(
+          name: "X",
+          class: "fighter",
+          level: 3,
+          str: 16,
+          dex: 12,
+          con: 14,
+          int: 10,
+          wis: 10,
+          cha: 10,
+          hp: 28,
+          max_hp: 28,
+          ac: 16
+        )
+
+      # Sin el fix, el negativo "compensaría": 3 + (-1) = 2 (dentro del cupo) y
+      # aplicaría str+3 (excediendo el máximo de 2 puntos). Con el fix, los
+      # negativos se filtran → 3 > 2 → se rechaza.
+      assert {:error, msg} = Heroes.apply_level_up(c, %{asi: %{str: 3, con: -1}})
+      assert msg =~ "ASI"
+    end
+
+    test "MEDIA-4: mago L1→2 rechaza hechizos por encima de max_spell_level" do
+      {:ok, c} =
+        Heroes.build(%{
+          name: "X",
+          race: "elf",
+          subrace: "high elf",
+          class: "wizard",
+          background: "sage"
+        })
+
+      # max_spell_level(wizard, 2) = 1. acid arrow (L2) y gate (L9) se descartan.
+      {:ok, c2} =
+        Heroes.apply_level_up(c, %{spells_added: ["acid arrow", "gate", "magic missile"]})
+
+      names = Enum.map(c2.spells, & &1.name)
+      assert "magic missile" in names
+      refute "acid arrow" in names
+      refute "gate" in names
+    end
+
+    test "LOW-5: un personaje dañado conserva su daño (no cura al subir)" do
+      # Fighter L1, max 12, dañado a 7 hp
+      c =
+        Character.new(
+          name: "X",
+          class: "fighter",
+          level: 1,
+          str: 16,
+          dex: 12,
+          con: 14,
+          int: 10,
+          wis: 10,
+          cha: 10,
+          hp: 7,
+          max_hp: 12,
+          ac: 16
+        )
+
+      {:ok, c2} = Heroes.apply_level_up(c, %{})
+      # max sube (d10 medio 6 + con_mod +2 = 8 → 20), pero hp NO cambia (RAW)
+      assert c2.max_hp == 20
+      assert c2.hp == 7
+    end
+
+    test "LOW-5: un personaje caído (0 hp) sigue caído tras subir" do
+      c =
+        Character.new(
+          name: "X",
+          class: "fighter",
+          level: 1,
+          str: 16,
+          dex: 12,
+          con: 14,
+          int: 10,
+          wis: 10,
+          cha: 10,
+          hp: 0,
+          max_hp: 12,
+          ac: 16
+        )
+
+      {:ok, c2} = Heroes.apply_level_up(c, %{})
+      assert c2.max_hp == 20
+      # Sigue caído: subir de nivel no revive
+      assert c2.hp == 0
+    end
+
+    test "LOW-5: la vitalidad retroactiva de CON sí sube el hp actual" do
+      # Fighter L3 dañado a 10 hp; ASI de CON (14→16, mod +2→+3)
+      c =
+        Character.new(
+          name: "X",
+          class: "fighter",
+          level: 3,
+          str: 16,
+          dex: 12,
+          con: 14,
+          int: 10,
+          wis: 10,
+          cha: 10,
+          hp: 10,
+          max_hp: 28,
+          ac: 16
+        )
+
+      {:ok, c4} = Heroes.apply_level_up(c, %{asi: %{con: 2}})
+      # con_retro = (3 - 2) * 3 = 3 → el hp actual sube 3 por vitalidad (PHB),
+      # pero NO recibe el hp_gain del nuevo nivel (RAW: no cura).
+      assert c4.hp == 13
+    end
+
+    test "AC: ASI de WIS sube la CA de un monje (Defensa sin Armadura)" do
+      # Monk sin armadura: AC = 10 + dex_mod + wis_mod. Subir WIS sube la AC.
+      monk =
+        Character.new(
+          name: "X",
+          race: "human",
+          class: "monk",
+          level: 3,
+          str: 10,
+          dex: 14,
+          con: 12,
+          int: 10,
+          wis: 14,
+          cha: 10,
+          hp: 22,
+          max_hp: 22,
+          ac: 14
+        )
+
+      {:ok, m4} = Heroes.apply_level_up(monk, %{asi: %{wis: 2}})
+      # dex +2, wis +2 → AC 10 + 2 + 3 = 15
+      assert m4.wis == 16
+      assert m4.ac == 15
+    end
+
+    test "ASI cap 20: no pasa de 20 una característica alta" do
+      c =
+        Character.new(
+          name: "X",
+          class: "fighter",
+          level: 3,
+          str: 19,
+          dex: 12,
+          con: 14,
+          int: 10,
+          wis: 10,
+          cha: 10,
+          hp: 28,
+          max_hp: 28,
+          ac: 16
+        )
+
+      {:ok, c4} = Heroes.apply_level_up(c, %{asi: %{str: 2}})
+      assert c4.str == 20
     end
   end
 end

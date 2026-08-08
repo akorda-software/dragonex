@@ -10,15 +10,17 @@ defmodule Dragones.Heroes.LevelUp do
   ## Reglas 5e que aplica
 
     * Nivel +1 (tope 20).
-    * PG: dado medio + mod CON (con el mod nuevo) + bono racial por nivel.
+    * PG: dado medio + mod CON (con el mod nuevo) + bono racial por nivel. El
+      `hp_gain` va **solo al máximo** (RAW: subir de nivel no cura).
     * Retroactivo de CON: al subir CON (vía ASI), `(new_mod − old_mod) × niveles
-      previos` se suma al max_hp (el nivel nuevo ya usa el mod nuevo).
+      previos` se suma al max_hp **y al hp actual** (vitalidad, regla 5e).
     * ASI en niveles 4/8/12/16/19, validando el cupo (`Progression.asi_points/0`).
     * AC recalculada si cambian DEX / CON / WIS (según equipo y Defensa sin Armadura).
     * Hechizos nuevos (`choices.spells_added`) y features de clase del nuevo nivel.
 
-  No toca estado transitorio (HP actual escalado por el delta, condiciones,
-  death_saves, temp_hp, slots usados).
+  No toca estado transitorio (condiciones, death_saves, temp_hp, slots usados). El
+  hp actual solo sube por la vitalidad retroactiva de CON; un caído (0 hp) sin
+  ASI de CON sigue caído tras subir.
   """
 
   alias Dragones.{Character, Spell}
@@ -63,6 +65,12 @@ defmodule Dragones.Heroes.LevelUp do
       # hill dwarf +1) y retroactivo por el cambio de modificador de CON sobre
       # los niveles PREVIOS (regla 5e): el nivel nuevo ya usa new_con_mod en
       # hp_gain, así que el retro solo aplica a `c.level` niveles anteriores.
+      #
+      # RAW 5e: el `hp_gain` del nuevo nivel va SOLO al máximo (no cura al hp
+      # actual). El `con_retro` sí se suma al hp actual: es vitalidad ganada por
+      # subir el mod de CON, no sanación (PHB: "your current hit points increase
+      # by the same amount"). Así un personaje dañado conserva su daño y un caído
+      # (0 hp) sin cambio de CON sigue caído.
       old_con_mod = Ability.modifier(c.con)
       new_con_mod = Ability.modifier(new_scores[:con])
       avg = div(hit_die, 2) + 1
@@ -88,7 +96,7 @@ defmodule Dragones.Heroes.LevelUp do
         c
         | level: new_level,
           max_hp: new_max_hp,
-          hp: c.hp + hp_gain + con_retro,
+          hp: c.hp + con_retro,
           xp: max(c.xp || 0, Progression.xp_threshold(new_level)),
           spells: Enum.uniq_by(c.spells ++ new_spells, & &1.name),
           class_features: Enum.uniq(c.class_features ++ features),

@@ -45,17 +45,34 @@ defmodule Dragones.GameSyncGenserverTest do
   defp roller, do: fn _n -> 1 end
   defp waiting_on(name), do: fn s -> s.status == :waiting and s.current == name end
 
-  test "Game.sync_hero_level_up aplica el merge al world vivo (single-writer)", %{
+  # Prepara el world persistido con daño + una condición antes de arrancar el
+  # GenServer (que rehidrata desde DB), para verificar que la sync los conserva.
+  defp wound_thane_in_db(game) do
+    world = Games.load_world(Games.get_game(game.id))
+    {:ok, w1} = Dragones.World.apply_damage("Thane", 5).(world)
+    {:ok, w2} = Dragones.World.apply_condition("Thane", "frightened").(w1)
+    {:ok, _} = Games.save_state(game.id, w2, nil, 1, :waiting)
+  end
+
+  test "Game.sync_hero_level_up conserva hp dañado y condiciones (single-writer)", %{
     user: user,
     hero: hero,
     game: game
   } do
+    # Thane llega dañado (5) y asustado al world antes de arrancar el GenServer.
+    wound_thane_in_db(game)
+
     pid =
       start_supervised!(
         {Dragones.Game, {game.id, [model: %Test{script: script()}, roller: roller()]}}
       )
 
-    # Espera al turno humano (Thane) y pausa para evitar beats en vuelo.
+    # El world vivo rehidratado lleva el daño y la condición.
+    world_before = Game.world(pid)
+    max_before = world_before.characters["Thane"].max_hp
+    hp_before = max_before - 5
+    assert world_before.characters["Thane"].hp == hp_before
+
     assert :ok = Game.await(pid, waiting_on("Thane"))
     assert :ok = Game.pause(pid)
 
@@ -67,10 +84,18 @@ defmodule Dragones.GameSyncGenserverTest do
     # El GenServer aplica el merge al World vivo y persiste (single-writer).
     assert :ok = Game.sync_hero_level_up(pid, hero.id, new_sheet)
 
-    assert Game.world(pid).characters["Thane"].level == 2
+    synced = Game.world(pid).characters["Thane"]
+    assert synced.level == 2
 
-    # Y persistió: recargando desde DB el nivel también es 2.
+    # RAW 5e: subir de nivel NO cura. El daño sufrido (5) se conserva; solo
+    # subió el máximo. La condición también sobrevive al merge (no la pisa).
+    assert synced.hp == hp_before
+    assert synced.max_hp > max_before
+    assert Dragones.World.has_condition?(Game.world(pid), "Thane", "frightened")
+
+    # Y persistió: recargando desde DB el nivel es 2 y el daño se conserva.
     reloaded = Games.load_world(Games.get_game(game.id))
     assert reloaded.characters["Thane"].level == 2
+    assert reloaded.characters["Thane"].hp == hp_before
   end
 end

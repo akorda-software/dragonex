@@ -13,6 +13,11 @@ defmodule Dragones.Heroes.Progression do
 
   ## Simplificaciones de la v1 (documentadas)
 
+    * **Warlock como full-caster**: el brujo usa la tabla de conjurador completo
+      (`max_spell_level` + `SpellSlots`), cuando en 5e su Pact Magic es distinto
+      (huecos de 1º–5º todos del mismo nivel, se recuperan en descanso corto, más
+      1 Mystic Arcanum por nivel 6º–9º). Es una simplificación de impacto bajo a
+      niveles típicos; se documenta también en `Dragones.SpellSlots`.
     * **Hechizos conocidos**: las clases preparadoras (clérigo/druida) y de
       grimorio (mago) cambian su lista libremente al subir; las de lista cerrada
       (bardo/hechicero/brujo) reciben un cupo derivado. Aquí `spells_known/2`

@@ -138,9 +138,10 @@ defmodule Dragones.MultiLevelTest do
 
       hero = w2.characters["hero"]
       assert hero.level == 2
-      # Fighter d10: avg = 6, con_mod(14) = +2 → +8 HP
+      # Fighter d10: avg = 6, con_mod(14) = +2 → +8 HP al máximo
       assert hero.max_hp == 20
-      assert hero.hp == 20
+      # RAW 5e: subir de nivel NO cura. El hp actual se conserva (12 → 12).
+      assert hero.hp == 12
     end
 
     test "refreshes spell slots for casters" do
@@ -211,8 +212,10 @@ defmodule Dragones.MultiLevelTest do
 
       assert h2.level == 4
       assert h2.str == 18
-      # HP actual escala con el delta pero conserva el daño sufrido (5 → 5 + delta)
-      assert h2.hp == 5 + (h2.max_hp - hero.max_hp)
+      # RAW 5e: subir de nivel NO cura. Sin ASI de CON, el hp actual se conserva
+      # exactamente (5 → 5); solo sube el máximo. El daño sufrido persiste.
+      assert h2.hp == 5
+      assert h2.max_hp > hero.max_hp
       # Estado transitorio conservado
       assert h2.conditions == [%{condition: "prone"}]
     end

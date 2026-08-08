@@ -476,10 +476,10 @@ defmodule Dragones.Games do
   @doc """
   Sincroniza una subida de nivel del héroe al `Character` vivo de una partida.
 
-  Aplica los deltas (nivel, max_hp, hp escalado, atributos ASI, hechizos nuevos,
-  class_features, xp) **sin pisar** el estado transitorio del combate (hp actual
-  ya dañado, condiciones, death_saves, temp_hp, slots usados). También actualiza
-  el snapshot `characters.sheet`.
+  Aplica los deltas (nivel, max_hp, vitalidad retroactiva de CON, atributos ASI,
+  hechizos nuevos, class_features, xp) **sin pisar** el estado transitorio del
+  combate (hp actual dañado, condiciones, death_saves, temp_hp, slots usados):
+  subir de nivel no cura (RAW). También actualiza el snapshot `characters.sheet`.
 
   Limitación v1: si el proceso `Game` está activo procesando beats, su próxima
   persistencia podría sobreescribir el `world`. Para partidas en espera/pausada
@@ -519,9 +519,10 @@ defmodule Dragones.Games do
 
   @doc """
   Merge puro de una subida de nivel sobre el `Character` vivo de un `World`.
-  Aplica los deltas (nivel, max_hp, hp escalado, atributos, spells, features, xp)
-  sin pisar el estado transitorio. Público para que el `Game` GenServer lo use
-  dentro de un `Session.update_state` (single-writer).
+  Aplica los deltas (nivel, max_hp, vitalidad retroactiva de CON, atributos,
+  spells, features, xp) sin pisar el estado transitorio: subir de nivel no cura
+  (RAW 5e). Público para que el `Game` GenServer lo use dentro de un
+  `Session.update_state` (single-writer).
   """
   @spec merge_character_level_up(Dragones.World.t(), String.t(), Dragones.Character.t()) ::
           Dragones.World.t()
@@ -547,14 +548,21 @@ defmodule Dragones.Games do
         world
 
       live ->
-        hp_delta = new_sheet.max_hp - live.max_hp
+        # RAW 5e: subir de nivel NO cura. El `hp_gain` del nuevo nivel ya está en
+        # `new_sheet.max_hp` pero NO se suma al hp actual. La única excepción es
+        # la vitalidad retroactiva por subir el mod de CON (regla del PHB), que
+        # sí aumenta el hp actual. Así un personaje dañado conserva su daño y un
+        # caído (0 hp) sin ASI de CON sigue caído tras subir.
+        old_con_mod = Dragones.Rules.Ability.modifier(live.con)
+        new_con_mod = Dragones.Rules.Ability.modifier(new_sheet.con)
+        con_retro = (new_con_mod - old_con_mod) * live.level
 
         merged =
           %{
             live
             | level: new_sheet.level,
               max_hp: new_sheet.max_hp,
-              hp: max(0, live.hp + hp_delta),
+              hp: max(0, live.hp + con_retro),
               xp: new_sheet.xp,
               ac: new_sheet.ac,
               str: new_sheet.str,
