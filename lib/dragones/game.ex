@@ -14,7 +14,7 @@ defmodule Dragones.Game do
     * **AI turn** (the DM, or an AI PC) → run the agent beat in a **Task** so the
       GenServer keeps answering queries/pauses. On completion, advance + persist.
     * **Human turn** → the Game idles in `:waiting` (persisted) until the human
-      acts via `act/2`; the beat runs in a Task too, then advances + persists.
+      acts via `declare/3`; the beat runs in a Task too, then advances + persists.
 
   One DM agent (`ExAgent.Server`) resolves every beat, proposing as whichever
   participant's turn it is — the engine's `WorldDriven` policy + `controlled_by?`

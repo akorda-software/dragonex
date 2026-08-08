@@ -3,6 +3,11 @@
 Una estrella polar viva. Define **qué** construimos, **cómo** (arquitectura) y
 **en qué orden** (fases). Antes de cada fase se relee y se afina.
 
+> **Estado actual canónico** → [`docs/progress.md`](docs/progress.md) (qué está
+> hecho / qué falta / deudas v1) y [`docs/decisions.md`](docs/decisions.md) (el
+> *porqué*). Las cifras de tests que aparecen abajo por fase son **históricas
+> del momento de cada entrega**; el conteo vivo está en `progress.md`.
+
 ---
 
 ## Visión
@@ -127,7 +132,7 @@ Se refina al implementar la Fase 0.
 - **Turnos**: `TurnPolicy.WorldDriven` (iniciativa del World, imparcial).
 - **Persistencia del World**: `Codec` + `Store.Coded`.
 - **Dados**: inyectables (tests deterministas) + modal cutre en la UI.
-- 113 tests offline + 3 live. Arquetipos (fighter/wizard/rogue) y trasgos.
+- 113 tests offline + 3 live (base pre-Fase 0). Arquetipos (fighter/wizard/rogue) y trasgos.
 
 **Desechable**: el cascade síncrono actual en `GameLive.handle_info` — fue una
 prueba del flujo; la Fase 0 lo reemplaza por el `Dragones.Game`.
@@ -155,16 +160,14 @@ prueba del flujo; la Fase 0 lo reemplaza por el `Dragones.Game`.
 crea la partida (`Scenario.default` → `Games.create_game`), arranca el Game
 (`Game.ensure_started`) y se suscribe a `Dragones.PubSub` (`"dragones:game:<id>"`);
 renderiza el `snapshot` (sheets + la línea de chat desde `game_events`) y envía
-`Game.act/2`. El Game es el único que toca la lógica y el Repo; el LiveView sólo
+`Game.declare/3`. El Game es el único que toca la lógica y el Repo; el LiveView sólo
 refleja lo que el Game reporta (incluido el modal de dados, alimentado por el
 roller del Game que publica cada tirada). Cero cascade síncrono.
 
-**Siguiente:** la **Fase 4 — creador de personajes completo** (editor rico de
-raza/clase/atributos/gear/spells/backstory con validación 5e que sustituya los
-predefinidos del catálogo), o los **refinamientos transversales** restantes:
-caching de prefijo + modelo-por-rol (abaratar tokens) y compactación de
-historial. (La robustez del DM y la cola de intenciones ya están hechas — ver
-Mejoras transversales.)
+**Las cuatro fases del roadmap están hechas** (ver Fase 4 abajo). Lo pendiente
+es refinamiento de producto (mobile, reacciones, iniciativa individual por
+monstruo) — ver [`docs/progress.md`](docs/progress.md) § "Pendiente / fuera de
+v1".
 
 ### Fase 1 — creador de partidas (wizard) — ✅ HECHA
 - `Dragones.Scenario.catalog/0` (fighter/wizard/rogue PCs + goblin monster) +
@@ -189,7 +192,7 @@ Mejoras transversales.)
 - **Render por perspectiva**: el input se habilita sólo en TU turno, tu sheet se
   marca "TÚ", banner "Es tu turno" + "Esperando a X". Modo "Ver como DM"
   (eventos `visible_to :dm`). Varios viewers comparten la partida vía PubSub. ✅
-- **Gating servidor**: `Game.act/3(server, participant, text)` verifica que el
+- **Gating servidor**: `Game.declare/3(server, participant, text)` verifica que el
   turno es del humano reclamado — un viewer no puede actuar por otro. ✅
 - **Verificado**: 127 tests verdes (multi-human Game test + picker/claim web
   tests) + `priv/live_game.exs` con 2 humanos (Thane+Lyra vs trasgo): el DM
@@ -197,9 +200,26 @@ Mejoras transversales.)
   cada humano actúa en su turno, el firebolt de Lyra remata al trasgo → combate
   termina, todo persiste y rehidrata.
 
-### Fase 4 — creador de personajes completo
-- Editor rico (raza/clase/atributos por reparto/gear/spells/backstory) con
-  validación 5e. Sustituye a los predefinidos cuando esté listo.
+### Fase 4 — creador de personajes completo — ✅ HECHA
+- **Builder nivel-1** (`Dragones.Heroes`): razas + subrazas, clases,
+  backgrounds, puntuaciones (standard array / point buy / explícito),
+  equipment (grupos SRD + custom), spells (casters), skills, languages. ✅
+- **Catálogos SRD**: clases, razas, trasfondos, equipo completo, 42 hechizos
+  builtin + **319 SRD** (importados a `priv/srd/spells.es.json` vía
+  `scripts/import_srd_spells.py`). ✅
+- **i18n ES/EN** del catálogo (`Heroes.Translations`). ✅
+- **UI**: `HeroLive.New` creator de 5 pasos, `HeroLive.Show` ficha,
+  `HeroLive.LevelUp` subida de nivel. ✅
+- **Contenido custom por usuario** (`custom_contents` weapon/spell/item, CRUD
+  en `/mi-contenido`, merge en `Catalog` con `source: :custom`). ✅
+- **Subida de nivel en partida (milestone)**: `LevelUp.apply` + sync viva
+  (GenServer single-writer) + tool `level_up` del DM. RAW: no cura. ✅
+- **Verificado**: tests extensos (heroes/level-up/custom-content/accounts) +
+  `MIX_ENV=test mix test` verde.
+
+**Siguiente:** refinamientos de producto y reglas (mobile, reacciones,
+iniciativa individual, coordinación de PCs auto) — ver
+[`docs/progress.md`](docs/progress.md).
 
 ### Mejoras transversales (cualquier fase)
 - **Cola de intenciones** ✅: el input está **siempre activo** — un humano
@@ -222,12 +242,12 @@ Mejoras transversales.)
 - **Compactación** ✅: `Compaction.Summary` cableada en el DM via capability; al
   cruzar el umbral el summarizer barato recapa el historial viejo (keep_recent
   verbatim). Umbral/ventana configurables (`DRAGONES_COMPACTION_*`).
-- **Modelo-por-rol** + `max_tokens` + rate limiting (control de coste).
-- **Compactación** de historial en partidas largas (`Compaction.Summary`).
-- Modal de dados visual (el paquete bonito).
-- Condiciones (prone/poisoned) que disparen ventaja automáticamente.
-- Iniciativa individual por monstruo.
-- Reacciones / "preparar acción".
+
+> Todas las mejoras transversales del roadmap original están **hechas**. Lo
+> que sigue es refinamiento de producto/reglas — lista viva en
+> [`docs/progress.md`](docs/progress.md) § "Pendiente / fuera de v1":
+> modal de dados pulido, condiciones→ventaja automática, iniciativa individual
+> por monstruo, reacciones / "preparar acción".
 
 ---
 
@@ -260,4 +280,3 @@ Mejoras transversales.)
 - **Coste**: caching de prefijo + modelo-por-rol + `max_tokens` + rate limiting.
 - **Replay/depuración**: el `game_events` append-only permite reconstruir y
   depurar cualquier partida.
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 

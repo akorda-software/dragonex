@@ -1,0 +1,147 @@
+# Dragones — progreso y estado
+
+Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
+hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
+histórico (`docs/historical/`) discrepan con esto, manda este doc.
+
+- Verde de referencia: **527 tests passed** (`MIX_ENV=test mix test`), compile
+  limpio sin warnings.
+- Arquitectura y porqués → `docs/decisions.md`.
+- Cómo funciona el bucle de una partida en detalle → `docs/FLUJO_PARTIDA.md`.
+
+---
+
+## ✅ Hecho y probado
+
+### Motor y reglas 5e
+- `Rules.Ability` (modificadores, competencia) + `Rules.Combat` (ataques,
+  daño, críticos, salvaciones, chequeos, death saves, ventaja/desventaja).
+- `World` — máquina de estados `:exploration`/`:combat`, change-fns puras,
+  invariantes (damage floor 0, `controlled_by?/3`), `facts` durables (D16),
+  condiciones, spell slots, `level_up`.
+- `Actions` — puente intent→world (`attack`, `spell` automatic/attack/save +
+  consumo de slot, `initiative`, `death_save`, `heal`, `short_rest`,
+  `long_rest`, `check`). Con `RollLog` para dados estructurados.
+- `Tools` — `deftool`s que el LLM invoca: `make_attack`, `cast_spell`,
+  `roll_initiative`, `make_death_save`, `heal`, `ability_check`, `end_combat`,
+  `short_rest`, `long_rest`, `spawn_monster`, `apply_condition`,
+  `remove_condition`, `set_scene`, `establish_fact`, `level_up`, `roll_dice`.
+- `TurnPolicy.WorldDriven` — turno leído del World; iniciativa imparcial; el
+  LLM no puede saltar/reordenar.
+- `Codec` + `Store.Coded` — `World ↔ jsonb` simétrico (D8).
+- `Dice` — RNG inyectable (`dic_ex`), `roll_expr/2` parser NdM±K.
+
+### Partida (`Dragones.Game`)
+- GenServer on-demand por `game_id` (D5); rehidrata de Postgres, persiste
+  tras cada beat (D3, D4).
+- Bucle por turno: AI en `Task`s (no bloquea el GenServer), `:waiting` para
+  humanos, `:paused`, `:ended`.
+- **Robustez**: retries transient con backoff exponencial (1s→3s→10s, máx 3),
+  retry `max_tokens` con nudge "SÉ BREVE", circuit breaker (D17), combate
+  fantasma v1+v2 (D18), anti-loop PCs (Jaccard), anti-puppet DM (regla #14),
+  anti-repetición DM, limbo de exploración, guardián de español, UTF-8 sanitize.
+- Auto-play de PCs humanos (toggle 🤖 crea un `PCAgent`).
+- Pausa/reanuda durable; rehidrata tras kill del proceso.
+
+### Agentes
+- `DM` — system prompt de 16 reglas, story bible horneada (prefijo cacheable,
+  D20), tools con `max_retries: 3`, capabilities `Events` + `Compaction.Summary`.
+- `PCAgent` — un agent por PC IA, personalidad por clase, tools restringidas,
+  `instruction/3` adaptativa (caído→death_save, combate→targets, exploración).
+- `History` — reconstruye contexto compartido desde `game_events` (D19);
+  compresión de narraciones viejas, coalescing mismo-actor.
+- `Brief` + `Instructions` — `world_brief` + instruction por turno.
+- `Models` + `ModelConfig` — modelo-por-rol + selector runtime (D21).
+
+### Creador de personajes (`Dragones.Heroes`) — ex-"Fase 4"
+- Builder nivel-1 → `Dragones.Character`: razas + subrazas, clases,
+  backgrounds, puntuaciones (standard array / point buy / explícito),
+  equipment (grupos SRD + custom), spells (casters), skills, languages.
+- Catálogos SRD: `Classes`, `Races`, `Backgrounds`, `Scoring`, `Equipment`
+  (armas simple/martial, armaduras light/medium/heavy, escudos, gear),
+  `Spells` (42 builtin), `SRDSpells` (**319** cargados de
+  `priv/srd/spells.es.json`, generados por `scripts/import_srd_spells.py`).
+- `Catalog` — capa de display/consulta: mezcla builtin + SRD + **custom**
+  inyectado con `source: :builtin | :srd | :custom` (offline-safe).
+- `Translations` — i18n ES/EN de todo el catálogo + tipos de daño/habilidades.
+- `LevelUp` + `Progression` — subida 5e (más abajo).
+
+### Contenido custom por usuario
+- CRUD `custom_contents` (weapon/spell/item, unique por usuario) con
+  **validación server-side** de mecánicas (dados parseables, kind de spell
+  válido, ability válida, classes conocidas).
+- LiveView `/mi-contenido` (3 pestañas, CRUD inline).
+- Merge en `Catalog` con `source: :custom`; builder lo consume vía
+  `custom: %{...}` + `extra_equipment`.
+
+### Subida de nivel (milestone, D10)
+- `LevelUp.apply/2` — nivel+1 (tope 20), PG (dado medio + CON + racial),
+  retro-CON, **RAW no cura** (D11), ASI a `[4,8,12,16,19]` cap 20 (D13),
+  AC recalculada, hechizos nuevos (respeta `max_spell_level`), features.
+- `World.level_up/2` (path DM) + `Tools.level_up` (excluye PCs humanos).
+- Sync a partida viva: `Games.sync_hero_level_up` (DB) +
+  `Game.sync_hero_level_up` (GenServer single-writer, D6) +
+  `merge_character_level_up` (preserva hp dañado/conditions/slots/AC).
+- UI: `HeroLive.LevelUp` (`/heroes/:id/level-up`) con ASI stepper + spell
+  picker; `HeroLive.Show` muestra callout "Subir de nivel" si `level < 20`.
+
+### Web / producto
+- **Auth** — registro/login/logout (bcrypt, session cookies) vía
+  `Accounts` + `UserAuth` plugs.
+- **Heroes** — `/heroes` (galería), `/heroes/new` (creator 5 pasos),
+  `/heroes/:id` (ficha), `/heroes/:id/edit`, `/heroes/:id/level-up`.
+- **Partidas** — `/` (lobby: tuyas + con slots abiertos), `/games/new`
+  (wizard 2 tabs), `/games/:id` (mesa + sala de espera multiplayer).
+- **Mesa** (`GameLive.Show`): feed agrupado por turnos, dice modal (FSM),
+  streaming token-a-token con anti-duplicación, paginación del log (tope 400
+  bloques), modal Ajustes (provider/model/reasoning con restart), identidad
+  por humano (`?as=<name>` + overlay), "Ver como DM".
+- **Multiplayer** — `join_game` con slots abiertos, waiting room con share
+  link, el creador pulsa "Empezar".
+
+### Mejoras transversales (ROADMAP) — todas hechas
+- ✅ Cola de intenciones (`declare/3` off-turn, persiste en `games.intents`).
+- ✅ Robustez del DM (`controlled_by?` directivo + `max_retries: 3`).
+- ✅ Caching de prefijo (D20, medido 44–85%).
+- ✅ Modelo-por-rol + `max_tokens` (D21).
+- ✅ Compactación (`Compaction.Summary`, umbral 250k → efectivamente off con
+  modelos de 1M; cableado y funcional).
+
+---
+
+## 🟡 Simplificaciones v1 documentadas (deudas técnicas asumidas)
+
+| Ítem | Decisión | Ref |
+|---|---|---|
+| Warlock | Full-caster, no Pact Magic | D12 |
+| Dotes | Fuera; ASI = +2 fijo | D13 |
+| `spells_known` | `nil` (sin cap estricto por clase) | D14 |
+| Features por nivel | Solo spellcasting de paladín/ranger a L2 | `progression.ex` |
+| Empate iniciativa | Rompe por nombre, no dex+roll-off | D15 |
+| Banner level-up in-game | Inerte bajo milestone (gate XP sin fuente) | abierta |
+| Stub legado en `Tools` | `attack`/`roll`/`spawn_character`/`next_round` mantenidos para tests del framework exAgent | `tools.ex:31-72` |
+
+---
+
+## 🔴 Pendiente / fuera de v1
+
+- **Mobile responsive** de la mesa (grid 3-col; needs reflow).
+- **Condiciones que disparen ventaja automáticamente** (prone/poisoned →
+  `Rules.Combat` ya aplica adjust por condición en ataque, pero faltan
+  automatismos de condición→ventaja en saves/checks).
+- **Iniciativa individual por monstruo** (hoy colapsados al turno del DM).
+- **Reacciones / "preparar acción"**.
+- **Multi-nodo** (`Horde`) — pausado (D24).
+- **Coordinación real entre PCs auto** — validar en partida (abierta).
+
+---
+
+## Cómo se mide "hecho"
+
+Una feature entra en ✅ cuando:
+1. Tiene tests deterministas (o smoke test si toca LLM).
+2. `MIX_ENV=test mix test` está verde.
+3. Su decisión de diseño (si la hay) está en `docs/decisions.md`.
+4. No deja `TODO`/`FIXME` sin dirección en `lib/`.
+
+No se marca hecha por "el commit existe" sino por "se verifica".
