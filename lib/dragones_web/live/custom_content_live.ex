@@ -244,16 +244,105 @@ defmodule DragonesWeb.CustomContentLive do
   defp tab_singular("spell"), do: "hechizo"
   defp tab_singular("item"), do: "objeto"
 
-  defp row_summary(%CustomContent{kind: "weapon", definition: d}),
-    do: "#{d["dice"]} · #{Translations.damage_type(d["damage_type"], :es)}"
-
-  defp row_summary(%CustomContent{kind: "spell", definition: d}),
-    do: "Nivel #{d["level"]} · #{Translations.kind(d["kind"], :es)}"
-
-  defp row_summary(%CustomContent{kind: "item", definition: d}),
-    do: Catalog.item_kind_label(d["kind"], :es)
+  defp confirm_msg(name), do: "¿Borrar \"#{name}\"? Esta acción no se puede deshacer."
 
   defp classes_list, do: Dragones.Heroes.Classes.keys()
+
+  defp ability_label(a) when a in [nil, "", :none], do: "—"
+  defp ability_label(a), do: Translations.ability(a, :es)
+
+  defp damage_label(d) when d in [nil, ""], do: "—"
+  defp damage_label(d), do: Translations.damage_type(d, :es)
+
+  defp dice_label(d) when d in [nil, ""], do: "—"
+  defp dice_label(d), do: d
+
+  defp weapon_props(d) do
+    []
+    |> maybe_prop(d["finesse"] == true, "sutil")
+    |> maybe_prop(d["ranged"] == true, "a distancia")
+  end
+
+  defp maybe_prop(list, true, label), do: list ++ [label]
+  defp maybe_prop(list, _, _), do: list
+
+  defp class_labels(nil), do: []
+
+  defp class_labels(classes) do
+    Enum.map(classes, &Translations.class(to_string(&1), :es))
+  end
+
+  attr(:cc, :map, required: true)
+
+  defp detail(%{cc: %CustomContent{kind: "weapon"} = cc} = assigns) do
+    assigns =
+      assign(assigns,
+        d: cc.definition,
+        props: weapon_props(cc.definition),
+        notes: cc.notes
+      )
+
+    ~H"""
+    <div class="detail-grid">
+      <.dc label="Dados" value={dice_label(@d["dice"])} />
+      <.dc label="Daño" value={damage_label(@d["damage_type"])} />
+      <.dc label="Ataque" value={ability_label(@d["attack_ability"])} />
+      <.dc label="Propiedades" value={if @props == [], do: "—", else: Enum.join(@props, ", ")} />
+    </div>
+    <div :if={@notes} class="note">{@notes}</div>
+    """
+  end
+
+  defp detail(%{cc: %CustomContent{kind: "spell"} = cc} = assigns) do
+    d = cc.definition
+    level_label = if d["level"] == 0, do: "Truco", else: "Nivel #{d["level"]}"
+
+    assigns =
+      assign(assigns,
+        d: d,
+        level_label: level_label,
+        classes: class_labels(d["classes"]),
+        notes: cc.notes
+      )
+
+    ~H"""
+    <div class="detail-grid">
+      <.dc label="Nivel" value={@level_label} />
+      <.dc label="Tipo" value={Translations.kind(@d["kind"], :es)} />
+      <.dc label="Salvación" value={ability_label(@d["save_ability"])} />
+      <.dc label="Dados" value={dice_label(@d["dice"])} />
+      <.dc label="Daño" value={damage_label(@d["damage_type"])} />
+    </div>
+    <div :if={@classes != []} class="note"><span class="note-label">Clases:</span> {Enum.join(@classes, ", ")}</div>
+    <div :if={@d["effect"]} class="note">{@d["effect"]}</div>
+    <div :if={@notes} class="note">{@notes}</div>
+    """
+  end
+
+  defp detail(%{cc: %CustomContent{kind: "item"} = cc} = assigns) do
+    assigns = assign(assigns, d: cc.definition, notes: cc.notes)
+
+    ~H"""
+    <div class="detail-grid">
+      <.dc label="Cantidad" value={to_string(@d["qty"])} />
+      <.dc label="Tipo" value={Catalog.item_kind_label(@d["kind"], :es)} />
+    </div>
+    <div :if={@d["effect"]} class="note">{@d["effect"]}</div>
+    <div :if={@notes} class="note">{@notes}</div>
+    """
+  end
+
+  attr(:label, :string, required: true)
+  attr(:value, :string, default: "—")
+
+  defp dc(assigns) do
+    ~H"""
+    <div class="dc">
+      <span>{@label}</span>
+      <strong>{@value}</strong>
+    </div>
+    """
+  end
 
   defp chip_class(classes, c), do: if(c in classes, do: "chip sel", else: "chip")
 
@@ -272,10 +361,16 @@ defmodule DragonesWeb.CustomContentLive do
         .tab{padding:.5rem 1rem;border-radius:8px 8px 0 0;border:1px solid #333;border-bottom:none;background:#1c1c1c;color:#889;cursor:pointer;font-family:inherit;font-size:.9rem;}
         .tab.active{background:#241c14;color:#fc8;border-color:#a72;}
         .panel{background:rgba(22,22,22,.92);border:1px solid #333;border-radius:0 10px 10px;padding:1.2rem;}
-        .row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.7rem .2rem;border-bottom:1px solid #2a2a2a;}
-        .row:last-child{border-bottom:none;}
-        .row .name{color:#fc8;font-size:1rem;}
-        .row .summary{color:#889;font-size:.82rem;}
+        .item-row{padding:.7rem .2rem;border-bottom:1px solid #2a2a2a;}
+        .item-row:last-child{border-bottom:none;}
+        .item-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem;flex-wrap:wrap;}
+        .item-head .name{color:#fc8;font-size:1rem;}
+        .detail-grid{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.5rem;}
+        .dc{background:#222;border:1px solid #333;border-radius:6px;padding:.3rem .6rem;display:flex;flex-direction:column;gap:.12rem;min-width:54px;}
+        .dc span{font-size:.62rem;color:#779;text-transform:uppercase;letter-spacing:.05em;}
+        .dc strong{font-size:.82rem;color:#ccc;font-weight:normal;overflow-wrap:anywhere;}
+        .note{font-size:.8rem;color:#889;margin-top:.35rem;line-height:1.4;overflow-wrap:anywhere;}
+        .note-label{color:#667;}
         .btn{display:inline-flex;align-items:center;padding:.45rem .9rem;border-radius:8px;border:1px solid #a72;background:#3a2a1a;color:#fc8;font-size:.85rem;cursor:pointer;font-family:inherit;text-decoration:none;}
         .btn:hover{background:#4a3520;}
         .btn-sm{padding:.3rem .6rem;font-size:.75rem;}
@@ -331,16 +426,15 @@ defmodule DragonesWeb.CustomContentLive do
         </form>
 
         <div :if={!@editing}>
-          <div :for={cc <- @items} :key={cc.id} class="row">
-            <div>
+          <div :for={cc <- @items} :key={cc.id} class="item-row">
+            <div class="item-head">
               <div class="name">{cc.name_es}</div>
-              <div class="summary">{row_summary(cc)}</div>
-              <div :if={cc.notes} class="summary" style="color:#667;">{cc.notes}</div>
+              <div style="display:flex;gap:.4rem;">
+                <button class="btn btn-ghost btn-sm" phx-click="edit" phx-value-id={cc.id}>editar</button>
+                <button class="btn btn-danger btn-sm" phx-click="delete" phx-value-id={cc.id} data-confirm={confirm_msg(cc.name_es)}>borrar</button>
+              </div>
             </div>
-            <div style="display:flex;gap:.4rem;">
-              <button class="btn btn-ghost btn-sm" phx-click="edit" phx-value-id={cc.id}>editar</button>
-              <button class="btn btn-danger btn-sm" phx-click="delete" phx-value-id={cc.id} data-confirm="¿Borrar?">borrar</button>
-            </div>
+            <.detail cc={cc} />
           </div>
           <div :if={@items == []} class="empty">Aún no tienes {tab_label(@tab) |> String.downcase()}.</div>
         </div>
