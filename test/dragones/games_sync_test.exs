@@ -58,4 +58,36 @@ defmodule Dragones.GamesSyncTest do
   test "games_using_hero devuelve [] para un héroe sin partidas", %{hero: hero} do
     assert Games.games_using_hero(hero.id) == []
   end
+
+  test "H2: merge_character_level_up propaga la AC recalculada (no se queda stale)" do
+    alias Dragones.{Character, World}
+
+    live =
+      Character.new(
+        name: "X",
+        class: "fighter",
+        level: 3,
+        str: 16,
+        dex: 12,
+        con: 14,
+        int: 10,
+        wis: 10,
+        cha: 10,
+        hp: 28,
+        max_hp: 28,
+        ac: 11
+      )
+
+    world = World.new(characters: %{"X" => live})
+
+    # new_sheet tras un ASI de DEX (sin armadura → AC 10+dex sube de 11 a 12)
+    new_sheet = %{live | level: 4, dex: 14, ac: 12, max_hp: 34, hp: 34}
+
+    merged = Games.merge_character_level_up(world, "X", new_sheet)
+    out = merged.characters["X"]
+
+    assert out.level == 4
+    assert out.dex == 14
+    assert out.ac == 12
+  end
 end

@@ -556,6 +556,7 @@ defmodule Dragones.Games do
               max_hp: new_sheet.max_hp,
               hp: max(0, live.hp + hp_delta),
               xp: new_sheet.xp,
+              ac: new_sheet.ac,
               str: new_sheet.str,
               dex: new_sheet.dex,
               con: new_sheet.con,

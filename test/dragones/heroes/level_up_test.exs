@@ -50,10 +50,30 @@ defmodule Dragones.Heroes.LevelUpTest do
           background: "sage"
         })
 
+      # sleep no está en los hechizos iniciales del mago → se añade sin colisión
+      refute Enum.any?(c.spells, &(&1.name == "sleep"))
+
+      {:ok, c2} = Heroes.apply_level_up(c, %{spells_added: ["sleep"]})
+      assert Enum.any?(c2.spells, &(&1.name == "sleep"))
+    end
+
+    test "no duplica un hechizo que el personaje ya conoce (dedup)" do
+      {:ok, c} =
+        Heroes.build(%{
+          name: "X",
+          race: "elf",
+          subrace: "high elf",
+          class: "wizard",
+          background: "sage"
+        })
+
+      # shield sí lo conoce el mago al crearse → re-añadirlo no duplica
+      known = Enum.find(c.spells, &(&1.name == "shield"))
+      assert known != nil
       count_before = length(c.spells)
+
       {:ok, c2} = Heroes.apply_level_up(c, %{spells_added: ["shield"]})
-      assert length(c2.spells) == count_before + 1
-      assert Enum.any?(c2.spells, &(&1.name == "shield"))
+      assert length(c2.spells) == count_before
     end
 
     test "paladín gana conjuración al subir a L2" do
@@ -62,6 +82,28 @@ defmodule Dragones.Heroes.LevelUpTest do
 
       {:ok, c2} = Heroes.apply_level_up(c, %{})
       assert "spellcasting" in c2.class_features
+    end
+
+    test "H1: paladín fija casting_ability al ganar hechizos a L2 (no nil)" do
+      {:ok, c} =
+        Heroes.build(%{name: "X", race: "human", class: "paladin", background: "soldier"})
+
+      {:ok, c2} = Heroes.apply_level_up(c, %{spells_added: ["bless"]})
+
+      bless = Enum.find(c2.spells, &(&1.name == "bless"))
+      assert bless != nil
+      assert bless.casting_ability == :cha
+    end
+
+    test "H1b: ranger fija casting_ability (:wis) al ganar hechizos a L2" do
+      {:ok, c} =
+        Heroes.build(%{name: "X", race: "human", class: "ranger", background: "outlander"})
+
+      {:ok, c2} = Heroes.apply_level_up(c, %{spells_added: ["bless"]})
+
+      bless = Enum.find(c2.spells, &(&1.name == "bless"))
+      assert bless != nil
+      assert bless.casting_ability == :wis
     end
 
     test "rechaza subir en nivel 20" do

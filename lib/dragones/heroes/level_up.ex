@@ -43,8 +43,9 @@ defmodule Dragones.Heroes.LevelUp do
     custom = choices[:custom] || %{}
     asi = if Progression.asi_at?(new_level), do: choices[:asi] || %{}, else: %{}
 
-    # Validación server-side del cupo ASI.
-    asi_used = asi |> Map.values() |> Enum.filter(&is_integer/1) |> Enum.sum()
+    # Validación server-side del cupo ASI (los deltas negativos no cuentan:
+    # 5e nunca rebaja características por este camino, se tratan como 0).
+    asi_used = asi |> Map.values() |> Enum.filter(&(is_integer(&1) and &1 > 0)) |> Enum.sum()
 
     if asi_used > Progression.asi_points() do
       {:error, "el ASI reparte #{asi_used} puntos (máximo #{Progression.asi_points()})"}
@@ -70,8 +71,15 @@ defmodule Dragones.Heroes.LevelUp do
       con_retro = (new_con_mod - old_con_mod) * c.level
       new_max_hp = c.max_hp + hp_gain + con_retro
 
+      max_sl = Progression.max_spell_level(c.class, new_level)
+
       new_spells =
-        build_added_spells(c.class, choices[:spells_added] || choices[:spells] || [], custom)
+        if max_sl >= 1 do
+          build_added_spells(c.class, choices[:spells_added] || choices[:spells] || [], custom)
+          |> Enum.reject(&(&1.level > max_sl))
+        else
+          []
+        end
 
       features = Progression.features_at(c.class, new_level)
       new_ac = recompute_ac(c, new_scores)
@@ -82,7 +90,7 @@ defmodule Dragones.Heroes.LevelUp do
           max_hp: new_max_hp,
           hp: c.hp + hp_gain + con_retro,
           xp: max(c.xp || 0, Progression.xp_threshold(new_level)),
-          spells: c.spells ++ new_spells,
+          spells: Enum.uniq_by(c.spells ++ new_spells, & &1.name),
           class_features: Enum.uniq(c.class_features ++ features),
           ac: new_ac,
           str: new_scores[:str],
@@ -154,17 +162,27 @@ defmodule Dragones.Heroes.LevelUp do
   end
 
   defp build_added_spells(class_key, keys, custom) do
-    ability =
-      case Classes.get(class_key) do
-        {:ok, %{spellcasting: %{ability: a}}} -> a
-        _ -> nil
-      end
+    ability = casting_ability_for(class_key)
 
     keys
     |> Enum.map(&resolve_spell(&1, custom))
     |> Enum.reject(&is_nil/1)
     |> Enum.map(&to_spell_struct(&1, ability))
   end
+
+  # Capacidad de conjuración para fijar `casting_ability` en los hechizos nuevos.
+  # Los half-casters (paladín/ranger) NO traen `spellcasting` en `Classes` a L1
+  # (lo ganan a L2 vía `features_at`), pero su capacidad es fija por clase.
+  defp casting_ability_for(class_key) do
+    case Classes.get(class_key) do
+      {:ok, %{spellcasting: %{ability: a}}} -> a
+      _ -> half_caster_ability(class_key)
+    end
+  end
+
+  defp half_caster_ability(class) when class in ["paladin", :paladin], do: :cha
+  defp half_caster_ability(class) when class in ["ranger", :ranger], do: :wis
+  defp half_caster_ability(_), do: nil
 
   # Resuelve una key de hechizo: custom (`custom_*`) mira el bundle inyectado;
   # el resto cae al catálogo builtin/SRD.
@@ -211,7 +229,7 @@ defmodule Dragones.Heroes.LevelUp do
   defp apply_asi(nil, _), do: nil
   defp apply_asi(score, nil), do: score
 
-  defp apply_asi(score, delta) when is_integer(score) and is_integer(delta) do
+  defp apply_asi(score, delta) when is_integer(score) and is_integer(delta) and delta > 0 do
     (score + delta) |> max(1) |> min(20)
   end
 
