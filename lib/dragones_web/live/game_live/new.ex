@@ -68,12 +68,17 @@ defmodule DragonesWeb.GameLive.New do
 
   # --- text field changes (custom scenario fields) ---
 
+  # Custom-scenario text fields the wizard binds. Kept as an allowlist so a
+  # forged phx-change "_target" can't drive String.to_atom (atom-table DoS, D8).
+  # NOTE: strings, not atoms — `_target` carries the literal input name.
+  @custom_fields ~w(custom_title custom_scene custom_dm_style)
+
   def handle_event("change", params, socket) do
     field = List.first(params["_target"] || [])
     value = if field, do: Map.get(params, field, ""), else: ""
 
-    if field do
-      {:noreply, assign(socket, String.to_atom(field), value)}
+    if field in @custom_fields do
+      {:noreply, assign(socket, String.to_existing_atom(field), value)}
     else
       {:noreply, socket}
     end

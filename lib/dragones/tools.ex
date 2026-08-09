@@ -12,7 +12,10 @@ defmodule Dragones.Tools do
 
   @doc "Narrate and set the current scene."
   deftool set_scene(ctx, narration :: String.t()) do
-    {:ok, _} = propose(ctx, Dragones.World.set_scene(narration))
+    # Model text reaching persistent world state must be scrubbed (D7): a scene
+    # is echoed to every agent every turn, so scrubbing closes a prompt-injection
+    # amplifier.
+    {:ok, _} = propose(ctx, Dragones.World.set_scene(Dragones.Text.scrub(narration)))
     {:ok, "escena establecida"}
   end
 
@@ -24,7 +27,9 @@ defmodule Dragones.Tools do
   introduce or reveal something concrete the party should remember.
   """
   deftool establish_fact(ctx, fact :: String.t()) do
-    {:ok, _} = propose(ctx, Dragones.World.add_fact(fact))
+    # Facts are canonical world state surfaced to every agent each turn — scrub
+    # before persisting so a tainted fact can't poison all future contexts (D7).
+    {:ok, _} = propose(ctx, Dragones.World.add_fact(Dragones.Text.scrub(fact)))
     {:ok, "hecho registrado"}
   end
 

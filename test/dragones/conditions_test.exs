@@ -154,5 +154,27 @@ defmodule Dragones.ConditionsTest do
       refute msg =~ "ventaja"
       refute msg =~ "desventaja"
     end
+
+    test "model :advantage + condition disadvantage cancel to normal (regression)" do
+      # Bug: the model's mode was only consulted in the fallback branch, so a
+      # poisoned attacker's condition-disadvantage overrode the model's
+      # :advantage instead of cancelling to :normal.
+      w = world_with_fighter_and_goblin()
+      {:ok, w} = World.apply_condition("hero", "poisoned").(w)
+
+      {:ok, msg, _} = Actions.attack(w, "hero", "goblin", "longsword", fixed(15), :advantage)
+      refute msg =~ "ventaja"
+      refute msg =~ "desventaja"
+    end
+
+    test "model :disadvantage + condition advantage cancel to normal (regression)" do
+      w = world_with_fighter_and_goblin()
+      # Target prone + melee → condition advantage.
+      {:ok, w} = World.apply_condition("goblin", "prone").(w)
+
+      {:ok, msg, _} = Actions.attack(w, "hero", "goblin", "longsword", fixed(15), :disadvantage)
+      refute msg =~ "ventaja"
+      refute msg =~ "desventaja"
+    end
   end
 end

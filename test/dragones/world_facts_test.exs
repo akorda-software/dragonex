@@ -76,4 +76,95 @@ defmodule Dragones.WorldFactsTest do
     {:ok, w3} = World.add_fact("   ").(w2)
     assert w3.facts == ["Un hecho"]
   end
+
+  test "add_fact caps the list to the most recent facts" do
+    # Build 35 facts by repeatedly applying add_fact. Only the last 30 survive.
+    w =
+      Enum.reduce(1..35, World.new(), fn n, world ->
+        {:ok, w} = World.add_fact("hecho #{n}").(world)
+        w
+      end)
+
+    assert length(w.facts) == 30
+    # Oldest facts dropped, most recent kept.
+    refute "hecho 1" in w.facts
+    refute "hecho 5" in w.facts
+    assert "hecho 6" in w.facts
+    assert "hecho 35" in w.facts
+    assert hd(w.facts) == "hecho 6"
+    assert List.last(w.facts) == "hecho 35"
+  end
+
+  test "establish_fact scrubs model text before persisting (D7)" do
+    {:ok, game} =
+      Games.create_game(
+        title: "scrub",
+        scene: "una taberna",
+        roster: [{Archetypes.fighter(), :ai}]
+      )
+
+    # The DM records a fact that leaks an HP stat ("3/7 pg") — the kind of inline
+    # stat Text.scrub is built to strip. Without scrubbing at the tool boundary,
+    # this tainted text would persist and be echoed to every agent every turn.
+    script = [
+      tool_calls([
+        call("establish_fact", %{
+          "fact" => "Thane descubre una puerta oculta. El goblin jefe queda en 3/7 pg."
+        })
+      ]),
+      text("Thane encuentra una puerta.")
+    ]
+
+    pid =
+      ExUnit.Callbacks.start_supervised!(
+        {Dragones.Game, {game.id, [model: %Test{script: script}, roller: fn _ -> 10 end]}}
+      )
+
+    assert :ok ==
+             Game.await(
+               pid,
+               fn _s -> Game.world(pid).facts != [] end,
+               5_000
+             )
+
+    facts = Game.world(pid).facts
+
+    # The durable part survives...
+    assert Enum.any?(facts, &String.contains?(&1, "puerta oculta"))
+    # ...but the leaked stat was scrubbed before reaching the world.
+    refute Enum.any?(facts, &String.contains?(&1, "3/7"))
+  end
+
+  test "set_scene scrubs model text before persisting (D7)" do
+    {:ok, game} =
+      Games.create_game(
+        title: "scene-scrub",
+        scene: "una taberna",
+        roster: [{Archetypes.fighter(), :ai}]
+      )
+
+    script = [
+      tool_calls([
+        call("set_scene", %{
+          "narration" => "El goblin jefe queda en 3/7 pg tras la pelea."
+        })
+      ]),
+      text("La taberna queda en silencio.")
+    ]
+
+    pid =
+      ExUnit.Callbacks.start_supervised!(
+        {Dragones.Game, {game.id, [model: %Test{script: script}, roller: fn _ -> 10 end]}}
+      )
+
+    assert :ok ==
+             Game.await(
+               pid,
+               fn _s -> not String.contains?(Game.world(pid).scene || "", "3/7") end,
+               5_000
+             )
+
+    # The scene was overwritten with scrubbed text — the leaked stat is gone.
+    refute String.contains?(Game.world(pid).scene || "", "3/7")
+  end
 end

@@ -90,7 +90,7 @@ defmodule DragonesWeb.HeroLive.New do
   # --- selection (grid clicks) ---
 
   def handle_event("select", %{"field" => field, "value" => value}, socket) do
-    key = String.to_atom(field)
+    key = to_existing_atom(field)
     # Limpia dependientes al cambiar una selección:
     #   raza/subraza/clase/trasfondo afectan a skills/idiomas/equipo/hechizos
     form =
@@ -164,7 +164,7 @@ defmodule DragonesWeb.HeroLive.New do
   # --- point-buy adjust (+/- on ability scores) ---
 
   def handle_event("pb_adjust", %{"ability" => ab, "delta" => delta}, socket) do
-    ab_atom = String.to_atom(ab)
+    ab_atom = to_existing_atom(ab)
     delta_int = String.to_integer(delta)
 
     form =
@@ -223,7 +223,7 @@ defmodule DragonesWeb.HeroLive.New do
 
     form =
       if field do
-        key = String.to_atom(field)
+        key = to_existing_atom(field)
         normalized = if value == "", do: nil, else: value
 
         socket.assigns.form
@@ -572,7 +572,10 @@ defmodule DragonesWeb.HeroLive.New do
   defp to_existing_atom(value) when is_binary(value) do
     String.to_existing_atom(value)
   rescue
-    ArgumentError -> String.to_atom(value)
+    # Unknown atom: return the binary unchanged rather than creating a new atom.
+    # Creating atoms from client-controlled form fields is an atom-table
+    # exhaustion (DoS) vector (D8). A non-atom key is simply ignored downstream.
+    ArgumentError -> value
   end
 
   defp to_int(value, _default) when is_integer(value), do: value

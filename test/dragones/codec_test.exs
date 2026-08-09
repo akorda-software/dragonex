@@ -96,6 +96,35 @@ defmodule Dragones.CodecTest do
       assert %World{phase: :combat} = Codec.decode(decoded_map)
       assert %Character{} = Codec.decode(decoded_map).characters["Lyra"]
     end
+
+    test "spell_slots survives a Jason round-trip with integer level keys (regression)" do
+      # Bug: JSON/jsonb stringifies the inner level keys, so a world rehydrated
+      # from Postgres reported zero slots and blocked casting (World.has_slot?
+      # looks up by integer). This pins the fix in Codec.decode.
+      w =
+        World.new()
+        |> add(World.add_character(Archetypes.wizard()))
+        |> World.init_spell_slots()
+
+      caster = Archetypes.wizard().name
+      # Sanity: the fresh world has a level-1 slot before serialization.
+      assert World.has_slot?(w, caster, 1)
+
+      {:ok, json} = Jason.encode(Codec.encode(w))
+      {:ok, decoded_map} = Jason.decode(json)
+
+      decoded = Codec.decode(decoded_map)
+
+      # After a full JSON round-trip the caster can still cast a level-1 spell.
+      assert World.has_slot?(decoded, caster, 1)
+      # And the inner level key is an integer, not "1".
+      assert is_integer(hd(Map.keys(decoded.spell_slots[caster])))
+    end
+
+    test "decode(nil) returns a pristine world instead of crashing (regression)" do
+      assert %World{} = Codec.decode(nil)
+      assert Codec.decode(nil) == World.new()
+    end
   end
 
   defp add(world, change) do

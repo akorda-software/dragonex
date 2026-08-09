@@ -19,8 +19,6 @@ defmodule Dragones.Heroes.SRDSpells do
 
   @path Path.join(:code.priv_dir(:dragones), "srd/spells.es.json")
 
-  @external_resource @path
-
   @abilities ~w(str dex con int wis cha)
   @kinds ~w(attack save automatic)
 

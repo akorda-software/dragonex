@@ -67,6 +67,35 @@ defmodule Dragones.PCAgentTest do
       assert rogue_prompt =~ "astuto"
       assert paladin_prompt =~ "honorable"
     end
+
+    test "every playable class gets a distinct, non-default personality (regression)" do
+      # All 12 SRD classes must have a dedicated class_personality/1 clause —
+      # none should fall back to the generic default. Also pins the druid fix
+      # (it used to bleed fighter copy: "artes marciales").
+      classes =
+        ~w(barbarian bard cleric druid fighter monk paladin ranger rogue sorcerer warlock wizard)
+
+      default = "aventurero capaz con tus propias motivaciones"
+
+      prompts =
+        Map.new(classes, fn class ->
+          c = Character.new(name: "X", race: "human", class: class, level: 1, side: "pc")
+          {class, PCAgent.system_prompt(c)}
+        end)
+
+      # None fall back to the default...
+      for {class, prompt} <- prompts do
+        refute prompt =~ default, "class #{inspect(class)} fell back to the default personality"
+      end
+
+      # ...and the fixed druid no longer leaks fighter copy.
+      refute prompts["druid"] =~ "artes marciales"
+      assert prompts["druid"] =~ "naturaleza"
+
+      # fighter and monk (previously missing) now have their own voice.
+      assert prompts["fighter"] =~ "armas"
+      assert prompts["monk"] =~ "energía interior"
+    end
   end
 
   describe "instruction/3" do

@@ -22,6 +22,10 @@ defmodule Dragones.World do
 
   alias Dragones.Character
 
+  # Facts are surfaced to every agent every turn, so an unbounded list grows the
+  # prompt payload forever. Cap to the most recent facts (dropping the oldest).
+  @max_facts 30
+
   defstruct scene: "an unremarkable crossroads",
             phase: :exploration,
             round: 1,
@@ -174,7 +178,8 @@ defmodule Dragones.World do
       if trimmed == "" or trimmed in w.facts do
         {:ok, w}
       else
-        {:ok, %{w | facts: w.facts ++ [trimmed]}}
+        facts = (w.facts ++ [trimmed]) |> Enum.take(-@max_facts)
+        {:ok, %{w | facts: facts}}
       end
     end
   end

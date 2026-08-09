@@ -325,7 +325,15 @@ defmodule Dragones.PCAgent do
 
   defp class_personality("druid"),
     do:
-      "Eres sabio, sintonizado con la naturaleza y protector de lo salvaje. Prefieres las formas antiguas, hablas erior a través de las artes marciales."
+      "Eres sabio, sintonizado con la naturaleza y protector de lo salvaje. Prefieres las formas antiguas y te comunicas con los espíritus del bosque, tomando forma bestial cuando hace falta."
+
+  defp class_personality("fighter"),
+    do:
+      "Eres disciplinado, táctico y maestro de las armas. Afrontas el peligro de frente, entrenado para el combate, y proteges a tus aliados con pericia marcial."
+
+  defp class_personality("monk"),
+    do:
+      "Eres sereno, disciplinado y canalizas la energía interior. Unes cuerpo y mente: fluyes en combate con puños y técnica depurada, ajeno a la provocación."
 
   defp class_personality("paladin"),
     do:

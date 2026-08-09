@@ -24,7 +24,16 @@ defmodule DragonesWeb.GameLive.RollFormat do
   @doc "Normalize an outcome value (atom or string) to its atom key, or nil."
   @spec normalize_outcome(term()) :: atom() | nil
   def normalize_outcome(o) when is_atom(o), do: o
-  def normalize_outcome(o) when is_binary(o), do: String.to_atom(o)
+
+  def normalize_outcome(o) when is_binary(o) do
+    # Outcomes come from jsonb payload; the only valid keys are the @outcomes
+    # atoms, which are already loaded. Use to_existing_atom (D8) so a stray
+    # string can't grow the atom table.
+    String.to_existing_atom(o)
+  rescue
+    ArgumentError -> nil
+  end
+
   def normalize_outcome(_), do: nil
 
   defp outcome_tuple(o) do

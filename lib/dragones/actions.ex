@@ -74,6 +74,11 @@ defmodule Dragones.Actions do
       is_nil(World.character(world, target)) ->
         {:error, "no existe el objetivo: #{target}"}
 
+      # A downed actor (hp <= 0) cannot take actions — the engine enforces RAW
+      # rather than trusting the model not to attack from 0 pg.
+      World.character(world, attacker).hp <= 0 ->
+        {:error, "#{attacker} está caído (0 pg) y no puede atacar"}
+
       true ->
         a = World.character(world, attacker)
         t = World.character(world, target)
@@ -132,16 +137,20 @@ defmodule Dragones.Actions do
   end
 
   # 5e condition-aware mode adjustment: certain conditions grant advantage or
-  # disadvantage on attack rolls. When both apply, they cancel (normal).
+  # disadvantage on attack rolls. The model may also request a mode (:advantage /
+  # :disadvantage). In 5e ANY source of advantage cancels ANY source of
+  # disadvantage (net :normal), so we fold the model's mode into the same
+  # advantage?/disadvantage? tally instead of letting conditions silently
+  # override the model (or vice-versa).
   defp adjust_mode_for_conditions(mode, attacker, target, weapon) do
     attacker_conds = condition_names(attacker)
     target_conds = condition_names(target)
 
-    disadvantage? =
+    condition_disadvantage? =
       Enum.any?(attacker_conds, &(&1 in ~w(poisoned frightened blinded restrained))) or
         ("prone" in target_conds and weapon.ranged)
 
-    advantage? =
+    condition_advantage? =
       cond do
         "prone" in target_conds and not weapon.ranged ->
           true
@@ -153,11 +162,14 @@ defmodule Dragones.Actions do
           false
       end
 
+    disadvantage? = condition_disadvantage? or mode == :disadvantage
+    advantage? = condition_advantage? or mode == :advantage
+
     cond do
       advantage? and disadvantage? -> :normal
       advantage? -> :advantage
       disadvantage? -> :disadvantage
-      true -> mode
+      true -> :normal
     end
   end
 
@@ -187,6 +199,10 @@ defmodule Dragones.Actions do
 
       is_nil(World.character(world, target_name)) ->
         {:error, "no existe el objetivo: #{target_name}"}
+
+      # A downed caster cannot cast — the engine enforces RAW.
+      World.character(world, caster_name).hp <= 0 ->
+        {:error, "#{caster_name} está caído (0 pg) y no puede conjurar"}
 
       true ->
         c = World.character(world, caster_name)
@@ -266,6 +282,10 @@ defmodule Dragones.Actions do
       %Character{death_saves: %{fails: fails}} when fails >= 3 ->
         {:error,
          "#{name} ya está muerto (3 fallos de salvación de muerte) — no puede tirar más salvaciones"}
+
+      %Character{death_saves: %{successes: successes}} when successes >= 3 ->
+        {:error,
+         "#{name} ya está estable (3 salvaciones de muerte) — no necesita tirar más salvaciones"}
 
       %Character{} ->
         {r, close} = RollLog.open(roll_log, roller, name, :death_save, "salvación de muerte")
@@ -379,6 +399,11 @@ defmodule Dragones.Actions do
       nil ->
         {:error, "no existe el personaje: #{who}"}
 
+      # A downed character cannot make ability checks (death saves use their
+      # own path); enforce RAW rather than trusting the model.
+      %Character{hp: hp} when hp <= 0 ->
+        {:error, "#{who} está caído (0 pg) y no puede hacer chequeos"}
+
       %Character{} = c ->
         {r, close} =
           RollLog.open(roll_log, roller, who, :check, "chequeo de #{ability_es(ability)}")
@@ -486,7 +511,16 @@ defmodule Dragones.Actions do
               "daño de #{spell.name} (#{spell.damage_type})"
             )
 
-          dmg = dice_with(spell, r2)
+          # RAW 5e: a spell attack crit doubles the damage dice (roll them
+          # twice), exactly like a weapon crit. Previously the dice were rolled
+          # only once even on a nat 20 (e.g. guiding bolt 4d6 stayed 4d6).
+          dmg =
+            if d20 == 20 do
+              dice_with(spell, r2) + dice_with(spell, r2)
+            else
+              dice_with(spell, r2)
+            end
+
           RollLog.close(close_dmg, total: dmg, against: nil, outcome: nil)
 
           {:ok,

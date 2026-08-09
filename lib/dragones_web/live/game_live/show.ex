@@ -111,18 +111,24 @@ defmodule DragonesWeb.GameLive.Show do
 
   @impl true
   def handle_event("start_game", _params, socket) do
-    game_id = socket.assigns.game_id
-    {:ok, _} = Games.start_game(game_id)
-    {:ok, _pid} = Game.ensure_started(game_id)
+    # Privileged: only the partida's creator may flip it to running. The button
+    # is UI-gated, but a forged phx-click must not bypass the check.
+    if creator?(socket) do
+      game_id = socket.assigns.game_id
+      {:ok, _} = Games.start_game(game_id)
+      {:ok, _pid} = Game.ensure_started(game_id)
 
-    Phoenix.PubSub.broadcast(
-      Dragones.PubSub,
-      "dragones:game:#{game_id}",
-      {:game_updated, game_id}
-    )
+      Phoenix.PubSub.broadcast(
+        Dragones.PubSub,
+        "dragones:game:#{game_id}",
+        {:game_updated, game_id}
+      )
 
-    # Full reload — mount runs again with status :running, loads the table
-    {:noreply, Phoenix.LiveView.push_navigate(socket, to: "/games/#{game_id}")}
+      # Full reload — mount runs again with status :running, loads the table
+      {:noreply, Phoenix.LiveView.push_navigate(socket, to: "/games/#{game_id}")}
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
@@ -259,12 +265,19 @@ defmodule DragonesWeb.GameLive.Show do
   end
 
   def handle_event("pause", _params, socket) do
-    if pid = server(socket), do: _ = Game.pause(pid)
+    # Only the creator may pause/resume the partida loop.
+    if creator?(socket) do
+      if pid = server(socket), do: _ = Game.pause(pid)
+    end
+
     {:noreply, socket}
   end
 
   def handle_event("resume", _params, socket) do
-    if pid = server(socket), do: _ = Game.resume(pid)
+    if creator?(socket) do
+      if pid = server(socket), do: _ = Game.resume(pid)
+    end
+
     {:noreply, socket}
   end
 
@@ -276,25 +289,31 @@ defmodule DragonesWeb.GameLive.Show do
   # with the new model wired into the DM agent.
 
   def handle_event("open_settings", _params, socket) do
-    provider = Dragones.Models.provider()
-    model = Dragones.Models.model()
-    reasoning = Dragones.Models.reasoning()
+    # Privileged: the Ajustes modal swaps the (app-global) DM model and can
+    # restart the partida. Creator-only, verified server-side.
+    if not creator?(socket) do
+      {:noreply, socket}
+    else
+      provider = Dragones.Models.provider()
+      model = Dragones.Models.model()
+      reasoning = Dragones.Models.reasoning()
 
-    socket =
-      socket
-      |> assign(
-        show_settings: true,
-        settings_providers: Dragones.Models.providers(),
-        settings_provider: provider,
-        settings_model: model,
-        settings_custom_model: "",
-        settings_reasoning: reasoning,
-        settings_models: [],
-        settings_models_status: :loading
-      )
-      |> fetch_models()
+      socket =
+        socket
+        |> assign(
+          show_settings: true,
+          settings_providers: Dragones.Models.providers(),
+          settings_provider: provider,
+          settings_model: model,
+          settings_custom_model: "",
+          settings_reasoning: reasoning,
+          settings_models: [],
+          settings_models_status: :loading
+        )
+        |> fetch_models()
 
-    {:noreply, socket}
+      {:noreply, socket}
+    end
   end
 
   def handle_event("close_settings", _params, socket),
@@ -348,44 +367,48 @@ defmodule DragonesWeb.GameLive.Show do
 
   # Apply: persist the override, restart the partida with the new model, close.
   def handle_event("settings_apply", _params, socket) do
-    provider = socket.assigns.settings_provider
+    if not creator?(socket) do
+      {:noreply, socket}
+    else
+      provider = socket.assigns.settings_provider
 
-    # Custom slug wins over the dropdown when filled.
-    model =
-      case String.trim(socket.assigns.settings_custom_model || "") do
-        "" -> socket.assigns.settings_model
-        custom -> custom
-      end
+      # Custom slug wins over the dropdown when filled.
+      model =
+        case String.trim(socket.assigns.settings_custom_model || "") do
+          "" -> socket.assigns.settings_model
+          custom -> custom
+        end
 
-    # Clamp the reasoning to a value the chosen model actually accepts (so we
-    # never send e.g. "xhigh" to a model that only supports low/medium/high, or
-    # :none to a mandatory-reasoning model).
-    reasoning =
-      clamp_reasoning(
-        provider,
-        socket.assigns.settings_models,
-        model,
-        socket.assigns.settings_reasoning
+      # Clamp the reasoning to a value the chosen model actually accepts (so we
+      # never send e.g. "xhigh" to a model that only supports low/medium/high, or
+      # :none to a mandatory-reasoning model).
+      reasoning =
+        clamp_reasoning(
+          provider,
+          socket.assigns.settings_models,
+          model,
+          socket.assigns.settings_reasoning
+        )
+
+      :ok =
+        Dragones.ModelConfig.set(
+          provider: provider,
+          model: model,
+          reasoning: reasoning
+        )
+
+      # Restart rehydrates the same game_id from Postgres with the new model.
+      if socket.assigns.game_id,
+        do: {:ok, _} = Dragones.Game.restart(socket.assigns.game_id)
+
+      Phoenix.PubSub.broadcast(
+        Dragones.PubSub,
+        "dragones:game:#{socket.assigns.game_id}",
+        {:game_updated, socket.assigns.game_id}
       )
 
-    :ok =
-      Dragones.ModelConfig.set(
-        provider: provider,
-        model: model,
-        reasoning: reasoning
-      )
-
-    # Restart rehydrates the same game_id from Postgres with the new model.
-    if socket.assigns.game_id,
-      do: {:ok, _} = Dragones.Game.restart(socket.assigns.game_id)
-
-    Phoenix.PubSub.broadcast(
-      Dragones.PubSub,
-      "dragones:game:#{socket.assigns.game_id}",
-      {:game_updated, socket.assigns.game_id}
-    )
-
-    {:noreply, assign(socket, show_settings: false)}
+      {:noreply, assign(socket, show_settings: false)}
+    end
   end
 
   def handle_event("dismiss_dice", _params, socket) do
@@ -995,6 +1018,11 @@ defmodule DragonesWeb.GameLive.Show do
     do: Dragones.Game.Supervisor.whereis(game_id)
 
   defp server(_), do: nil
+
+  # Server-side ownership guard for privileged actions (start/pause/resume/
+  # settings). The buttons are UI-gated by @is_creator, but a forged phx-click
+  # must be rejected here rather than trusted.
+  defp creator?(%{assigns: assigns}), do: assigns[:is_creator] == true
 
   # Kick off a background fetch of the provider's live model list. The result
   # lands in handle_info({:settings_models, ...}). Uses ExAgent's TaskSupervisor

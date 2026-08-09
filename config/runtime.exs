@@ -59,9 +59,16 @@ if config_env() == :prod do
   host = System.get_env("PHX_HOST") || "example.com"
   port = String.to_integer(System.get_env("PORT") || "4000")
 
+  # LiveView signing salt: prefer an explicit env var; otherwise derive a stable,
+  # deploy-specific salt from the secret key base. This avoids shipping the
+  # public dev default ("dragonesdevsigningsalt0123") to production.
+  lv_signing_salt =
+    System.get_env("LIVE_VIEW_SIGNING_SALT") || String.slice(secret_key_base, 0, 16)
+
   config :dragones, DragonesWeb.Endpoint,
     server: System.get_env("PHX_SERVER") == "true",
     url: [host: host, port: 443, scheme: "https"],
     http: [ip: {0, 0, 0, 0}, port: port],
-    secret_key_base: secret_key_base
+    secret_key_base: secret_key_base,
+    live_view: [signing_salt: lv_signing_salt]
 end

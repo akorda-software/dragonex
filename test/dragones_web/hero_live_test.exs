@@ -37,6 +37,34 @@ defmodule DragonesWeb.HeroLiveTest do
       assert html =~ "Mis héroes"
       assert html =~ "Forjar nuevo héroe"
     end
+
+    test "no puede borrar el héroe de otro usuario (phx-value-id forjado)", %{conn: conn} do
+      {:ok, owner} =
+        Accounts.register(%{
+          email: "owner#{System.unique_integer([:positive])}@dragones.test",
+          password: "password123",
+          display_name: "Owner"
+        })
+
+      {:ok, char} =
+        Dragones.Heroes.build(%{
+          name: "Ajeno",
+          race: "human",
+          class: "fighter",
+          background: "soldier"
+        })
+
+      {:ok, hero} = Accounts.save_hero(owner, char)
+
+      {:ok, view, _html} = live(conn, "/heroes")
+
+      # Forged delete event targeting the owner's hero id.
+      view |> render_click("delete", %{"id" => to_string(hero.id)})
+
+      # The hero must survive and an error must surface.
+      assert Accounts.get_hero(hero.id) != nil
+      assert render(view) =~ "No se pudo borrar el héroe"
+    end
   end
 
   describe "/heroes/new (creador)" do

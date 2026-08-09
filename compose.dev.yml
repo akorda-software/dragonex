@@ -17,7 +17,7 @@ services:
     ports:
       - "5455:5432"
     environment:
-      POSTGRES_DB: snack_dev
+      POSTGRES_DB: dragones_dev
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     volumes:

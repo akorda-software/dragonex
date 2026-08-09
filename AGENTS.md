@@ -5,8 +5,8 @@ Léela antes de tocar nada.
 
 ## Qué es
 
-D&D 5e con DM por IA. Elixir/Phoenix LiveView + Postgres + `exAgent` (path dep
-en `../exAgent`). El LLM **solo narra**; las reglas las resuelven `deftool`s.
+D&D 5e con DM por IA. Elixir/Phoenix LiveView + Postgres + `exAgent` (GitHub dep
+`kukapu/exagent`, branch `main`). El LLM **solo narra**; las reglas las resuelven `deftool`s.
 
 **Lee primero**: [`docs/progress.md`](docs/progress.md) (estado),
 [`docs/decisions.md`](docs/decisions.md) (porqués),
@@ -24,7 +24,7 @@ docker logs -f dragones-app               # logs
 
 - **Package manager: `mix`** (NUNCA npm/npx — no hay frontend JS build propio;
   los assets de dados vienen de `dic_ex`, ya vendored en `priv/static/assets/`).
-- DB para `mix phx.server` en host: `DB_PORT=5457` (`.env` → `compose.dev.yml`). App dev: **4035**, Postgres dev: **5455**.
+- DB para `mix phx.server` en host: `DB_PORT=5455` (`.env.dev`). App dev: **4035**, Postgres dev: **5455**.
 - Sin `OPENROUTER_API_KEY` en `.env.dev`, los beats usan `TestModel` (no narran).
   Live: `DRAGONES_RUN_LIVE=1 OPENROUTER_API_KEY=... mix test --include integration`.
 

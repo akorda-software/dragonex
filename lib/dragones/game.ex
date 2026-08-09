@@ -981,11 +981,14 @@ defmodule Dragones.Game do
     # The failure note is persisted and later replayed in the shared history.
     # `inspect(reason)` of a Jason.EncodeError carries the offending raw binary
     # (invalid UTF-8 bytes included), which would then wedge every future beat
-    # when the history is re-serialized. Truncate to a short, sanitized digest.
+    # when the history is re-serialized. Truncate to a short, sanitized digest
+    # and scrub it (D7) since it re-enters the shared history as model-adjacent
+    # text that could otherwise carry prompt-injection markers.
     failure_note =
       ("el turno falló: " <> inspect(reason))
       |> String.slice(0, 300)
       |> Dragones.Text.sanitize_utf8()
+      |> Dragones.Text.scrub()
 
     {:ok, _} =
       Games.append_event(state.game_id, :system, "system", "dm", %{

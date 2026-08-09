@@ -88,6 +88,33 @@ defmodule DragonesWeb.GameLiveTest do
 
       refute render(view) =~ "Efímera"
     end
+
+    test "cannot delete another user's partida (forged phx-value-id)", %{conn: conn} do
+      # Owner is a different user than the one logged into this conn.
+      {:ok, owner} =
+        Accounts.register(%{
+          email: "owner#{System.unique_integer([:positive])}@dragones.test",
+          password: "password123",
+          display_name: "Owner"
+        })
+
+      {:ok, game} =
+        Games.create_game(
+          title: "Ajena",
+          scene: "x",
+          user_id: owner.id,
+          roster: [{Archetypes.fighter(), :human}]
+        )
+
+      {:ok, view, _html} = live(conn, "/")
+
+      # Simulate a forged delete event targeting the owner's game id.
+      view |> render_click("delete", %{"id" => to_string(game.id)})
+
+      # The partida must survive.
+      assert Games.get_game(game.id) != nil
+      refute render(view) =~ "Ajena"
+    end
   end
 
   # --------------------------------------------------------------- wizard
@@ -157,6 +184,33 @@ defmodule DragonesWeb.GameLiveTest do
     test "a missing partida redirects to the lobby", %{conn: conn} do
       assert {:error, {:live_redirect, %{to: to}}} = live(conn, "/games/999999")
       assert to == "/"
+    end
+
+    test "a non-creator viewer cannot start the partida (forged start_game)", %{conn: conn} do
+      {:ok, owner} =
+        Accounts.register(%{
+          email: "owner#{System.unique_integer([:positive])}@dragones.test",
+          password: "password123",
+          display_name: "Owner"
+        })
+
+      {:ok, game} =
+        Games.create_game(
+          title: "Espera",
+          scene: "x",
+          user_id: owner.id,
+          open_slots: 1,
+          roster: [{Archetypes.fighter(), :human}]
+        )
+
+      # The logged-in user (not the owner) reaches the waiting room via open slots.
+      {:ok, view, _html} = live(conn, "/games/#{game.id}")
+
+      # Forged privileged event: only the creator may start the game.
+      view |> render_click("start_game")
+
+      # Status must remain :configuring — the forged start was rejected.
+      assert Games.get_game(game.id).status == :configuring
     end
   end
 end

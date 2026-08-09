@@ -35,6 +35,10 @@ defmodule Dragones.Codec do
   @spec decode(term()) :: World.t()
   def decode(%World{} = w), do: w
 
+  # A nullable games.world column (or a freshly-created row) must not crash
+  # rehydrate — return a pristine world instead.
+  def decode(nil), do: %World{}
+
   def decode(%{} = m) do
     %World{
       scene: m["scene"],
@@ -43,10 +47,37 @@ defmodule Dragones.Codec do
       characters: Map.new(m["characters"], fn {name, c} -> {name, decode_character(c)} end),
       initiative_order: m["initiative_order"] || [],
       log: Enum.map(m["log"] || [], fn [actor, entry] -> {actor, entry} end),
-      spell_slots: m["spell_slots"] || %{},
+      spell_slots: decode_spell_slots(m["spell_slots"]),
       facts: m["facts"] || []
     }
   end
+
+  # spell_slots is %{name => %{level => count}} with INTEGER level keys at
+  # runtime (World.has_slot?/consume_slot look up by integer). JSON/jsonb turns
+  # those keys into strings ("1", "2"…), so a world rehydrated from Postgres
+  # would silently report zero slots and block all casting. Re-integerize here.
+  defp decode_spell_slots(slots) when is_map(slots) do
+    Map.new(slots, fn {name, levels} ->
+      {name, decode_slot_levels(levels)}
+    end)
+  end
+
+  defp decode_spell_slots(_), do: %{}
+
+  defp decode_slot_levels(levels) when is_map(levels) do
+    Map.new(levels, fn {key, count} -> {to_slot_level(key), count} end)
+  end
+
+  defp decode_slot_levels(_), do: %{}
+
+  defp to_slot_level(key) when is_binary(key) do
+    case Integer.parse(key) do
+      {n, ""} -> n
+      _ -> key
+    end
+  end
+
+  defp to_slot_level(key), do: key
 
   # ------------------------------------------------------------- character
 

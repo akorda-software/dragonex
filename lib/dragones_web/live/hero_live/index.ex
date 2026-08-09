@@ -29,19 +29,27 @@ defmodule DragonesWeb.HeroLive.Index do
 
   @impl true
   def handle_event("delete", %{"id" => id}, socket) do
+    user = socket.assigns.current_user
+
+    # Verify ownership server-side: get_user_hero is user-scoped and returns
+    # nil for a hero that isn't ours, so a forged phx-value-id can't delete
+    # another user's hero.
     error =
-      case Accounts.delete_hero(id) do
-        {:ok, _} -> nil
+      with %{} = hero <- Accounts.get_user_hero(user, id),
+           {:ok, _} <- Accounts.delete_hero(hero.id) do
+        nil
+      else
+        nil -> "No se pudo borrar el héroe."
         {:error, :in_game} -> "No puedes borrar un héroe que ya está en una partida."
         {:error, _} -> "No se pudo borrar el héroe."
       end
 
-    heroes = Accounts.list_heroes(socket.assigns.current_user)
+    heroes = Accounts.list_heroes(user)
 
     {:noreply,
      assign(socket,
        heroes: heroes,
-       used_hero_ids: MapSet.new(Accounts.used_hero_ids(socket.assigns.current_user)),
+       used_hero_ids: MapSet.new(Accounts.used_hero_ids(user)),
        error: error
      )}
   end

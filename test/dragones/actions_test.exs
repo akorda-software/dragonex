@@ -156,6 +156,55 @@ defmodule Dragones.ActionsTest do
       {:ok, w2} = change.(w)
       assert w2.characters["goblin"].hp == 20
     end
+
+    test ":attack spell crit (nat 20) doubles the damage dice (regression)", %{world: w} do
+      # firebolt 1d10. seq: d20=20 (crit), then two d10 rolls of 6 each = 12.
+      # Before the fix the dice were rolled once (6) even on a nat 20.
+      assert {:ok, _msg, change} = Actions.spell(w, "Lyra", "firebolt", "goblin", seq([20, 6, 6]))
+      {:ok, w2} = change.(w)
+      # 6 + 6 = 12 damage on the crit (goblin started at 20 hp).
+      assert w2.characters["goblin"].hp == 20 - 12
+    end
+  end
+
+  describe "downed actor guards (hp <= 0 cannot act)" do
+    setup do
+      downed =
+        Character.new(
+          name: "Thane",
+          class: "fighter",
+          hp: 0,
+          max_hp: 12,
+          ac: 16,
+          side: "pc",
+          str: 16
+        )
+
+      g =
+        Character.new(name: "goblin", class: "monster", hp: 7, max_hp: 7, ac: 12, side: "enemy")
+
+      world =
+        World.new()
+        |> then_apply(World.add_character(downed))
+        |> then_apply(World.add_character(g))
+
+      {:ok, world: world}
+    end
+
+    test "a downed attacker cannot make a weapon attack", %{world: w} do
+      assert {:error, msg} = Actions.attack(w, "Thane", "goblin", "longsword", always(10))
+      assert msg =~ "caído"
+    end
+
+    test "a downed caster cannot cast a spell", %{world: w} do
+      assert {:error, msg} = Actions.spell(w, "Thane", "firebolt", "goblin", always(10))
+      assert msg =~ "caído"
+    end
+
+    test "a downed character cannot make an ability check", %{world: w} do
+      assert {:error, msg} = Actions.check(w, "Thane", :str, 10, false, always(10))
+      assert msg =~ "caído"
+    end
   end
 
   describe "initiative/2" do
@@ -231,6 +280,17 @@ defmodule Dragones.ActionsTest do
       # ...and the engine must NOT accept any further death save on a corpse.
       assert {:error, msg} = Actions.death_save(w, "hero", always(10))
       assert msg =~ "muerto"
+    end
+
+    test "refuses a stable character (3 successes) so death saves don't loop", %{world: w} do
+      # Three successful saves (d20 10 >= 10) stabilize the character.
+      w = then_apply(w, then_change(Actions.death_save(w, "hero", always(10))))
+      w = then_apply(w, then_change(Actions.death_save(w, "hero", always(10))))
+      w = then_apply(w, then_change(Actions.death_save(w, "hero", always(10))))
+
+      # The engine must NOT accept further death saves on a stable character.
+      assert {:error, msg} = Actions.death_save(w, "hero", always(10))
+      assert msg =~ "estable"
     end
   end
 

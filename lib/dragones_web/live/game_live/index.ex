@@ -27,16 +27,23 @@ defmodule DragonesWeb.GameLive.Index do
 
   @impl true
   def handle_event("delete", %{"id" => id}, socket) do
-    _ = Games.delete_game(id)
-    _ = Dragones.Game.Supervisor.stop_game(id)
+    user = socket.assigns.current_user
 
-    games =
-      if socket.assigns.current_user do
-        Games.list_games(socket.assigns.current_user.id)
-      else
-        []
-      end
+    # Only the creator may delete their partida. The id comes from a forged
+    # phx-value, so verify server-side rather than trusting the rendered button.
+    creator? =
+      user != nil and
+        case Games.get_game(id) do
+          %{user_id: uid} -> uid == user.id
+          nil -> false
+        end
 
+    if creator? do
+      _ = Games.delete_game(id)
+      _ = Dragones.Game.Supervisor.stop_game(id)
+    end
+
+    games = if user, do: Games.list_games(user.id), else: []
     {:noreply, assign(socket, :games, games)}
   end
 
