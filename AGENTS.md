@@ -16,7 +16,7 @@ D&D 5e con DM por IA. Elixir/Phoenix LiveView + Postgres + `exAgent` (GitHub dep
 
 ```sh
 docker compose -f compose.dev.yml up -d   # Postgres + app en http://localhost:4035
-MIX_ENV=test mix test                     # suite (527 passed). SIEMPRE con MIX_ENV=test
+MIX_ENV=test mix test                     # suite (543 passed). SIEMPRE con MIX_ENV=test
 mix format                                # obligatorio antes de commit
 mix compile                               # sin warnings
 docker logs -f dragones-app               # logs
@@ -52,7 +52,7 @@ docker logs -f dragones-app               # logs
 lib/dragones/           motor + dominio (Rules, World, Actions, Tools, DM,
                         PCAgent, Game GenServer, Games DB, Heroes creador, Accounts)
 lib/dragones_web/       LiveViews (Game, Hero, CustomContent), router, auth
-priv/repo/migrations/   7 migraciones
+priv/repo/migrations/   8 migraciones
 priv/srd/spells.es.json 319 hechizos SRD (regenerable: scripts/import_srd_spells.py)
 docs/                   progress, decisions, FLUJO_PARTIDA, historical/
 ```

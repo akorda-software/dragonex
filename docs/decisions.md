@@ -20,7 +20,7 @@ evita que mienta con números (HP, daño, AC). Reflejado en `DM` (regla del
 prompt) y en todo `Tools`.
 
 ### D2 — Reusar `ExAgent.Session` como motor
-El framework (`../exAgent`, path dep) provee `Session` con `TurnPolicy`,
+El framework (GitHub dep `kukapu/exagent`, branch `main`) provee `Session` con `TurnPolicy`,
 `SharedState`, `Capabilities`, `Compaction`. El `Game` **ordena por encima**:
 orquesta el bucle y la durabilidad, no reimplementa el motor. (Fase 0.)
 

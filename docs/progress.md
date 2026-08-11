@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **527 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **543 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - Arquitectura y porqués → `docs/decisions.md`.
 - Cómo funciona el bucle de una partida en detalle → `docs/FLUJO_PARTIDA.md`.
