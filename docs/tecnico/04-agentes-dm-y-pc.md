@@ -4,18 +4,21 @@
 > reglas siguen y cómo se mantienen coherentes entre ellos. Para el trace de
 > cuándo se invocan, [`01-bucle-del-agente.md`](01-bucle-del-agente.md).
 
-## Los dos agentes
+## Los tres agentes
 
-| | **DM** (`dm.ex`) | **PCAgent** (`pc_agent.ex`) |
-|---|---|---|
-| **Cuántos** | uno por partida | uno por PC IA + uno por humano con auto-play |
-| **Se construye en** | `rehydrate` (`game.ex`) | creación de partida / `enable_auto_play` |
-| **Tools** | **todas** (escena, árbitro, combate) | **restringidas** (actuar, no arbitrar) |
-| **Personalidad** | 16 reglas + story bible horneada | identidad + personalidad **por clase** |
-| **Lleva** | escena, PNJs, monstruos | a su personaje |
+| | **DM** (`dm.ex`) | **PCAgent** (`pc_agent.ex`) | **TurnMaster** (`turn_master.ex`) |
+|---|---|---|---|
+| **Cuántos** | uno por partida | uno por PC IA + auto-play | uno por partida |
+| **Se construye en** | `rehydrate` | creación / `enable_auto_play` | `rehydrate` |
+| **Tools** | **todas** (resolución 5e) | **restringidas** | orquestación (`give_turn_to`…) |
+| **Personalidad** | 16 reglas + bible | por clase | director de escena (estricto) |
+| **Lleva** | escena, PNJs, monstruos | a su personaje | **quién actúa** (no narra) |
+| **Mutates World?** | vía tools de resolución | vía tools de resolución | **nunca** (solo registra) |
 
 No comparten proceso: cada `ExAgent.Server` es independiente. La coherencia entre
-ellos es **estructural**, no por charla entre agentes (ver § Coherencia).
+ellos es **estructural**, no por charla entre agentes (ver § Coherencia). Detalle
+del bucle actor→turnmaster: [`01-bucle-del-agente.md`](01-bucle-del-agente.md),
+D25.
 
 ## El DM — `Dragones.DM`
 

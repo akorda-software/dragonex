@@ -48,6 +48,12 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   D20), tools con `max_retries: 3`, capabilities `Events` + `Compaction.Summary`.
 - `PCAgent` — un agent por PC IA, personalidad por clase, tools restringidas,
   `instruction/3` adaptativa (caído→death_save, combate→targets, exploración).
+- **`TurnMaster` (D25, Fase 5)** — agente de orquestación que reparte turnos
+  (`give_turn_to` / `cut_in` / `react` / `pass_to_dm` / `end_scene`). Micro-
+  máquina `actor → turnmaster → handoff` en `Game.advance/1`. **No muta el
+  World** (tools solo registran; el Game aplica). `WorldDriven` queda como
+  fallback + circuit breaker. Combate con `acted_this_round` + mini-turnos.
+  Modelo `Models.turnmaster/0` (barato, `max_tokens` 256). Spec: `TURNMASTER.md`.
 - `History` — reconstruye contexto compartido desde `game_events` (D19);
   compresión de narraciones viejas, coalescing mismo-actor.
 - `Brief` + `Instructions` — `world_brief` + instruction por turno.
@@ -130,9 +136,8 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   `Rules.Combat` ya aplica adjust por condición en ataque, pero faltan
   automatismos de condición→ventaja en saves/checks).
 - **Iniciativa individual por monstruo** (hoy colapsados al turno del DM).
-- **Reacciones / "preparar acción"**.
+
 - **Multi-nodo** (`Horde`) — pausado (D24).
-- **Coordinación real entre PCs auto** — validar en partida (abierta).
 
 ---
 

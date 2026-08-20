@@ -43,11 +43,13 @@ defmodule Dragones.Text do
   def scrub(text, actor) when is_binary(text) do
     text
     |> strip_leading_actor_tags()
+    |> strip_inline_actor_tags()
     |> strip_leading_turn_header()
     |> strip_leading_self_name(actor)
     |> strip_leaked_tool_tokens()
     |> drop_combat_recap_blocks()
     |> drop_inline_stats()
+    |> cleanup_after_stat_strip()
     |> drop_narrated_dice_syntax()
     |> drop_narrated_tool_invocations()
     |> drop_engine_meta_phrases()
@@ -106,6 +108,12 @@ defmodule Dragones.Text do
       _ ->
         text
     end
+  end
+
+  # Mid-prose leaks: "... rezad. [DM]: El pastor se levanta...". Only match
+  # `]:` (colon), never markdown links `](url)`.
+  defp strip_inline_actor_tags(text) do
+    String.replace(text, ~r/\[[^\]\n]{1,60}\]\s*:\s*/u, "")
   end
 
   # Leading turn header in two shapes the history emits:
@@ -213,6 +221,32 @@ defmodule Dragones.Text do
     |> String.replace(~r/\(\s*\d{1,4}\s*→\s*\)/, "")
     |> String.replace(~r/\ble quedan\b\s*\/?\s*(?:pg|hp)?\.?/i, "")
     |> drop_dice_notation()
+  end
+
+  # After stripping HP/CA numbers, the model often leaves broken bold shells
+  # from the playtest: `**Sabueso: **`, `**Rhogar **`, `queda con **1 de **`.
+  # Cosmetic cleanup only — never invents content.
+  defp cleanup_after_stat_strip(text) do
+    text
+    # `**Name: **` / `**Name:**` empty status after the colon
+    |> String.replace(~r/\*\*[^*]{0,80}:\s*\*\*/u, "")
+    # Empty bold `****` or `** **`
+    |> String.replace(~r/\*\*\s*\*\*/, "")
+    # Bold that only wraps a bare name leftover (`**Rhogar **` → Rhogar)
+    |> String.replace(
+      ~r/\*\*\s*([A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s'-]{0,40}?)\s*\*\*/u,
+      "\\1"
+    )
+    # Orphan "N de" / "N de **" when the unit (HP/pg) was stripped
+    |> String.replace(~r/\b\d{1,4}\s+de\s*(?:\*\*)?\s*(?=\*\*|[.,;:!?…]|$)/u, "")
+    # Dangling "queda con ." / "cae a ," / "recuperado por completo ."
+    |> String.replace(
+      ~r/\b(queda con|cae a|baja a|tiene|con|por completo)\s*(?=[.,;:!?…]|$)/iu,
+      ""
+    )
+    # Double spaces / space before punctuation left by removals
+    |> String.replace(~r/[^\S\n]{2,}/u, " ")
+    |> String.replace(~r/\s+([.,;:!?…])/u, "\\1")
   end
 
   # NdM[+mod] dice notation that leaks into prose ("daño 1d4+2", "golpea por

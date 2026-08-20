@@ -34,7 +34,7 @@
 
 | Módulo | Responsabilidad |
 |---|---|
-| `Dragones.TurnPolicy.WorldDriven` | `ExAgent.Session.TurnPolicy`. Decide el turno **leyendo el `World`** (round-robin en exploración, iniciativa en combate con enemigos plagados al DM). |
+| `Dragones.TurnPolicy.WorldDriven` | `ExAgent.Session.TurnPolicy` de fallback (D25). Round-robin en exploración, iniciativa en combate. El camino principal es el TurnMaster (S6). |
 
 (`ExAgent.Session`, `ExAgent.Server`, `ExAgent.Models.*`, `ExAgent.Tools`,
 `ExAgent.Capability`, `ExAgent.Compaction` vienen de la dep `exagent`,
@@ -62,15 +62,18 @@ Tools reales: `set_scene`, `establish_fact`, `roll_dice`, `roll_initiative`,
 Stubs legacy (sólo para tests del framework exAgent): `attack/2`, `roll/1`,
 `spawn_character/2`, `next_round/0`.
 
-## S6 · Agentes — `lib/dragones/{dm,pc_agent,agent,events,brief,history}.ex`
+## S6 · Agentes — `lib/dragones/{dm,pc_agent,turn_master,agent,events,brief,history}.ex`
 
 | Módulo | Responsabilidad |
 |---|---|
 | `Dragones.DM` | Factory del DM + system prompt de 16 reglas + bible horneada (cacheable, `D20`) |
 | `Dragones.PCAgent` | Un agent por PC IA (+ auto-play); personalidad por clase; tools restringidas; `instruction/3` adaptativa |
+| `Dragones.TurnMaster` | Orquestador de turnos (D25): `new/2`, prompt, instruction; **no muta World** |
+| `Dragones.TurnMaster.Tools` | `give_turn_to` / `cut_in` / `react` / `pass_to_dm` / `end_scene` (registran decisión) |
+| `Dragones.TurnMaster.Decision` | Recorder por beat (patrón `RollLog`) de la decisión del TurnMaster |
 | `Dragones.Agent` | Plomería compartida de compactación (summarizer) |
 | `Dragones.Events` | `Capability`: publica cada chunk de texto → `Text.scrub` → `:narration` event + PubSub |
-| `Dragones.Brief` | Snapshot compacto legible del mundo para el LLM (`world_brief`, `turn_prompt`) |
+| `Dragones.Brief` | Snapshot del mundo (`world_brief`, `turn_prompt`, `turnmaster_brief`) |
 | `Dragones.History` | Reconstruye el contexto compartido `[Message.t()]` desde `game_events` (`D19`) |
 
 ## S7 · Persistencia — `lib/dragones/games.ex` + `games/` + `codec.ex` + `store/`

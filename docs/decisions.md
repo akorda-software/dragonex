@@ -164,6 +164,68 @@ controlador de monstruos (plegados en su turno) y director narrativo.
 Sin `Horde` ni replicación; `Registry` alcanza para single-node. Se reabre si
 se necesita HA. (Pausada.)
 
+### D25 — TurnMaster: el reparto de turnos por agente (Fase 5)
+**Estado: Implementada.** Spec técnico de diseño en
+[`TURNMASTER.md`](TURNMASTER.md). Reemplaza el reparto determinista implícito
+(`WorldDriven`, `turn_policy/world_driven.ex`) como camino principal, y **resuelve
+el pendiente "Coordinación real entre PCs auto"** + el pendiente de
+**"Reacciones / preparar acción"** de `progress.md`.
+
+Hoy el turno lo impone un `TurnPolicy` determinista (`WorldDriven`) que recorre
+`initiative_order` / round-robin: predecible e imparcial, pero **rígido** — no
+hay reacciones, interrupciones, acciones preparadas, ni ritmo variable, y el
+round-robin de exploración ignora quién tiene algo que decir. La partida se
+siente "cuadriculada" y pierde diversión. Con modelos baratos y capaces ya
+viable, se introduce un **agente `Dragones.TurnMaster`** que decide quién actúa
+vía tools (`give_turn_to`, `cut_in`, `react`, `pass_to_dm`, `end_scene`) en un
+beat extra antes del beat del actor; `Session.handoff/2` aplica la decisión.
+
+- En **combate** respeta `initiative_order` por defecto con excepciones
+  explícitas (reacciones, acciones preparadas, interrupciones dramáticas) vía
+  `cut_in`/`react` (mini-turno que vuelve al actor interrumpido).
+- En **exploración** reparte la palabra con criterio dramático (quien reacciona,
+  quien tiene algo que decir), no round-robin plano.
+- **`WorldDriven` se conserva como fallback determinista**: si TurnMaster falla,
+  buclea o elige un actor inválido, el Game cae al orden calculado por la policy
+  (+ circuit breaker `D17`). La partida nunca deadloquea.
+- Invariante `controlled_by?` intacto: solo quien recibe el turno accede a las
+  tools de resolución.
+- **Respeta `D6` (single-writer)**: TurnMaster **no muta el `World`** — sus tools
+  sólo *registran* la decisión; es el **`Game`** quien la ejecuta
+  (`Session.handoff/2` para el turno, `Session.update_state/3` para escena), el
+  mismo patrón que `maybe_end_combat`/`maybe_force_combat`.
+- Subsistemas: agente nuevo en **S6** (`Dragones.TurnMaster`), tools de
+  orquestación propias (no en `Dragones.Tools`/S5); reparto S3 asistido por S6;
+  modelo en **S10** (`Models.turnmaster/0` vía catálogo provider).
+- `Models.turnmaster/0` (barato/rápido, `max_tokens` ~256, prefijo cacheable
+  `D20`). **Coste asumido** (+1 llamada/turno): la prioridad del producto es que
+  sea divertido; la fluidez pesa más que ahorrar tokens.
+
+Consecuencias (hechas): `docs/tecnico/01-bucle-del-agente.md` y
+`docs/FLUJO_PARTIDA.md` describen el flujo actor → turnmaster → handoff;
+`progress.md` mueve el item a ✅. Código: `lib/dragones/turn_master*.ex`,
+integración en `game.ex`, `acted_this_round` en `World`/`Codec`.
+
+Alternativas descartadas: (a) emular excepciones con reglas en `WorldDriven`
+(sigue rígido en exploración); (b) que el propio DM reparta turnos (mezcla
+narración y orquestación, sesga imparcialidad); (c) TurnMaster sólo en puntos de
+decisión (más barato, pero inconsistente — se prefiere fluidez).
+
+### D26 — Switch de deps locales vía `DRAGONES_LOCAL_DEPS`
+`exagent` y `dic_ex` son deps propias que se iteran en paralelo al desarrollo
+de dragones. Para no andar haciendo `mix deps.update` tras cada cambio en esos
+paquetes, `mix.exs` resuelve ambas con `local_dep/2`:
+
+- `DRAGONES_LOCAL_DEPS=1` → `{:exagent, path: "…/exagent"}` (idem `dic_ex`),
+  resolviendo `DRAGONES_DEPS_ROOT` (default `../`, siblings del repo).
+- Sin la variable → GitHub `branch: main` (lo que usa prod, CI y docker).
+
+**Caveat mix**: `mix.exs` se evalúa **antes** que `config/runtime.exs`, así que
+Dotenvy todavía no ha cargado `.env.dev` y la variable debe estar en el shell.
+`bin/dev` carga `.env.dev` antes de invocar `mix` para que se respete sin tener
+que exportar a mano. Docker (`compose.dev.yml`) **siempre** usa GitHub: no hay
+motivo para montar `../` dentro del contenedor y añade complejidad.
+
 ---
 
 ## Pendientes de decisión (abiertas)
@@ -172,6 +234,7 @@ se necesita HA. (Pausada.)
   `GameLive.Show` sigue gateado por `Progression.can_level_up?(level, xp)`.
   Como no hay fuente de XP, nunca se muestra. Si se quiere un nudge en la mesa,
   cablear a un flag "DM granted" en vez de a XP. (No bloqueante.)
-- **Coordinación real entre PCs auto**: el nudge de instruction + history
-  arreglado deberían reducir el caos; validar en partida y, si persiste,
-  evaluar un turn policy de grupo o un "líder" rotatorio.
+- **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,
+  Implementada)**. Validar en partida live que el ritmo y la equidad se
+  sostienen; si no, ajustar prompt/brief del TurnMaster (no volver al
+  round-robin como camino principal).

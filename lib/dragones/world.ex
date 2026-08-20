@@ -39,7 +39,12 @@ defmodule Dragones.World do
             # turn, so every agent reads the same "what has concretely happened
             # in the world" — the antidote to the DM introducing a hook and then
             # abandoning it, or re-introducing an event that already occurred.
-            facts: []
+            facts: [],
+            # Combatants who already spent their main turn this round (D25).
+            # Updated by the Game on give_turn_to handoffs — never by TurnMaster
+            # tools (single-writer). cut_in/react mini-turns do NOT mark here.
+            # Cleared when the round advances.
+            acted_this_round: MapSet.new()
 
   @type phase :: :exploration | :combat
 
@@ -51,7 +56,8 @@ defmodule Dragones.World do
           initiative_order: [String.t()],
           log: [{String.t(), String.t()}],
           spell_slots: %{String.t() => %{pos_integer() => non_neg_integer()}},
-          facts: [String.t()]
+          facts: [String.t()],
+          acted_this_round: MapSet.t(String.t())
         }
 
   @spec new(keyword()) :: t()
@@ -253,6 +259,7 @@ defmodule Dragones.World do
              w
              | phase: :combat,
                initiative_order: initiative_order,
+               acted_this_round: MapSet.new(),
                log: log(w, "dm", "combat begins: #{Enum.join(initiative_order, " → ")}")
            }}
       end
@@ -261,8 +268,51 @@ defmodule Dragones.World do
 
   @spec end_combat() :: (t() -> {:ok, t()})
   def end_combat do
-    fn w -> {:ok, %{w | phase: :exploration, log: log(w, "dm", "combat ends")}} end
+    fn w ->
+      {:ok,
+       %{
+         w
+         | phase: :exploration,
+           acted_this_round: MapSet.new(),
+           log: log(w, "dm", "combat ends")
+       }}
+    end
   end
+
+  @doc """
+  Mark a participant as having spent their main turn this combat round (D25).
+  No-op outside combat. Mini-turns (`cut_in`/`react`) must NOT call this.
+  """
+  @spec mark_acted(String.t()) :: (t() -> {:ok, t()})
+  def mark_acted(name) when is_binary(name) do
+    fn w ->
+      if w.phase == :combat do
+        {:ok, %{w | acted_this_round: MapSet.put(w.acted_this_round || MapSet.new(), name)}}
+      else
+        {:ok, w}
+      end
+    end
+  end
+
+  @doc "Clear `acted_this_round` (called when the round counter advances)."
+  @spec clear_acted_this_round() :: (t() -> {:ok, t()})
+  def clear_acted_this_round do
+    fn w -> {:ok, %{w | acted_this_round: MapSet.new()}} end
+  end
+
+  @doc """
+  True when every conscious combat participant has spent a main turn this round.
+  Used by the Game to advance `world.round` under TurnMaster (D25) instead of
+  the old "last of the WorldDriven cycle" heuristic.
+  """
+  @spec round_complete?(t(), [String.t()]) :: boolean()
+  def round_complete?(%__MODULE__{phase: :combat, acted_this_round: acted}, cycle)
+      when is_list(cycle) and cycle != [] do
+    acted = acted || MapSet.new()
+    Enum.all?(cycle, &MapSet.member?(acted, &1))
+  end
+
+  def round_complete?(_, _), do: false
 
   @doc """
   Add an existing character to the initiative order mid-combat (for
@@ -293,10 +343,10 @@ defmodule Dragones.World do
     end
   end
 
-  @doc "Bump the round counter directly (kept for the spike's exploration flows)."
+  @doc "Bump the round counter and clear `acted_this_round` (D25)."
   @spec next_round() :: (t() -> {:ok, t()})
   def next_round do
-    fn w -> {:ok, %{w | round: w.round + 1}} end
+    fn w -> {:ok, %{w | round: w.round + 1, acted_this_round: MapSet.new()}} end
   end
 
   @doc """

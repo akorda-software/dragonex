@@ -21,6 +21,11 @@ defmodule Dragones.Game.Beat do
     :turn_id,
     :instruction,
     :enemies_before,
+    # :actor (DM/PC beat) | :turnmaster (handoff decision beat, D25)
+    kind: :actor,
+    # Whether this actor beat is a mini-turn (cut_in/react) — does not mark
+    # acted_this_round when it settles.
+    mini_turn: false,
     max_token_retries: 0,
     transient_retries: 0
   ]
@@ -32,6 +37,8 @@ defmodule Dragones.Game.Beat do
           turn_id: String.t(),
           instruction: String.t(),
           enemies_before: MapSet.t(),
+          kind: :actor | :turnmaster,
+          mini_turn: boolean(),
           max_token_retries: non_neg_integer(),
           transient_retries: non_neg_integer()
         }

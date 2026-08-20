@@ -28,7 +28,8 @@ defmodule Dragones.Codec do
       "initiative_order" => w.initiative_order,
       "log" => Enum.map(w.log, fn {actor, entry} -> [actor, entry] end),
       "spell_slots" => w.spell_slots,
-      "facts" => w.facts
+      "facts" => w.facts,
+      "acted_this_round" => encode_acted(w.acted_this_round)
     }
   end
 
@@ -48,9 +49,18 @@ defmodule Dragones.Codec do
       initiative_order: m["initiative_order"] || [],
       log: Enum.map(m["log"] || [], fn [actor, entry] -> {actor, entry} end),
       spell_slots: decode_spell_slots(m["spell_slots"]),
-      facts: m["facts"] || []
+      facts: m["facts"] || [],
+      acted_this_round: decode_acted(m["acted_this_round"])
     }
   end
+
+  defp encode_acted(%MapSet{} = set), do: MapSet.to_list(set)
+  defp encode_acted(list) when is_list(list), do: list
+  defp encode_acted(_), do: []
+
+  defp decode_acted(list) when is_list(list), do: MapSet.new(list)
+  defp decode_acted(%MapSet{} = set), do: set
+  defp decode_acted(_), do: MapSet.new()
 
   # spell_slots is %{name => %{level => count}} with INTEGER level keys at
   # runtime (World.has_slot?/consume_slot look up by integer). JSON/jsonb turns

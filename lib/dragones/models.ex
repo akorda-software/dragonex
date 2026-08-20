@@ -54,13 +54,16 @@ defmodule Dragones.Models do
       module: Models.OpenRouter,
       api_key_env: "OPENROUTER_API_KEY",
       dm: "deepseek/deepseek-v4-flash",
-      summarizer: "google/gemini-3.1-flash-lite"
+      summarizer: "google/gemini-3.1-flash-lite",
+      # Cheap/fast orchestrator: one tool-call per beat (D25 TurnMaster).
+      turnmaster: "deepseek/deepseek-v4-flash"
     },
     opencode: %{
       module: Models.OpenCode,
       api_key_env: "OPENCODE_API_KEY",
       dm: "deepseek-v4-flash",
-      summarizer: "gemini-3.5-flash-lite"
+      summarizer: "gemini-3.5-flash-lite",
+      turnmaster: "deepseek-v4-flash"
     }
   }
 
@@ -123,6 +126,14 @@ defmodule Dragones.Models do
   """
   @spec summarizer() :: term()
   def summarizer, do: build(:summarizer)
+
+  @doc """
+  TurnMaster model (D25): decides who acts next via a single tool-call.
+  Cheap/fast by default (overridable via `DRAGONES_TURNMASTER_MODEL`). Falls
+  back to `%Test{}` when no API key is set.
+  """
+  @spec turnmaster() :: term()
+  def turnmaster, do: build(:turnmaster)
 
   @doc "Max output tokens per DM beat (cost cap). DeepSeek v4 flash tends to
   overwrite when given headroom — multiple markdown sections, initiative tables,
@@ -388,11 +399,12 @@ defmodule Dragones.Models do
   # Provider dispatch
   # ---------------------------------------------------------------------------
 
-  # Build a model struct for the given role (:dm | :summarizer) from the active
-  # provider's catalogue row. A present-but-blank API key (e.g. `OPENCODE_API_KEY=`
-  # copied from the .example template) must NOT take the live path — empty string
-  # is truthy in Elixir, so it would otherwise build a real client that 401s.
-  @spec build(:dm | :summarizer) :: term()
+  # Build a model struct for the given role (:dm | :summarizer | :turnmaster)
+  # from the active provider's catalogue row. A present-but-blank API key (e.g.
+  # `OPENCODE_API_KEY=` copied from the .example template) must NOT take the live
+  # path — empty string is truthy in Elixir, so it would otherwise build a real
+  # client that 401s.
+  @spec build(:dm | :summarizer | :turnmaster) :: term()
   defp build(role) do
     cfg = @providers[provider()]
 
@@ -418,6 +430,13 @@ defmodule Dragones.Models do
         app_title: System.get_env("DRAGONES_APP_TITLE", "dragones")
       )
 
+  defp new_model(cfg, :turnmaster),
+    do:
+      cfg.module.new(
+        model: System.get_env("DRAGONES_TURNMASTER_MODEL", cfg.turnmaster),
+        app_title: System.get_env("DRAGONES_APP_TITLE", "dragones")
+      )
+
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(value), do: value
 
@@ -426,4 +445,10 @@ defmodule Dragones.Models do
 
   defp test_model(:summarizer),
     do: %Models.Test{label: "(recap of earlier turns)"}
+
+  # Fixed label (no tools) → beat succeeds with no decision → Game soft-falls
+  # back to WorldDriven. Keeps the offline suite green without scripting TM in
+  # every test. Do NOT use label: "" — empty text trips "Please respond" retries.
+  defp test_model(:turnmaster),
+    do: %Models.Test{label: "(turnmaster: use WorldDriven)"}
 end

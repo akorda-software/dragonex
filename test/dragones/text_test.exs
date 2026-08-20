@@ -145,6 +145,33 @@ defmodule Dragones.TextTest do
       assert Text.scrub("Como DM yo decido que llueve.", "dm") == ""
     end
 
+    test "strips mid-prose [DM]: tags (not only leading)" do
+      out =
+        Text.scrub(
+          "El pastor calla. [DM]: El pastor se levanta y señala la puerta.",
+          "dm"
+        )
+
+      refute out =~ "[DM]"
+      assert out =~ "El pastor se levanta"
+    end
+
+    test "cleans empty bold shells left after stripping HP/CA" do
+      # Playtest leftovers: model wrote **Name: 7 HP** → strip HP → **Name: **
+      out1 = Text.scrub("El sabueso cae. **Sabueso de Práctica: 7 HP** Fin.", "dm")
+      refute out1 =~ "**"
+      refute out1 =~ "7 HP"
+      assert out1 =~ "El sabueso cae"
+
+      out2 = Text.scrub("Rhogar recuperado por completo **12/12 HP**.", "dm")
+      refute out2 =~ "12/12"
+      refute out2 =~ "**"
+
+      out3 = Text.scrub("Lyra queda con **1 de 6 HP**.", "dm")
+      refute out3 =~ "HP"
+      refute out3 =~ ~r/\b1 de\b/
+    end
+
     test "strips English (AC/HP) stat leaks and parenthesised stat blocks" do
       # The DM dropped an English stat line straight into prose.
       refute Text.scrub(

@@ -22,6 +22,11 @@ mix compile                               # sin warnings
 docker logs -f dragones-app               # logs
 ```
 
+- **Deps locales (exagent/dic_ex)**: `DRAGONES_LOCAL_DEPS=1` en `.env.dev`
+  hace que mix los resuelva desde `../exagent` y `../dic_ex` (siblings del repo)
+  en vez de GitHub. Arranca con `bin/dev` (carga `.env.dev` antes que mix, que
+  `mix.exs` se evalúa antes que `config/runtime.exs`). Docker y prod usan
+  siempre GitHub. Detalle y porqué en D26.
 - **Package manager: `mix`** (NUNCA npm/npx — no hay frontend JS build propio;
   los assets de dados vienen de `dic_ex`, ya vendored en `priv/static/assets/`).
 - DB para `mix phx.server` en host: `DB_PORT=5455` (`.env.dev`). App dev: **4035**, Postgres dev: **5455**.

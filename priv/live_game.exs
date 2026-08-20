@@ -1,17 +1,19 @@
-# Live Phase 0 check: a real LLM DM drives the Dragones.Game process.
+# Live check: a real LLM DM (+ TurnMaster) drives the Dragones.Game process.
 #
 # Run with:
 #   set -a; source .env; set +a
 #   DRAGONES_MODEL=deepseek/deepseek-v4-flash mix run priv/live_game.exs
 #
-# Proves the full Fase 0 loop through the Game process + Postgres:
+# Proves the full loop through the Game process + Postgres (incl. D25):
+#   - TurnMaster hands the floor (or WorldDriven fallback if TM has no key);
 #   - the DM (AI) auto-acts in a Task (goblin attacks Thane);
 #   - a human acts (Thane attacks the goblin);
 #   - every beat persists (world jsonb + game_events);
 #   - killing + restarting the process rehydrates the same game_id.
 #
-# The key invariant (from the spike): the DM does NOT invent outcomes — it calls
-# the tools, which is detectable as hp changing by the rules + dice rolled.
+# The key invariant: the DM does NOT invent outcomes — it calls the tools,
+# which is detectable as hp changing by the rules + dice rolled. TurnMaster
+# only decides who acts (system notes "El turno pasa a …").
 
 alias Dragones.{Game, Games, Roster}
 alias ExAgent.Models

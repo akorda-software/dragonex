@@ -15,6 +15,7 @@ defmodule Dragones.DMPuppetPCTest do
   import ExUnit.CaptureLog
 
   alias Dragones.{Archetypes, Games, Game}
+  alias Dragones.Game.Guardrails
   alias ExAgent.Models.Test
 
   setup do
@@ -72,6 +73,35 @@ defmodule Dragones.DMPuppetPCTest do
 
     assert log =~ "reinforcing rule 14",
            "the DM narrating a PC acting should trigger the rule-14 reminder on the next beat"
+  end
+
+  test "detector catches playtest-style puppet leaks (pure)" do
+    pcs = ["Lyra", "Vex", "Rhogar"]
+
+    assert Guardrails.dm_narration_puppets_pc?(
+             "Lyra, sonriendo, conjura firebolt contra el maniquí.",
+             pcs
+           )
+
+    assert Guardrails.dm_narration_puppets_pc?(
+             "Vex ya tensa su arco corto, mirando de reojo.",
+             pcs
+           )
+
+    assert Guardrails.dm_narration_puppets_pc?(
+             "Vex aprovecha el descuido del sabueso y dispara desde el flanco.",
+             pcs
+           )
+
+    refute Guardrails.dm_narration_puppets_pc?(
+             "Lyra está herida junto a la valla.",
+             pcs
+           )
+
+    refute Guardrails.dm_narration_puppets_pc?(
+             "El sabueso se abalanza contra Rhogar.",
+             pcs
+           )
   end
 
   test "narration that only describes the world does NOT trip the detector" do

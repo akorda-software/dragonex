@@ -39,15 +39,15 @@ números.
 │   - persiste world + status + events tras cada beat         │
 │   - maneja pausa, auto-play, reintentos                     │
 ├─────────────────────────────────────────────────────────────┤
-│ Motor ExAgent.Session + Dragones.TurnPolicy.WorldDriven     │
-│   - decide de quién es el turno leyendo el World            │
-│   - impone que el actor correcto actúe (control guard)      │
+│ Motor ExAgent.Session + TurnMaster (decide) + WorldDriven   │
+│   - TurnMaster reparte turnos (D25); WorldDriven = fallback │
+│   - control guard: solo el actor en turno resuelve          │
 ├─────────────────────────────────────────────────────────────┤
 │ Reglas  Dragones.{Rules, World, Actions, Tools}             │
 │   - matemática de combate (AC, daño, saves, iniciativa)     │
 │   - change functions que mutan el World                     │
 ├─────────────────────────────────────────────────────────────┤
-│ Agentes  Dragones.{DM, PCAgent, Events}                     │
+│ Agentes  Dragones.{DM, PCAgent, TurnMaster, Events}         │
 │   - system prompt + tools + capabilities                    │
 │   - ExAgent.Server ejecuta el beat contra el modelo         │
 ├─────────────────────────────────────────────────────────────┤
@@ -85,20 +85,20 @@ reconstruye como `Dragones.World` struct y se pasa como `shared_state` al
 Definido en `lib/dragones/game.ex`. Un proceso por partida, arrancado vía
 `Dragones.Game.Supervisor` (registry por `game_id`).
 
-**Struct** (`game.ex:46`): `game_id`, `game`, `session` (pid del motor),
-`dm` (pid del agent DM), `pc_agents` (map nombre→pid), `model`, `roller`,
-`participants`, `intents` (declaraciones pendientes del humano), `status`,
-`busy` (el beat en vuelo).
+**Struct**: `game_id`, `game`, `session`, `dm`, `turnmaster` (D25),
+`pc_agents`, `model`, `roller`, `participants`, `intents`, `status`, `busy`,
+`loop_phase` (`:actor | :turnmaster`), `last_actor`, `acted` flags de mini-turno.
 
-### Rehidratación (`init` → `rehydrate`, `game.ex:186`)
+### Rehidratación (`init` → `rehydrate`)
 1. Carga el `games` row desde Postgres.
 2. Decodifica el `world`, crea los `Participant` del `Session`.
-3. Arranca el `Session` con policy `{WorldDriven, dm: "dm"}`.
-4. Restaura la posición de turno (`restore_turn`).
-5. Crea el **agent DM** (`DM.new/2`) con la story bible horneada en el system
-   prompt (cacheable).
-6. Crea un **agent PCAgent** por cada participant `:ai` que no sea el DM.
-7. `send(self(), :advance)` → arranca el bucle si toca IA.
+3. Arranca el `Session` con policy `{WorldDriven, dm: "dm"}` (fallback).
+4. Restaura la posición de turno (`restore_turn` / `Session.handoff`).
+5. Crea el **agent DM** (`DM.new/2`) con la story bible horneada.
+6. Crea el **agent TurnMaster** (`TurnMaster.new/2`, modelo barato).
+7. Crea un **agent PCAgent** por cada participant `:ai` que no sea el DM.
+8. `loop_phase`: `:turnmaster` si partida nueva; `:actor` si reanuda.
+9. `send(self(), :advance)` → arranca el bucle.
 
 ### Status
 - `:running` — el bucle avanza solo (turnos IA).
@@ -110,68 +110,71 @@ Definido en `lib/dragones/game.ex`. Un proceso por partida, arrancado vía
 
 ## 5. El bucle por turno — `advance/1` (el corazón)
 
-`game.ex:534`. Un tick = un paso. **Nunca encadena más de un beat por tick**: el
-beat completado agenda el siguiente.
+Micro-máquina **actor → turnmaster → handoff** (D25). Un tick = un paso.
+**Nunca encadena más de un beat por tick**.
 
 ```
 handle_info(:advance) → advance(state)
   ¿status != :running?  → no-op
   ¿busy != nil?         → no-op (hay un beat en vuelo)
-  según Session.current:
-    nil                  → fin, persist :ended
-    ai_pc?(current)      → lanza beat del PCAgent
-    human?(current)      → :waiting (o consume intent pendiente)
-    _ (DM)               → lanza beat del DM
+
+  si loop_phase == :turnmaster:
+    → beat TurnMaster (decide quién sigue)
+    → al cerrar: Session.handoff / end_scene  (o fallback WorldDriven)
+    → loop_phase := :actor, tick
+
+  si loop_phase == :actor:
+    según Session.current:
+      nil                  → fin, persist :ended
+      ai_pc?(current)      → lanza beat del PCAgent
+      human?(current)      → :waiting (o consume intent pendiente)
+      _ (DM)               → lanza beat del DM
+    → al cerrar OK: NO end_turn; mark_acted; loop_phase := :turnmaster, tick
 ```
 
-### Tipos de turno
+Detalle normativo: [`tecnico/01-bucle-del-agente.md`](tecnico/01-bucle-del-agente.md).
+Spec de diseño: [`TURNMASTER.md`](TURNMASTER.md).
 
-**IA PC** (`ai_pc?`, `game.ex:594`): tiene agent propio (original AI o auto-play
-de un humano). Construye la `instruction` con `PCAgent.instruction/3`, le aplica
-el **anti-loop** (`with_pc_anti_loop/3`, ver §15.3), lanza `run_beat`.
+### Tipos de turno (fase `:actor`)
 
-**Humano** (`game.ex:604`): si tiene `intent` pendiente (declarado off-turno),
-lo consume y lanza el beat; si no, persiste `:waiting` y espera a `declare/2`.
+**IA PC**: agent propio + `PCAgent.instruction/3` + anti-loop, `run_beat`.
 
-**DM** (`game.ex:620`): construye la instruction según el estado de la escena:
-- `post_combat_limbo?` → `dm_post_combat_instruction` (fuerza avance tras
-  combate).
-- `exploration_limbo?` → `dm_advance_instruction` (rompe bucles de exploración,
-  ver §15.5).
-- si no, `dm_instruction`.
-Después aplica el **anti-puppet nudge** (`with_dm_no_puppet_nudge`, §15.4) y
-lanza el beat.
+**Humano**: intent pendiente → beat; si no, `persist(:waiting)` hasta `declare/3`.
+
+**DM**: instruction según limbo post-combate / exploración + guardrails, `run_beat`.
+
+**TurnMaster** (fase `:turnmaster`): una sola tool-call de orquestación
+(`give_turn_to`, `cut_in`, `react`, `pass_to_dm`, `end_scene`). No narra.
+Si falla o no decide → `WorldDriven` (`Session.end_turn`) + nota de sistema.
 
 ---
 
 ## 6. Construcción y ejecución de un beat — `run_beat`
 
-`game.ex:794`. El GenServer se queda responsive: el beat corre en un
+El GenServer se queda responsive: el beat corre en un
 `Task.Supervisor.async_nolink`. El resultado llega por `handle_info({ref, result})`.
 
-**Qué monta el beat**:
+**Beat de actor**:
 1. Elige el agent (`agent_for`: PCAgent si existe, sino DM).
-2. Construye el `prompt` con `Brief.turn_prompt(world, current, instruction, dm, kinds)`
-   = `world_brief` + instruction.
-3. Reconstruye el **history compartido** (`History.from_events`, §7).
-4. Monta callbacks:
-   - `on_roll_closed`: persiste `:dice` + broadcast PubSub al cerrar cada grupo
-     de tiradas (un modal por tirada, con razón + dados + total + contra +
-     resultado).
-   - `on_text_delta`: broadcast de cada chunk de texto → burbuja de streaming en
-     vivo.
-5. Lanza el Task: `Server.chat(agent, prompt, deps:, stream_text:, message_history:)`.
-6. `state.busy = %{ref, participant, phase, turn_id, instruction, retry counters,
-   enemies_before}`.
+2. `Brief.turn_prompt` + history compartido (`History.from_events`, §7).
+3. Callbacks `on_roll_closed` / `on_text_delta`.
+4. `Server.chat` con deps (SharedState, RollLog, beat ctx).
+5. `busy = %Beat{kind: :actor, mini_turn: …}`.
 
-**Resultado** (`handle_beat_result`, `game.ex:664`):
-- `{:ok, narration, rolls, usage}`: avanza el turno (`Session.end_turn`),
-  persiste, broadcastea, manda siguiente tick. Aplica también
-  `maybe_force_combat` (§15.2) y `maybe_end_combat`/`maybe_advance_round`.
-- `{:error, reason}`: entra al flujo de reintentos/fallback (§15.1).
+**Beat TurnMaster** (`run_turnmaster_beat`):
+1. `Brief.turnmaster_brief` + `TurnMaster.instruction`.
+2. Recorder `Decision` por beat.
+3. `Server.chat(turnmaster, …)` sin streaming.
+4. `busy = %Beat{kind: :turnmaster}`.
 
-**Honrar la pausa** (`game.ex:743`): si el usuario pausó mientras el beat estaba
-en vuelo, el status final respeta `:paused` (no lo sobreescribe a `:running`).
+**Resultado actor OK**: no `end_turn`; `maybe_force_combat` / `maybe_end_combat` /
+`mark_acted` / `maybe_advance_round` (por `acted_this_round`); pasa a TurnMaster.
+
+**Resultado TurnMaster OK**: aplica handoff; evento `:system` `actor: "turnmaster"`;
+pasa a actor.
+
+**Error**: retries transient / max_tokens (§15.1); soft fallback del actor sigue
+avanzando con `end_turn`.
 
 ---
 

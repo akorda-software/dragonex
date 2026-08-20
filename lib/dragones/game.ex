@@ -5,35 +5,41 @@ defmodule Dragones.Game do
 
   The Game is the **single source of durability**: after every beat it persists
   the live `Dragones.World` (jsonb via Codec), the turn position and an appended
-  event to Postgres. The `ExAgent.Session` (WorldDriven) runs in-memory as the
-  engine; if the Game process dies, a fresh one rehydrates the same `game_id`
-  from Postgres and resumes exactly where it left off.
+  event to Postgres. The `ExAgent.Session` runs in-memory as the engine; if the
+  Game process dies, a fresh one rehydrates the same `game_id` from Postgres and
+  resumes exactly where it left off.
 
-  ## The loop
+  ## The loop (D25)
 
-    * **AI turn** (the DM, or an AI PC) → run the agent beat in a **Task** so the
-      GenServer keeps answering queries/pauses. On completion, advance + persist.
-    * **Human turn** → the Game idles in `:waiting` (persisted) until the human
-      acts via `declare/3`; the beat runs in a Task too, then advances + persists.
+  Micro-machine **actor → turnmaster → handoff**:
 
-  One DM agent (`ExAgent.Server`) resolves every beat, proposing as whichever
-  participant's turn it is — the engine's `WorldDriven` policy + `controlled_by?`
-  guard enforce that the right side acts. The LLM only narrates; tools resolve.
+    * **TurnMaster beat** — cheap agent decides who acts next (`give_turn_to`,
+      `cut_in`, `react`, `pass_to_dm`, `end_scene`). Tools only **record** the
+      decision; this GenServer applies it via `Session.handoff/2` /
+      `Session.update_state/3` (single-writer, D6). On failure → `WorldDriven`
+      fallback.
+    * **AI actor turn** (DM or AI PC) → agent beat in a **Task**. On success,
+      do **not** `end_turn`; hand the floor to TurnMaster.
+    * **Human turn** → `:waiting` until `declare/3`; then the same actor→TM pair.
+
+  `controlled_by?` still enforces that only the current actor uses resolution
+  tools. `WorldDriven` remains the Session policy and the safety net.
 
   ## Restart / rehydrate
 
   On `init`, the Game loads its row from Postgres, decodes the world, rebuilds
-  the Session, and `handoff`s to the stored `current_participant`. If that's an
-  AI turn, the beat auto-runs (the partida resumes); if human, it waits.
+  the Session, and `handoff`s to the stored `current_participant`. Fresh games
+  open on the TurnMaster phase; resumed games open on `:actor`.
   """
 
   use GenServer
   require Logger
 
-  alias Dragones.{Brief, DM, Games, PCAgent, RollLog}
+  alias Dragones.{Brief, DM, Games, PCAgent, RollLog, TurnMaster}
   alias Dragones.Game.Guardrails
   alias Dragones.Game.Instructions
   alias Dragones.Game.{Beat, PendingRetry}
+  alias Dragones.TurnMaster.Decision
   alias Dragones.TurnPolicy.WorldDriven
   alias ExAgent.{Server, Session}
   alias ExAgent.Session.{Participant, SharedState}
@@ -61,10 +67,17 @@ defmodule Dragones.Game do
   # round of 4 participants failing is the trigger.
   @max_fallback_streak 4
 
+  # TurnMaster provider-error circuit (D17/D25): consecutive hard failures of
+  # the TurnMaster beat (not "no decision → WorldDriven", which is the normal
+  # offline TestModel path). After this many, pause with a system note.
+  @max_tm_fallback_streak 4
+
   defstruct game_id: nil,
             game: nil,
             session: nil,
             dm: nil,
+            # TurnMaster agent server (D25) — decides who acts next.
+            turnmaster: nil,
             pc_agents: %{},
             model: nil,
             roller: nil,
@@ -76,7 +89,25 @@ defmodule Dragones.Game do
             busy: nil,
             # Consecutive beats that ended in the soft fallback. Reset to 0 on
             # any successful beat. Reaching @max_fallback_streak pauses the loop.
-            fallback_streak: 0
+            fallback_streak: 0,
+            # Micro-machine phase of the actor→turnmaster pair (D25).
+            # :actor runs DM/PC; :turnmaster runs the handoff agent.
+            loop_phase: :turnmaster,
+            # Who just finished an actor beat (fed into the TurnMaster brief).
+            last_actor: nil,
+            # Whether the last actor beat was a mini-turn (cut_in/react).
+            last_was_mini: false,
+            # Actor interrupted by cut_in/react — brief nudges TM to return.
+            interrupted: nil,
+            # Anti-loop: consecutive give_turn_to of the same actor.
+            tm_same_actor_streak: 0,
+            # Circuit breaker for hard TurnMaster failures.
+            tm_fallback_streak: 0,
+            # Optional nudge stitched into the next TM instruction.
+            tm_nudge: nil,
+            # Next actor beat is a mini-turn (cut_in/react) — do not mark
+            # acted_this_round when it settles.
+            pending_mini: false
 
   # --------------------------------------------------------------- API
 
@@ -355,6 +386,22 @@ defmodule Dragones.Game do
         pubsub: :local
       )
 
+    # TurnMaster (D25): cheap agent that only picks who acts next. Own model so
+    # tests can inject a scripted TM without touching the DM script. When the
+    # DM is a %Test{} (offline suite), default TM to Test too — otherwise a
+    # live API key in .env.dev would make every test hit the network.
+    tm_model =
+      Keyword.get(opts, :turnmaster_model) || default_turnmaster_model(model)
+
+    tm_agent = TurnMaster.new(tm_model, max_tokens: 256)
+
+    {:ok, turnmaster} =
+      Server.start_link(
+        agent: tm_agent,
+        agent_id: "game-#{game_id}-turnmaster",
+        pubsub: :local
+      )
+
     # Create independent agents for AI-controlled PCs. Each gets its own
     # personality-driven prompt and uses the same combat tools. The DM handles
     # monster turns; AI PCs handle their own turns with their own voice.
@@ -392,17 +439,24 @@ defmodule Dragones.Game do
         s -> s
       end
 
+    # Fresh partidas open on TurnMaster so it can hand the first beat to the DM.
+    # Resumed partidas already have a current_participant — start on :actor so
+    # that human resumes into :waiting without an extra TM hop.
+    loop_phase = if is_nil(game.current_participant), do: :turnmaster, else: :actor
+
     %__MODULE__{
       game_id: game_id,
       game: game,
       session: session,
       dm: dm,
+      turnmaster: turnmaster,
       pc_agents: pc_agents,
       model: model,
       roller: roller,
       participants: participants,
       intents: game.intents || %{},
-      status: status
+      status: status,
+      loop_phase: loop_phase
     }
   end
 
@@ -694,16 +748,14 @@ defmodule Dragones.Game do
 
       world = Session.read_state(state.session)
       retries = %{transient_retries: tr, max_token_retries: mr}
+      state = %{state | busy: nil, status: :running}
 
       state =
-        run_beat(
-          %{state | busy: nil, status: :running},
-          participant,
-          instruction,
-          turn_id,
-          world,
-          retries
-        )
+        if participant == "turnmaster" do
+          run_turnmaster_beat(state, turn_id, world, retries)
+        else
+          run_beat(state, participant, instruction, turn_id, world, retries)
+        end
 
       {:noreply, state}
     end
@@ -711,12 +763,20 @@ defmodule Dragones.Game do
 
   def handle_info(_msg, state), do: {:noreply, state}
 
-  # The one-step advance: look at whose turn it is and either kick an AI beat or
-  # settle into :waiting for a human. Never auto-chains more than one beat per
-  # tick (each completed beat schedules the next).
+  # The one-step advance: micro-machine actor → turnmaster (D25). Never
+  # auto-chains more than one beat per tick (each completed beat schedules the
+  # next). WorldDriven remains the Session policy and the fallback when the
+  # TurnMaster cannot produce a valid decision.
   defp advance(%{status: status} = state) when status != :running, do: state
 
   defp advance(%{busy: b} = state) when b != nil, do: state
+
+  defp advance(%{loop_phase: :turnmaster} = state) do
+    world = Session.read_state(state.session)
+    turn_id = generate_turn_id()
+    state = run_turnmaster_beat(state, turn_id, world)
+    %{state | status: :running}
+  end
 
   defp advance(state) do
     case Session.current(state.session) do
@@ -866,6 +926,18 @@ defmodule Dragones.Game do
   end
 
   defp handle_beat_result(state, result) do
+    %Beat{kind: kind} = state.busy
+
+    case kind do
+      :turnmaster -> handle_turnmaster_result(state, result)
+      _ -> handle_actor_beat_result(state, result)
+    end
+  end
+
+  # Actor beat (DM / PC / human): on success do NOT Session.end_turn — hand the
+  # floor to the TurnMaster beat, which applies handoff (D25). Combat bookkeeping
+  # still runs here so the World is honest before the TM decides.
+  defp handle_actor_beat_result(state, result) do
     %Beat{
       participant: current,
       phase: beat_phase,
@@ -873,51 +945,47 @@ defmodule Dragones.Game do
       turn_id: beat_turn_id,
       max_token_retries: beat_max_token_retries,
       transient_retries: beat_transient_retries,
-      enemies_before: beat_enemies_before
+      enemies_before: beat_enemies_before,
+      mini_turn: mini_turn
     } = state.busy
 
     state = %{state | busy: nil}
 
     case result do
       {:ok, _narration, rolls, usage} ->
-        {:ok, _} = Session.end_turn(state.session, current)
-
-        # Dice were already persisted + broadcast LIVE by the RollLog on_close
-        # callback as each roll resolved — one modal-open per group, with the
-        # full labeled entry (reason + dice + total + against + outcome) in a
-        # single shot, never the bare-number-then-context two-step we used to
-        # have. Nothing else to do here for dice.
         _ = rolls
-
-        # Narration was already persisted by the Dragones.Events capability
-        # (after_model_request) the instant the model produced its final text.
-
-        # Log the prompt-caching win (cached vs total input tokens) so the cost
-        # saving is visible. Best-effort: a missing usage map just logs nothing.
         log_token_usage(state.game_id, usage)
 
-        # Ghost-combat recovery: if this beat introduced a living enemy while we
-        # are still in exploration (the DM spawned a monster — or a hostile
-        # appeared — but didn't roll initiative), force combat now so the loop
-        # actually sequences the fight. Runs before maybe_end_combat (a no-op in
-        # exploration) so the phase flip + initiative land cleanly.
         state = maybe_force_combat(state, beat_enemies_before)
-
-        # Engine-driven combat bookkeeping the DM used to have to remember (and
-        # often forgot, leaving combat wedged or the round counter stuck):
         state = maybe_end_combat(state)
+
+        # Main turns mark acted_this_round; mini-turns (cut_in/react) do not.
+        state =
+          if mini_turn do
+            state
+          else
+            mark_actor_acted(state, current)
+          end
+
         maybe_advance_round(state, current, beat_phase)
 
-        # Honour a pause the user requested while this beat was in flight.
-        # Without this, pressing "Pausa" during a bot's beat would be silently
-        # undone the moment the beat finished (persist+tick overwrote :paused
-        # back to :running). Real pausa means "stop the loop after this beat
-        # settles", so we persist as :paused, skip the next tick, and let the
-        # user resume explicitly.
         next_status = if state.status == :paused, do: :paused, else: :running
 
-        # A successful beat breaks any fallback streak.
-        state = %{state | fallback_streak: 0}
+        state = %{
+          state
+          | fallback_streak: 0,
+            last_actor: current,
+            last_was_mini: mini_turn,
+            loop_phase: :turnmaster
+        }
+
+        # Mini-turn finished: clear interrupted if we just resolved it.
+        state =
+          if mini_turn and state.interrupted == current do
+            %{state | interrupted: nil}
+          else
+            state
+          end
 
         persist(state, next_status)
         broadcast_updated(state)
@@ -927,21 +995,10 @@ defmodule Dragones.Game do
       {:error, reason} ->
         cond do
           Beat.max_tokens_error?(reason) and beat_max_token_retries < 1 ->
-            # The model burned through max_tokens mid-output. With shared history
-            # the agents have a lot of context to weave into prose, so the FIRST
-            # response can run long. Instead of giving up (and rendering "X
-            # empieza a decir algo…"), retry ONCE with an explicit "be brief"
-            # preamble stitched into the instruction — usually enough for the
-            # model to land a tight, complete beat. A second failure still falls
-            # through to the soft fallback below.
             Logger.info(
               "dragones game #{state.game_id} beat hit max_tokens for #{current}; retrying with brevity nudge"
             )
 
-            # The beat streamed a partial narration before being cut off (the
-            # Events capability persists text the instant the model emits it).
-            # Drop that truncated line now so the retry's complete narration
-            # doesn't land next to a "…correa de la moch" stub.
             Games.delete_narrations_for_turn(state.game_id, beat_turn_id)
 
             world = Session.read_state(state.session)
@@ -951,10 +1008,6 @@ defmodule Dragones.Game do
 
           Beat.transient_provider_error?(reason) and
               beat_transient_retries < @max_transient_retries ->
-            # Provider hiccup (5xx / 429 / timeout / connection drop / overload).
-            # These resolve themselves within seconds, so retry with exponential
-            # backoff instead of rendering "X titubea" — which, during a real
-            # DeepSeek outage, used to chain 5+ fallbacks in a row.
             schedule_transient_retry(
               state,
               current,
@@ -967,7 +1020,87 @@ defmodule Dragones.Game do
             )
 
           true ->
-            handle_non_max_token_error(state, current, beat_phase, beat_turn_id, reason)
+            # Soft fallback used to end_turn itself. Under TurnMaster we still
+            # advance past the failed actor via the TM path so the loop does not
+            # dead-lock on a broken agent.
+            state = handle_non_max_token_error(state, current, beat_phase, beat_turn_id, reason)
+            # handle_non_max_token_error may have end_turn'd — re-align to TM.
+            realign_after_actor_error(state, current)
+        end
+    end
+  end
+
+  # After a soft actor failure the legacy path already advanced the cursor via
+  # end_turn. Keep loop_phase on :actor so the next participant acts without an
+  # extra empty TM hop (the cursor already moved).
+  defp realign_after_actor_error(state, _current) do
+    %{state | loop_phase: :actor, last_actor: nil}
+  end
+
+  # TurnMaster beat: read the decision recorder and hand off, or fall back to
+  # WorldDriven. Never mutates World from inside the agent — Game applies it.
+  defp handle_turnmaster_result(state, result) do
+    %Beat{
+      turn_id: beat_turn_id,
+      instruction: beat_instruction,
+      max_token_retries: beat_max_token_retries,
+      transient_retries: beat_transient_retries,
+      phase: beat_phase
+    } = state.busy
+
+    # Decision was stashed on busy via the beat Task return value.
+    {decision, result} =
+      case result do
+        {:ok, decision, usage} -> {decision, {:ok, usage}}
+        other -> {nil, other}
+      end
+
+    state = %{state | busy: nil}
+
+    case result do
+      {:ok, usage} ->
+        log_token_usage(state.game_id, usage)
+        state = apply_turnmaster_decision(state, decision)
+        next_status = if state.status == :paused, do: :paused, else: :running
+        state = %{state | loop_phase: :actor, tm_nudge: nil}
+        persist(state, next_status)
+        broadcast_updated(state)
+        if next_status == :running, do: send(self(), @tick)
+        %{state | status: next_status}
+
+      {:error, reason} ->
+        cond do
+          Beat.transient_provider_error?(reason) and
+              beat_transient_retries < @max_transient_retries ->
+            schedule_transient_retry(
+              state,
+              "turnmaster",
+              beat_phase,
+              beat_instruction,
+              beat_turn_id,
+              beat_transient_retries,
+              beat_max_token_retries,
+              reason
+            )
+
+          true ->
+            Logger.warning(
+              "dragones game #{state.game_id} turnmaster beat failed: #{inspect(reason)}"
+            )
+
+            # Provider hard faults (after transient retries exhausted) trip the
+            # circuit. Model-behavior quirks (empty TestModel, exhausted script,
+            # "Please respond") are soft — same as "no decision".
+            reason_tag =
+              if Beat.transient_provider_error?(reason), do: :tm_error, else: :no_decision
+
+            state = fallback_world_driven(state, reason_tag)
+            next_status = if state.status == :paused, do: :paused, else: :running
+            state = %{state | loop_phase: :actor, tm_nudge: nil}
+            persist(state, next_status)
+            broadcast_updated(state)
+            if next_status == :running, do: send(self(), @tick)
+            %{state | status: next_status}
         end
     end
   end
@@ -1221,14 +1354,19 @@ defmodule Dragones.Game do
         result
       end)
 
+    mini = state.pending_mini == true
+
     %{
       state
-      | busy: %Beat{
+      | pending_mini: false,
+        busy: %Beat{
           ref: task.ref,
           participant: participant,
           phase: world.phase,
           turn_id: turn_id,
           instruction: instruction,
+          kind: :actor,
+          mini_turn: mini,
           max_token_retries: retries.max_token_retries,
           transient_retries: retries.transient_retries,
           enemies_before: Dragones.World.living_enemies(world)
@@ -1237,10 +1375,314 @@ defmodule Dragones.Game do
   end
 
   # Select the right agent for a turn: AI PCs have their own agent; everything
-  # else (DM beats, monster turns) goes to the DM agent.
+  # else (DM beats, monster turns) goes to the DM agent. TurnMaster is its own
+  # server and is launched via `run_turnmaster_beat/4`, not this helper.
   defp agent_for(%{dm: dm, pc_agents: pc_agents}, name) do
     Map.get(pc_agents, name, dm)
   end
+
+  # --------------------------------------------------------------- TurnMaster
+
+  defp run_turnmaster_beat(
+         state,
+         turn_id,
+         world,
+         retries \\ %{max_token_retries: 0, transient_retries: 0}
+       ) do
+    names = state.participants |> Map.keys() |> Enum.sort()
+    prompt_body = Brief.turnmaster_brief(world, state.last_actor, names)
+
+    instruction =
+      TurnMaster.instruction(state.last_actor, world,
+        participants: names,
+        nudge: state.tm_nudge,
+        interrupted: state.interrupted
+      )
+
+    prompt = "WORLD:\n#{prompt_body}\n\n#{instruction}"
+
+    task =
+      Task.Supervisor.async_nolink(ExAgent.TaskSupervisor, fn ->
+        {:ok, recorder} = Decision.start()
+
+        deps = %{
+          decision: recorder,
+          world: world,
+          participants: names
+        }
+
+        result =
+          case Server.chat(state.turnmaster, prompt, deps: deps, stream_text: false) do
+            {:ok, %{usage: usage}} ->
+              {:ok, Decision.get(recorder), usage}
+
+            {:error, reason} ->
+              {:error, reason}
+          end
+
+        Decision.stop(recorder)
+        result
+      end)
+
+    %{
+      state
+      | busy: %Beat{
+          ref: task.ref,
+          participant: "turnmaster",
+          phase: world.phase,
+          turn_id: turn_id,
+          instruction: instruction,
+          kind: :turnmaster,
+          max_token_retries: retries.max_token_retries,
+          transient_retries: retries.transient_retries,
+          enemies_before: MapSet.new()
+        }
+    }
+  end
+
+  defp apply_turnmaster_decision(state, nil), do: fallback_world_driven(state, :no_decision)
+
+  defp apply_turnmaster_decision(state, %{action: action} = decision) do
+    to = decision[:to] || decision["to"]
+
+    cond do
+      action in [:give_turn_to, :cut_in, :react, :pass_to_dm, :end_scene] ->
+        do_apply_decision(state, action, to, decision)
+
+      true ->
+        fallback_world_driven(state, :invalid_action)
+    end
+  end
+
+  defp apply_turnmaster_decision(state, _), do: fallback_world_driven(state, :no_decision)
+
+  defp do_apply_decision(state, action, to, decision) do
+    # Anti-loop: same actor twice in a row via give_turn_to (not cut_in/react).
+    same? =
+      action == :give_turn_to and is_binary(to) and to == state.last_actor and
+        not state.last_was_mini
+
+    streak = if same?, do: state.tm_same_actor_streak + 1, else: 0
+
+    if streak >= 2 do
+      Logger.info(
+        "dragones game #{state.game_id} turnmaster anti-loop: #{to} repeated; WorldDriven fallback"
+      )
+
+      state = %{
+        state
+        | tm_same_actor_streak: 0,
+          tm_nudge: "No repitas a #{to}: ya actuó. Elige a otro participante."
+      }
+
+      fallback_world_driven(state, :anti_loop)
+    else
+      case action do
+        :end_scene ->
+          apply_end_scene(state)
+
+        :pass_to_dm ->
+          handoff_to(state, "dm", decision, streak)
+
+        :cut_in ->
+          apply_mini_handoff(state, to, decision, streak)
+
+        :react ->
+          apply_mini_handoff(state, to, decision, streak)
+
+        :give_turn_to ->
+          handoff_to(state, to, decision, streak)
+      end
+    end
+  end
+
+  defp apply_mini_handoff(state, to, decision, streak) when is_binary(to) do
+    # Remember who held the floor so the next TM brief can return the word.
+    interrupted = Session.current(state.session) || state.last_actor
+    state = %{state | interrupted: interrupted, tm_same_actor_streak: streak}
+    target = resolve_participant(state, to)
+
+    case Session.handoff(state.session, target) do
+      {:ok, _} ->
+        append_tm_note(state, decision)
+        %{state | pending_mini: true, tm_fallback_streak: 0}
+
+      {:error, _} ->
+        fallback_world_driven(state, :handoff_failed)
+    end
+  end
+
+  defp apply_mini_handoff(state, _, _, _), do: fallback_world_driven(state, :invalid_target)
+
+  defp handoff_to(state, to, decision, streak) when is_binary(to) do
+    target = resolve_participant(state, to)
+
+    case Session.handoff(state.session, target) do
+      {:ok, _} ->
+        # Note keeps the raw `to` (may be a monster name) for readable UI.
+        append_tm_note(state, decision)
+
+        %{
+          state
+          | tm_same_actor_streak: streak,
+            tm_fallback_streak: 0,
+            interrupted: nil,
+            pending_mini: false
+        }
+
+      {:error, _} ->
+        fallback_world_driven(state, :handoff_failed)
+    end
+  end
+
+  defp handoff_to(state, _, _, _), do: fallback_world_driven(state, :invalid_target)
+
+  # Session participants are "dm" + PC names. Monsters fold onto the DM
+  # (same rule as WorldDriven / controlled_by?).
+  defp resolve_participant(_state, name) when name == "dm", do: "dm"
+
+  defp resolve_participant(state, name) do
+    cond do
+      Map.has_key?(state.participants, name) ->
+        name
+
+      true ->
+        world = Session.read_state(state.session)
+        Dragones.World.controller_of(world, name)
+    end
+  end
+
+  defp apply_end_scene(state) do
+    world = Session.read_state(state.session)
+
+    if world.phase == :combat do
+      proposer = Session.current(state.session) || "dm"
+
+      _ =
+        Session.update_state(state.session, proposer, Dragones.World.end_combat())
+    end
+
+    case Session.handoff(state.session, "dm") do
+      {:ok, _} ->
+        append_tm_note(state, %{action: :end_scene, to: "dm"})
+
+        %{
+          state
+          | tm_same_actor_streak: 0,
+            tm_fallback_streak: 0,
+            interrupted: nil,
+            pending_mini: false
+        }
+
+      {:error, _} ->
+        fallback_world_driven(state, :handoff_failed)
+    end
+  end
+
+  defp append_tm_note(state, decision) do
+    note =
+      decision
+      |> TurnMaster.decision_note()
+      |> Dragones.Text.scrub()
+
+    payload = %{
+      note: note,
+      kind: decision[:action] || decision["action"],
+      to: decision[:to] || decision["to"]
+    }
+
+    {:ok, _} = Games.append_event(state.game_id, :system, "turnmaster", "all", payload)
+    :ok
+  end
+
+  # WorldDriven fallback: advance the Session cursor deterministically.
+  # `reason` is for logging / the system note; soft reasons (no_decision from
+  # TestModel) do NOT trip the TM circuit breaker.
+  defp fallback_world_driven(state, reason) do
+    hard? = reason in [:tm_error, :handoff_failed]
+    streak = if hard?, do: state.tm_fallback_streak + 1, else: state.tm_fallback_streak
+
+    current = Session.current(state.session)
+
+    # Prefer end_turn when we still sit on the actor who just finished — that
+    # advances WorldDriven past them. At partida start (nobody has acted yet)
+    # keep the policy's current so we don't skip the opener.
+    _ =
+      cond do
+        is_nil(state.last_actor) and is_binary(current) and current != "" ->
+          :ok
+
+        is_binary(current) and current != "" ->
+          case Session.end_turn(state.session, current) do
+            {:ok, _} -> :ok
+            {:error, _} -> try_handoff_first(state)
+          end
+
+        true ->
+          try_handoff_first(state)
+      end
+
+    note =
+      case reason do
+        :anti_loop -> "El motor toma el relevo del turno (anti-bucle)."
+        :no_decision -> "El motor toma el relevo del turno."
+        _ -> "El motor toma el relevo del turno."
+      end
+
+    {:ok, _} =
+      Games.append_event(state.game_id, :system, "system", "all", %{
+        note: Dragones.Text.scrub(note),
+        kind: :turnmaster_fallback,
+        reason: reason
+      })
+
+    state = %{
+      state
+      | tm_fallback_streak: streak,
+        tm_same_actor_streak: 0,
+        pending_mini: false
+    }
+
+    if hard? and streak >= @max_tm_fallback_streak do
+      Logger.warning(
+        "dragones game #{state.game_id} pausing after #{streak} consecutive TurnMaster failures"
+      )
+
+      {:ok, _} =
+        Games.append_event(state.game_id, :system, "system", "all", %{
+          note:
+            "⏸ La partida se ha pausado: el TurnMaster falló #{@max_tm_fallback_streak} veces seguidas. Reanuda manualmente."
+        })
+
+      %{state | status: :paused, tm_fallback_streak: 0}
+    else
+      state
+    end
+  end
+
+  defp try_handoff_first(state) do
+    # Session.start already ran; ask policy for next via a dummy end if needed.
+    # Last resort: hand off to dm.
+    _ = Session.handoff(state.session, "dm")
+    :ok
+  end
+
+  defp mark_actor_acted(state, name) when is_binary(name) do
+    world = Session.read_state(state.session)
+
+    if world.phase == :combat do
+      proposer = Session.current(state.session) || name
+
+      case Session.update_state(state.session, proposer, Dragones.World.mark_acted(name)) do
+        {:ok, _} -> state
+        {:error, _} -> state
+      end
+    else
+      state
+    end
+  end
+
+  defp mark_actor_acted(state, _), do: state
 
   defp human?(%{participants: ps}, name) do
     case Map.get(ps, name) do
@@ -1338,19 +1780,29 @@ defmodule Dragones.Game do
     end
   end
 
-  # Advance the round counter when the initiative cycle wraps. A round = one
-  # full pass through the (living) combatants; we detect the wrap statelessly:
-  # the participant who just acted was the LAST in the cycle and there's more
-  # than one combatant. `beat_phase` excludes the combat-START beat (which began
-  # in exploration and may falsely look like a wrap). No-op once combat has
-  # ended above. Keeps `world.round` honest so the DM brief stays accurate.
+  # Advance the round when every conscious combat participant has spent a main
+  # turn this round (`acted_this_round`, D25). Falls back to the legacy "last of
+  # the WorldDriven cycle" heuristic when the set is empty (e.g. mid-migration
+  # worlds or pure WorldDriven fallback streaks that never marked anyone).
   defp maybe_advance_round(state, acted, :combat) do
     world = Session.read_state(state.session)
 
     if world.phase == :combat do
       cycle = Dragones.TurnPolicy.WorldDriven.combat_participants(world, "dm")
 
-      if length(cycle) > 1 and acted == List.last(cycle) do
+      complete? =
+        cond do
+          cycle == [] ->
+            false
+
+          MapSet.size(world.acted_this_round || MapSet.new()) > 0 ->
+            Dragones.World.round_complete?(world, cycle)
+
+          true ->
+            length(cycle) > 1 and acted == List.last(cycle)
+        end
+
+      if complete? do
         with next when not is_nil(next) <- Session.current(state.session),
              {:ok, _} <- Session.update_state(state.session, next, Dragones.World.next_round()) do
           :ok
@@ -1414,6 +1866,16 @@ defmodule Dragones.Game do
   # --------------------------------------------------------------- model
 
   defp default_model, do: Dragones.Models.dm()
+
+  # Live TM only when the DM itself is a live provider. Offline/flaky/test
+  # models (and any custom %ExAgent.Model{} used in tests) get a quiet Test TM
+  # that soft-falls back to WorldDriven — otherwise a keyed .env would make
+  # every suite hit the network, and FlakyModel would burn retry budget on TM.
+  defp default_turnmaster_model(%ExAgent.Models.OpenRouter{}), do: Dragones.Models.turnmaster()
+  defp default_turnmaster_model(%ExAgent.Models.OpenCode{}), do: Dragones.Models.turnmaster()
+
+  defp default_turnmaster_model(_offline),
+    do: %ExAgent.Models.Test{label: "(turnmaster: use WorldDriven)"}
 
   # Token streaming is only meaningful for real HTTP-backed providers. The
   # in-process Test model can't propagate its mutated script index back through

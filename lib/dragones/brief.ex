@@ -37,6 +37,7 @@ defmodule Dragones.Brief do
     turn_line = turn_for(w, current, dm, kinds)
     control_line = control_line(w, kinds)
     facts_line = facts_line(w)
+    acted_line = acted_this_round_line(w)
 
     chars =
       w.characters
@@ -44,10 +45,64 @@ defmodule Dragones.Brief do
       |> Enum.map(fn {name, c} -> describe_char(name, c, current, dm, w.spell_slots, kinds) end)
       |> Enum.join("\n")
 
-    [phase_line, turn_line, control_line, facts_line, "Escena: #{w.scene}", chars]
+    [phase_line, turn_line, control_line, acted_line, facts_line, "Escena: #{w.scene}", chars]
     |> Enum.reject(&(&1 == ""))
     |> Enum.join("\n")
   end
+
+  @doc """
+  Compact brief for the TurnMaster beat (D25): initiative, who already acted
+  this round, living/down, and who holds the word now.
+  """
+  @spec turnmaster_brief(World.t(), String.t() | nil, [String.t()]) :: String.t()
+  def turnmaster_brief(%World{} = w, last_actor, participants \\ []) do
+    phase =
+      case w.phase do
+        :combat ->
+          order = Enum.join(w.initiative_order || [], " -> ")
+          "Combate ronda #{w.round}. Iniciativa: #{order}."
+
+        _ ->
+          "Exploración."
+      end
+
+    last = if last_actor, do: "Acaba de actuar: #{last_actor}.", else: "Arranque."
+    acted = acted_this_round_line(w)
+
+    roster =
+      if participants == [], do: "", else: "Participantes: #{Enum.join(participants, ", ")}."
+
+    living =
+      w.characters
+      |> Enum.sort_by(fn {n, _} -> n end)
+      |> Enum.map_join("\n", fn {name, c} ->
+        status =
+          cond do
+            World.dead?(w, name) -> "MUERTO"
+            World.down?(w, name) -> "caído"
+            true -> "vivo #{c.hp}/#{c.max_hp}"
+          end
+
+        "- #{name} (#{c.side}): #{status}"
+      end)
+
+    [phase, last, acted, roster, "Estado:", living, "Escena: #{w.scene}"]
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join("\n")
+  end
+
+  defp acted_this_round_line(%World{phase: :combat, acted_this_round: %MapSet{} = acted}) do
+    case MapSet.to_list(acted) do
+      [] -> "acted_this_round: (nadie)"
+      names -> "acted_this_round: #{Enum.join(Enum.sort(names), ", ")}"
+    end
+  end
+
+  defp acted_this_round_line(%World{phase: :combat, acted_this_round: list}) when is_list(list) do
+    acted_this_round_line(%World{phase: :combat, acted_this_round: MapSet.new(list)})
+  end
+
+  defp acted_this_round_line(_), do: ""
 
   @doc "Build the per-turn user message: world snapshot + a directing instruction."
   @spec turn_prompt(

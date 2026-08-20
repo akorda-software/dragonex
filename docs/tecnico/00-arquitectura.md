@@ -33,8 +33,9 @@ proceso puede morir y la partida rehidrata.
 │     Un proceso :transient por game_id. Es el ÚNICO escritor del World.  │
 │     Lanza los beats como Task, persiste tras cada uno.                   │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ S3  Motor de agentes (engine) ExAgent.Session + lib/dragones/turn_policy/│
-│     Driva el chat modelo↔tools y decide el turno leyendo el World.       │
+│ S3  Motor de agentes (engine) ExAgent.Session + turn_policy/ + TurnMaster│
+│     Driva el chat modelo↔tools. TurnMaster reparte turnos (D25);         │
+│     WorldDriven queda como fallback determinista.                        │
 ├──────────────────────────────────────────────────────────────────────────┤
 │ S4  Reglas 5e                  lib/dragones/rules/ + actions.ex + world  │
 │     Matemática PURA sin estado (roller inyectado). Resuelve tiradas.     │
@@ -42,10 +43,10 @@ proceso puede morir y la partida rehidrata.
 │ S5  Tools (API del LLM)        lib/dragones/tools.ex                     │
 │     deftools que el modelo invoca → Actions → World (vía SharedState).   │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ S6  Agentes                    lib/dragones/{dm,pc_agent,agent,          │
-│                                events,brief,history}.ex                  │
-│     DM (16 reglas) y PCAgent (personalidad). Prompts, guardrails,        │
-│     contexto compartido.                                                  │
+│ S6  Agentes                    lib/dragones/{dm,pc_agent,turn_master,    │
+│                                agent,events,brief,history}.ex            │
+│     DM, PCAgent y TurnMaster (orquestación de turnos, D25). Prompts,     │
+│     guardrails, contexto compartido.                                     │
 ├──────────────────────────────────────────────────────────────────────────┤
 │ S7  Persistencia               lib/dragones/games.ex + games/ + codec.ex │
 │     El contexto Games toca Repo (games/participants/characters/events).  │
@@ -106,7 +107,7 @@ Reglas de la dirección:
 |---|---|---|
 | Una pantalla / evento de la LiveView | S1 | `lib/dragones_web/live/` |
 | El bucle de la partida, pausa, reanuda | S2 | `Dragones.Game` (`game.ex`) |
-| De quién es el turno | S3 | `Dragones.TurnPolicy.WorldDriven` |
+| De quién es el turno | S3/S6 | `TurnMaster` (principal) + `WorldDriven` (fallback) |
 | Una regla 5e (tirada, daño, salvación) | S4 | `Dragones.Rules.Combat`, `Rules.Ability` |
 | El puente intent→world de una acción | S4 | `Dragones.Actions` |
 | La estructura/estado del mundo | S4 | `Dragones.World` |

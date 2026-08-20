@@ -76,7 +76,9 @@ defmodule Dragones.Game.Guardrails do
     conjura conjuro conjurar
     golpea golpeo golpear
     dispara disparo disparar
-    desenvaina desenvainar
+    desenvaina desenvainar desenfunda desenfundar
+    tensa tensar apunta apuntar
+    prepara preparar
     carga cargo cargar
     salta salto saltar
     corre correr
@@ -98,7 +100,19 @@ defmodule Dragones.Game.Guardrails do
     dice hablar habla
     grita susurrar susurra
     pregunta preguntar responde responder exclama replica
+    aprovecha aprovechar
+    se_abalanza se_lanza se_agacha se_acerca se_incorpora se_prepara
   )
+
+  @doc """
+  True when `text` describes a PC performing a proactive action (rule 14 leak).
+  Pure helper so unit tests can pin the detector without a live Game.
+  """
+  @spec dm_narration_puppets_pc?(String.t(), [String.t()]) :: boolean()
+  def dm_narration_puppets_pc?(text, pc_names)
+      when is_binary(text) and is_list(pc_names) do
+    pc_names != [] and Regex.match?(puppet_pattern(pc_names), text)
+  end
 
   @spec with_dm_no_puppet_nudge(term(), World.t(), String.t()) :: String.t()
   def with_dm_no_puppet_nudge(game_id, world, base_instruction) do
@@ -111,14 +125,15 @@ defmodule Dragones.Game.Guardrails do
   end
 
   defp dm_puppeted_a_pc?(game_id, %World{} = world) do
-    pc_names = living_pc_names(world)
+    # Include downed PCs: the DM must not puppet a fallen ally either.
+    pc_names = pc_names(world)
 
     if pc_names == [] do
       false
     else
       case last_dm_narration(game_id) do
         nil -> false
-        text -> Regex.match?(puppet_pattern(pc_names), text)
+        text -> dm_narration_puppets_pc?(text, pc_names)
       end
     end
   end
@@ -139,21 +154,24 @@ defmodule Dragones.Game.Guardrails do
 
   defp last_dm_narration(game_id), do: List.first(dm_narration_texts(game_id))
 
-  defp living_pc_names(%World{characters: chars}) do
+  defp pc_names(%World{characters: chars}) do
     chars
-    |> Enum.filter(fn {_, c} -> c.side == "pc" and (c.hp || 0) > 0 end)
+    |> Enum.filter(fn {_, c} -> c.side == "pc" end)
     |> Enum.map(&elem(&1, 0))
   end
 
-  # Build a regex that matches a PC name followed (within one clause, ~50 chars)
-  # by a proactive action verb, OR a verb followed by a PC. Anchored on word
-  # boundaries so "Thane" doesn't match "Thanelong" and vice-versa.
+  # Only name→verb (PC as subject). Verb→name would false-positive on
+  # "el sabueso se abalanza contra Rhogar". Underscores in the verb list stand
+  # for whitespace ("se_lanza" → "se lanza").
   defp puppet_pattern(pc_names) do
     names_alt = pc_names |> Enum.map(&Regex.escape/1) |> Enum.join("|")
-    verbs_alt = @puppet_action_verbs |> Enum.join("|")
 
-    pattern =
-      "(?:\\b#{names_alt}\\b)[^.!?]{0,50}\\b(?:#{verbs_alt})\\b|(?:\\b#{verbs_alt}\\b)[^.!?]{0,30}(?:\\b#{names_alt}\\b)"
+    verbs_alt =
+      @puppet_action_verbs
+      |> Enum.map(fn v -> v |> String.replace("_", "\\s+") |> then(&"(?:#{&1})") end)
+      |> Enum.join("|")
+
+    pattern = "(?:\\b#{names_alt}\\b)[^.!?]{0,80}\\b(?:#{verbs_alt})\\b"
 
     case Regex.compile(pattern, "i") do
       {:ok, re} -> re
@@ -163,11 +181,11 @@ defmodule Dragones.Game.Guardrails do
 
   defp dm_no_puppet_nudge do
     "⚠️ REGLA 14 — RECORDATORIO URGENTE ⚠️ En tu ÚLTIMA narración describiste a un " <>
-      "personaje jugador (PC) HACIENDO algo: atacar, moverse, conjurar, hablar, desenvainar… " <>
-      "ESTÁ PROHIBIDO narrar las acciones, decisiones o diálogos de los PCs. Ellos actúan en " <>
-      "SU turno; tú NUNCA los mueves, los haces hablar, ni decides por ellos. Tu narración " <>
-      "describe SOLO el mundo, los monstruos, los PNJ y las consecuencias de lo que YA ocurrió. " <>
-      "Si un PC aún no ha actuado, ESPERA — no rellenes con su comportamiento."
+      "personaje jugador (PC) HACIENDO algo: atacar, moverse, conjurar, tensar el arco, " <>
+      "hablar, desenvainar… ESTÁ PROHIBIDO. Ejemplos PROHIBIDOS: «Lyra conjura firebolt», " <>
+      "«Vex tensa su arco», «Vex aprovecha y dispara», «Rhogar se lanza al ataque». " <>
+      "Ellos actúan SOLO en SU turno. Tú describes el mundo, monstruos, PNJ y consecuencias " <>
+      "de lo que YA ocurrió. Si un PC aún no ha actuado, ESPERA — no rellenes su comportamiento."
   end
 
   # DM anti-repeat: when the DM reuses nearly the same line ("se desvanece en
