@@ -1,4 +1,4 @@
-# AGENTS.md — Dragones
+# AGENTS.md — Dragonex
 
 Guía para agentes automatizados (y humanos) que trabajan en este repo.
 Léela antes de tocar nada.
@@ -16,13 +16,13 @@ D&D 5e con DM por IA. Elixir/Phoenix LiveView + Postgres + `exAgent` (GitHub dep
 
 ```sh
 docker compose -f compose.dev.yml up -d   # Postgres + app en http://localhost:4035
-MIX_ENV=test mix test                     # suite (543 passed). SIEMPRE con MIX_ENV=test
+MIX_ENV=test mix test                     # suite (566 passed). SIEMPRE con MIX_ENV=test
 mix format                                # obligatorio antes de commit
 mix compile                               # sin warnings
-docker logs -f dragones-app               # logs
+docker logs -f dragonex-app               # logs
 ```
 
-- **Deps locales (exagent/dic_ex)**: `DRAGONES_LOCAL_DEPS=1` en `.env.dev`
+- **Deps locales (exagent/dic_ex)**: `DRAGONEX_LOCAL_DEPS=1` en `.env.dev`
   hace que mix los resuelva desde `../exagent` y `../dic_ex` (siblings del repo)
   en vez de GitHub. Arranca con `bin/dev` (carga `.env.dev` antes que mix, que
   `mix.exs` se evalúa antes que `config/runtime.exs`). Docker y prod usan
@@ -31,7 +31,7 @@ docker logs -f dragones-app               # logs
   los assets de dados vienen de `dic_ex`, ya vendored en `priv/static/assets/`).
 - DB para `mix phx.server` en host: `DB_PORT=5455` (`.env.dev`). App dev: **4035**, Postgres dev: **5455**.
 - Sin `OPENROUTER_API_KEY` en `.env.dev`, los beats usan `TestModel` (no narran).
-  Live: `DRAGONES_RUN_LIVE=1 OPENROUTER_API_KEY=... mix test --include integration`.
+  Live: `DRAGONEX_RUN_LIVE=1 OPENROUTER_API_KEY=... mix test --include integration`.
 
 ## Convenciones que NO se rompen
 
@@ -42,7 +42,7 @@ docker logs -f dragones-app               # logs
   al `Character` → van a `Codec.encode/decode` o **no sobreviven** al jsonb. (D4, D8)
 - **`Codec` usa `String.to_atom`** (no `to_existing_atom` — los átomos pueden no
   estar cargados). Fuera del codec, usa `to_existing_atom`. (D8)
-- **Builder offline**: `Dragones.Heroes` y `Heroes.Catalog` **no tocan DB** (tests
+- **Builder offline**: `Dragonex.Heroes` y `Heroes.Catalog` **no tocan DB** (tests
   `async: true`). El contexto custom se **inyecta** (`opts[:custom]`), no se
   consulta dentro. (D9)
 - **El motor es fuente de verdad**: la IA no calcula resultados. Lógica nueva de
@@ -54,9 +54,9 @@ docker logs -f dragones-app               # logs
 ## Estructura rápida
 
 ```
-lib/dragones/           motor + dominio (Rules, World, Actions, Tools, DM,
+lib/dragonex/           motor + dominio (Rules, World, Actions, Tools, DM,
                         PCAgent, Game GenServer, Games DB, Heroes creador, Accounts)
-lib/dragones_web/       LiveViews (Game, Hero, CustomContent), router, auth
+lib/dragonex_web/       LiveViews (Game, Hero, CustomContent), router, auth
 priv/repo/migrations/   8 migraciones
 priv/srd/spells.es.json 319 hechizos SRD (regenerable: scripts/import_srd_spells.py)
 docs/                   progress, decisions, FLUJO_PARTIDA, historical/

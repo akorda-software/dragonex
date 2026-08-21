@@ -1,8 +1,8 @@
-# Live check: a real LLM DM (+ TurnMaster) drives the Dragones.Game process.
+# Live check: a real LLM DM (+ TurnMaster) drives the Dragonex.Game process.
 #
 # Run with:
 #   set -a; source .env; set +a
-#   DRAGONES_MODEL=deepseek/deepseek-v4-flash mix run priv/live_game.exs
+#   DRAGONEX_MODEL=deepseek/deepseek-v4-flash mix run priv/live_game.exs
 #
 # Proves the full loop through the Game process + Postgres (incl. D25):
 #   - TurnMaster hands the floor (or WorldDriven fallback if TM has no key);
@@ -15,18 +15,18 @@
 # which is detectable as hp changing by the rules + dice rolled. TurnMaster
 # only decides who acts (system notes "El turno pasa a …").
 
-alias Dragones.{Game, Games, Roster}
+alias Dragonex.{Game, Games, Roster}
 alias ExAgent.Models
 
 unless System.get_env("OPENROUTER_API_KEY"),
-  do: raise("set OPENROUTER_API_KEY (and optionally DRAGONES_MODEL)")
+  do: raise("set OPENROUTER_API_KEY (and optionally DRAGONEX_MODEL)")
 
-Application.ensure_all_started(:dragones)
+Application.ensure_all_started(:dragonex)
 
 model =
   Models.OpenRouter.new(
-    model: System.get_env("DRAGONES_MODEL", "deepseek/deepseek-v4-flash"),
-    app_title: "dragones fase-0 live"
+    model: System.get_env("DRAGONEX_MODEL", "deepseek/deepseek-v4-flash"),
+    app_title: "dragonex fase-0 live"
   )
 
 # Instrumented roller: every call is proof the engine ran a tool. (The Game
@@ -131,7 +131,7 @@ old_pid = pid
 Process.exit(pid, :kill)
 
 pid2 =
-  Stream.repeatedly(fn -> Dragones.Game.Supervisor.whereis(game_id) end)
+  Stream.repeatedly(fn -> Dragonex.Game.Supervisor.whereis(game_id) end)
   |> Enum.find_value(fn
     p when is_pid(p) and p != old_pid -> p
     _ -> Process.sleep(20); nil

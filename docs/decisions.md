@@ -1,4 +1,4 @@
-# Decisiones de diseño — Dragones
+# Decisiones de diseño — Dragonex
 
 Registro canónico de decisiones confirmadas (estilo ADR ligero). Cada entrada
 **no se rebate por la mitad**: si una futura implementación la contradice, se
@@ -25,7 +25,7 @@ El framework (GitHub dep `kukapu/exagent`, branch `main`) provee `Session` con `
 orquesta el bucle y la durabilidad, no reimplementa el motor. (Fase 0.)
 
 ### D3 — El `Game` es la capa de durabilidad (no un `ExAgent.Store`)
-El `Session` corre **in-memory sin store**; el `Dragones.Game` persiste a
+El `Session` corre **in-memory sin store**; el `Dragonex.Game` persiste a
 Postgres tras cada beat (estado + evento append-only). Rehidratar = leer el
 row, reconstruir el `Session` y hacer `handoff/2` al `current_participant`.
 Evita doble persistencia y mantiene los `game_events` (que no son contrato de
@@ -36,13 +36,13 @@ Evita doble persistencia y mantiene los `game_events` (que no son contrato de
 línea temporal append-only para replay, contexto de agentes y chat. Ambos se
 persisten en cada cambio → la partida se reconstruye/reanuda por `game_id`.
 
-### D5 — `Dragones.Game` es un GenServer on-demand, uno por partida
+### D5 — `Dragonex.Game` es un GenServer on-demand, uno por partida
 `:transient` bajo `DynamicSupervisor`, registro por `game_id` vía `Registry`.
 Arranca al abrir la partida, para por idle con el estado a salvo en DB.
 
 ### D6 — Single-writer: el World se muta solo vía el GenServer
 La LiveView **nunca** escribe en `Repo` ni en `games.world`. Toda mutación
-viva enruta por `Dragones.Game` (`declare/3`, `sync_hero_level_up/3`, …) que es el
+viva enruta por `Dragonex.Game` (`declare/3`, `sync_hero_level_up/3`, …) que es el
 único que toca el `Session`. `persist/1` lee de `Session.read_state`, así que
 una sync aplicada sobrevive a la siguiente persistencia de beat.
 
@@ -58,7 +58,7 @@ El world jsonb vuelve con claves string; el `Codec` las re-atomiza. Se permite
 cargados aún. **Fuera del codec**, usar `to_existing_atom`.
 
 ### D9 — Builder offline: `Heroes.build` y `Catalog` no tocan DB
-`Dragones.Heroes` y `Heroes.Catalog` son derivación pura, sin Repo. El
+`Dragonex.Heroes` y `Heroes.Catalog` son derivación pura, sin Repo. El
 contexto custom se **inyecta** (`opts[:custom]`), no se consulta dentro. Así
 los tests corren `async: true` sin sandbox y el builder es reproducible.
 
@@ -138,7 +138,7 @@ OpenRouter cachea el prefijo → medido en vivo **44–85% de tokens de entrada
 cacheados** por beat.
 
 ### D21 — Modelo-por-rol + `max_tokens`
-`Dragones.Models` centraliza `dm/0` (mejor adherencia) + `summarizer/0`
+`Dragonex.Models` centraliza `dm/0` (mejor adherencia) + `summarizer/0`
 (barato: flash/lite) + `dm_max_tokens/0`, todo env-overridable. Selector de
 modelo en runtime vía `ModelConfig` GenServer + modal Ajustes (ephemeral,
 app-global, con restart del proceso).
@@ -176,7 +176,7 @@ Hoy el turno lo impone un `TurnPolicy` determinista (`WorldDriven`) que recorre
 hay reacciones, interrupciones, acciones preparadas, ni ritmo variable, y el
 round-robin de exploración ignora quién tiene algo que decir. La partida se
 siente "cuadriculada" y pierde diversión. Con modelos baratos y capaces ya
-viable, se introduce un **agente `Dragones.TurnMaster`** que decide quién actúa
+viable, se introduce un **agente `Dragonex.TurnMaster`** que decide quién actúa
 vía tools (`give_turn_to`, `cut_in`, `react`, `pass_to_dm`, `end_scene`) en un
 beat extra antes del beat del actor; `Session.handoff/2` aplica la decisión.
 
@@ -194,8 +194,8 @@ beat extra antes del beat del actor; `Session.handoff/2` aplica la decisión.
   sólo *registran* la decisión; es el **`Game`** quien la ejecuta
   (`Session.handoff/2` para el turno, `Session.update_state/3` para escena), el
   mismo patrón que `maybe_end_combat`/`maybe_force_combat`.
-- Subsistemas: agente nuevo en **S6** (`Dragones.TurnMaster`), tools de
-  orquestación propias (no en `Dragones.Tools`/S5); reparto S3 asistido por S6;
+- Subsistemas: agente nuevo en **S6** (`Dragonex.TurnMaster`), tools de
+  orquestación propias (no en `Dragonex.Tools`/S5); reparto S3 asistido por S6;
   modelo en **S10** (`Models.turnmaster/0` vía catálogo provider).
 - `Models.turnmaster/0` (barato/rápido, `max_tokens` ~256, prefijo cacheable
   `D20`). **Coste asumido** (+1 llamada/turno): la prioridad del producto es que
@@ -203,7 +203,7 @@ beat extra antes del beat del actor; `Session.handoff/2` aplica la decisión.
 
 Consecuencias (hechas): `docs/tecnico/01-bucle-del-agente.md` y
 `docs/FLUJO_PARTIDA.md` describen el flujo actor → turnmaster → handoff;
-`progress.md` mueve el item a ✅. Código: `lib/dragones/turn_master*.ex`,
+`progress.md` mueve el item a ✅. Código: `lib/dragonex/turn_master*.ex`,
 integración en `game.ex`, `acted_this_round` en `World`/`Codec`.
 
 Alternativas descartadas: (a) emular excepciones con reglas en `WorldDriven`
@@ -211,13 +211,13 @@ Alternativas descartadas: (a) emular excepciones con reglas en `WorldDriven`
 narración y orquestación, sesga imparcialidad); (c) TurnMaster sólo en puntos de
 decisión (más barato, pero inconsistente — se prefiere fluidez).
 
-### D26 — Switch de deps locales vía `DRAGONES_LOCAL_DEPS`
+### D26 — Switch de deps locales vía `DRAGONEX_LOCAL_DEPS`
 `exagent` y `dic_ex` son deps propias que se iteran en paralelo al desarrollo
-de dragones. Para no andar haciendo `mix deps.update` tras cada cambio en esos
+de dragonex. Para no andar haciendo `mix deps.update` tras cada cambio en esos
 paquetes, `mix.exs` resuelve ambas con `local_dep/2`:
 
-- `DRAGONES_LOCAL_DEPS=1` → `{:exagent, path: "…/exagent"}` (idem `dic_ex`),
-  resolviendo `DRAGONES_DEPS_ROOT` (default `../`, siblings del repo).
+- `DRAGONEX_LOCAL_DEPS=1` → `{:exagent, path: "…/exagent"}` (idem `dic_ex`),
+  resolviendo `DRAGONEX_DEPS_ROOT` (default `../`, siblings del repo).
 - Sin la variable → GitHub `branch: main` (lo que usa prod, CI y docker).
 
 **Caveat mix**: `mix.exs` se evalúa **antes** que `config/runtime.exs`, así que

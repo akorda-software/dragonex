@@ -1,6 +1,6 @@
 # Visión y alcance
 
-> **Producto.** Qué es Dragones, para quién, qué principios lo guían y dónde
+> **Producto.** Qué es Dragonex, para quién, qué principios lo guían y dónde
 > termina su alcance hoy. Para *cómo* está construido, ver [`tecnico/`](../tecnico/).
 
 ## La idea en una frase
@@ -14,7 +14,7 @@ decide cada tirada. El modelo narra; el motor arbitra.
 
 Jugar a D&D requiere un DM humano, y eso es la barrera más alta del juego: hay
 mucha más gente que quiere jugar que gente dispuesta a preparar y dirigir.
-Dragones resuelve eso con un DM por IA que:
+Dragonex resuelve eso con un DM por IA que:
 
 - **No hace trampas con números.** El LLM no decide si aciertas; lo decide el
   motor 5e. El modelo solo traduce el resultado a narración. (Decisión `D1`:
@@ -32,7 +32,7 @@ Dragones resuelve eso con un DM por IA que:
 - **Grupos pequeños** (1–4 humanos) que quieren un DM siempre disponible, o que
   quieran añadir un PNJ controlado por IA al grupo.
 - **Quien quiera experimentar con agentes LLM** en un dominio rico (rol, reglas,
-  estado compartido, coherencia narrativa larga) — Dragones es, encima, un
+  estado compartido, coherencia narrativa larga) — Dragonex es, encima, un
   laboratorio de agentes aplicados a un juego.
 
 ## Principios de diseño
@@ -88,7 +88,7 @@ Dragones resuelve eso con un DM por IA que:
 
 ## Escenario de éxito
 
-> Ana abre Dragones, se registra y se forja una maga elfa en cinco pasos. Crea una
+> Ana abre Dragonex, se registra y se forja una maga elfa en cinco pasos. Crea una
 > partida del escenario "La Taberna del Dragón Rojo", activa el auto-play para que
 > su guerrero compañero lo juegue la IA, y pulsa jugar. El DM narra la taberna, el
 > posadero (PNJ) les ofrece una misión, un grupo de goblins irrumpe, el motor

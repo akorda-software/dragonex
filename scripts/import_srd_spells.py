@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Importer del SRD 5.1 (spells) para Dragones.
+Importer del SRD 5.1 (spells) para Dragonex.
 
 Descarga los ~319 hechizos del System Reference Document 5.1 desde la API de
-open5e (v2), normaliza sus mecánicas al esquema que usa `Dragones.Heroes.Spells`
+open5e (v2), normaliza sus mecánicas al esquema que usa `Dragonex.Heroes.Spells`
 y traduce nombre + descripción al español en lote con un LLM (OpenRouter).
 
 Salida: `priv/srd/spells.es.json` — un array de objetos que el módulo
-`Dragones.Heroes.SRDSpells` carga en tiempo de compilación y el `Catalog`
+`Dragonex.Heroes.SRDSpells` carga en tiempo de compilación y el `Catalog`
 mezcla con el catálogo builtin.
 
 Requisitos:
@@ -78,7 +78,7 @@ def _get(url, accept="application/json"):
     req = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "dragones-srd-importer/1.0 (+https://github.com/anomalyco/opencode)",
+            "User-Agent": "dragonex-srd-importer/1.0 (+https://github.com/anomalyco/opencode)",
             "Accept": accept,
         },
     )

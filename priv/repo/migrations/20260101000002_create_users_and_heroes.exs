@@ -1,4 +1,4 @@
-defmodule Dragones.Repo.Migrations.CreateUsersAndHeroes do
+defmodule Dragonex.Repo.Migrations.CreateUsersAndHeroes do
   use Ecto.Migration
 
   def change do

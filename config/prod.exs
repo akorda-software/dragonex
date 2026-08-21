@@ -7,5 +7,5 @@ import Config
 config :logger, level: :info
 
 if System.get_env("PHX_SERVER") do
-  config :dragones, DragonesWeb.Endpoint, server: true
+  config :dragonex, DragonexWeb.Endpoint, server: true
 end

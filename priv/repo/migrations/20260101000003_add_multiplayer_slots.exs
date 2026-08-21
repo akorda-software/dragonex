@@ -1,4 +1,4 @@
-defmodule Dragones.Repo.Migrations.AddMultiplayerSlots do
+defmodule Dragonex.Repo.Migrations.AddMultiplayerSlots do
   use Ecto.Migration
 
   def change do

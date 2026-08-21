@@ -1,4 +1,4 @@
-defmodule Dragones.Repo.Migrations.CreateCustomContents do
+defmodule Dragonex.Repo.Migrations.CreateCustomContents do
   use Ecto.Migration
 
   def change do

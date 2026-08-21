@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Despliega dragones (Phoenix) a un Dokploy self-hosted vía API REST.
+# Despliega dragonex (Phoenix) a un Dokploy self-hosted vía API REST.
 # Crea: proyecto → entorno → Postgres (cont. separado) → aplicación (Dockerfile)
 #        → provider GitHub → env vars → dominio → deploy.
 #
@@ -127,10 +127,10 @@ SECRET_KEY_BASE=${SECRET_KEY_BASE}
 DATABASE_URL=ecto://${DB_USER}:${DB_PASSWORD}@${DB_APP_NAME}:5432/${DB_DATABASE_NAME}
 POOL_SIZE=${POOL_SIZE:-10}
 OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-DRAGONES_MODEL=${DRAGONES_MODEL:-deepseek/deepseek-v4-flash}
-DRAGONES_SUMMARIZER_MODEL=${DRAGONES_SUMMARIZER_MODEL:-google/gemini-3.1-flash-lite}
-DRAGONES_APP_TITLE=${DRAGONES_APP_TITLE:-dragones}
-DRAGONES_DM_MAX_TOKENS=${DRAGONES_DM_MAX_TOKENS:-1500}"
+DRAGONEX_MODEL=${DRAGONEX_MODEL:-deepseek/deepseek-v4-flash}
+DRAGONEX_SUMMARIZER_MODEL=${DRAGONEX_SUMMARIZER_MODEL:-google/gemini-3.1-flash-lite}
+DRAGONEX_APP_TITLE=${DRAGONEX_APP_TITLE:-dragonex}
+DRAGONEX_DM_MAX_TOKENS=${DRAGONEX_DM_MAX_TOKENS:-1500}"
 ENV_JSON=$(printf '%s' "$ENV_VARS" | jq -R -s '.')
 api_post "/application.saveEnvironment" "{
   \"applicationId\": \"$APP_ID\",

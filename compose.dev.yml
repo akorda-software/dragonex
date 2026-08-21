@@ -1,6 +1,6 @@
 # Entorno de desarrollo local: Postgres+PostGIS + app Elixir (mix phx.server con
 # source mount y code reload). Reutiliza el volumen infra_postgres-data para
-# conservar toda la data existente (dragones_dev, dragones_test, etc.).
+# conservar toda la data existente (dragonex_dev, dragonex_test, etc.).
 #
 # Uso:
 #   docker stop infra-postgres-1            # libera puerto 5432 y el volumen
@@ -13,11 +13,11 @@
 services:
   postgres:
     image: postgis/postgis:17-3.5-alpine
-    container_name: dragones-postgres
+    container_name: dragonex-postgres
     ports:
       - "5455:5432"
     environment:
-      POSTGRES_DB: dragones_dev
+      POSTGRES_DB: dragonex_dev
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     volumes:
@@ -33,7 +33,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    container_name: dragones-app
+    container_name: dragonex-app
     ports:
       - "4035:4000"
     environment:

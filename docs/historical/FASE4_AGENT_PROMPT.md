@@ -1,6 +1,6 @@
-# Handoff — Fase 4: Creador de personajes 5e (Dragones)
+# Handoff — Fase 4: Creador de personajes 5e (Dragonex)
 
-Eres un agente que continúa **Dragones**, un juego de D&D 5e con DM por IA sobre
+Eres un agente que continúa **Dragonex**, un juego de D&D 5e con DM por IA sobre
 **exAgent** (Elixir/Phoenix). Tu tarea: implementar el **creador de personajes**
 completo y ceñido a las reglas de &D 5e (SRD), **separado** de la capa de
 partidas.
@@ -10,21 +10,21 @@ partidas.
 ## 0) Lee esto PRIMERO (sin tocar nada)
 
 1. `ROADMAP.md` — la estrella polar. Tu parte es **Fase 4**.
-2. `lib/dragones/character.ex` — **el formato exacto** que debe producir tu
+2. `lib/dragonex/character.ex` — **el formato exacto** que debe producir tu
    creador (lee su `embedded_schema`, `changeset/2` y `new/1`).
-3. `lib/dragones/{weapon,spell,item}.ex` — la forma de weapons/spells/inventory
+3. `lib/dragonex/{weapon,spell,item}.ex` — la forma de weapons/spells/inventory
    que lleva un `Character`.
-4. `lib/dragones/archetypes.ex` y `lib/dragones/monsters.ex` — **ejemplos
+4. `lib/dragonex/archetypes.ex` y `lib/dragonex/monsters.ex` — **ejemplos
    canónicos** de personajes 5e nivel 1 válidos y completos (fíjate cómo se
    rellenan hp/ac/weapons/spells/saving_proficiencies). Son tu referencia de
    "personaje correcto".
-5. `lib/dragones/codec.ex` — cómo el `Character` ↔ jsonb (tu salida debe
+5. `lib/dragonex/codec.ex` — cómo el `Character` ↔ jsonb (tu salida debe
    sobrevivir este round-trip).
-6. `lib/dragones/scenario.ex` (`catalog/0`) y `lib/dragones/games.ex`
+6. `lib/dragonex/scenario.ex` (`catalog/0`) y `lib/dragonex/games.ex`
    (`create_from_wizard/1`) — cómo la capa de **partidas** consume hoy los
    personajes predefinidos. Tu creador debe poder alimentar este punto, pero
    **sin acoplarse** a él.
-7. `lib/dragones/rules/` (`Ability`, `Combat`) — las reglas que **leen** los
+7. `lib/dragonex/rules/` (`Ability`, `Combat`) — las reglas que **leen** los
    stats del personaje. Tu creador debe poblarlos de forma que estas reglas
    computen resultados 5e correctos (modificadores, AC, save DC, etc.).
 
@@ -41,7 +41,7 @@ Arranca el stack y deja verde la base antes de cambiar nada:
 El creador es un **módulo/contexto propio** que **no sabe nada** de partidas,
 sesiones, DM ni LiveView. Su único contrato de salida es:
 
-> Producir un `Dragones.Character` **válido, completo y 5e-correcto**.
+> Producir un `Dragonex.Character` **válido, completo y 5e-correcto**.
 
 La capa de partidas ya existe y ya consume `Character` (vía `Roster.catalog` →
 `Games.create_from_wizard`). **No la rompas**. Cuando tu creador esté listo, el
@@ -50,15 +50,15 @@ lugar de (o además de) los archetypes hardcoded — pero eso es **el último pa
 opcional, y se hace tocando `scenario.ex`/el LiveView del wizard, **no** tu
 módulo de creación.
 
-Sugerencia de ubicación: `lib/dragones/heroes/` con un contexto
-`Dragones.Heroes` (datos 5e + lógica de build). Nada de esto vive bajo
-`games/`, `game/` ni `dragones_web/`.
+Sugerencia de ubicación: `lib/dragonex/heroes/` con un contexto
+`Dragonex.Heroes` (datos 5e + lógica de build). Nada de esto vive bajo
+`games/`, `game/` ni `dragonex_web/`.
 
 ---
 
-## 2) El formato de salida EXACTO: `Dragones.Character`
+## 2) El formato de salida EXACTO: `Dragonex.Character`
 
-Tu creador debe devolver un `%Dragones.Character{}` con **todos** estos campos
+Tu creador debe devolver un `%Dragonex.Character{}` con **todos** estos campos
 poblados de forma coherente con 5e (mira `archetypes.ex`):
 
 ```
@@ -66,19 +66,19 @@ name, race, class, side, level         # side es "pc" para personajes de jugador
 hp, max_hp, temp_hp, ac, speed          # stats derivados (ver §4)
 str, dex, con, int, wis, cha            # 6 puntuaciones (3–20 tras bonus de raza)
 backstory                               # texto libre
-weapons      :: [Dragones.Weapon{}]     # name, dice("1d8"), damage_type,
+weapons      :: [Dragonex.Weapon{}]     # name, dice("1d8"), damage_type,
                                         #   attack_ability(:str|:dex|...),
                                         #   finesse, ranged
-spells       :: [Dragones.Spell{}]      # name, level, kind(:save|:attack|:automatic),
+spells       :: [Dragonex.Spell{}]      # name, level, kind(:save|:attack|:automatic),
                                         #   casting_ability, save_ability (si :save),
                                         #   dice, damage_type, effect
-inventory    :: [Dragones.Item{}]       # name, qty, kind(:armor|:weapon|:gear|...)
+inventory    :: [Dragonex.Item{}]       # name, qty, kind(:armor|:weapon|:gear|...)
 conditions   :: []                      # vacío al crearse
 death_saves  :: %{successes: 0, fails: 0}
 saving_proficiencies :: [String.t()]    # ej ["str","con"] — de la CLASE
 ```
 
-**Invariante**: el `Dragones.Character.changeset/2` debe pasar **sin errores**
+**Invariante**: el `Dragonex.Character.changeset/2` debe pasar **sin errores**
 (nombre+class required, level 1–20, hp/max_hp/ac ≥ 0, abilities 1–20). Y el
 `Codec.encode/decode` debe round-trip tu personaje sin perder nada (hay test de
 codec — extiéndelo si añades formas nuevas).
@@ -111,7 +111,7 @@ Sailor, Urchin (un buen subconjunto SRD es suficiente; documenta cuáles).
 tras aplicar bonus de raza debe quedar en 1–20.
 
 > No inventes números: cada stat derivado debe poder justificarse con una regla
-> 5e (mira `Dragones.Rules.Ability` y `Rules.Combat` para ver cómo los lee el
+> 5e (mira `Dragonex.Rules.Ability` y `Rules.Combat` para ver cómo los lee el
 > motor).
 
 ---
@@ -121,7 +121,7 @@ tras aplicar bonus de raza debe quedar en 1–20.
 El creador **calcula** los stats a partir de las elecciones — no pide hp/ac al
 usuario. Derivaciones 5e obligatorias:
 
-- **Modifier**: `floor((score - 10) / 2)` (usa `Dragones.Rules.Ability.modifier/1`).
+- **Modifier**: `floor((score - 10) / 2)` (usa `Dragonex.Rules.Ability.modifier/1`).
 - **HP (nivel 1)**: `hit_die_max + con_mod` (hit_die_max = el valor máximo del
   dado de golpe de la clase, ej fighter d10 → 10).
 - **AC**: según armadura inicial — `10 + dex_mod` (sin armadura), `11 + dex_mod`
@@ -136,7 +136,7 @@ usuario. Derivaciones 5e obligatorias:
   - `casting_ability` = la stat del caster (ej wizard→int, cleric→wis, sorcerer→cha).
   - Hechizos de nivel 1 conocidos/preparados según la clase (cantrips + lvl-1).
   - Cada `Spell` debe traer `kind`/`casting_ability`/`save_ability`/`dice`/...
-    Usa `Dragones.Spell` (mira `archetypes.ex`: firebolt/magic_missile/shield).
+    Usa `Dragonex.Spell` (mira `archetypes.ex`: firebolt/magic_missile/shield).
 - **Weapons**: del equipo inicial de la clase; cada `Weapon` con
   `attack_ability` correcta (ranged→dex; finesse→lo maneja el motor con
   max(str,dex); melee→la stat de la clase).
@@ -149,12 +149,12 @@ estén bien puestos; **no dupliques** la lógica de combate.
 
 ## 5) Entregables
 
-1. **Datos 5e** (`lib/dragones/heroes/`): módulos de datos puros con razas,
+1. **Datos 5e** (`lib/dragonex/heroes/`): módulos de datos puros con razas,
    clases, backgrounds, equipo/hechizos iniciales. Datos como mapas/structs
    declarativos, sin estado. Documenta la fuente (SRD 5.1).
-2. **Builder** (`Dragones.Heroes.build/1` o similar): dadas las elecciones
+2. **Builder** (`Dragonex.Heroes.build/1` o similar): dadas las elecciones
    (raza, subraza, clase, background, método+valores de puntuaciones, equipo/spell
-   picks), devuelve un `Dragones.Character` **validado** (que pasa el changeset).
+   picks), devuelve un `Dragonex.Character` **validado** (que pasa el changeset).
    Derivación pura y testeable.
 3. **Validación 5e**: que las elecciones sean legales (raza existe, clase existe,
    skills dentro de la lista, nº de skills correcto, puntuaciones en rango,
@@ -164,7 +164,7 @@ estén bien puestos; **no dupliques** la lógica de combate.
 
 No construyas UI en esta iteración salvo que sobre tiempo; el foco es el
 **motor de creación** (datos + builder + derivación + tests). Si haces UI, va en
-`dragones_web/` y consume `Dragones.Heroes`.
+`dragonex_web/` y consume `Dragonex.Heroes`.
 
 ---
 
@@ -178,9 +178,9 @@ Cubre con tests offline (deterministas, sin LLM):
   → int es la casting_ability; etc.). Compara contra los valores SRD.
 - **Round-trip Codec**: un personaje creado sobrevive `Codec.encode→decode`.
 - **Integración con el motor**: un personaje creado, puesto en un `World`, puede
-  ser atacado / lanzar un hechizo a través de `Dragones.Actions` sin errores y
+  ser atacado / lanzar un hechizo a través de `Dragonex.Actions` sin errores y
   con resultados coherentes (puedes reusar el patrón de
-  `test/dragones/flows/combat_test.exs`).
+  `test/dragonex/flows/combat_test.exs`).
 - **Validación**: elecciones ilegales (raza inexistente, puntuación fuera de
   rango, skill no permitida) son rechazadas.
 
@@ -196,21 +196,21 @@ existentes.
 - **No toques el motor** (`Rules`, `World`, `Actions`, `Tools`, `DM`,
   `TurnPolicy`, `Codec`). El `Character`/`Weapon`/`Spell`/`Item` **mantienen su
   forma** — tu creador los llena, no los cambia.
-- **Separación estricta**: nada de `Dragones.Heroes` importa de `games/`/`game/`/
-  `dragones_web/`. Si necesitas un `Character`, lo produces y lo devuelves; el
+- **Separación estricta**: nada de `Dragonex.Heroes` importa de `games/`/`game/`/
+  `dragonex_web/`. Si necesitas un `Character`, lo produces y lo devuelves; el
   consumidor decide qué hace con él.
 - Sigue el estilo del repo (módulos con `@moduledoc`, `@spec`, datos
   declarativos, tests offline deterministas).
 - Si encuentras fricción en **exAgent** (path dep `../exAgent`), puedes
   arreglarla in-situ, pero no es lo esperado aquí — tu trabajo es 100% en
-  `dragones`.
+  `dragonex`.
 
 ---
 
 ## 8) Criterio de "hecho"
 
-- Para **cada clase y raza** del SRD listado, `Dragones.Heroes` puede construir un
-  `Dragones.Character` nivel 1 **válido y completo** (pasa changeset, stats
+- Para **cada clase y raza** del SRD listado, `Dragonex.Heroes` puede construir un
+  `Dragonex.Character` nivel 1 **válido y completo** (pasa changeset, stats
   derivados 5e-correctos, weapons/spells/equipo coherentes).
 - El personaje entra limpio en el motor: `Actions.attack`/`Actions.spell` sobre
   él funcionan y dan resultados 5e.

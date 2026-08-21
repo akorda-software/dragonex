@@ -7,16 +7,16 @@
 ## La arquitectura en tres capas
 
 ```
-Dragones.Tools          (tools.ex)        ← lo que el LLM invoca (deftools)
+Dragonex.Tools          (tools.ex)        ← lo que el LLM invoca (deftools)
       │ llama a
       ▼
-Dragones.Actions        (actions.ex)      ← puente: intent → mensaje + change_fn
+Dragonex.Actions        (actions.ex)      ← puente: intent → mensaje + change_fn
       │ llama a
       ▼
-Dragones.Rules.*        (rules/)          ← matemática PURA sin estado
+Dragonex.Rules.*        (rules/)          ← matemática PURA sin estado
       │
       ▼
-Dragones.World          (world.ex)        ← estado + mutadores (change_fns)
+Dragonex.World          (world.ex)        ← estado + mutadores (change_fns)
 ```
 
 - **`Rules.Ability`** (`rules/ability.ex`) y **`Rules.Combat`** (`rules/combat.ex`)
@@ -116,8 +116,8 @@ Esto evita que una condición silenciosamente pise el `mode` del modelo (o al re
 
 Sin LLM, sin DB, sin Process. Cada mutador es una función:
 `World.apply_damage("goblin", 3).(world)`. Los tests de `Rules`/`Actions`/`World`
-son `async: true` y deterministas con rollers fijos (`test/dragones/rules/`,
-`test/dragones/actions_test.exs`, `test/dragones/world_test.exs`).
+son `async: true` y deterministas con rollers fijos (`test/dragonex/rules/`,
+`test/dragonex/actions_test.exs`, `test/dragonex/world_test.exs`).
 
 ## Quién decide el turno
 

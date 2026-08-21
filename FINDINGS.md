@@ -1,4 +1,4 @@
-# Dragones — spike findings
+# Dragonex — spike findings
 
 Spike para validar que exAgent 1.0 encaja en un juego de D&D. 10 flujos
 implementados y testeados (21 offline + 1 live contra GLM-4.7-flash).
@@ -28,10 +28,10 @@ sacó a la luz y que la app completa debe afrontar:
 ### 1. ~~El Mundo NO se persiste solo~~ → RESUELTO en exAgent 1.1
 `ExAgent.Session` ahora checkpointa `shared_state` + posición de turno en un
 store y rehidrata al restart (`Session.start_link(store: :ets)`). Ver
-`test/dragones/flows/session_persistence_test.exs`: el world sobrevive crash.
+`test/dragonex/flows/session_persistence_test.exs`: el world sobrevive crash.
 
 **Caveat JSON**: `shared_state` debe ser JSON-portable. Un struct como
-`Dragones.World` vuelve como map con claves string tras rehydrate — la app real
+`Dragonex.World` vuelve como map con claves string tras rehydrate — la app real
 necesita un codec (o diseñar el world con claves string) para round-trip a
 struct. Esa es decisión de la app, no del framework.
 
@@ -54,7 +54,7 @@ reproducible.
 
 ```sh
 mix test                              # 21 offline
-DRAGONES_RUN_LIVE=1 OPENROUTER_API_KEY=... \
+DRAGONEX_RUN_LIVE=1 OPENROUTER_API_KEY=... \
   mix test --include integration      # +1 live (DM real)
 ```
 

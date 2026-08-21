@@ -11,13 +11,13 @@
 #
 # This is a smoke test for the builder: every field is derived from 5e rules.
 
-defmodule Dragones.BuildHeroDemo do
+defmodule Dragonex.BuildHeroDemo do
   @moduledoc false
-  alias Dragones.{Character, Heroes}
+  alias Dragonex.{Character, Heroes}
 
   def run do
     IO.puts("\n╔══════════════════════════════════════════════════════════╗")
-    IO.puts("║         Dragones Character Creator — Demo Output        ║")
+    IO.puts("║         Dragonex Character Creator — Demo Output        ║")
     IO.puts("╚══════════════════════════════════════════════════════════╝")
 
     {:ok, lyra} = Heroes.build(%{
@@ -124,4 +124,4 @@ defmodule Dragones.BuildHeroDemo do
   end
 end
 
-Dragones.BuildHeroDemo.run()
+Dragonex.BuildHeroDemo.run()

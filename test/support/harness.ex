@@ -1,4 +1,4 @@
-defmodule Dragones.Test.Harness do
+defmodule Dragonex.Test.Harness do
   @moduledoc """
   Shared helpers for the D&D flow tests: build agents whose tools mutate the
   world via SharedState, start sessions, and drive one participant's turn.
@@ -7,10 +7,10 @@ defmodule Dragones.Test.Harness do
   alias ExAgent.{Models.Test, Server, Session}
   alias ExAgent.Message.Part
   alias ExAgent.Session.{Participant, SharedState}
-  alias Dragones.{Tools, World}
+  alias Dragonex.{Tools, World}
 
   @doc "A roller that always returns a fixed value (deterministic combat)."
-  def fixed_roller(value), do: Dragones.Dice.always(value)
+  def fixed_roller(value), do: Dragonex.Dice.always(value)
 
   @doc "Bundle deps the tools expect: the SharedState handle + a dice roller."
   def deps_for(session, participant, roller) do

@@ -1,4 +1,4 @@
-defmodule Dragones.Repo.Migrations.AddIntentsToGames do
+defmodule Dragonex.Repo.Migrations.AddIntentsToGames do
   use Ecto.Migration
 
   def change do

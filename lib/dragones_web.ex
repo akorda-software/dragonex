@@ -1,4 +1,4 @@
-defmodule DragonesWeb do
+defmodule DragonexWeb do
   @moduledoc """
   The entrypoint for defining web interfaces (controllers, HTML views).
   """
@@ -7,10 +7,10 @@ defmodule DragonesWeb do
     quote do
       use Phoenix.Controller,
         formats: [:html],
-        layouts: [html: {DragonesWeb.Layouts, :app}]
+        layouts: [html: {DragonexWeb.Layouts, :app}]
 
       import Plug.Conn
-      alias DragonesWeb.Router.Helpers, as: Routes
+      alias DragonexWeb.Router.Helpers, as: Routes
     end
   end
 

@@ -1,6 +1,6 @@
 # Cómo se juega (nivel producto)
 
-> **Producto.** Qué hace un jugador de cara a Dragones, paso a paso, y cuál es el
+> **Producto.** Qué hace un jugador de cara a Dragonex, paso a paso, y cuál es el
 > bucle de gameplay. Sin entrar en código. Para la mecánica interna de ese bucle,
 > ver [`../tecnico/01-bucle-del-agente.md`](../tecnico/01-bucle-del-agente.md).
 
@@ -112,7 +112,7 @@ persiste), y **declarar fuera de turno** (la acción se encola para cuando toque
                       Pasa al siguiente turno
 ```
 
-Tres ideas clave para entender Dragones desde el producto:
+Tres ideas clave para entender Dragonex desde el producto:
 
 1. **El LLM no tira dados.** Decide *qué* intentas y lo narra; el motor decide
    *si* aciertas y *cuánto* daño. Por eso el DM "no miente".

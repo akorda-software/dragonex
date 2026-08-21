@@ -1,6 +1,6 @@
-# Handoff — Dragones: Fase de pulido y bug-fixing
+# Handoff — Dragonex: Fase de pulido y bug-fixing
 
-Eres un agente que continúa **Dragones**, un juego de D&D 5e con DM por IA sobre
+Eres un agente que continúa **Dragonex**, un juego de D&D 5e con DM por IA sobre
 **exAgent** (Elixir/Phoenix). El juego está funcional pero necesita pulido.
 
 ---
@@ -8,7 +8,7 @@ Eres un agente que continúa **Dragones**, un juego de D&D 5e con DM por IA sobr
 ## 0) Arranque
 
 ```sh
-cd /home/kukapu/dev/projects/dragones
+cd /home/kukapu/dev/projects/dragonex
 docker compose -f compose.dev.yml up -d   # Postgres + app en http://localhost:4035
 MIX_ENV=test mix test                      # DB_PORT=5457 vía .env (runtime.exs)
 ```
@@ -20,12 +20,12 @@ Si la DB se cae tras un reinicio: `docker compose -f compose.dev.yml up -d` (el 
 ## 1) Arquitectura (capas)
 
 ```
-UI           DragonesWeb.LiveView — vista + input (GameLive, HeroLive)
-Auth         Dragones.Accounts + UserAuth plugs (bcrypt, session cookies)
-Applicación  Dragones.Game (GenServer por partida) — bucle, AI, espera, pausa
-Motor        ExAgent.Session + Dragones.{Rules, World, Actions, Tools, DM, TurnPolicy}
+UI           DragonexWeb.LiveView — vista + input (GameLive, HeroLive)
+Auth         Dragonex.Accounts + UserAuth plugs (bcrypt, session cookies)
+Applicación  Dragonex.Game (GenServer por partida) — bucle, AI, espera, pausa
+Motor        ExAgent.Session + Dragonex.{Rules, World, Actions, Tools, DM, TurnPolicy}
 Datos        Postgres — games/characters/participants/game_events/heroes/users
-Creador      Dragones.Heroes (builder puro) — choices → Character 5e
+Creador      Dragonex.Heroes (builder puro) — choices → Character 5e
 ```
 
 **Stack:** Elixir 1.20, Phoenix 1.7/1.8, LiveView 1.2.3, Ecto 3.14, Bandit, Postgres.
@@ -86,23 +86,23 @@ Package manager: **mix** (NUNCA npm). Tests: `MIX_ENV=test mix test`.
 
 | Archivo | Qué hace | Notas |
 |---|---|---|
-| `lib/dragones/game.ex` | GenServer del bucle de partida | El corazón. `advance/1` decide turnos. |
-| `lib/dragones/dm.ex` | System prompt + world_brief + tools del DM | Si el DM no narra bien, mira aquí. |
-| `lib/dragones/pc_agent.ex` | Agente de PC IA (personalidad por clase) | Tools restringidas (no DM tools). |
-| `lib/dragones/actions.ex` | Puente: intención → reglas → world | Ataques, spells (con slots), rest, conditions. |
-| `lib/dragones/tools.ex` | deftools que el LLM llama | make_attack, cast_spell, spawn_monster, rest, etc. |
-| `lib/dragones/world.ex` | Mundo + change functions + spell_slots | has_slot?, consume_slot, apply_condition, level_up |
-| `lib/dragones/heroes/` | Creador de personajes 5e (SRD) | Builder puro, sin DB ni UI. |
-| `lib/dragones/accounts.ex` | Users + heroes persistence | register, authenticate, save_hero, hero_sheet. |
-| `lib/dragones/games.ex` | Partidas en DB | create_game, create_from_wizard, join_game, list_games. |
-| `lib/dragones/scenarios.ex` | 5 escenarios predefinidos + nombres random | |
-| `lib/dragones/monsters.ex` | Bestiario (8 monstruos SRD) | goblin, kobold, bandit, skeleton, wolf, orc, hobgoblin, ogre. |
-| `lib/dragones/spell_slots.ex` | Tabla de progresión SRD 1-20 | Full + half casters. |
-| `lib/dragones/codec.ex` | World ↔ JSON | Usa `String.to_atom` (no to_existing_atom). |
-| `lib/dragones_web/live/game_live/show.ex` | La mesa + sala de espera + join | Archivo GIGANTE (~600 líneas). |
-| `lib/dragones_web/live/game_live/new.ex` | Wizard de partida (2 tabs) | |
-| `lib/dragones_web/live/hero_live/new.ex` | Creador de héroes (4 pasos) | Point-buy, spell picker. |
-| `lib/dragones_web/user_auth.ex` | Plugs + on_mount hooks | fetch_current_user, require_login. |
+| `lib/dragonex/game.ex` | GenServer del bucle de partida | El corazón. `advance/1` decide turnos. |
+| `lib/dragonex/dm.ex` | System prompt + world_brief + tools del DM | Si el DM no narra bien, mira aquí. |
+| `lib/dragonex/pc_agent.ex` | Agente de PC IA (personalidad por clase) | Tools restringidas (no DM tools). |
+| `lib/dragonex/actions.ex` | Puente: intención → reglas → world | Ataques, spells (con slots), rest, conditions. |
+| `lib/dragonex/tools.ex` | deftools que el LLM llama | make_attack, cast_spell, spawn_monster, rest, etc. |
+| `lib/dragonex/world.ex` | Mundo + change functions + spell_slots | has_slot?, consume_slot, apply_condition, level_up |
+| `lib/dragonex/heroes/` | Creador de personajes 5e (SRD) | Builder puro, sin DB ni UI. |
+| `lib/dragonex/accounts.ex` | Users + heroes persistence | register, authenticate, save_hero, hero_sheet. |
+| `lib/dragonex/games.ex` | Partidas en DB | create_game, create_from_wizard, join_game, list_games. |
+| `lib/dragonex/scenarios.ex` | 5 escenarios predefinidos + nombres random | |
+| `lib/dragonex/monsters.ex` | Bestiario (8 monstruos SRD) | goblin, kobold, bandit, skeleton, wolf, orc, hobgoblin, ogre. |
+| `lib/dragonex/spell_slots.ex` | Tabla de progresión SRD 1-20 | Full + half casters. |
+| `lib/dragonex/codec.ex` | World ↔ JSON | Usa `String.to_atom` (no to_existing_atom). |
+| `lib/dragonex_web/live/game_live/show.ex` | La mesa + sala de espera + join | Archivo GIGANTE (~600 líneas). |
+| `lib/dragonex_web/live/game_live/new.ex` | Wizard de partida (2 tabs) | |
+| `lib/dragonex_web/live/hero_live/new.ex` | Creador de héroes (4 pasos) | Point-buy, spell picker. |
+| `lib/dragonex_web/user_auth.ex` | Plugs + on_mount hooks | fetch_current_user, require_login. |
 
 ---
 
@@ -142,7 +142,7 @@ game_events:  id, game_id, seq, type, actor, visible_to, payload (jsonb), insert
 - **Tests**: `MIX_ENV=test mix test path/to/test.exs` para tests específicos.
 - **iex**: `iex -S mix` para probar funciones directamente.
 - **Demo de héroes**: `mix run priv/build_hero.exs` imprime un elf wizard y un dwarf fighter.
-- **Live DM**: `DRAGONES_RUN_LIVE=1 OPENROUTER_API_KEY=... mix test --include integration`
+- **Live DM**: `DRAGONEX_RUN_LIVE=1 OPENROUTER_API_KEY=... mix test --include integration`
 
 ---
 

@@ -1,4 +1,4 @@
-defmodule Dragones.Repo.Migrations.AddUniqueSeqAndParticipantIndexes do
+defmodule Dragonex.Repo.Migrations.AddUniqueSeqAndParticipantIndexes do
   use Ecto.Migration
 
   def up do

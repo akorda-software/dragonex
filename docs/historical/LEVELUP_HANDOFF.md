@@ -1,6 +1,6 @@
-# Handoff — Revisión profunda del Level-Up (Dragones)
+# Handoff — Revisión profunda del Level-Up (Dragonex)
 
-Eres un agente que continúa **Dragones** (D&D 5e con DM por IA sobre exAgent /
+Eres un agente que continúa **Dragonex** (D&D 5e con DM por IA sobre exAgent /
 Phoenix 1.8 / Elixir 1.20). Tu tarea: **revisar a fondo la mecánica de subida
 de nivel**, cubrir todos los escenarios y side-effects, y probarla (automatizada
 +y en vivo con LLM). El usuario quiere cerrar esta feature con confianza.
@@ -70,17 +70,17 @@ Hero.sheet (jsonb)                               games.world (jsonb, Character v
 **Módulos clave:**
 | Archivo | Qué hace |
 |---|---|
-| `lib/dragones/heroes/progression.ex` | Tablas puras: XP, niveles ASI `[4,8,12,16,19]`, `max_spell_level/2`, `features_at/2`. **Fuente de verdad.** |
-| `lib/dragones/heroes/level_up.ex` | `LevelUp.apply/2` — el núcleo: nivel+1, PG (dado medio+CON), **retro-CON**, ASI (cupo+cap 20), AC recalculada, hechizos nuevos, features. |
-| `lib/dragones/heroes.ex` | `Heroes.apply_level_up/2` — thin delegate a `LevelUp.apply/2`. |
-| `lib/dragones/world.ex` | `World.level_up(name, choices \\ %{})` — aplica al Character vivo + refresca slots. Path del DM. |
-| `lib/dragones/tools.ex` | `deftool level_up(ctx, target, opts)` — el DM la llama; `normalize_level_up_opts/1` mapea el JSON del LLM (`spells`/`asi`) a choices. Rechaza PCs humanos. |
-| `lib/dragones/games.ex` | `sync_hero_level_up/3` + `merge_character_level_up/3` — sync a partida (preserva hp dañado/conditions/slots). |
-| `lib/dragones/game.ex` | `Game.sync_hero_level_up/3` (call al GenServer, single-writer) + `handle_call`. |
-| `lib/dragones/accounts.ex` | `level_up_hero/3` + `grant_xp/3` (este último sin caller UI). |
-| `lib/dragones/dm.ex` | Prompt del DM: explica `level_up("nombre", {spells/asi})`. |
-| `lib/dragones_web/live/hero_live/level_up.ex` | UI de subida (ASI stepper + spell picker). |
-| `lib/dragones_web/live/hero_live/show.ex` | Ficha: callout "Subir de nivel" cuando `level < 20`. |
+| `lib/dragonex/heroes/progression.ex` | Tablas puras: XP, niveles ASI `[4,8,12,16,19]`, `max_spell_level/2`, `features_at/2`. **Fuente de verdad.** |
+| `lib/dragonex/heroes/level_up.ex` | `LevelUp.apply/2` — el núcleo: nivel+1, PG (dado medio+CON), **retro-CON**, ASI (cupo+cap 20), AC recalculada, hechizos nuevos, features. |
+| `lib/dragonex/heroes.ex` | `Heroes.apply_level_up/2` — thin delegate a `LevelUp.apply/2`. |
+| `lib/dragonex/world.ex` | `World.level_up(name, choices \\ %{})` — aplica al Character vivo + refresca slots. Path del DM. |
+| `lib/dragonex/tools.ex` | `deftool level_up(ctx, target, opts)` — el DM la llama; `normalize_level_up_opts/1` mapea el JSON del LLM (`spells`/`asi`) a choices. Rechaza PCs humanos. |
+| `lib/dragonex/games.ex` | `sync_hero_level_up/3` + `merge_character_level_up/3` — sync a partida (preserva hp dañado/conditions/slots). |
+| `lib/dragonex/game.ex` | `Game.sync_hero_level_up/3` (call al GenServer, single-writer) + `handle_call`. |
+| `lib/dragonex/accounts.ex` | `level_up_hero/3` + `grant_xp/3` (este último sin caller UI). |
+| `lib/dragonex/dm.ex` | Prompt del DM: explica `level_up("nombre", {spells/asi})`. |
+| `lib/dragonex_web/live/hero_live/level_up.ex` | UI de subida (ASI stepper + spell picker). |
+| `lib/dragonex_web/live/hero_live/show.ex` | Ficha: callout "Subir de nivel" cuando `level < 20`. |
 
 `Codec` serializa el `Character` (incluido `xp`) a/desde jsonb — cualquier campo
 nuevo al Character debe ir al `encode/decode` o no sobrevive.
@@ -175,14 +175,14 @@ nuevo al Character debe ir al `encode/decode` o no sobrevive.
 ## 7) Cómo probar
 
 **Automatizada:** `MIX_ENV=test mix test`. Ficheros relevantes:
-`test/dragones/heroes/{level_up,progression}_test.exs`,
-`test/dragones/tools_level_up_test.exs`,
-`test/dragones/{games_sync,game_sync_genserver,multi_level}_test.exs`,
-`test/dragones/accounts/level_up_test.exs`,
-`test/dragones_web/hero_level_up_live_test.exs`.
+`test/dragonex/heroes/{level_up,progression}_test.exs`,
+`test/dragonex/tools_level_up_test.exs`,
+`test/dragonex/{games_sync,game_sync_genserver,multi_level}_test.exs`,
+`test/dragonex/accounts/level_up_test.exs`,
+`test/dragonex_web/hero_level_up_live_test.exs`.
 
 Para tests deterministas con mundo/sesión real, mira el patrón de
-`test/dragones/tools_level_up_test.exs` (`start_session` + `Session.start` +
+`test/dragonex/tools_level_up_test.exs` (`start_session` + `Session.start` +
 `SharedState.new` + `Tools.level_up`) y `test/support/harness.ex`.
 
 **En vivo (LLM real):** necesita `OPENROUTER_API_KEY` en `.env.dev`. Flujo:

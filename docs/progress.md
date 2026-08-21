@@ -1,4 +1,4 @@
-# Dragones — progreso y estado
+# Dragonex — progreso y estado
 
 Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
@@ -31,7 +31,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 - `Codec` + `Store.Coded` — `World ↔ jsonb` simétrico (D8).
 - `Dice` — RNG inyectable (`dic_ex`), `roll_expr/2` parser NdM±K.
 
-### Partida (`Dragones.Game`)
+### Partida (`Dragonex.Game`)
 - GenServer on-demand por `game_id` (D5); rehidrata de Postgres, persiste
   tras cada beat (D3, D4).
 - Bucle por turno: AI en `Task`s (no bloquea el GenServer), `:waiting` para
@@ -59,8 +59,8 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 - `Brief` + `Instructions` — `world_brief` + instruction por turno.
 - `Models` + `ModelConfig` — modelo-por-rol + selector runtime (D21).
 
-### Creador de personajes (`Dragones.Heroes`) — ex-"Fase 4"
-- Builder nivel-1 → `Dragones.Character`: razas + subrazas, clases,
+### Creador de personajes (`Dragonex.Heroes`) — ex-"Fase 4"
+- Builder nivel-1 → `Dragonex.Character`: razas + subrazas, clases,
   backgrounds, puntuaciones (standard array / point buy / explícito),
   equipment (grupos SRD + custom), spells (casters), skills, languages.
 - Catálogos SRD: `Classes`, `Races`, `Backgrounds`, `Scoring`, `Equipment`

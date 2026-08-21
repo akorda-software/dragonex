@@ -1,4 +1,4 @@
-defmodule Dragones.Repo.Migrations.CreateGames do
+defmodule Dragonex.Repo.Migrations.CreateGames do
   use Ecto.Migration
 
   def change do

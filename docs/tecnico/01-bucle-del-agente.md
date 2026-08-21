@@ -1,6 +1,6 @@
 # El bucle del agente
 
-> **Técnico.** El corazón de Dragones: qué pasa exactamente desde que un jugador
+> **Técnico.** El corazón de Dragonex: qué pasa exactamente desde que un jugador
 > declara una acción hasta que la narración llega al feed. Es la referencia
 > normativa del runtime; para una versión narrativa punta-a-punta ver
 > [`../FLUJO_PARTIDA.md`](../FLUJO_PARTIDA.md). Todas las `archivo:línea`

@@ -1,20 +1,20 @@
 # Run with:
-#   OPENROUTER_API_KEY=... DRAGONES_MODEL=deepseek/deepseek-v4-flash mix run priv/live_adv.exs
+#   OPENROUTER_API_KEY=... DRAGONEX_MODEL=deepseek/deepseek-v4-flash mix run priv/live_adv.exs
 #
 # Verifies advantage end-to-end live: the DM, told the goblin is prone, should
 # pass mode "advantage" to make_attack, and the engine rolls 2d20 (kept higher).
 
-alias Dragones.{Archetypes, Brief, Monsters, World}
+alias Dragonex.{Archetypes, Brief, Monsters, World}
 alias ExAgent.{Models, Server, Session}
 alias ExAgent.Session.{Participant, SharedState}
 
 unless System.get_env("OPENROUTER_API_KEY"),
-  do: raise("set OPENROUTER_API_KEY (and optionally DRAGONES_MODEL)")
+  do: raise("set OPENROUTER_API_KEY (and optionally DRAGONEX_MODEL)")
 
 model =
   Models.OpenRouter.new(
-    model: System.get_env("DRAGONES_MODEL", "deepseek/deepseek-v4-flash"),
-    app_title: "dragones advantage dev"
+    model: System.get_env("DRAGONEX_MODEL", "deepseek/deepseek-v4-flash"),
+    app_title: "dragonex advantage dev"
   )
 
 {:ok, dm} = Server.start_link(agent: DM.new(model), agent_id: "dm-adv", pubsub: :local)
@@ -26,7 +26,7 @@ world =
 {:ok, game} =
   Session.start_link(
     shared_state: world,
-    policy: {Dragones.TurnPolicy.WorldDriven, dm: "dm"},
+    policy: {Dragonex.TurnPolicy.WorldDriven, dm: "dm"},
     participants: [Participant.new(id: "dm", kind: :agent), Participant.new(id: "Thane", kind: :human)],
     session_id: "adv-#{:erlang.unique_integer([:positive])}"
   )

@@ -2,20 +2,20 @@
 #
 # Run with a LOW compaction threshold so it fires within a few beats:
 #   set -a; source .env; set +a
-#   DRAGONES_MODEL=deepseek/deepseek-v4-flash \
-#   DRAGONES_SUMMARIZER_MODEL=google/gemini-3.1-flash-lite \
-#   DRAGONES_COMPACTION_THRESHOLD=1200 \
+#   DRAGONEX_MODEL=deepseek/deepseek-v4-flash \
+#   DRAGONEX_SUMMARIZER_MODEL=google/gemini-3.1-flash-lite \
+#   DRAGONEX_COMPACTION_THRESHOLD=1200 \
 #   mix run priv/live_cost.exs
 #
 # Shows, per beat: cached vs total input tokens (prompt-caching win), and logs
 # when compaction fires (the cheap summarizer recaps the old history).
 
-alias Dragones.{Archetypes, Game, Games, Monsters}
+alias Dragonex.{Archetypes, Game, Games, Monsters}
 
 unless System.get_env("OPENROUTER_API_KEY"),
   do: raise("set OPENROUTER_API_KEY")
 
-Application.ensure_all_started(:dragones)
+Application.ensure_all_started(:dragonex)
 
 {:ok, game} =
   Games.create_game(
@@ -26,8 +26,8 @@ Application.ensure_all_started(:dragones)
     initiative: ["goblin", "Thane"]
   )
 
-IO.puts("game_id: #{game.id}  (model #{System.get_env("DRAGONES_MODEL")}, summarizer #{System.get_env("DRAGONES_SUMMARIZER_MODEL", "google/gemini-3.1-flash-lite")})")
-IO.puts("compaction threshold: #{System.get_env("DRAGONES_COMPACTION_THRESHOLD", "6000")} tokens\n")
+IO.puts("game_id: #{game.id}  (model #{System.get_env("DRAGONEX_MODEL")}, summarizer #{System.get_env("DRAGONEX_SUMMARIZER_MODEL", "google/gemini-3.1-flash-lite")})")
+IO.puts("compaction threshold: #{System.get_env("DRAGONEX_COMPACTION_THRESHOLD", "6000")} tokens\n")
 
 {:ok, pid} = Game.ensure_started(game.id)
 

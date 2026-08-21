@@ -1,4 +1,4 @@
-# Dragones
+# Dragonex
 
 Un **Dungeon Master por IA** para D&D 5e. Creas una partida, eliges un escenario
 y uno o varios personajes (humanos o IA) viven una aventura narrada y arbitrada
@@ -26,7 +26,7 @@ que el DM narre de verdad. Sin ella, los beats usan el `TestModel`.
 ```sh
 MIX_ENV=test mix test                     # suite verde (543 passed)
 mix format                                # antes de commit
-docker logs -f dragones-app               # logs del server
+docker logs -f dragonex-app               # logs del server
 ```
 
 ## Documentación
@@ -49,9 +49,9 @@ tarea y reglas de precedencia.
 ## Estructura
 
 ```
-lib/dragones/         dominio + motor: Rules, World, Actions, Tools, DM, PCAgent,
+lib/dragonex/         dominio + motor: Rules, World, Actions, Tools, DM, PCAgent,
                       Game (GenServer), Games (DB), Heroes (creador 5e), Accounts
-lib/dragones_web/     Phoenix: LiveViews (Game, Hero, CustomContent), router, auth
+lib/dragonex_web/     Phoenix: LiveViews (Game, Hero, CustomContent), router, auth
 priv/repo/migrations  8 migraciones (games/heroes/users/custom_contents/...)
 priv/srd/             spells.es.json (319, generado por scripts/import_srd_spells.py)
 docs/                 progress, decisions, flujo de partida, histórico

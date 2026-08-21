@@ -13,9 +13,9 @@ if config_env() in [:dev, :test] do
 
   # Override de DB desde entorno (p.ej. dentro de compose.dev.yml: DB_HOST=postgres,
   # o en host: DB_PORT=5455 vía .env.dev). Defaults que no cambian el flujo por defecto.
-  default_db = if config_env() == :test, do: "dragones_test", else: "dragones_dev"
+  default_db = if config_env() == :test, do: "dragonex_test", else: "dragonex_dev"
 
-  config :dragones, Dragones.Repo,
+  config :dragonex, Dragonex.Repo,
     hostname: System.get_env("DB_HOST", "127.0.0.1"),
     port: String.to_integer(System.get_env("DB_PORT", "5432")),
     username: System.get_env("DB_USER", "postgres"),
@@ -27,7 +27,7 @@ if config_env() == :dev do
   {:ok, bind_ip} =
     System.get_env("PHX_BIND_IP", "127.0.0.1") |> to_charlist() |> :inet.parse_address()
 
-  config :dragones, DragonesWeb.Endpoint,
+  config :dragonex, DragonexWeb.Endpoint,
     http: [ip: bind_ip, port: String.to_integer(System.get_env("PORT", "4000"))]
 end
 
@@ -44,7 +44,7 @@ if config_env() == :prod do
   maybe_ipv6 =
     if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
-  config :dragones, Dragones.Repo,
+  config :dragonex, Dragonex.Repo,
     url: database_url,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
     socket_options: maybe_ipv6
@@ -61,11 +61,11 @@ if config_env() == :prod do
 
   # LiveView signing salt: prefer an explicit env var; otherwise derive a stable,
   # deploy-specific salt from the secret key base. This avoids shipping the
-  # public dev default ("dragonesdevsigningsalt0123") to production.
+  # public dev default ("dragonexdevsigningsalt0123") to production.
   lv_signing_salt =
     System.get_env("LIVE_VIEW_SIGNING_SALT") || String.slice(secret_key_base, 0, 16)
 
-  config :dragones, DragonesWeb.Endpoint,
+  config :dragonex, DragonexWeb.Endpoint,
     server: System.get_env("PHX_SERVER") == "true",
     url: [host: host, port: 443, scheme: "https"],
     http: [ip: {0, 0, 0, 0}, port: port],

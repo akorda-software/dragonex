@@ -1,4 +1,4 @@
-defmodule Dragones.Repo.Migrations.AddDiceEngineToGames do
+defmodule Dragonex.Repo.Migrations.AddDiceEngineToGames do
   use Ecto.Migration
 
   # Which dice render engine a partida uses: "2d" (canvas, server-authoritative)

@@ -1,14 +1,14 @@
-# Dragones — Flujo de una partida
+# Dragonex — Flujo de una partida
 
 > Documento vivo que explica, en lenguaje natural, **cómo funciona una partida de
-> Dragones de punta a punta**, reflejando el código real (con referencias
+> Dragonex de punta a punta**, reflejando el código real (con referencias
 > `archivo:línea`). Es la fuente de verdad narrativa sobre la que iteramos:
 > cuando cambiemos algo, actualizamos este doc. Cuando encontremos un bug, lo
 > apuntamos en la última sección.
 
 ---
 
-## 1. Qué es Dragones
+## 1. Qué es Dragonex
 
 Un **Dungeon Master por IA** para D&D 5e. El jugador crea una partida, elige un
 escenario (o la arena de pruebas), y uno o varios personajes (controlados por
@@ -32,9 +32,9 @@ números.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ UI  DragonesWeb.GameLive.Show  (LiveView: vista + input)    │
+│ UI  DragonexWeb.GameLive.Show  (LiveView: vista + input)    │
 ├─────────────────────────────────────────────────────────────┤
-│ App Dragones.Game (GenServer, uno por partida)              │
+│ App Dragonex.Game (GenServer, uno por partida)              │
 │   - bucle por turno, lanza beats en Tasks                   │
 │   - persiste world + status + events tras cada beat         │
 │   - maneja pausa, auto-play, reintentos                     │
@@ -43,11 +43,11 @@ números.
 │   - TurnMaster reparte turnos (D25); WorldDriven = fallback │
 │   - control guard: solo el actor en turno resuelve          │
 ├─────────────────────────────────────────────────────────────┤
-│ Reglas  Dragones.{Rules, World, Actions, Tools}             │
+│ Reglas  Dragonex.{Rules, World, Actions, Tools}             │
 │   - matemática de combate (AC, daño, saves, iniciativa)     │
 │   - change functions que mutan el World                     │
 ├─────────────────────────────────────────────────────────────┤
-│ Agentes  Dragones.{DM, PCAgent, TurnMaster, Events}         │
+│ Agentes  Dragonex.{DM, PCAgent, TurnMaster, Events}         │
 │   - system prompt + tools + capabilities                    │
 │   - ExAgent.Server ejecuta el beat contra el modelo         │
 ├─────────────────────────────────────────────────────────────┤
@@ -74,16 +74,16 @@ rehidrata el mismo `game_id` desde Postgres y continúa exactamente donde dejó.
   temporal reproducible de la partida. Tipos (`game_event.ex:22`):
   `:narration | :action | :tool | :dice | :system | :turn`.
 
-El `world` jsonb se (de)serializa con `Dragones.Codec`. Al rehidratar, se
-reconstruye como `Dragones.World` struct y se pasa como `shared_state` al
+El `world` jsonb se (de)serializa con `Dragonex.Codec`. Al rehidratar, se
+reconstruye como `Dragonex.World` struct y se pasa como `shared_state` al
 `Session`.
 
 ---
 
 ## 4. El `Game` GenServer: estado y lifecycle
 
-Definido en `lib/dragones/game.ex`. Un proceso por partida, arrancado vía
-`Dragones.Game.Supervisor` (registry por `game_id`).
+Definido en `lib/dragonex/game.ex`. Un proceso por partida, arrancado vía
+`Dragonex.Game.Supervisor` (registry por `game_id`).
 
 **Struct**: `game_id`, `game`, `session`, `dm`, `turnmaster` (D25),
 `pc_agents`, `model`, `roller`, `participants`, `intents`, `status`, `busy`,
@@ -180,7 +180,7 @@ avanzando con `end_turn`.
 
 ## 7. Contexto compartido — `History.from_events`
 
-`lib/dragones/history.ex`. **Es lo que da coherencia cross-agente**: cada beat
+`lib/dragonex/history.ex`. **Es lo que da coherencia cross-agente**: cada beat
 reconstruye TODA la línea temporal desde `game_events` como `[Message.t()]` y lo
 pasa como `:message_history` (override del `state.history` del `Server`). Así el
 DM lee lo que narró Vex, y Lyra ve el resultado del ataque de Thane.
@@ -227,7 +227,7 @@ la raíz de la incoherencia de la partida de prueba. Ya resueltos:
 
 ## 8. Los agentes
 
-### DM — `lib/dragones/dm.ex`
+### DM — `lib/dragonex/dm.ex`
 Un único agent que narra el mundo, da voz a monstruos/PNJ, arbitra y controla
 el ritmo. **System prompt de 16 reglas** (`dm.ex:149`), con la story bible
 horneada al final (prefijo cacheable). Críticas:
@@ -243,7 +243,7 @@ horneada al final (prefijo cacheable). Críticas:
 - **#16** formato de output: prosa pura, sin etiquetas `[Actor]:`, tablas, ni
   tokens internos.
 
-### PCAgent — `lib/dragones/pc_agent.ex`
+### PCAgent — `lib/dragonex/pc_agent.ex`
 Un agent por personaje IA, con personalidad derivada de su clase
 (`pc_agent.ex:277`). Tools restringidas (atacar, conjurar, checks, descansos):
 NO puede spawnear, tirar iniciativa, terminar combate ni subir nivel. Reglas
@@ -281,14 +281,14 @@ clave:
 
 ## 10. Herramientas y resolución por reglas
 
-`lib/dragones/tools.ex`. Cada `deftool` propone un cambio vía `SharedState` tras
+`lib/dragonex/tools.ex`. Cada `deftool` propone un cambio vía `SharedState` tras
 pasar el guard de control (`assert_controls`). Las herramientas de resolución
 (`make_attack`, `cast_spell`, `ability_check`, `make_death_save`, `heal`,
 `roll_initiative`) tienen `max_retries: 3` (`dm.ex:27`, `pc_agent.ex:34`): si el
 modelo propone como actor equivocado, el guard devuelve un error directivo y hay
 margen para autocorregirse.
 
-La matemática vive en `Dragones.Rules.Combat` y `Dragones.Actions`. Las
+La matemática vive en `Dragonex.Rules.Combat` y `Dragonex.Actions`. Las
 herramientas son puentes: nunca calculan números, solo proponen el change.
 
 ---
@@ -348,7 +348,7 @@ toggle se refleja en el snapshot (`auto_humans`) y sobrevive a recargas.
 
 ---
 
-## 14. Sanitización — `Text.scrub`  (`lib/dragones/text.ex`)
+## 14. Sanitización — `Text.scrub`  (`lib/dragonex/text.ex`)
 
 Cuello de botella central y determinístico: se aplica ANTES de persistir
 cualquier narración (`events.ex:65`) y al reconstruir el history compartido. Una
@@ -400,7 +400,7 @@ Dos presupuestos de retry **independientes** por beat:
   `Process.send_after({:retry_beat, turn_id})`. Mientras duerme, `busy` queda
   como `pending_retry` (sin Task ref) para que `advance` no lance beats
   competidores. Tras 3 intentos cae al fallback suave (`"X titubea y el turno
-  pasa de largo"`). Backoff overrideable por `{:dragones, :transient_backoffs}`.
+  pasa de largo"`). Backoff overrideable por `{:dragonex, :transient_backoffs}`.
 - **Crash del Task** → `:DOWN` → fallback.
 
 ### 15.2 Combate fantasma — `maybe_force_combat` (`game.ex`, §bug #2)
@@ -481,17 +481,17 @@ la lista evita falsos amigos con palabras castellanas.
 
 ---
 
-## 16. Modelos — `lib/dragones/models.ex`
-- DM: `deepseek/deepseek-v4-flash` (env `DRAGONES_MODEL`).
-- Sumarizador: `google/gemini-3.1-flash-lite` (env `DRAGONES_SUMMARIZER_MODEL`).
-- `DRAGONES_DM_MAX_TOKENS=1500`. PCs: 2048.
+## 16. Modelos — `lib/dragonex/models.ex`
+- DM: `deepseek/deepseek-v4-flash` (env `DRAGONEX_MODEL`).
+- Sumarizador: `google/gemini-3.1-flash-lite` (env `DRAGONEX_SUMMARIZER_MODEL`).
+- `DRAGONEX_DM_MAX_TOKENS=1500`. PCs: 2048.
 - OpenRouter cachea el prefijo del system; `cached_tokens/1` extrae el ahorro de
   `usage.details`.
 - Umbral de compacción 250k (efectivamente desactivado; modelos de 1M).
 
 ---
 
-## 17. UI — `DragonesWeb.GameLive.Show`
+## 17. UI — `DragonexWeb.GameLive.Show`
 - Feed **agrupado por turnos** (`chat_blocks/2`): cada turno es un bloque con
   header (`Turno de X · ⚔ combate`) y eventos inline.
 - Auto-play: icono 🤖 (lila) cuando el viewer es auto-play; `· TÚ` (verde) si es
@@ -502,8 +502,8 @@ la lista evita falsos amigos con palabras castellanas.
 - **Modal de dados**: una apertura por grupo, con razón + dados + total + contra
   + resultado.
 
-La LiveView **nunca** toca el Repo ni polls: se suscribe a `Dragones.PubSub` al
-tópico `dragones:game:<id>` y re-fetch del snapshot al recibir
+La LiveView **nunca** toca el Repo ni polls: se suscribe a `Dragonex.PubSub` al
+tópico `dragonex:game:<id>` y re-fetch del snapshot al recibir
 `{:game_updated, game_id}`.
 
 ---
@@ -609,7 +609,7 @@ tópico `dragones:game:<id>` y re-fetch del snapshot al recibir
 1. `docker compose -f compose.dev.yml up -d` (levanta Postgres + app; http://localhost:4035).
 2. Navegador → http://localhost:4035/games/new → escenario "Arena de Pruebas".
 3. Toggle auto-play en un PC para observar sin input humano.
-4. Pausar/reanudar cuando haga falta. Logs: `docker logs -f dragones-app`.
+4. Pausar/reanudar cuando haga falta. Logs: `docker logs -f dragonex-app`.
 
 ## Tests
 - `MIX_ENV=test mix test` → suite verde (**527** actualmente).

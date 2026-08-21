@@ -1,7 +1,7 @@
 # Spec — Contenido custom por usuario + Subida de nivel en partida
 
 Especificaciones para implementar las dos próximas features del creador de
-héroes / partidas de **Dragones**. Doc autocontenida: incluye contexto del
+héroes / partidas de **Dragonex**. Doc autocontenida: incluye contexto del
 estado actual, objetivos, diseño, modelo de datos, integración, criterios de
 aceptación y **decisiones abiertas** que el usuario debe confirmar antes de
 empezar.
@@ -15,34 +15,34 @@ Package manager: **mix** (NUNCA npm). Tests: `MIX_ENV=test mix test` (actualment
 
 ## 0) Leer primero (estado actual relevante)
 
-- **Creador de héroes** (`Dragones.Heroes` + `lib/dragones/heroes/`): builder puro
-  nivel 1 → `Dragones.Character`. Flujo UI en `DragonesWeb.HeroLive.New` (5 pasos).
-- **`Dragones.Heroes.Catalog`** (`lib/dragones/heroes/catalog.ex`): **única capa de
+- **Creador de héroes** (`Dragonex.Heroes` + `lib/dragonex/heroes/`): builder puro
+  nivel 1 → `Dragonex.Character`. Flujo UI en `DragonexWeb.HeroLive.New` (5 pasos).
+- **`Dragonex.Heroes.Catalog`** (`lib/dragonex/heroes/catalog.ex`): **única capa de
   display/consulta** del catálogo. Contrato previsto: `source: :builtin | :srd |
   :custom`. Hoy todas las funciones públicas devuelven `source: :builtin`; los
   hechizos SRD sí traen `source: :srd` desde `SRDSpells`, pero `Catalog.spells/2`
   y `spells_for_class/2` todavía lo descartan. Antes de añadir custom, preservar
   `Map.get(data, :source, :builtin)`. Funciones: `races/classes/backgrounds/spells/
   weapons/armors/equipment_for_class` + `*_label/2`.
-- **Hechizos**: `Dragones.Heroes.Spells` (builtin, 42) + `Dragones.Heroes.SRDSpells`
+- **Hechizos**: `Dragonex.Heroes.Spells` (builtin, 42) + `Dragonex.Heroes.SRDSpells`
   (319 cargados en compilación desde `priv/srd/spells.es.json`). Merge en
   `Spells.all/0` (builtin gana en duplicados). El importer es
   `scripts/import_srd_spells.py`.
-- **`Dragones.Character`** (`lib/dragones/character.ex`): schema embebido. Campos
+- **`Dragonex.Character`** (`lib/dragonex/character.ex`): schema embebido. Campos
   relevantes: `weapons/spells/inventory` son `{:array,:map}` (llevan structs
-  `Weapon`/`Spell`/`Item` en runtime, JSON-portables vía `Dragones.Codec`).
+  `Weapon`/`Spell`/`Item` en runtime, JSON-portables vía `Dragonex.Codec`).
   También: `skill_proficiencies`, `languages`, `racial_traits`, `class_features`,
   `background_feature`, `level` (1–20), `saving_proficiencies`.
-- **Motor de partida**: `Dragones.World` (estado), `Dragones.Game` (GenServer por
-  partida), `Dragones.Actions` (intención→reglas→world), `Dragones.Tools`
-  (`deftool`s que el DM/PC IA llaman), `Dragones.DM`, `Dragones.Rules.Combat`.
+- **Motor de partida**: `Dragonex.World` (estado), `Dragonex.Game` (GenServer por
+  partida), `Dragonex.Actions` (intención→reglas→world), `Dragonex.Tools`
+  (`deftool`s que el DM/PC IA llaman), `Dragonex.DM`, `Dragonex.Rules.Combat`.
 - **`World.level_up/1`** ya existe: sube nivel, suma PG (dado golpe medio + CON),
   refresca huecos (`SpellSlots.for_class/2`). **No** añade hechizos ni ASI. También
   existe `Tools.level_up/2`, que hoy llama a `World.level_up/1` sin opciones.
 - **Persistencia**: `heroes` (por user, `sheet` jsonb), `games`, `characters`
   (baseline estática por partida), `participants`, `game_events`; el estado vivo
-  de la partida está en `games.world` vía `Codec`. Auth: `Dragones.Accounts`,
-  `DragonesWeb.UserAuth`. Cada `Hero` pertenece a un `User`.
+  de la partida está en `games.world` vía `Codec`. Auth: `Dragonex.Accounts`,
+  `DragonexWeb.UserAuth`. Cada `Hero` pertenece a un `User`.
 
 ---
 
@@ -96,11 +96,11 @@ CREATE INDEX custom_contents_user_idx ON custom_contents(user_id, kind);
 
 Usar `timestamps(type: :naive_datetime)` para alinear con las tablas existentes.
 `Accounts.User` y `Accounts.Hero` ya existen (no tocar salvo `has_many`/assoc; en
-`User`, `has_many(:custom_contents, Dragones.Accounts.CustomContent)`).
+`User`, `has_many(:custom_contents, Dragonex.Accounts.CustomContent)`).
 
-**Módulos nuevos** (`lib/dragones/accounts/`):
-- `Dragones.Accounts.CustomContent` (schema Ecto).
-- `Dragones.Accounts` gana funciones: `list_custom_content(user, kind)`,
+**Módulos nuevos** (`lib/dragonex/accounts/`):
+- `Dragonex.Accounts.CustomContent` (schema Ecto).
+- `Dragonex.Accounts` gana funciones: `list_custom_content(user, kind)`,
   `create_custom_content(user, attrs)`, `update_custom_content/2`,
   `delete_custom_content/1`, `get_custom_content/2`.
 
@@ -109,17 +109,17 @@ Usar `timestamps(type: :naive_datetime)` para alinear con las tablas existentes.
 Reusar la forma de las structs del motor para que encajen con conversión mínima:
 
 - **weapon** → `%{dice, damage_type, attack_ability, finesse, ranged}` (igual que
-  `Dragones.Weapon`). Ej: `{"dice":"2d6","damage_type":"fire","attack_ability":"str","finesse":false,"ranged":false}`.
+  `Dragonex.Weapon`). Ej: `{"dice":"2d6","damage_type":"fire","attack_ability":"str","finesse":false,"ranged":false}`.
 - **spell** → `%{level, kind, save_ability, dice, damage_type, effect, classes}`
-  (igual que `Dragones.Spell` SIN `name` ni `casting_ability`; `name` sale de
+  (igual que `Dragonex.Spell` SIN `name` ni `casting_ability`; `name` sale de
   `key`, `casting_ability` lo fija la clase al asignarlo). `classes` debe ser una
   lista de class keys (`["wizard", "sorcerer"]`, etc.) para que
   `spells_for_class` pueda filtrar sin ofrecer cualquier custom a cualquier clase.
   El `effect` va en español (lo escribe el usuario).
 - **item** → `%{qty, kind}` donde `kind` ∈ `gear|armor|ammo|focus|consumable|magic`
-  (igual que `Dragones.Item`, que hoy solo tiene `name/qty/kind`). Para objetos
+  (igual que `Dragonex.Item`, que hoy solo tiene `name/qty/kind`). Para objetos
   mágicos con efecto mecánico, o bien guardar el texto en `notes` para la v1, o
-  añadir explícitamente `effect` a `Dragones.Item` **y** a `Codec` antes de usarlo
+  añadir explícitamente `effect` a `Dragonex.Item` **y** a `Codec` antes de usarlo
   en motor/UI.
 
 El `definition` viene de JSONB con claves string; normalizar a atoms solo al construir
@@ -144,7 +144,7 @@ El `definition` viene de JSONB con claves string; normalizar a atoms solo al con
 - **`Weapon`/`Spell`/`Item` structs**: el `name` interno pasa a ser la `key`
   (incluye las custom). El display usa `Catalog.*_label`.
 
-El **builder** (`Dragones.Heroes.build/1`) recibe ya `equipment_picks`, `spells`,
+El **builder** (`Dragonex.Heroes.build/1`) recibe ya `equipment_picks`, `spells`,
 etc. como keys. Para que un héroe lleve contenido custom, el builder solo necesita
 que esas keys existan en los datos inyectados del usuario. **Ojo**: hoy
 `process_equipment/1` solo resuelve equipo inicial builtin con `Equipment.weapon/1`
@@ -162,7 +162,7 @@ Recomendado:
 
 ## A.6 UI
 
-- Ruta nueva **`/mi-contenido`** (`DragonesWeb.CustomContentLive`): galería con
+- Ruta nueva **`/mi-contenido`** (`DragonexWeb.CustomContentLive`): galería con
   las tres pestañas (Armas / Hechizos / Objetos), botón "crear", forms de edición.
   - Forms reutilizan el patrón del hero creator (chips, validación en vivo).
   - Cada form valida mecánicas (dados parseables, etc.) antes de guardar.
@@ -250,7 +250,7 @@ conjuración en clases que la ganan tarde (paladín/explorador a L2, subclases a
 **Falta (la feature):**
 - **Hechizos al subir**: nº por clase/nivel (ej. mago +2 hechizos/nivel en el
   grimorio; bardo/hechicero según tabla). Definir tabla
-  `Dragones.Heroes.Progression.spells_known(class, level)`.
+  `Dragonex.Heroes.Progression.spells_known(class, level)`.
 - **Trucos al subir**: algunas clases ganan un truco a niveles concretos.
 - **Conjuración desbloqueada**: paladín L2, explorador L2 → ganan `spellcasting`
   feature + hechizos iniciales. Monge L2 (Ki), L3 (subclase). Definir
@@ -261,7 +261,7 @@ conjuración en clases que la ganan tarde (paladín/explorador a L2, subclases a
 
 ## B.4 Flujo de subida de nivel (UI)
 
-Nuevo modal/step en `DragonesWeb.GameLive.Show` (la mesa), disparado cuando el
+Nuevo modal/step en `DragonexWeb.GameLive.Show` (la mesa), disparado cuando el
 `Game` notifica que un PC sube (vía PubSub, igual que otros eventos):
 
 1. **Resumen**: "¡X ha subido a nivel N!" + delta automático (+PG, +huecos, +comp.
@@ -287,14 +287,14 @@ Si el PC es **IA**, el propio agente (DM o PC IA) elige sus hechizos/ASI vía to
   `choices.cantrips_added`, `choices.features_added`, etc. al `Character`.
 - `Tools`: extender el `deftool level_up(ctx, target)` existente a una variante con
   opciones (`opts`) donde `opts` lleva `%{spells: [...], asi: %{str: 1, dex: 1}, ...}`.
-  Para PC IA, el agente usa la tool. Para PC humano, **añadir API en `Dragones.Game`**
+  Para PC IA, el agente usa la tool. Para PC humano, **añadir API en `Dragonex.Game`**
   (p. ej. `Game.level_up(pid, target, choices)`) que haga el cambio dentro del
   GenServer, persista con `Games.save_state/6` y emita PubSub; el LiveView no debe
   mutar DB ni `World` por fuera del single-writer.
 - Si un PC humano necesita elecciones y el DM llama `level_up` sin `opts`, decidir
   si la tool crea un “level-up pendiente” para abrir modal, o si aplica solo cuando
   `choices` llega completo. Esa decisión afecta persistencia de pendientes.
-- `Dragones.Heroes.Progression` (módulo nuevo, puro): tablas de
+- `Dragonex.Heroes.Progression` (módulo nuevo, puro): tablas de
   `spells_known/2`, `cantrips_known/2`, `features_at(level)`, `asi_at?(level)`,
   `max_spell_level(class, level)`. **Fuente de verdad** para qué elecciones
   aplicar.
@@ -331,7 +331,7 @@ cerrada, usar la tabla SRD. Documentar la simplificación.
    4. LiveView `/mi-contenido` + integración en el editor de héroe.
    5. Tests.
 2. **Feature B después** (toca el motor y depende de tener el editor maduro):
-   1. `Dragones.Heroes.Progression` (tablas).
+   1. `Dragonex.Heroes.Progression` (tablas).
    2. Extender `World.level_up/2` con `choices` y `Tools.level_up` existente.
    3. API `Game.level_up/3` + modal de level-up en `GameLive`.
    4. Tests.

@@ -2,20 +2,20 @@ import Config
 
 config :phoenix, :json_library, Jason
 
-config :dragones, :generators, timestamp_type: :naive_datetime
+config :dragonex, :generators, timestamp_type: :naive_datetime
 
-config :dragones, ecto_repos: [Dragones.Repo]
+config :dragonex, ecto_repos: [Dragonex.Repo]
 
-config :dragones, Dragones.Repo, migration_timestamps: [type: :naive_datetime]
+config :dragonex, Dragonex.Repo, migration_timestamps: [type: :naive_datetime]
 
-config :dragones, DragonesWeb.Endpoint,
+config :dragonex, DragonexWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
-    formats: [html: DragonesWeb.ErrorHTML],
+    formats: [html: DragonexWeb.ErrorHTML],
     layout: false
   ],
-  pubsub_server: Dragones.PubSub,
-  live_view: [signing_salt: "dragonesdevsigningsalt0123"]
+  pubsub_server: Dragonex.PubSub,
+  live_view: [signing_salt: "dragonexdevsigningsalt0123"]
 
 import_config "#{config_env()}.exs"

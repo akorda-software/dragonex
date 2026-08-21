@@ -1,4 +1,4 @@
-defmodule Dragones.Repo.Migrations.TrackHeroUsageAndDrafts do
+defmodule Dragonex.Repo.Migrations.TrackHeroUsageAndDrafts do
   use Ecto.Migration
 
   def change do

@@ -1,13 +1,13 @@
 # Arquitectura
 
-> **Técnico.** Cómo se divide Dragones en subsistemas, cómo se comunican y dónde
+> **Técnico.** Cómo se divide Dragonex en subsistemas, cómo se comunican y dónde
 > vive cada cosa. Para el detalle módulo a módulo, ver
 > [`05-mapa-de-modulos.md`](05-mapa-de-modulos.md); para el bucle exacto,
 > [`01-bucle-del-agente.md`](01-bucle-del-agente.md).
 
 ## La idea estructural
 
-Dragones separa radicalmente **dos responsabilidades** que en otros sistemas
+Dragonex separa radicalmente **dos responsabilidades** que en otros sistemas
 mezcla el LLM:
 
 - **Narrar** — le corresponde al LLM (DM y PCAgent).
@@ -25,11 +25,11 @@ proceso puede morir y la partida rehidrata.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ S1  Web / LiveView            lib/dragones_web/                          │
+│ S1  Web / LiveView            lib/dragonex_web/                          │
 │     Phoenix.LiveView: la mesa, el creador de héroes, lobby, auth.        │
 │     NUNCA escribe en Repo datos de partida (D6).                         │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ S2  Partida / Game GenServer   lib/dragones/game.ex + lib/dragones/game/ │
+│ S2  Partida / Game GenServer   lib/dragonex/game.ex + lib/dragonex/game/ │
 │     Un proceso :transient por game_id. Es el ÚNICO escritor del World.  │
 │     Lanza los beats como Task, persiste tras cada uno.                   │
 ├──────────────────────────────────────────────────────────────────────────┤
@@ -37,30 +37,30 @@ proceso puede morir y la partida rehidrata.
 │     Driva el chat modelo↔tools. TurnMaster reparte turnos (D25);         │
 │     WorldDriven queda como fallback determinista.                        │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ S4  Reglas 5e                  lib/dragones/rules/ + actions.ex + world  │
+│ S4  Reglas 5e                  lib/dragonex/rules/ + actions.ex + world  │
 │     Matemática PURA sin estado (roller inyectado). Resuelve tiradas.     │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ S5  Tools (API del LLM)        lib/dragones/tools.ex                     │
+│ S5  Tools (API del LLM)        lib/dragonex/tools.ex                     │
 │     deftools que el modelo invoca → Actions → World (vía SharedState).   │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ S6  Agentes                    lib/dragones/{dm,pc_agent,turn_master,    │
+│ S6  Agentes                    lib/dragonex/{dm,pc_agent,turn_master,    │
 │                                agent,events,brief,history}.ex            │
 │     DM, PCAgent y TurnMaster (orquestación de turnos, D25). Prompts,     │
 │     guardrails, contexto compartido.                                     │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ S7  Persistencia               lib/dragones/games.ex + games/ + codec.ex │
+│ S7  Persistencia               lib/dragonex/games.ex + games/ + codec.ex │
 │     El contexto Games toca Repo (games/participants/characters/events).  │
 │     Codec: World ↔ jsonb simétrico.                                      │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ S8  Creador de héroes          lib/dragones/heroes.ex + heroes/          │
+│ S8  Creador de héroes          lib/dragonex/heroes.ex + heroes/          │
 │     Builder PURO y offline (D9): choices 5e → Character nivel 1.         │
 │     Custom inyectado (opts[:custom]), nunca lee DB.                      │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ S9  Auth                       lib/dragones/accounts.ex + accounts/      │
+│ S9  Auth                       lib/dragonex/accounts.ex + accounts/      │
 │     Users, heroes, custom_contents (bcrypt). El contexto que SÍ usa      │
 │     Repo desde la LiveView (datos de usuario, no de partida).            │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ S10 Config / Modelos           lib/dragones/{models,model_config,        │
+│ S10 Config / Modelos           lib/dragonex/{models,model_config,        │
 │                                application,release,i18n}.ex              │
 │     Proveedores LLM (OpenRouter/OpenCode), select runtime, supervision.  │
 └──────────────────────────────────────────────────────────────────────────┘
@@ -105,35 +105,35 @@ Reglas de la dirección:
 
 | Quieres tocar… | Subsistema | Módulo(s) principal(es) |
 |---|---|---|
-| Una pantalla / evento de la LiveView | S1 | `lib/dragones_web/live/` |
-| El bucle de la partida, pausa, reanuda | S2 | `Dragones.Game` (`game.ex`) |
+| Una pantalla / evento de la LiveView | S1 | `lib/dragonex_web/live/` |
+| El bucle de la partida, pausa, reanuda | S2 | `Dragonex.Game` (`game.ex`) |
 | De quién es el turno | S3/S6 | `TurnMaster` (principal) + `WorldDriven` (fallback) |
-| Una regla 5e (tirada, daño, salvación) | S4 | `Dragones.Rules.Combat`, `Rules.Ability` |
-| El puente intent→world de una acción | S4 | `Dragones.Actions` |
-| La estructura/estado del mundo | S4 | `Dragones.World` |
-| Una herramienta que el LLM puede llamar | S5 | `Dragones.Tools` |
-| El prompt del DM o del PC | S6 | `Dragones.DM`, `Dragones.PCAgent` |
-| Guardrails (anti-loop, anti-puppet…) | S6 | `Dragones.Game.Guardrails` |
-| El historial compartido / brief del mundo | S6 | `Dragones.History`, `Dragones.Brief` |
-| El esquema de DB / persistencia | S7 | `lib/dragones/games/`, `Dragones.Codec` |
-| El creador de personajes / level-up | S8 | `lib/dragones/heroes/` |
-| Usuarios / heroes / contenido custom | S9 | `lib/dragones/accounts/` |
-| Modelo LLM / provider / runtime | S10 | `Dragones.Models`, `Dragones.ModelConfig` |
+| Una regla 5e (tirada, daño, salvación) | S4 | `Dragonex.Rules.Combat`, `Rules.Ability` |
+| El puente intent→world de una acción | S4 | `Dragonex.Actions` |
+| La estructura/estado del mundo | S4 | `Dragonex.World` |
+| Una herramienta que el LLM puede llamar | S5 | `Dragonex.Tools` |
+| El prompt del DM o del PC | S6 | `Dragonex.DM`, `Dragonex.PCAgent` |
+| Guardrails (anti-loop, anti-puppet…) | S6 | `Dragonex.Game.Guardrails` |
+| El historial compartido / brief del mundo | S6 | `Dragonex.History`, `Dragonex.Brief` |
+| El esquema de DB / persistencia | S7 | `lib/dragonex/games/`, `Dragonex.Codec` |
+| El creador de personajes / level-up | S8 | `lib/dragonex/heroes/` |
+| Usuarios / heroes / contenido custom | S9 | `lib/dragonex/accounts/` |
+| Modelo LLM / provider / runtime | S10 | `Dragonex.Models`, `Dragonex.ModelConfig` |
 
 ## Árbol de procesos (runtime)
 
 ```
-Dragones.Application
-├─ Dragones.Repo                       (pool Ecto)
-├─ Phoenix.PubSub                      ("dragones:game:<id>")
-├─ Dragones.ModelConfig                (GenServer: override runtime del modelo)
-├─ Dragones.Game.Registry              (Registry unique, lookup por game_id)
-├─ Dragones.Game.Supervisor            (DynamicSupervisor)
-│   └─ Dragones.Game  (uno por game_id, :transient, registrado en el Registry)
-└─ DragonesWeb.Endpoint                (Bandit)
+Dragonex.Application
+├─ Dragonex.Repo                       (pool Ecto)
+├─ Phoenix.PubSub                      ("dragonex:game:<id>")
+├─ Dragonex.ModelConfig                (GenServer: override runtime del modelo)
+├─ Dragonex.Game.Registry              (Registry unique, lookup por game_id)
+├─ Dragonex.Game.Supervisor            (DynamicSupervisor)
+│   └─ Dragonex.Game  (uno por game_id, :transient, registrado en el Registry)
+└─ DragonexWeb.Endpoint                (Bandit)
 ```
 
-Cada partida es un `Dragones.Game` aislado bajo el `DynamicSupervisor`, arrancado
+Cada partida es un `Dragonex.Game` aislado bajo el `DynamicSupervisor`, arrancado
 on-demand (`Game.ensure_started/2`) y localizado por `game_id` en un `Registry`.
 Si su proceso muere, es `:transient` → se rehidrata de Postgres al rearrancar
 (`Game.start_link` → `rehydrate`). El historial y el `World` están en disco, no en

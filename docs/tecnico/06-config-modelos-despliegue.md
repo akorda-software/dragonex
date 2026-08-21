@@ -24,8 +24,8 @@
 
 | Fichero | Qué define |
 |---|---|
-| `config/config.exs` | PubSub `Dragones.PubSub`, adapter Bandit, `signing_salt` (default de dev; prod lo pisa en `runtime.exs`) |
-| `config/dev.exs` | Repo `127.0.0.1:5432`/`dragones_dev`; endpoint `127.0.0.1:4000`; code reloader |
+| `config/config.exs` | PubSub `Dragonex.PubSub`, adapter Bandit, `signing_salt` (default de dev; prod lo pisa en `runtime.exs`) |
+| `config/dev.exs` | Repo `127.0.0.1:5432`/`dragonex_dev`; endpoint `127.0.0.1:4000`; code reloader |
 | `config/runtime.exs` | dev/test cargan `.env.dev` (Dotenvy); override DB por env; **prod requiere** `DATABASE_URL` y `SECRET_KEY_BASE` (+ opcional `LIVE_VIEW_SIGNING_SALT`, derivado del secret si no viene) |
 | `config/test.exs` | Repo test, sandbox |
 
@@ -39,16 +39,16 @@ y lo mete en `System.put_env`. Los valores del entorno real **ganan** sobre `.en
 | `OPENROUTER_API_KEY` | — | API key del provider OpenRouter. Sin ella → `TestModel` |
 | `OPENCODE_API_KEY` | — | API key del provider OpenCode (Zen/Go) |
 | `OPENCODE_PLAN` | `go` | Plan de OpenCode (`go`/`zen`) |
-| `DRAGONES_PROVIDER` | `openrouter` | Provider activo (`openrouter`/`opencode`) |
+| `DRAGONEX_PROVIDER` | `openrouter` | Provider activo (`openrouter`/`opencode`) |
 | `DATABASE_URL` | — | **prod obligatoria** |
 | `SECRET_KEY_BASE` | — | **prod obligatoria** (`mix phx.gen.secret`) |
 | `LIVE_VIEW_SIGNING_SALT` | derivado del secret | signing salt de LiveView en prod |
 | `DB_HOST`/`DB_PORT`/`DB_USER`/`DB_PASS`/`DB_NAME` | `127.0.0.1`/`5432`/… | override de DB (dev/test) |
 | `PORT` | `4000` | puerto http del endpoint |
 | `PHX_BIND_IP` | `127.0.0.1` | IP de bind |
-| `DRAGONES_COMPACTION_THRESHOLD` | `250000` | umbral de compactación (tokens) |
+| `DRAGONEX_COMPACTION_THRESHOLD` | `250000` | umbral de compactación (tokens) |
 
-## Los dos proveedores LLM (`Dragones.Models`)
+## Los dos proveedores LLM (`Dragonex.Models`)
 
 | Provider | Key | Modelo DM por defecto | Modelo summarizer | Reasoning |
 |---|---|---|---|---|
@@ -56,7 +56,7 @@ y lo mete en `System.put_env`. Los valores del entorno real **ganan** sobre `.en
 | `:opencode` | `OPENCODE_API_KEY` | `deepseek-v4-flash` | `gemini-3.5-flash-lite` | `%{"reasoning_effort" => …}` |
 
 **Resolución del provider**: `ModelConfig.get().provider` (override runtime) →
-`DRAGONES_PROVIDER` env → `:openrouter` (default). Un valor desconocido cae a
+`DRAGONEX_PROVIDER` env → `:openrouter` (default). Un valor desconocido cae a
 `:openrouter` con warning.
 
 **Fallback offline**: si la key del provider activo falta o está vacía, **ambos**
@@ -66,7 +66,7 @@ deterministas.
 
 ### ModelConfig + modal Ajustes
 
-`Dragones.ModelConfig` es un GenServer arrancado en `application.ex` **antes** que
+`Dragonex.ModelConfig` es un GenServer arrancado en `application.ex` **antes** que
 el `Game.Supervisor`. El modal **Ajustes** de la mesa (`GameLive.Show`) cambia
 provider/modelo/reasoning; al aplicar, **reinicia el proceso `Game`**
 (`Game.restart/2`), que rehidrata de Postgres con el modelo nuevo cableado en un DM
@@ -83,12 +83,12 @@ fresco. Los overrides son **efímeros** (se pierden al reiniciar la app) y
 | App → Postgres (dentro de compose) | — | `postgres:5432` |
 
 Los puertos están centralizados en [`../../PUERTOS.md`](../../PUERTOS.md) si existe
-a nivel de workspace; los de Dragones son 4035 (app) y 5455 (Postgres dev).
+a nivel de workspace; los de Dragonex son 4035 (app) y 5455 (Postgres dev).
 
 ## Compose / Docker (`compose.dev.yml`)
 
 - **`postgres`**: `postgis/postgis:17-3.5-alpine`, volumen externo
-  `infra_postgres-data`, host `5455 → 5432`. `POSTGRES_DB: dragones_dev`.
+  `infra_postgres-data`, host `5455 → 5432`. `POSTGRES_DB: dragonex_dev`.
 - **`app`**: build desde `Dockerfile.dev`, source mount `.:/app`, code reloader.
   Env: `DB_HOST=postgres`, `DB_PORT=5432`, `PORT=4000`, `PHX_BIND_IP=0.0.0.0`.
   Host `4035 → 4000`. Comando: `mix deps.get && mix ecto.migrate && mix phx.server`.
@@ -105,7 +105,7 @@ DB_PORT=5455 mix phx.server               # http://localhost:4035
 
 ## Despliegue (producción)
 
-- Release con `mix release` (ver `Dragones.Release` para migrate/rollback sin Mix).
+- Release con `mix release` (ver `Dragonex.Release` para migrate/rollback sin Mix).
 - Variables obligatorias en prod: `DATABASE_URL`, `SECRET_KEY_BASE`, y la key del
   provider elegido. Opcional `LIVE_VIEW_SIGNING_SALT`, `PHX_HOST`, `PHX_SERVER`.
 - Despliegue vía Dokploy (`scripts/deploy-dokploy.sh`): imagen Docker + env vars
@@ -117,8 +117,8 @@ DB_PORT=5455 mix phx.server               # http://localhost:4035
 MIX_ENV=test mix test                # suite (siempre con MIX_ENV=test)
 mix format                           # obligatorio antes de commit
 mix compile                          # sin warnings
-docker logs -f dragones-app          # logs del server (compose)
-DRAGONES_RUN_LIVE=1 OPENROUTER_API_KEY=... mix test --include integration  # tests live
+docker logs -f dragonex-app          # logs del server (compose)
+DRAGONEX_RUN_LIVE=1 OPENROUTER_API_KEY=... mix test --include integration  # tests live
 ```
 
 ## Lectura siguiente

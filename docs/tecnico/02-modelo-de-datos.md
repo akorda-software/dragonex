@@ -6,7 +6,7 @@
 
 ## Las dos caras del estado
 
-Dragones tiene **dos** representaciones del estado, y entender la relación entre
+Dragonex tiene **dos** representaciones del estado, y entender la relación entre
 ellas es lo que evita bugs silenciosos:
 
 1. **En runtime** — un árbol de **structs** Elixir (`World → Character →
@@ -14,7 +14,7 @@ ellas es lo que evita bugs silenciosos:
 2. **En Postgres** — `games.world` como **jsonb**, más tablas relacionales para
    usuarios/héroes/eventos.
 
-La frontera entre ambas es **`Dragones.Codec`**: codifica structs → mapa
+La frontera entre ambas es **`Dragonex.Codec`**: codifica structs → mapa
 JSON-safe al persistir, y decodifica mapa → structs al rehidratar. Es **explícito
 campo a campo** (sin heurística genérica de walking) precisamente para que nada se
 pierda silenciosamente.
@@ -63,24 +63,24 @@ que tenga que estar tanto en el `Codec.encode_character` (para `sheet`) como en 
 ## Árbol de structs (runtime)
 
 ```
-Dragones.World (world.ex)
+Dragonex.World (world.ex)
 ├─ scene          String                       escena actual (lo que el DM narró)
 ├─ phase          :exploration | :combat
 ├─ round          pos_integer                  asalto de combate
-├─ characters     %{name => Dragones.Character}  (structs completos)
+├─ characters     %{name => Dragonex.Character}  (structs completos)
 ├─ initiative_order [name]                     orden de iniciativa
 ├─ log            [(actor, entry)]             legacy (se codifica como 2-arrays)
 ├─ spell_slots    %{name => %{level => count}}  CLAVES DE NIVEL ENTERAS
 └─ facts          [String]                     hechos durables (D16, cap 30)
 
-Dragones.Character (character.ex)  — Ecto embedded schema
+Dragonex.Character (character.ex)  — Ecto embedded schema
 ├─ identidad: name, race, class, sex, side, level, xp
 ├─ vitales:   hp, max_hp, temp_hp, ac, speed
 ├─ atributos: str/dex/con/int/wis/cha
 ├─ backstory
-├─ weapons:   [Dragones.Weapon]   almacenados como {:array, :map}
-├─ spells:    [Dragones.Spell]    {:array, :map}
-├─ inventory: [Dragones.Item]     {:array, :map}
+├─ weapons:   [Dragonex.Weapon]   almacenados como {:array, :map}
+├─ spells:    [Dragonex.Spell]    {:array, :map}
+├─ inventory: [Dragonex.Item]     {:array, :map}
 ├─ conditions:        [%{condition: name}]
 ├─ death_saves:       %{successes: integer, fails: integer}
 └─ saving_proficiencies, skill_proficiencies, languages, racial_traits,

@@ -2,23 +2,23 @@
 # bin/dev — arranca Phoenix en dev cargando .env.dev ANTES de evaluar mix.exs.
 #
 # ¿Por qué existe esto? mix.exs decide entre deps locales (../exagent, ../dic_ex)
-# o de GitHub mirando DRAGONES_LOCAL_DEPS. Pero mix.exs se evalúa ANTES que
+# o de GitHub mirando DRAGONEX_LOCAL_DEPS. Pero mix.exs se evalúa ANTES que
 # config/runtime.exs, donde Dotenvy cargaría .env.dev. Sin este wrapper, la
 # variable no llegaría a deps/0 y tendrías que exportarla a mano cada vez.
 #
 # Uso:
-#   bin/dev                       # respeta DRAGONES_LOCAL_DEPS de .env.dev
-#   DRAGONES_LOCAL_DEPS=1 bin/dev # fuerza deps locales aunque .env.dev diga lo contrario
+#   bin/dev                       # respeta DRAGONEX_LOCAL_DEPS de .env.dev
+#   DRAGONEX_LOCAL_DEPS=1 bin/dev # fuerza deps locales aunque .env.dev diga lo contrario
 #   bin/dev iex -S mix phx.server # pasa argumentos extra a mix
 #
 # Carga .env.dev si existe (set -a exporta todas las vars definidas después).
 # Las vars que ya estén en el shell ganan (no se sobreescriben con .env.dev:
-# eso permite el override `DRAGONES_LOCAL_DEPS=1 bin/dev`).
+# eso permite el override `DRAGONEX_LOCAL_DEPS=1 bin/dev`).
 
 set -eu
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ENV_FILE="${DRAGONES_ENV_FILE:-$ROOT/.env.dev}"
+ENV_FILE="${DRAGONEX_ENV_FILE:-$ROOT/.env.dev}"
 
 if [ -f "$ENV_FILE" ]; then
   set -a
@@ -28,8 +28,8 @@ if [ -f "$ENV_FILE" ]; then
 fi
 
 # Re-export por si .env.dev no tenía la línea (mantén valor del shell).
-export DRAGONES_LOCAL_DEPS="${DRAGONES_LOCAL_DEPS:-}"
-export DRAGONES_DEPS_ROOT="${DRAGONES_DEPS_ROOT:-../}"
+export DRAGONEX_LOCAL_DEPS="${DRAGONEX_LOCAL_DEPS:-}"
+export DRAGONEX_DEPS_ROOT="${DRAGONEX_DEPS_ROOT:-../}"
 
 cd "$ROOT"
 exec mix "${@:-phx.server}"

@@ -1,4 +1,4 @@
-# Dragones — roadmap y arquitectura
+# Dragonex — roadmap y arquitectura
 
 Una estrella polar viva. Define **qué** construimos, **cómo** (arquitectura) y
 **en qué orden** (fases). Antes de cada fase se relee y se afina.
@@ -29,7 +29,7 @@ Un DM por IA dirige partidas de D&D 5e. Flujos del usuario:
 
 1. **El motor es la fuente de verdad.** La IA nunca calcula resultados: llama a
    tools que los resuelven por las reglas. El LLM solo lee texto y narra.
-2. **La lógica de partida vive en un proceso `Dragones.Game`**, no en el
+2. **La lógica de partida vive en un proceso `Dragonex.Game`**, no en el
    LiveView. El Game es dueño del bucle de turnos, ejecuta los AI, espera a los
    humanos, persiste y se pausa.
 3. **El LiveView es vista + input.** Renderiza el estado del Game y envía las
@@ -43,9 +43,9 @@ Un DM por IA dirige partidas de D&D 5e. Flujos del usuario:
 ## Capas
 
 ```
-UI           DragonesWeb.LiveView — vista + input del humano (suscrito vía PubSub)
-Aplicación   Dragones.Game (GenServer por partida) — bucle, AI, espera-humano, pausa
-Motor        ExAgent.Session + Dragones.{Rules, World, Actions, Tools, DM, TurnPolicy.WorldDriven}
+UI           DragonexWeb.LiveView — vista + input del humano (suscrito vía PubSub)
+Aplicación   Dragonex.Game (GenServer por partida) — bucle, AI, espera-humano, pausa
+Motor        ExAgent.Session + Dragonex.{Rules, World, Actions, Tools, DM, TurnPolicy.WorldDriven}
 Datos        Postgres — games/characters/participants + World (jsonb vía Codec)
 ```
 
@@ -55,7 +55,7 @@ no lo rehacen.
 
 ---
 
-## El bucle de turnos (`Dragones.Game`)
+## El bucle de turnos (`Dragonex.Game`)
 
 El Game process avanza turnos (a través del `Session` + `WorldDriven`):
 
@@ -85,7 +85,7 @@ su **propio agente** (personalidad, objetivos), distinto del DM.
 - `games`: `id`, `title`, `story_bible` (jsonb — ganchos, NPCs, localizaciones,
   tono; lo que guía al DM), `dm_style`, `status`
   (`:configuring | :running | :paused | :waiting | :ended`), `world` (jsonb vía
-  `Dragones.Codec`), `round`, `current_participant`, timestamps.
+  `Dragonex.Codec`), `round`, `current_participant`, timestamps.
 - `characters`: `id`, `game_id`, `name`, `sheet` (jsonb — el `Character`),
   `kind` (`:ai | :human`).
 - `participants`: `id`, `game_id`, `name`, `kind`, `side`. (El DM es un
@@ -135,15 +135,15 @@ Se refina al implementar la Fase 0.
 - 113 tests offline + 3 live (base pre-Fase 0). Arquetipos (fighter/wizard/rogue) y trasgos.
 
 **Desechable**: el cascade síncrono actual en `GameLive.handle_info` — fue una
-prueba del flujo; la Fase 0 lo reemplaza por el `Dragones.Game`.
+prueba del flujo; la Fase 0 lo reemplaza por el `Dragonex.Game`.
 
 ---
 
 ## Fases
 
-### Fase 0 — cimientos: `Dragones.Game` + DB  *(la que reorganiza todo)* — ✅ HECHA
+### Fase 0 — cimientos: `Dragonex.Game` + DB  *(la que reorganiza todo)* — ✅ HECHA
 - Ecto + Postgres: schemas `Game`/`Character`/`Participant`/`GameEvent` + migraciones. ✅
-- `Dragones.Game` (GenServer, `:transient` bajo `DynamicSupervisor`, registro por
+- `Dragonex.Game` (GenServer, `:transient` bajo `DynamicSupervisor`, registro por
   `game_id` vía `Registry`): arranca, rehidrata del DB, persiste cada cambio
   (estado **y** `game_events` append-only). ✅
 - El Game usa `ExAgent.Session` (`WorldDriven`) como motor in-memory; el Game es
@@ -156,9 +156,9 @@ prueba del flujo; la Fase 0 lo reemplaza por el `Dragones.Game`.
   (DM live: narra, los dados rodaron por tools — `d20=5` miss narrado honestamente —
   persiste estado+eventos, y **rehidrata tras kill** del proceso, mismo `game_id`). ✅
 
-**LiveView ya es vista+input sobre `Dragones.Game`** ✅: `GameLive.mount`
+**LiveView ya es vista+input sobre `Dragonex.Game`** ✅: `GameLive.mount`
 crea la partida (`Scenario.default` → `Games.create_game`), arranca el Game
-(`Game.ensure_started`) y se suscribe a `Dragones.PubSub` (`"dragones:game:<id>"`);
+(`Game.ensure_started`) y se suscribe a `Dragonex.PubSub` (`"dragonex:game:<id>"`);
 renderiza el `snapshot` (sheets + la línea de chat desde `game_events`) y envía
 `Game.declare/3`. El Game es el único que toca la lógica y el Repo; el LiveView sólo
 refleja lo que el Game reporta (incluido el modal de dados, alimentado por el
@@ -170,7 +170,7 @@ monstruo) — ver [`docs/progress.md`](docs/progress.md) § "Pendiente / fuera d
 v1".
 
 ### Fase 1 — creador de partidas (wizard) — ✅ HECHA
-- `Dragones.Scenario.catalog/0` (fighter/wizard/rogue PCs + goblin monster) +
+- `Dragonex.Scenario.catalog/0` (fighter/wizard/rogue PCs + goblin monster) +
   `Games.create_from_wizard/1` (roster + iniciativa automática: monstruos
   primero si los hay → el DM auto-actúa al abrir). ✅
 - `GameLive.New` (`/games/new`): título/escena/estilo + reparto con toggle
@@ -201,7 +201,7 @@ v1".
   termina, todo persiste y rehidrata.
 
 ### Fase 4 — creador de personajes completo — ✅ HECHA
-- **Builder nivel-1** (`Dragones.Heroes`): razas + subrazas, clases,
+- **Builder nivel-1** (`Dragonex.Heroes`): razas + subrazas, clases,
   backgrounds, puntuaciones (standard array / point buy / explícito),
   equipment (grupos SRD + custom), spells (casters), skills, languages. ✅
 - **Catálogos SRD**: clases, razas, trasfondos, equipo completo, 42 hechizos
@@ -237,11 +237,11 @@ iniciativa individual, coordinación de PCs auto) — ver
   OpenRouter cachea el prefijo → medido en vivo: **44–85% de los tokens de
   entrada cacheados** por beat. Framework: `parse_usage` captura
   `cached_tokens` y `sum_details` ya no casca con details anidados.
-- **Modelo-por-rol** ✅: `Dragones.Models` centraliza `dm/0` (mejor adherencia)
+- **Modelo-por-rol** ✅: `Dragonex.Models` centraliza `dm/0` (mejor adherencia)
   + `summarizer/0` (barato: flash/lite) + `dm_max_tokens/0`, todo env-overridable.
 - **Compactación** ✅: `Compaction.Summary` cableada en el DM via capability; al
   cruzar el umbral el summarizer barato recapa el historial viejo (keep_recent
-  verbatim). Umbral/ventana configurables (`DRAGONES_COMPACTION_*`).
+  verbatim). Umbral/ventana configurables (`DRAGONEX_COMPACTION_*`).
 
 > Todas las mejoras transversales del roadmap original están **hechas**. Lo
 > que sigue es refinamiento de producto/reglas — lista viva en
@@ -260,7 +260,7 @@ iniciativa individual, coordinación de PCs auto) — ver
 - **World como jsonb en `games`** (vía `Codec`) + `game_events` append-only para
   el historial. ✅ (Fase 0)
 - **El Game es la capa de durabilidad**, no un `Store` ExAgent: el `Session`
-  corre in-memory (sin store) y el `Dragones.Game` persiste a Postgres tras cada
+  corre in-memory (sin store) y el `Dragonex.Game` persiste a Postgres tras cada
   beat (estado + evento). Rehidratar = leer el row, reconstruir el `Session` y
   `Session.handoff/2` al `current_participant` guardado. Evita doble persistencia
   y mantiene los `game_events` (que no son contrato de `ExAgent.Store`) en una

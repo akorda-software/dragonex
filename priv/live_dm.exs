@@ -1,22 +1,22 @@
 # Run with:
-#   OPENROUTER_API_KEY=... DRAGONES_MODEL=deepseek/deepseek-v4-flash mix run priv/live_dm.exs
+#   OPENROUTER_API_KEY=... DRAGONEX_MODEL=deepseek/deepseek-v4-flash mix run priv/live_dm.exs
 #
 # Verifies the turn flow live: a single DM agent resolves the player's action on
 # Thane's turn (proposing as "thane") and acts for the goblin on the DM's turn
 # (proposing as "dm"). The dice confirm the tools ran; the world confirms the
 # rules were applied; the turn alternation confirms the policy drives the order.
 
-alias Dragones.{Archetypes, Brief, Monsters, TurnPolicy.WorldDriven, World}
+alias Dragonex.{Archetypes, Brief, Monsters, TurnPolicy.WorldDriven, World}
 alias ExAgent.{Models, Server, Session}
 alias ExAgent.Session.{Participant, SharedState}
 
 unless System.get_env("OPENROUTER_API_KEY"),
-  do: raise("set OPENROUTER_API_KEY (and optionally DRAGONES_MODEL)")
+  do: raise("set OPENROUTER_API_KEY (and optionally DRAGONEX_MODEL)")
 
 model =
   Models.OpenRouter.new(
-    model: System.get_env("DRAGONES_MODEL", "deepseek/deepseek-v4-flash"),
-    app_title: "dragones turn-flow dev"
+    model: System.get_env("DRAGONEX_MODEL", "deepseek/deepseek-v4-flash"),
+    app_title: "dragonex turn-flow dev"
   )
 
 {:ok, dm} = Server.start_link(agent: DM.new(model), agent_id: "dm-flow", pubsub: :local)
@@ -46,7 +46,7 @@ defmodule Runner do
   def beat(label, game, dm, propose_as, instruction) do
     IO.puts("\n########## #{label} (propose as #{propose_as}) ##########")
     world = Session.read_state(game)
-    prompt = Dragones.Brief.turn_prompt(world, propose_as, instruction, "dm")
+    prompt = Dragonex.Brief.turn_prompt(world, propose_as, instruction, "dm")
 
     {:ok, roll_log} = Agent.start_link(fn -> [] end)
 

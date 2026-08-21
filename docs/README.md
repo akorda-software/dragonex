@@ -1,11 +1,11 @@
-# Documentación de Dragones
+# Documentación de Dragonex
 
-> **Documentación viva del proyecto.** Esta carpeta describe qué es Dragones
+> **Documentación viva del proyecto.** Esta carpeta describe qué es Dragonex
 > (producto) y cómo está implementado hoy (técnico), alineada con el código real.
 > Si una afirmación de estos docs contradice el código, **el código gana**;
 > corrige el doc (o abre una decisión en `decisions.md`).
 
-Dragones es un **DM por IA para D&D 5e**: una aplicación donde uno o varios
+Dragonex es un **DM por IA para D&D 5e**: una aplicación donde uno o varios
 personajes (humanos o IA) viven una aventura narrada y arbitrada por un LLM que
 **solo narra** — cada tirada, ataque y salvación la resuelve un motor
 determinístico de reglas (`deftool`s), así el DM no miente con números.
@@ -74,9 +74,9 @@ Cada conceptos tiene **un único sitio canónico**; el resto enlaza, no replica:
 |---|---|
 | Estado de una feature | `progress.md` |
 | Razón de una decisión estructural | `decisions.md` (ADR `Dn`) |
-| Forma de un struct (`Character`/`Weapon`/`Spell`/`Item`) | el struct en `lib/dragones/` + `Codec` (`codec.ex`) |
+| Forma de un struct (`Character`/`Weapon`/`Spell`/`Item`) | el struct en `lib/dragonex/` + `Codec` (`codec.ex`) |
 | Esquema de DB | las migraciones en `priv/repo/migrations/` |
-| Lista de tools del LLM | `Dragones.Tools` (`tools.ex`) + `Dragones.DM`/`PCAgent.tools/0` |
+| Lista de tools del LLM | `Dragonex.Tools` (`tools.ex`) + `Dragonex.DM`/`PCAgent.tools/0` |
 | Flujo exacto de un beat | `tecnico/01-bucle-del-agente.md` (respaldado por `game.ex`) |
 | Invariante "no se rompe" | `AGENTS.md` § Convenciones + los ADR `D1`–`D9` |
 

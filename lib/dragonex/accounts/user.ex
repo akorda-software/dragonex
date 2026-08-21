@@ -1,0 +1,23 @@
+defmodule Dragonex.Accounts.User do
+  @moduledoc """
+  A registered player. Owns heroes (created characters) and games (partidas).
+
+  Passwords are hashed with bcrypt (`Bcrypt.hash_pwd_salt/1`). The `password_hash`
+  column stores the hash; the plaintext never touches the database.
+  """
+
+  use Ecto.Schema
+
+  schema "users" do
+    field(:email, :string)
+    field(:password, :string, virtual: true, redact: true)
+    field(:password_hash, :string, redact: true)
+    field(:display_name, :string)
+
+    has_many(:heroes, Dragonex.Accounts.Hero)
+    has_many(:games, Dragonex.Games.Game)
+    has_many(:custom_contents, Dragonex.Accounts.CustomContent)
+
+    timestamps(type: :naive_datetime)
+  end
+end

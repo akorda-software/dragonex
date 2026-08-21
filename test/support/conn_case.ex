@@ -1,4 +1,4 @@
-defmodule DragonesWeb.ConnCase do
+defmodule DragonexWeb.ConnCase do
   @moduledoc false
 
   use ExUnit.CaseTemplate
@@ -8,7 +8,7 @@ defmodule DragonesWeb.ConnCase do
       import Phoenix.LiveViewTest
       import Phoenix.ConnTest
       import Plug.Conn
-      @endpoint DragonesWeb.Endpoint
+      @endpoint DragonexWeb.Endpoint
     end
   end
 

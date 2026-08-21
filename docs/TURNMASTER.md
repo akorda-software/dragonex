@@ -1,7 +1,7 @@
-# Dragones — TurnMaster: el intermediario como agente
+# Dragonex — TurnMaster: el intermediario como agente
 
 > **Tipo:** spec técnico de diseño (Fase 5). **Referencia de diseño** — la
-> implementación vive en código (`lib/dragones/turn_master*.ex`, `game.ex`) y en
+> implementación vive en código (`lib/dragonex/turn_master*.ex`, `game.ex`) y en
 > [`tecnico/01-bucle-del-agente.md`](tecnico/01-bucle-del-agente.md) /
 > [`FLUJO_PARTIDA.md`](FLUJO_PARTIDA.md). La decisión (el *porqué*) es
 > **`decisions.md` → D25** (estado: **Implementada**).
@@ -21,8 +21,8 @@
 
 ## 1. Visión y problema
 
-Hoy el "intermediario" es `Dragones.TurnPolicy.WorldDriven`
-(`lib/dragones/turn_policy/world_driven.ex`): un `TurnPolicy` **determinista**
+Hoy el "intermediario" es `Dragonex.TurnPolicy.WorldDriven`
+(`lib/dragonex/turn_policy/world_driven.ex`): un `TurnPolicy` **determinista**
 que mantiene un cursor sobre una lista fija y lo recorre. La iniciativa se
 decide una sola vez (`roll_initiative` → `World.begin_combat`, `world.ex:233`) y
 desde ahí `WorldDriven` solo avanza el índice; `Session.end_turn` hace avanzar
@@ -51,7 +51,7 @@ barato/rápido).
 - **Cadencia**: un beat de TurnMaster antes de cada beat de actor. Se prioriza
   la fluidez sobre ahorrar tokens; el TurnMaster usa un modelo barato/rápido.
 - **`WorldDriven` se conserva como red de seguridad** (fallback determinista).
-- Nombre del módulo: `Dragones.TurnMaster`.
+- Nombre del módulo: `Dragonex.TurnMaster`.
 
 ## 3. Arquitectura — qué cambia, qué queda
 
@@ -75,24 +75,24 @@ el **`Game`** quien la ejecuta — `Session.handoff/2` para entregar el turno,
 que hoy usan `maybe_end_combat` y `maybe_force_combat` (`game.ex`).
 
 **Subsistemas** (ver `tecnico/00-arquitectura.md`): TurnMaster es un agente más
-en **S6** (`lib/dragones/turn_master.ex`), con sus propias tools de orquestación
-(**no** en `Dragones.Tools`/S5, que son de resolución 5e); el reparto de turnos
+en **S6** (`lib/dragonex/turn_master.ex`), con sus propias tools de orquestación
+(**no** en `Dragonex.Tools`/S5, que son de resolución 5e); el reparto de turnos
 pasa de ser sólo **S3** (`WorldDriven`) a S3-asistido-por-S6, con `WorldDriven`
 relegado a fallback; el modelo vive en **S10** (`Models.turnmaster/0`).
 
 ```
-UI           DragonesWeb.GameLive.Show                              (S1)
-App          Dragones.Game — bucle actor → turnmaster → handoff     (S2)
+UI           DragonexWeb.GameLive.Show                              (S1)
+App          Dragonex.Game — bucle actor → turnmaster → handoff     (S2)
 Motor        ExAgent.Session + TurnMaster (decide) + WorldDriven (fallback)  (S3)
-Reglas       Dragones.{Rules, World, Actions, Tools}  (sin cambios) (S4–S5)
-Agentes      Dragones.{DM, PCAgent} + Dragones.TurnMaster           (S6)
-Modelos      Dragones.Models (rol :turnmaster)                      (S10)
+Reglas       Dragonex.{Rules, World, Actions, Tools}  (sin cambios) (S4–S5)
+Agentes      Dragonex.{DM, PCAgent} + Dragonex.TurnMaster           (S6)
+Modelos      Dragonex.Models (rol :turnmaster)                      (S10)
 Datos        Postgres (games/.../game_events) + world jsonb         (S7)
 ```
 
 ## 4. El agente TurnMaster
 
-`Dragones.TurnMaster.new(model, opts) :: ExAgent.t()` (espejo de `DM.new/2`,
+`Dragonex.TurnMaster.new(model, opts) :: ExAgent.t()` (espejo de `DM.new/2`,
 `dm.ex:46`):
 
 - **System prompt** corto y estricto: rol de director de escena. Reglas:
@@ -230,7 +230,7 @@ peor caso vuelve al comportamiento actual (determinista).
   `%{to: "Lyra", kind: :give_turn_to}` y texto "El turno pasa a Lyra.". No hace
   falta un tipo nuevo: `:system` ya existe (`game_event.ex:22`). Opcionalmente
   `:turn` con `kind: :handoff` si se quiere agrupar visualmente.
-- **History** (`lib/dragones/history.ex`): `:system` ya se reconstruye como
+- **History** (`lib/dragonex/history.ex`): `:system` ya se reconstruye como
   mensaje `user` `[sistema]:` (`history.ex:121`). Sin cambios: el TurnMaster
   aporta una línea breve por decisión. DM y PCs leen "el turno pasó a X" y
   mantienen coherencia.
@@ -240,7 +240,7 @@ peor caso vuelve al comportamiento actual (determinista).
 
 ## 10. Modelos — `Models.turnmaster/0`
 
-Nuevo rol `:turnmaster` en `lib/dragones/models.ex`, enganchado al catálogo de
+Nuevo rol `:turnmaster` en `lib/dragonex/models.ex`, enganchado al catálogo de
 providers existente (no un env suelto):
 
 - Una entrada `turnmaster: "<slug>"` en cada fila de `@providers` (openrouter +
@@ -256,7 +256,7 @@ el brief del turno → aprovecha el prompt caching ya medido (`cached_tokens/1`)
 
 ## 11. Fases de implementación
 
-- **Fase A — Agente TurnMaster (aislado)**: `Dragones.TurnMaster` + tools + system
+- **Fase A — Agente TurnMaster (aislado)**: `Dragonex.TurnMaster` + tools + system
   prompt + `Models.turnmaster/0`. Tests offline con `ExAgent.Models.Test`
   (determinista, sin LLM real): las tools registran decisiones válidas/inválidas.
 - **Fase B — Integración en el bucle**: micro-máquina actor→turnmaster en

@@ -1,20 +1,20 @@
 # Run with:
-#   OPENROUTER_API_KEY=... DRAGONES_MODEL=deepseek/deepseek-v4-flash mix run priv/live_check.exs
+#   OPENROUTER_API_KEY=... DRAGONEX_MODEL=deepseek/deepseek-v4-flash mix run priv/live_check.exs
 #
 # Verifies the DM adjudicates a non-combat action through ability_check: the DM
 # sets the DC, the engine rolls d20 + WIS modifier, the DM narrates the result.
 
-alias Dragones.{Archetypes, Brief, World}
+alias Dragonex.{Archetypes, Brief, World}
 alias ExAgent.{Models, Server, Session}
 alias ExAgent.Session.{Participant, SharedState}
 
 unless System.get_env("OPENROUTER_API_KEY"),
-  do: raise("set OPENROUTER_API_KEY (and optionally DRAGONES_MODEL)")
+  do: raise("set OPENROUTER_API_KEY (and optionally DRAGONEX_MODEL)")
 
 model =
   Models.OpenRouter.new(
-    model: System.get_env("DRAGONES_MODEL", "deepseek/deepseek-v4-flash"),
-    app_title: "dragones ability-check dev"
+    model: System.get_env("DRAGONEX_MODEL", "deepseek/deepseek-v4-flash"),
+    app_title: "dragonex ability-check dev"
   )
 
 {:ok, dm} = Server.start_link(agent: DM.new(model), agent_id: "dm-check", pubsub: :local)
@@ -26,7 +26,7 @@ world =
 {:ok, game} =
   Session.start_link(
     shared_state: world,
-    policy: {Dragones.TurnPolicy.WorldDriven, dm: "dm"},
+    policy: {Dragonex.TurnPolicy.WorldDriven, dm: "dm"},
     participants: [Participant.new(id: "dm", kind: :agent), Participant.new(id: "Thane", kind: :human)],
     session_id: "check-#{:erlang.unique_integer([:positive])}"
   )

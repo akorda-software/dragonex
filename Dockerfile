@@ -42,11 +42,11 @@ WORKDIR /app
 
 RUN addgroup -S app && adduser -S app -G app
 
-COPY --from=builder --chown=app:app /app/_build/prod/rel/dragones ./
+COPY --from=builder --chown=app:app /app/_build/prod/rel/dragonex ./
 
 USER app
 
 EXPOSE 4000
 # Migra (idempotente) y luego arranca. Si una migración falla, el contenedor
 # no arranca — preferible a servir con schema incompleto.
-CMD ["sh", "-c", "bin/dragones eval 'Dragones.Release.migrate()' && bin/dragones start"]
+CMD ["sh", "-c", "bin/dragonex eval 'Dragonex.Release.migrate()' && bin/dragonex start"]
