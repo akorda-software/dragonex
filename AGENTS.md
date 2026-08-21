@@ -12,6 +12,15 @@ D&D 5e con DM por IA. Elixir/Phoenix LiveView + Postgres + `exAgent` (GitHub dep
 [`docs/decisions.md`](docs/decisions.md) (porqués),
 [`docs/FLUJO_PARTIDA.md`](docs/FLUJO_PARTIDA.md) (cómo funciona el bucle).
 
+**Si vienes a implementar algo** (p. ej. iteración autónoma 24/7): el contrato
+de requisitos con criterios de aceptación está en
+[`docs/producto/02-requisitos.md`](docs/producto/02-requisitos.md) (`Rxx`+`AC`),
+el backlog ordenado en [`docs/producto/03-plan-fases.md`](docs/producto/03-plan-fases.md)
+(F6/F7, con receta por ítem), y el protocolo de verificación en
+[`docs/tecnico/09-estrategia-pruebas.md`](docs/tecnico/09-estrategia-pruebas.md).
+Una feature está "hecha" cuando sus AC pasan y `progress.md` la mueve — no
+cuando el commit existe.
+
 ## Comandos
 
 ```sh
@@ -55,11 +64,14 @@ docker logs -f dragonex-app               # logs
 
 ```
 lib/dragonex/           motor + dominio (Rules, World, Actions, Tools, DM,
-                        PCAgent, Game GenServer, Games DB, Heroes creador, Accounts)
+                        PCAgent, TurnMaster, Game GenServer, Games DB, Heroes
+                        creador, Accounts)
 lib/dragonex_web/       LiveViews (Game, Hero, CustomContent), router, auth
 priv/repo/migrations/   8 migraciones
 priv/srd/spells.es.json 319 hechizos SRD (regenerable: scripts/import_srd_spells.py)
-docs/                   progress, decisions, FLUJO_PARTIDA, historical/
+docs/                   progress, decisions, FLUJO_PARTIDA, producto/
+                        (requisitos, plan-fases), tecnico/ (arquitectura,
+                        contrato-tools, mecánicas, pruebas), historical/
 ```
 
 ## Cómo se trabaja aquí
