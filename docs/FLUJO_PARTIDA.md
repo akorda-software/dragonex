@@ -140,12 +140,20 @@ Spec de diseño: [`TURNMASTER.md`](TURNMASTER.md).
 **IA PC**: agent propio + `PCAgent.instruction/3` + anti-loop, `run_beat`.
 
 **Humano**: intent pendiente → beat; si no, `persist(:waiting)` hasta `declare/3`.
+Un `declare` off-turn de **otro** humano despierta al TurnMaster (D27) para
+que pueda priorizar esa iniciativa; si el TM no decide, el waiter no pierde
+el floor. La UI permite encolar aunque haya un beat en vuelo. Un intent de
+combate caduca al volver a exploración (D28). En combate, una reacción
+clara (`interrumpo`, `escudo`…) fuerza `cut_in` aunque el TM hubiera
+cedido a otro.
 
 **DM**: instruction según limbo post-combate / exploración + guardrails, `run_beat`.
 
 **TurnMaster** (fase `:turnmaster`): una sola tool-call de orquestación
 (`give_turn_to`, `cut_in`, `react`, `pass_to_dm`, `end_scene`). No narra.
-Si falla o no decide → `WorldDriven` (`Session.end_turn`) + nota de sistema.
+El brief lista **intenciones humanas pendientes**. Si falla o no decide →
+`WorldDriven` (`Session.end_turn`) + nota de sistema, **excepto** en una
+re-eval D27 (se queda el waiter).
 
 ---
 
@@ -162,7 +170,8 @@ El GenServer se queda responsive: el beat corre en un
 5. `busy = %Beat{kind: :actor, mini_turn: …}`.
 
 **Beat TurnMaster** (`run_turnmaster_beat`):
-1. `Brief.turnmaster_brief` + `TurnMaster.instruction`.
+1. `Brief.turnmaster_brief/4` (world + last_actor + roster + `state.intents`)
+   + `TurnMaster.instruction` (`pending_intents`).
 2. Recorder `Decision` por beat.
 3. `Server.chat(turnmaster, …)` sin streaming.
 4. `busy = %Beat{kind: :turnmaster}`.
@@ -362,7 +371,8 @@ Dos aridades:
 
 Pasos, en orden:
 1. etiquetas iniciales `[Actor]:` / `[Actor declara]:` (hasta 4 anidadas),
-2. headers de turno iniciales (`R2 · combate · Turno de …`),
+2. headers de turno iniciales (`R2 · combate · Turno de …`) **y** tags
+   mid-prosa `[R2 · Turno de X]` / `[→ Name decide]` (D7/D30),
 3. **auto-referencia inicial** (`strip_leading_self_name`, solo con `scrub/2`):
    quita el nombre DEL actor al inicio ("Lyra levanta…" → "levanta…"), con
    separador tras él **o pegado a una minúscula** ("Thanedeja…" → "deja…", el
@@ -415,11 +425,12 @@ Compara las últimas 2 narraciones del bot (similitud de **Jaccard** > 0.75 sobr
 palabras normalizadas, sin stopwords). En casi-duplicado, inyecta un nudge强硬
 que fuerza una acción DISTINTA y concreta.
 
-### 15.4 Anti-puppet del DM — `with_dm_no_puppet_nudge` (§bug #4)
-Si la última narración del DM contiene `<nombre-de-PC> <verbo de acción>` (regex
-sobre una lista de verbos: ataca, lanza, conjura, desenvaina, …) en la misma
-cláusula, cose un recordatorio de la regla #14 al siguiente beat del DM. **No**
-sanitiza el texto (no rompe narración legítima como "Lyra cae herida").
+### 15.4 Anti-puppet del DM — recorte + `with_dm_no_puppet_nudge` (§bug #4, D29)
+Si una cláusula del DM **empieza** por `<PC> <verbo de acción>`, `Text.scrub`
+(con `pc_names`) la tira antes de persistir. Estados pasivos (`Lyra está
+herida`) y menciones que no son sujeto se conservan. El detector suelto
+sigue cosiendo un recordatorio de regla 14 al siguiente beat si queda una
+fuga mid-cláusula.
 
 ### 15.5 Limbo de exploración — `exploration_limbo?` (§bug #5)
 Detecta un backlog de ≥6 eventos de **narración pura** sin progreso mecánico (sin
@@ -592,12 +603,32 @@ tópico `dragonex:game:<id>` y re-fetch del snapshot al recibir
       hace `rescue Ecto.ConstraintError` y para el proceso limpio (`{:stop, :normal}`).
 
 ### 🟡 Mejoras futuras (validar en la próxima partida)
-- [ ] **Coordinación real entre PCs auto**: el nudge + history arreglado deberían
-      reducir el caos; confirmar en partida y, si persiste, evaluar un turn policy
-      de grupo o un "líder" rotatorio.
-- [ ] **Scrub estructural de DM-narra-PC**: si el nudge ampliado no basta,
-      considerar quitar cláusulas `<PC> (se|camina|…)` de narraciones con actor
-      DM (frágil — solo si el nudge queda corto).
+- [x] **Coordinación real entre PCs auto (mesa)**: el system prompt #5 y la
+      instruction de exploración decían «elige y ejecuta / camina hacia la
+      salida», contradiciendo la regla 13 (proponer y esperar). En 258 Lyra
+      se marchaba sola («desaparece en el arco», «sin esperar respuesta»).
+      Alineado a compañero de mesa; el antibucle ya no empuja a irse.
+- [x] **Scrub estructural de DM-narra-PC** (D29): cláusulas sujeto-inicial
+      `<PC> <verbo>` se tiran al persistir; pasivo y mención no-sujeto se
+      quedan. Time-skip y voz de PNJ en beat de PC también se recortan.
+      Opener de exploración = `pass_to_dm` sin «relevo».
+- [x] **Voz de PNJ en frase larga** (D30): se recorta desde el primer
+      atribuidor; el split no parte comillas. Headers mid-prosa fuera.
+- [x] **Pregunta del DM al humano** (D30): no se cede al otro PC.
+
+### 🟡 Validado en vivo (partida 913) y deudas que quedan
+- [x] Voz de PNJ en beat de PC: Thane pregunta a Borin; el persistido de
+      Thane no trae el diálogo de Borin; el DM responde después.
+- [x] Dados: `🎲 Lyra · chequeo/ataque` (punto medio). ThaneSe en el AT
+      es chip+«Se…» (el persistido ya es «Se levanta»).
+- [x] Combate + D18 iniciativa + `cut_in` («Thane interrumpe.»).
+- [x] **«Ábrelo tú, si quieres.»** retiene el floor (D30: `tú` / `si quieres`).
+- [x] **`gritando:`** y `el enano … —` se cortan en beat de PC.
+- [x] **ThaneSe visual**: chip `Thane ·` (no se pega a Se).
+- [x] **`Thane's hand`** se tira al persistir.
+- [x] **PC IA no cierra solo** (D32): en exploración con humano, se tiran
+      cláusulas de ejecución (`despliega el pergamino`, `coge el…`).
+- [x] **Biblia → facts** (D32): Borin + gancho oficial + enemigos previstos.
 
 ### ⚪ Menores
 - [ ] _（sin pendientes menores abiertos）_
@@ -612,7 +643,7 @@ tópico `dragonex:game:<id>` y re-fetch del snapshot al recibir
 4. Pausar/reanudar cuando haga falta. Logs: `docker logs -f dragonex-app`.
 
 ## Tests
-- `MIX_ENV=test mix test` → suite verde (**527** actualmente).
+- `MIX_ENV=test mix test` → **620 passed** (2 fallos ajenos en DraftTest).
 - Tests aislados por bug: `game_retry_test` (incluye circuit breaker),
   `ghost_combat_test`, `pc_anti_loop_test`, `dm_puppet_pc_test`,
   `exploration_limbo_test`, `text_test` (scrub/2 + bold + stats + leak + meta +

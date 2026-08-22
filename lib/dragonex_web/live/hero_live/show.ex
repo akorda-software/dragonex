@@ -9,24 +9,18 @@ defmodule DragonexWeb.HeroLive.Show do
   alias Dragonex.{Accounts, Character, Heroes.Catalog, Heroes.Translations}
 
   @impl true
-  def mount(%{"id" => id}, session, socket) do
-    case Accounts.get_user(session["user_id"]) do
-      nil ->
-        {:ok, Phoenix.LiveView.redirect(socket, to: "/login")}
+  def mount(%{"id" => id}, _session, socket) do
+    user = socket.assigns.current_user
+    hero = Accounts.get_user_hero(user, id)
 
-      user ->
-        hero = Accounts.get_user_hero(user, id)
+    socket =
+      socket
+      |> assign(:hero, hero)
+      |> assign(:sheet, hero && Accounts.hero_sheet(hero))
+      |> assign(:can_edit, hero && !Accounts.hero_used?(hero))
+      |> assign(:error, nil)
 
-        socket =
-          socket
-          |> assign(:current_user, user)
-          |> assign(:hero, hero)
-          |> assign(:sheet, hero && Accounts.hero_sheet(hero))
-          |> assign(:can_edit, hero && !Accounts.hero_used?(hero))
-          |> assign(:error, nil)
-
-        {:ok, load_progress(socket)}
-    end
+    {:ok, load_progress(socket)}
   end
 
   defp load_progress(socket) do

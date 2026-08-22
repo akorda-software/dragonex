@@ -173,15 +173,7 @@ defmodule Dragonex.Actions do
     end
   end
 
-  defp condition_names(%Character{conditions: conds}) do
-    Enum.map(conds, fn
-      %{condition: c} -> c
-      %{"condition" => c} -> c
-      c when is_binary(c) -> c
-      _ -> nil
-    end)
-    |> Enum.reject(&is_nil/1)
-  end
+  defp condition_names(%Character{} = c), do: Character.condition_names(c)
 
   @doc """
   Resolve a spell against a single target by its `kind`:
@@ -327,6 +319,9 @@ defmodule Dragonex.Actions do
       nil ->
         {:error, "no existe el personaje: #{name}"}
 
+      %Character{} when world.phase == :combat ->
+        {:error, "no se puede descansar en combate"}
+
       %Character{hp: hp, max_hp: max_hp} = c ->
         if hp <= 0 do
           {:error, "#{name} está caído y no puede descansar"}
@@ -359,6 +354,9 @@ defmodule Dragonex.Actions do
     case World.character(world, name) do
       nil ->
         {:error, "no existe el personaje: #{name}"}
+
+      %Character{} when world.phase == :combat ->
+        {:error, "no se puede descansar en combate"}
 
       %Character{hp: hp, max_hp: max_hp} ->
         if hp <= 0 do
@@ -638,17 +636,11 @@ defmodule Dragonex.Actions do
 
   # Spanish label for roll reasons (shown to players in the chat & dice modal).
   defp ability_es(a) when is_atom(a), do: Map.get(@abilities_es, a, inspect(a))
-  defp ability_es(s) when is_binary(s), do: ability_es(parse_ability_atom(s))
 
-  defp parse_ability_atom(s) do
-    case to_string(s) |> String.downcase() do
-      "str" <> _ -> :str
-      "dex" <> _ -> :dex
-      "con" <> _ -> :con
-      "int" <> _ -> :int
-      "wis" <> _ -> :wis
-      "cha" <> _ -> :cha
-      _ -> :str
+  defp ability_es(s) when is_binary(s) do
+    case Dragonex.Rules.Ability.parse(s) do
+      {:ok, atom} -> ability_es(atom)
+      :error -> s
     end
   end
 end

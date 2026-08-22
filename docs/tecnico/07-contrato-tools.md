@@ -96,6 +96,12 @@ Si el TurnMaster falla, buclea o elige un objetivo inválido → fallback
 `WorldDriven` determinista + circuit breaker (D17/D25). La partida nunca
 deadlockea.
 
+**Intenciones humanas (D27):** el brief del TM incluye un bloque
+`Intenciones humanas pendientes` con el texto scrubbed de `games.intents`.
+No hay tool nueva: el TM usa `give_turn_to` / `cut_in` / `react` para honrarlas.
+Una re-eval disparada por `declare/3` mientras otro humano espera, si el TM
+no decide, **deja el floor en el waiter** (no se aplica WorldDriven).
+
 ---
 
 ## 4. Errores: taxonomía y retry

@@ -16,6 +16,9 @@
 > 2. **Handoff a monstruos:** `Session.handoff` opera sobre ids de participante
 >    (`dm`, nombres de PC). Si el TurnMaster elige un monstruo por nombre, el
 >    Game lo resuelve a su controlador (`World.controller_of/2` → `"dm"`).
+> 3. **Intenciones humanas (D27):** `turnmaster_brief/4` recibe `games.intents`.
+>    Un `declare/3` off-turn mientras otro humano espera re-evalúa al TM; si
+>    esa re-eval no decide, el floor se queda en el waiter (no WorldDriven).
 
 ---
 
@@ -180,8 +183,11 @@ advance(state):
 escena, igual que hoy el DM auto-actúa al abrir (`rehydrate`, `game.ex:~334+`).
 
 **Humanos**: cuando TurnMaster hace `give_turn_to` a un humano, el Game cae a
-`:waiting` y espera `declare/2` — sin cambios respecto a hoy (`game.ex:659`).
-Las `intents` declaradas off-turno siguen consumiéndose igual.
+`:waiting` y espera `declare/3`. Las `intents` off-turno **no son solo un
+buzón** (D27): van en el brief del TM; un declare mientras otro humano espera
+re-evalúa al TM. Si esa re-eval no decide, el waiter conserva el floor. Mismo
+texto dos veces no dispara otra re-eval. Un `cut_in`/`react` repetido al
+mismo actor cae a fallback.
 
 ## 7. Fallback y robustez
 
@@ -194,7 +200,10 @@ Las `intents` declaradas off-turno siguen consumiéndose igual.
 - **Agota reintentos, error no transitorio, o `max_tokens`**: el Game descarta
   la decisión y pide el siguiente a `WorldDriven` (`WorldDriven` ya sabe el
   orden: iniciativa en combate, round-robin en exploración) → `handoff` a ese.
-  Se appenda un `:system` "El motor toma el relevo del turno.".
+  En **combate** se appenda `:system` "El motor toma el relevo del turno.".
+  En **exploración** no: opener y post-PC son `pass_to_dm` («El turno pasa al
+  DM.»); un TM mudo tras el DM avanza WorldDriven con la misma nota de
+  cesión, nunca «relevo» (D29).
 - **Anti-bucle TurnMaster**: si la decisión repite al mismo actor que acaba de
   actuar **2 veces seguidas** sin ser `cut_in`/`react` válido → fallback a
   `WorldDriven` + nudge en el siguiente beat del TurnMaster.

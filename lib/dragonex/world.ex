@@ -92,7 +92,7 @@ defmodule Dragonex.World do
   def combat_over?(%__MODULE__{phase: :combat, characters: chars}) do
     chars
     |> Map.values()
-    |> Enum.filter(&(&1.hp > 0))
+    |> Enum.filter(&((&1.hp || 0) > 0))
     |> Enum.map(& &1.side)
     |> Enum.uniq()
     |> length() <= 1
@@ -230,8 +230,12 @@ defmodule Dragonex.World do
           {:error, "no such character: #{target}"}
 
         %Character{hp: hp, max_hp: max_hp} = c ->
+          hp = hp || 0
+          max_hp = max_hp || 0
           new_hp = min(max_hp, hp + amount)
-          {:ok, put_char(w, target, %{c | hp: new_hp, death_saves: fresh_saves()})}
+          c = %{c | hp: new_hp}
+          c = if new_hp > 0, do: %{c | death_saves: fresh_saves()}, else: c
+          {:ok, put_char(w, target, c)}
       end
     end
   end
@@ -445,8 +449,8 @@ defmodule Dragonex.World do
   huecos de conjuro. Si se pasan `choices` (`spells_added`, `asi`, `custom`),
   también aplica hechizos nuevos, mejora de característica (a niveles ASI) y las
   features de clase del nuevo nivel. La lógica vive en
-  `Dragonex.Heroes.apply_level_up/2`; aquí solo la aplicamos al `Character` del
-  mundo y refrescamos los spell slots.
+   `Dragonex.Heroes.LevelUp.apply/2`; aquí solo la aplicamos al `Character` del
+   mundo y refrescamos los spell slots.
   """
   @spec level_up(String.t(), map()) :: (t() -> {:ok, t()} | {:error, String.t()})
   def level_up(name, choices \\ %{}) do
@@ -475,12 +479,15 @@ defmodule Dragonex.World do
     end
   end
 
-  @doc "The hit-die size for a 5e class (the canonical source of truth)."
+  @doc "The hit-die size for a 5e class (from the class catalog; default d8)."
   @spec hit_die_size(String.t()) :: pos_integer()
-  def hit_die_size("barbarian"), do: 12
-  def hit_die_size(c) when c in ~w(fighter paladin ranger), do: 10
-  def hit_die_size(c) when c in ~w(bard cleric druid monk rogue warlock), do: 8
-  def hit_die_size(c) when c in ~w(sorcerer wizard), do: 6
+  def hit_die_size(class) when is_binary(class) do
+    case Dragonex.Heroes.Classes.get(class) do
+      {:ok, %{hit_die: n}} when is_integer(n) and n > 0 -> n
+      _ -> 8
+    end
+  end
+
   def hit_die_size(_), do: 8
 
   # ----------------------------------------------------------------- helpers
@@ -489,16 +496,8 @@ defmodule Dragonex.World do
   @spec has_condition?(t(), String.t(), String.t()) :: boolean()
   def has_condition?(%__MODULE__{} = w, name, condition) do
     case character(w, name) do
-      %Character{conditions: conds} ->
-        Enum.any?(conds, fn
-          %{condition: c} -> c == condition
-          %{"condition" => c} -> c == condition
-          c when is_binary(c) -> c == condition
-          _ -> false
-        end)
-
-      _ ->
-        false
+      %Character{} = c -> condition in Character.condition_names(c)
+      _ -> false
     end
   end
 
@@ -530,20 +529,18 @@ defmodule Dragonex.World do
           {:error, "no such character: #{target}"}
 
         %Character{conditions: conds} = c ->
-          filtered =
-            Enum.reject(conds, fn
-              %{condition: cd} -> cd == condition
-              %{"condition" => cd} -> cd == condition
-              cd when is_binary(cd) -> cd == condition
-              _ -> false
-            end)
+          filtered = Enum.reject(conds, &(Character.condition_name(&1) == condition))
 
           {:ok, put_char(w, target, %{c | conditions: filtered})}
       end
     end
   end
 
-  defp log(%__MODULE__{log: l}, actor, entry), do: [{actor, entry} | l]
+  # Newest-first. Capped so the persisted jsonb does not grow without bound;
+  # the canonical timeline is `game_events`, not this field.
+  @max_log 50
+
+  defp log(%__MODULE__{log: l}, actor, entry), do: Enum.take([{actor, entry} | l], @max_log)
 
   defp put_char(%__MODULE__{characters: chars} = w, name, %Character{} = c),
     do: %{w | characters: Map.put(chars, name, c)}

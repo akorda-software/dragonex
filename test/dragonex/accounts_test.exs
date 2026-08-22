@@ -133,7 +133,7 @@ defmodule Dragonex.AccountsTest do
         })
 
       {:ok, hero} = Accounts.save_hero(user, char)
-      {:ok, _} = Accounts.delete_hero(hero.id)
+      {:ok, _} = Accounts.delete_hero(user, hero.id)
       assert Accounts.get_hero(hero.id) == nil
     end
 
@@ -162,7 +162,7 @@ defmodule Dragonex.AccountsTest do
         Heroes.build(%{name: "Locke II", race: "human", class: "fighter", background: "soldier"})
 
       assert {:error, :in_game} = Accounts.update_hero(user, hero.id, updated)
-      assert {:error, :in_game} = Accounts.delete_hero(hero.id)
+      assert {:error, :in_game} = Accounts.delete_hero(user, hero.id)
     end
 
     test "hero_sheet round-trips through codec without data loss" do

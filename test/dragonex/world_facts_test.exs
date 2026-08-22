@@ -52,7 +52,7 @@ defmodule Dragonex.WorldFactsTest do
     assert :ok ==
              Game.await(
                pid,
-               fn s ->
+               fn _s ->
                  Game.world(pid).facts != []
                end,
                5_000
@@ -166,5 +166,33 @@ defmodule Dragonex.WorldFactsTest do
 
     # The scene was overwritten with scrubbed text — the leaked stat is gone.
     refute String.contains?(Game.world(pid).scene || "", "3/7")
+  end
+
+  test "creating a game from a bible seeds NPC facts" do
+    bible = Dragonex.Scenarios.bible(Dragonex.Scenarios.get("tavern"))
+
+    {:ok, game} =
+      Games.create_game(
+        title: "biblia",
+        scene: "una taberna",
+        story_bible: bible,
+        roster: [{Archetypes.fighter(), :human}]
+      )
+
+    facts = Dragonex.Codec.decode(game.world).facts
+    assert Enum.any?(facts, &(&1 =~ "Borin"))
+    assert Enum.any?(facts, &(&1 =~ "posadero"))
+    assert Enum.any?(facts, &(&1 =~ "asaltos goblin"))
+    refute Enum.any?(facts, &(&1 =~ "Grimm"))
+  end
+
+  test "seed_facts parses tavern NPCs" do
+    facts =
+      Dragonex.Scenarios.seed_facts(Dragonex.Scenarios.bible(Dragonex.Scenarios.get("tavern")))
+
+    assert "El posadero se llama Borin." in facts
+    assert "La guardia se llama Sable." in facts
+    assert Enum.any?(facts, &(&1 =~ "asaltos goblin"))
+    assert Enum.any?(facts, &(&1 =~ "Los enemigos previstos son: goblin, wolf."))
   end
 end

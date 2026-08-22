@@ -46,7 +46,9 @@ defmodule Dragonex.Heroes.Classes do
           unarmored_defense: [ability()] | nil
         }
 
-  @spec get(String.t()) :: {:ok, class()} | {:error, String.t()}
+  @spec get(String.t() | atom()) :: {:ok, class()} | {:error, String.t()}
+  def get(key) when is_atom(key), do: get(Atom.to_string(key))
+
   def get(key) when is_binary(key) do
     case Enum.find(all(), &(&1.key == key)) do
       nil -> {:error, "unknown class: #{key}"}

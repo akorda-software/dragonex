@@ -118,35 +118,36 @@ defmodule Dragonex.RollLog do
   defp normalize_against(other), do: other
 
   defp close_group(rec, id, opts) do
-    Agent.get_and_update(rec, fn s ->
-      case get_in(s.groups, [id]) do
-        nil ->
-          {nil, s}
+    {entry, on_close} =
+      Agent.get_and_update(rec, fn s ->
+        case get_in(s.groups, [id]) do
+          nil ->
+            {{nil, nil}, s}
 
-        g ->
-          extra = opts |> Enum.into(%{}) |> Map.take([:total, :against, :outcome])
+          g ->
+            extra = opts |> Enum.into(%{}) |> Map.take([:total, :against, :outcome])
 
-          # Store a JSON-safe entry (the timeline persists it as jsonb): dice as
-          # [[sides, value]] and `against` as ["ac"|"dc", n] — no tuples.
-          entry = %{
-            who: g.who,
-            kind: g.kind,
-            reason: g.reason,
-            dice: Enum.map(g.dice, fn {s, v} -> [s, v] end),
-            total: extra[:total],
-            against: normalize_against(extra[:against]),
-            outcome: extra[:outcome]
-          }
+            # Store a JSON-safe entry (the timeline persists it as jsonb): dice as
+            # [[sides, value]] and `against` as ["ac"|"dc", n] — no tuples.
+            entry = %{
+              who: g.who,
+              kind: g.kind,
+              reason: g.reason,
+              dice: Enum.map(g.dice, fn {s, v} -> [s, v] end),
+              total: extra[:total],
+              against: normalize_against(extra[:against]),
+              outcome: extra[:outcome]
+            }
 
-          # Publish LIVE if a callback was wired: this is what makes a die land
-          # in the chat the instant the engine resolves it, instead of all the
-          # dice arriving collapsed at the end of the beat. Best-effort: a
-          # failure here must never corrupt the recorder state.
-          if s.on_close, do: safe_call(s.on_close, entry)
+            {{entry, s.on_close},
+             %{s | groups: Map.delete(s.groups, id), entries: s.entries ++ [entry]}}
+        end
+      end)
 
-          {entry, %{s | groups: Map.delete(s.groups, id), entries: s.entries ++ [entry]}}
-      end
-    end)
+    # Persist/broadcast AFTER leaving the Agent so a slow Postgres write does
+    # not serialize every concurrent roll on the recorder.
+    if entry && on_close, do: safe_call(on_close, entry)
+    entry
   end
 
   defp safe_call(fun, entry) when is_function(fun, 1) do

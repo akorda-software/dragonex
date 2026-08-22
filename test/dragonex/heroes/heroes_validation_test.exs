@@ -155,6 +155,19 @@ defmodule Dragonex.HeroesValidationTest do
       assert msg =~ "not on the class list"
     end
 
+    test "empty skills list uses class defaults" do
+      assert {:ok, c} =
+               Heroes.build(%{
+                 name: "X",
+                 race: "human",
+                 class: "wizard",
+                 background: "sage",
+                 skills: []
+               })
+
+      assert length(c.skill_proficiencies) >= 2
+    end
+
     test "correct skills are accepted" do
       assert {:ok, _} =
                Heroes.build(%{
@@ -164,6 +177,47 @@ defmodule Dragonex.HeroesValidationTest do
                  background: "sage",
                  skills: ["arcana", "investigation"]
                })
+    end
+  end
+
+  describe "illegal spells are rejected" do
+    test "too many cantrips" do
+      assert {:error, msg} =
+               Heroes.build(%{
+                 name: "X",
+                 race: "human",
+                 class: "wizard",
+                 background: "sage",
+                 spells: ["fire bolt", "light", "mage hand", "ray of frost"]
+               })
+
+      assert msg =~ "cantrips"
+    end
+
+    test "spell not on the class list" do
+      assert {:error, msg} =
+               Heroes.build(%{
+                 name: "X",
+                 race: "human",
+                 class: "wizard",
+                 background: "sage",
+                 spells: ["cure wounds"]
+               })
+
+      assert msg =~ "not on the class list"
+    end
+
+    test "unknown spell name" do
+      assert {:error, msg} =
+               Heroes.build(%{
+                 name: "X",
+                 race: "human",
+                 class: "wizard",
+                 background: "sage",
+                 spells: ["banana blast"]
+               })
+
+      assert msg =~ "unknown spells"
     end
   end
 end

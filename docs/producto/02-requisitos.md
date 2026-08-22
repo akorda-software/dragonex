@@ -172,7 +172,10 @@ Cuando es el turno de un humano, la mesa muestra "Es tu turno" + input. La
 declaración viaja `LiveView → Game.declare/3` (nunca Repo directo, D6).
 
 - AC-17.1: declarar fuera de turno encola la intención en `games.intents` y
-  se consume al llegar el turno (`flows/approval_test.exs`).
+  se consume al llegar el turno (`game_phase0_test.exs`).
+- AC-17.2: si la partida está `:waiting` en **otro** humano, encolar despierta
+  al TurnMaster (D27) para que pueda priorizar esa iniciativa
+  (`turn_master_loop_test.exs`).
 
 ### R18 — Auto-play del PC humano ✅
 Toggle 🤖 crea un `PCAgent` que juega el personaje cuando le toca; se puede
@@ -259,16 +262,22 @@ La invariante `controlled_by?` restringe las tools al participante actual.
 - AC-29.2: un participante no puede usar tools de resolución en turno ajeno
   (error directivo, `dm_puppet_pc_test.exs`).
 
-### R30 — TurnMaster dramático ✅ (D25)
+### R30 — TurnMaster dramático ✅ (D25, D27)
 En combate respeta `initiative_order` con excepciones explícitas (`cut_in`,
 `react`); en exploración reparte con criterio dramático (`give_turn_to`,
 `pass_to_dm`, `end_scene`). Mini-turnos que **vuelven** al actor interrumpido.
-`acted_this_round` evita dobles turnos.
+`acted_this_round` evita dobles turnos. El brief incluye **intenciones humanas
+pendientes** (D27): el TM las considera; no las resuelve.
 
 - AC-30.1: el catálogo de tools del TM es exactamente
   `{give_turn_to, cut_in, react, pass_to_dm, end_scene}` y **ninguna muta el
   World** (sólo registran; aplica el Game — D6).
 - AC-30.2: un `cut_in` devuelve el turno al actor interrumpido al terminar.
+- AC-30.3: `Brief.turnmaster_brief` lista intents humanos scrubbed; sin
+  intents no aparece el bloque (`brief_test.exs`).
+- AC-30.4: un declare off-turn puede hacer que el TM entregue el turno a ese
+  humano; si el TM mantiene al waiter, el intent sigue encolado; si el TM
+  falla en la re-eval, **no se roba** el turno del waiter.
 
 ### R31 — DM con tres sombreros ✅ (D23)
 Árbitro + controlador de monstruos (plegados en su turno) + director narrativo.
@@ -325,7 +334,7 @@ Prefijo cacheable medido 44–85% de input cacheado.
 | # | Requisito | Estado |
 |---|---|---|
 | NFR-1 | Determinismo del motor: roller inyectado, nunca `:rand` en `Rules`/`Actions`/`World` | ✅ |
-| NFR-2 | Suite offline verde: `MIX_ENV=test mix test` (566) sin red ni API key | ✅ |
+| NFR-2 | Suite offline verde: `MIX_ENV=test mix test` (585) sin red ni API key | ✅ |
 | NFR-3 | `mix compile` sin warnings; `mix format` limpio | ✅ |
 | NFR-4 | Sanitización determinística en TODO texto persistido (D7) | ✅ |
 | NFR-5 | Latencia: streaming token-a-token; GenServer nunca bloquea en LLM (Task) | ✅ |

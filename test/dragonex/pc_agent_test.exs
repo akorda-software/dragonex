@@ -55,6 +55,8 @@ defmodule Dragonex.PCAgentTest do
       assert prompt =~ "quarterstaff"
       assert prompt =~ "fire bolt"
       assert prompt =~ "PERSONALIDAD"
+      assert prompt =~ "MESA, NO SOLILOQUIO"
+      refute prompt =~ "TOMA LA ACCIÓN directamente"
     end
 
     test "each class gets a distinct personality" do
@@ -169,6 +171,9 @@ defmodule Dragonex.PCAgentTest do
       assert instr =~ "Es TU turno"
       assert instr =~ "PERSONAJE ACTIVO"
       assert instr =~ "NO hay enemigos"
+      assert instr =~ "espera"
+      refute instr =~ "ejecútala"
+      refute instr =~ "abre una puerta"
     end
 
     test "a downed (0 hp) PC is steered to make_death_save" do

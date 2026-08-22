@@ -51,11 +51,12 @@ defmodule Dragonex.TurnMaster do
     REGLAS:
     1. Llama exactamente a UNA tool por beat. Sin texto libre.
     2. COMBATE: sigue el `initiative_order` del brief. Cede a cada combatiente consciente una vez por ronda (`give_turn_to`). Excepciones solo con `cut_in` / `react` cuando el contexto las justifica (ataque de oportunidad, acción preparada, interrupción dramática). Los mini-turnos de cut_in/react NO gastan el turno principal del reactor.
-    3. EXPLORACIÓN: reparte la palabra con criterio dramático (quien reacciona a lo último, quien tiene algo que decir). Evita el round-robin plano. Usa `pass_to_dm` para abrir/cerrar escena, narrar entorno o dar voz a PNJs.
-    4. Equidad: no repitas al mismo actor sin motivo; no dejes a nadie sin turno en una ronda de combate.
-    5. Nunca elijas a un participante inexistente, muerto, o enemigo ya caído. El DM (`dm`) siempre es válido.
-    6. `end_scene` cierra el combate/encuentro y vuelve a exploración (el motor aplica el cambio).
-    7. Si el brief lista `acted_this_round`, prioriza a quien aún no haya actuado en la ronda.
+     3. EXPLORACIÓN: el default DESPUÉS de un PC es `pass_to_dm` (el mundo/PNJ responde). No des el siguiente PC hasta que el DM haya narrado la consecuencia. Usa `give_turn_to` a otro PC solo si reacciona a algo que no necesita al DM. Evita el ping-pong PC↔PC.
+     4. Equidad: no repitas al mismo actor sin motivo; no dejes a nadie sin turno en una ronda de combate.
+     5. Nunca elijas a un participante inexistente, muerto, o enemigo ya caído. El DM (`dm`) siempre es válido.
+      6. `end_scene` cierra el combate/encuentro y vuelve a exploración (el motor aplica el cambio).
+      7. Si el brief lista `acted_this_round`, prioriza a quien aún no haya actuado en la ronda.
+      8. INTENCIONES HUMANAS: son declaraciones reales de jugadores (nunca de bots). En EXPLORACIÓN, prioriza a quien tiene algo escrito; si el último actor habló con un PNJ o preguntó algo al mundo, `pass_to_dm` ANTES de ceder a otro PC. En COMBATE, si un humano escribió interrumpo/reacción/me pongo delante/escudo/protejo, DEBES `cut_in` o `react` a ese humano AHORA — no esperes al `initiative_order`. No robes la ronda entera a un humano que encola cada turno.
     """
     |> String.trim()
   end
@@ -64,34 +65,10 @@ defmodule Dragonex.TurnMaster do
   Per-beat instruction: who just acted and what the TurnMaster must decide.
   """
   @spec instruction(String.t() | nil, World.t(), keyword()) :: String.t()
-  def instruction(last_actor, %World{} = world, opts \\ []) do
-    participants = Keyword.get(opts, :participants, [])
+  def instruction(_last_actor, %World{} = _world, opts \\ []) do
     nudge = Keyword.get(opts, :nudge, nil)
     interrupted = Keyword.get(opts, :interrupted, nil)
-
-    last =
-      case last_actor do
-        nil -> "Nadie ha actuado aún (arranque de escena)."
-        name -> "Acaba de actuar: #{name}."
-      end
-
-    phase =
-      case world.phase do
-        :combat ->
-          order = Enum.join(world.initiative_order || [], " → ")
-          acted = acted_line(world)
-          "Fase: COMBATE ronda #{world.round}. Iniciativa: #{order}.#{acted}"
-
-        _ ->
-          "Fase: EXPLORACIÓN."
-      end
-
-    roster =
-      if participants == [] do
-        ""
-      else
-        "Participantes: #{Enum.join(participants, ", ")}."
-      end
+    pending = Keyword.get(opts, :pending_intents, %{})
 
     interrupt =
       if is_binary(interrupted) and interrupted != "" do
@@ -100,13 +77,20 @@ defmodule Dragonex.TurnMaster do
         ""
       end
 
+    pending_line =
+      case pending_intent_names(pending) do
+        [] ->
+          ""
+
+        names ->
+          "Hay intenciones humanas pendientes de: #{Enum.join(names, ", ")}. En combate, si suenan a reacción (interrumpo, escudo, me pongo delante), usa cut_in/react AHORA. En exploración, priorízalos o pasa al DM si el mundo debe responder."
+      end
+
     nudge_line = if is_binary(nudge) and nudge != "", do: "AVISO: #{nudge}", else: ""
 
     [
-      last,
-      phase,
-      roster,
       interrupt,
+      pending_line,
       nudge_line,
       "Decide quién actúa ahora. Una sola tool-call."
     ]
@@ -126,12 +110,14 @@ defmodule Dragonex.TurnMaster do
   def decision_note(%{action: action, to: to}) when is_atom(action), do: "#{action} → #{to}"
   def decision_note(_), do: "El motor toma el relevo del turno."
 
-  defp acted_line(%World{acted_this_round: acted}) when is_struct(acted, MapSet) do
-    case MapSet.to_list(acted) do
-      [] -> " Aún no ha actuado nadie esta ronda."
-      names -> " Ya actuaron esta ronda: #{Enum.join(Enum.sort(names), ", ")}."
-    end
+  defp pending_intent_names(intents) when is_map(intents) do
+    intents
+    |> Enum.filter(fn {_name, raw} ->
+      Dragonex.Intents.present?(raw)
+    end)
+    |> Enum.map(fn {name, _} -> to_string(name) end)
+    |> Enum.sort()
   end
 
-  defp acted_line(_), do: ""
+  defp pending_intent_names(_), do: []
 end

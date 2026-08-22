@@ -30,7 +30,23 @@ defmodule Dragonex.TurnMasterTest do
       assert prompt =~ "give_turn_to"
       assert prompt =~ "cut_in"
       assert prompt =~ "react"
+      assert prompt =~ "INTENCIONES HUMANAS"
       refute prompt =~ "make_attack"
+    end
+
+    test "instruction cites pending human intent names" do
+      world = world_with_party()
+
+      text =
+        TurnMaster.instruction("dm", world, pending_intents: %{"Lyra" => "interrumpo con Escudo"})
+
+      assert text =~ "Lyra"
+      assert text =~ "intenciones humanas"
+    end
+
+    test "instruction stays quiet when no intents are pending" do
+      text = TurnMaster.instruction("dm", world_with_party(), pending_intents: %{})
+      refute text =~ "intenciones humanas"
     end
 
     test "tools/0 exposes exactly the orchestration set" do
@@ -170,12 +186,15 @@ defmodule Dragonex.TurnMasterTest do
   end
 
   describe "instruction/3 and decision_note/1" do
-    test "instruction mentions last actor and phase" do
+    test "instruction is the decision prompt; world state lives in the brief" do
       world = world_with_party()
       {:ok, combat} = World.begin_combat(["Thane", "goblin"]).(world)
       text = TurnMaster.instruction("Thane", combat, participants: ["dm", "Thane"])
-      assert text =~ "Thane"
-      assert text =~ "COMBATE"
+      assert text =~ "Decide quién actúa ahora"
+      refute text =~ "COMBATE"
+
+      nudged = TurnMaster.instruction("Thane", combat, nudge: "elige a otro")
+      assert nudged =~ "AVISO: elige a otro"
     end
 
     test "decision_note is human-readable Spanish" do

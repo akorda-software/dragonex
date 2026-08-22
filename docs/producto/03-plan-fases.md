@@ -25,13 +25,20 @@ existe" sino por "se verifica".**
 | F4 — Héroes | Forjar y crecer | Builder 5 pasos + catálogos SRD ES + custom (D22) + level-up (D10–D13) |
 | F5 — TurnMaster | La partida fluye | Orquestador de turnos (D25) con fallback WorldDriven |
 
-Verde de referencia hoy: **566 tests passed**, compile sin warnings.
+Verde de referencia hoy: **585 tests passed**, compile sin warnings.
 
 ---
 
 ## F6 — Pulido del producto (backlog activo)
 
 Orden sugerido por valor/esfuerzo. Cada ítem es autónomo.
+
+### F6.0 — Intenciones humanas al TurnMaster ✅ (D27, R17/R30)
+
+Hecho: el brief del TM lista intents pendientes; `declare` off-turn en
+`:waiting` ajeno re-evalúa al TM; fallback de esa re-eval no roba el floor;
+anti-spam por firma del mapa de intents. Tests en `brief_test.exs`,
+`turn_master_test.exs`, `turn_master_loop_test.exs`.
 
 ### F6.1 — Automatismos de condición → ventaja (R24 🟡→✅)
 
@@ -136,7 +143,7 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
 3. Implementa con tests (ver [`../tecnico/09-estrategia-pruebas.md`](../tecnico/09-estrategia-pruebas.md)
    para qué capa de test exige cada cambio).
 4. Verifica: `mix compile` (0 warnings) → `mix format` → `MIX_ENV=test mix test`
-   (566+ verde). Si toca prompts/agentes: smoke con TestModel incluido.
+   (585+ verde). Si toca prompts/agentes: smoke con TestModel incluido.
 5. Actualiza `../progress.md` (mueve el ítem) y este doc (marca el ítem). Si
    tomaste una decisión no trivial: ADR en `../decisions.md`.
 6. Commit estilizado (`feat(motor): …`, `fix(hero): …`).

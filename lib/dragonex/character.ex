@@ -10,7 +10,7 @@ defmodule Dragonex.Character do
 
   Weapons, spells and inventory are `{:array, :map}` so they can carry
   Weapon/Spell/Item structs at runtime while staying JSON-portable for the
-  Session store (see FINDINGS.md gap #1).
+  Session store.
   """
 
   use Ecto.Schema
@@ -176,4 +176,24 @@ defmodule Dragonex.Character do
   def modifier(%__MODULE__{} = c, ability) when ability in @abilities do
     c |> score(ability) |> Dragonex.Rules.Ability.modifier()
   end
+
+  @doc """
+  Condition names on the sheet. Accepts the encodings the codec may persist:
+  `%{condition: name}`, `%{"condition" => name}`, or a bare string.
+  """
+  @spec condition_names(t()) :: [String.t()]
+  def condition_names(%__MODULE__{conditions: conds}) when is_list(conds) do
+    conds
+    |> Enum.map(&condition_name/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  def condition_names(_), do: []
+
+  @doc "Extract the name from a single condition entry, or `nil`."
+  @spec condition_name(term()) :: String.t() | nil
+  def condition_name(%{condition: c}) when is_binary(c), do: c
+  def condition_name(%{"condition" => c}) when is_binary(c), do: c
+  def condition_name(c) when is_binary(c), do: c
+  def condition_name(_), do: nil
 end

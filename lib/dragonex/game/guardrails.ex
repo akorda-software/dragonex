@@ -25,8 +25,15 @@ defmodule Dragonex.Game.Guardrails do
 
   @doc "True when combate recently ended but the timeline hasn't moved past it."
   @spec post_combat_limbo?(term()) :: boolean()
+  def post_combat_limbo?(events) when is_list(events), do: post_combat_limbo_from(events)
+
   def post_combat_limbo?(game_id) do
     events = Games.recent_events(game_id, 12)
+    post_combat_limbo_from(events)
+  end
+
+  defp post_combat_limbo_from(events) do
+    events = Enum.take(events, -12)
 
     # Find the index of the most recent "El combate termina" system event.
     end_idx =
@@ -65,73 +72,38 @@ defmodule Dragonex.Game.Guardrails do
 
   # ---------------------------------------------------------------------------
   # Bug #4 — the DM sometimes narrates a PC acting on its behalf ("*Lyra
-  # desenvaina y ataca*"). Rule 14 forbids this but the model still leaks. When
-  # the DM's most recent narration matches "<pc-name> <action-verb>" in the same
-  # clause, we reinforce rule 14 on the NEXT DM instruction. We DON'T scrub the
-  # offending text (that risks mangling legitimate narration like "Lyra cae
-  # herida"); a targeted reminder is enough to correct course on the next beat.
-  @puppet_action_verbs ~w(
-    ataca ataco atacar ataque
-    lanza lanzo lanzar
-    conjura conjuro conjurar
-    golpea golpeo golpear
-    dispara disparo disparar
-    desenvaina desenvainar desenfunda desenfundar
-    tensa tensar apunta apuntar
-    prepara preparar
-    carga cargo cargar
-    salta salto saltar
-    corre correr
-    persigue perseguir
-    hechiza hechizar
-    arremete arremeter
-    embiste embestir
-    invoca invocar
-    avanza avanzar
-    sube subir baja bajar
-    entra entrar sale salir
-    mueve mover
-    abre abrir cierra cerrar
-    empuja empujar tira tirar
-    agarra coge toma deja
-    gira voltea
-    examina examinar inspecciona inspeccionar
-    busca buscar registra estudia
-    dice hablar habla
-    grita susurrar susurra
-    pregunta preguntar responde responder exclama replica
-    aprovecha aprovechar
-    se_abalanza se_lanza se_agacha se_acerca se_incorpora se_prepara
-  )
-
+  # desenvaina y ataca*"). Rule 14 forbids this but the model still leaks.
+  # Persist path now DROPS those clauses (`Text.strip_puppet_clauses`, D29).
+  # The detector still drives a next-beat reminder for leaks the strip misses
+  # (e.g. mid-clause puppets). Passive state ("Lyra cae herida") is not a hit.
   @doc """
   True when `text` describes a PC performing a proactive action (rule 14 leak).
   Pure helper so unit tests can pin the detector without a live Game.
   """
   @spec dm_narration_puppets_pc?(String.t(), [String.t()]) :: boolean()
-  def dm_narration_puppets_pc?(text, pc_names)
-      when is_binary(text) and is_list(pc_names) do
-    pc_names != [] and Regex.match?(puppet_pattern(pc_names), text)
-  end
+  def dm_narration_puppets_pc?(text, pc_names),
+    do: Dragonex.Text.dm_puppets_pc?(text, pc_names)
 
   @spec with_dm_no_puppet_nudge(term(), World.t(), String.t()) :: String.t()
-  def with_dm_no_puppet_nudge(game_id, world, base_instruction) do
-    if dm_puppeted_a_pc?(game_id, world) do
-      Logger.info("dragonex game #{game_id} DM narrated a PC acting — reinforcing rule 14")
+  def with_dm_no_puppet_nudge(source, world, base_instruction) do
+    events = events_of(source, 20)
+
+    if dm_puppeted_a_pc?(events, world) do
+      Logger.info("dragonex DM narrated a PC acting — reinforcing rule 14")
       dm_no_puppet_nudge() <> "\n\n" <> base_instruction
     else
       base_instruction
     end
   end
 
-  defp dm_puppeted_a_pc?(game_id, %World{} = world) do
+  defp dm_puppeted_a_pc?(events, %World{} = world) do
     # Include downed PCs: the DM must not puppet a fallen ally either.
     pc_names = pc_names(world)
 
     if pc_names == [] do
       false
     else
-      case last_dm_narration(game_id) do
+      case last_dm_narration(events) do
         nil -> false
         text -> dm_narration_puppets_pc?(text, pc_names)
       end
@@ -143,40 +115,24 @@ defmodule Dragonex.Game.Guardrails do
   # ordering is unambiguous regardless of how the query returns rows. Shared by
   # the anti-puppet check (needs the latest) and the anti-repeat check (needs
   # the last two).
-  defp dm_narration_texts(game_id) do
-    game_id
-    |> Games.recent_events(20)
+  defp events_of(events, _n) when is_list(events), do: events
+  defp events_of(game_id, n), do: Games.recent_events(game_id, n)
+
+  defp dm_narration_texts(source) do
+    source
+    |> events_of(20)
     |> Enum.filter(fn e -> e.type == :narration and e.actor == "dm" end)
     |> Enum.sort_by(& &1.seq, :desc)
     |> Enum.map(fn e -> e.payload["text"] || "" end)
     |> Enum.reject(&(&1 == ""))
   end
 
-  defp last_dm_narration(game_id), do: List.first(dm_narration_texts(game_id))
+  defp last_dm_narration(source), do: List.first(dm_narration_texts(source))
 
   defp pc_names(%World{characters: chars}) do
     chars
     |> Enum.filter(fn {_, c} -> c.side == "pc" end)
     |> Enum.map(&elem(&1, 0))
-  end
-
-  # Only name→verb (PC as subject). Verb→name would false-positive on
-  # "el sabueso se abalanza contra Rhogar". Underscores in the verb list stand
-  # for whitespace ("se_lanza" → "se lanza").
-  defp puppet_pattern(pc_names) do
-    names_alt = pc_names |> Enum.map(&Regex.escape/1) |> Enum.join("|")
-
-    verbs_alt =
-      @puppet_action_verbs
-      |> Enum.map(fn v -> v |> String.replace("_", "\\s+") |> then(&"(?:#{&1})") end)
-      |> Enum.join("|")
-
-    pattern = "(?:\\b#{names_alt}\\b)[^.!?]{0,80}\\b(?:#{verbs_alt})\\b"
-
-    case Regex.compile(pattern, "i") do
-      {:ok, re} -> re
-      {:error, _} -> ~r/^$/
-    end
   end
 
   defp dm_no_puppet_nudge do
@@ -196,11 +152,11 @@ defmodule Dragonex.Game.Guardrails do
   @dm_repeat_threshold 0.7
 
   @spec with_dm_anti_repeat(term(), String.t()) :: String.t()
-  def with_dm_anti_repeat(game_id, base_instruction) do
-    case dm_narration_texts(game_id) do
+  def with_dm_anti_repeat(source, base_instruction) do
+    case dm_narration_texts(source) do
       [a, b | _] when is_binary(a) and is_binary(b) ->
         if text_similarity(a, b) >= @dm_repeat_threshold do
-          Logger.info("dragonex game #{game_id} DM repeating narration — enforcing variety")
+          Logger.info("dragonex DM repeating narration — enforcing variety")
           dm_anti_repeat_nudge(a, base_instruction)
         else
           base_instruction
@@ -232,18 +188,18 @@ defmodule Dragonex.Game.Guardrails do
   @hostile_creatures ~w(goblin kobold bandit skeleton esqueleto wolf lobo orc orco hobgoblin ogre imp demonio diablillo diablo espinodemonio espinodemon trasgo draco dragon no-muerto muerto-viviente zombi zombie criatura monstruo bestia engendro siervo esbirro aberracion aberración elemental gargola gárgola licantropo licántropo vampiro espectro fantasma wraith)
 
   @spec with_dm_unspawned_hostile_nudge(term(), World.t(), String.t()) :: String.t()
-  def with_dm_unspawned_hostile_nudge(game_id, %World{phase: :exploration} = world, base) do
+  def with_dm_unspawned_hostile_nudge(source, %World{phase: :exploration} = world, base) do
     # No living enemies at all → a narrated appearance is a ghost the DM forgot
     # to spawn.
     if not World.has_living_enemies?(world) do
-      case last_dm_narration(game_id) do
+      case last_dm_narration(source) do
         nil ->
           base
 
         text ->
           if narrates_hostile_appearing?(text) do
             Logger.info(
-              "dragonex game #{game_id} DM narrated a hostile appearing without spawn_monster — nudging"
+              "dragonex DM narrated a hostile appearing without spawn_monster — nudging"
             )
 
             dm_spawn_nudge(base)
@@ -256,7 +212,7 @@ defmodule Dragonex.Game.Guardrails do
     end
   end
 
-  def with_dm_unspawned_hostile_nudge(_game_id, _world, base), do: base
+  def with_dm_unspawned_hostile_nudge(_source, _world, base), do: base
 
   defp narrates_hostile_appearing?(text) do
     verbs = @hostile_appear_verbs |> Enum.join("|")
@@ -292,14 +248,14 @@ defmodule Dragonex.Game.Guardrails do
   ))
 
   @spec with_dm_spanish_nudge(term(), String.t()) :: String.t()
-  def with_dm_spanish_nudge(game_id, base) do
-    case last_dm_narration(game_id) do
+  def with_dm_spanish_nudge(source, base) do
+    case last_dm_narration(source) do
       nil ->
         base
 
       text ->
         if looks_english?(text) do
-          Logger.info("dragonex game #{game_id} DM drifted into English — enforcing Spanish")
+          Logger.info("dragonex DM drifted into English — enforcing Spanish")
           dm_spanish_nudge(base)
         else
           base
@@ -336,10 +292,10 @@ defmodule Dragonex.Game.Guardrails do
   # meaningful backlog of narration has piled up, so a couple of scene-setting
   # lines right after setup don't trip it.
   @spec exploration_limbo?(term(), World.t()) :: boolean()
-  def exploration_limbo?(game_id, %World{phase: :exploration}) do
+  def exploration_limbo?(events, %World{phase: :exploration}) when is_list(events) do
     recent =
-      game_id
-      |> Games.recent_events(20)
+      events
+      |> Enum.take(-20)
       |> Enum.reject(fn e -> e.type in [:turn] end)
       |> Enum.take(8)
 
@@ -347,6 +303,10 @@ defmodule Dragonex.Game.Guardrails do
     # recent meaningful event must be bare narration — any :dice, :action or
     # scene/spawn :system in the window means someone made progress.
     length(recent) >= 6 and Enum.all?(recent, &narration_only?/1)
+  end
+
+  def exploration_limbo?(game_id, %World{phase: :exploration} = world) do
+    exploration_limbo?(Games.recent_events(game_id, 20), world)
   end
 
   def exploration_limbo?(_, _), do: false
@@ -413,12 +373,12 @@ defmodule Dragonex.Game.Guardrails do
     snippet = String.slice(String.trim(last_text), 0, 140)
 
     "⚠️ ANTIBUCLE DETECTADO ⚠️ En tu último turno dijiste prácticamente lo mismo: «#{snippet}». " <>
-      "ESTÁ PROHIBIDO repetir o reformular esa misma intención, pregunta o declaración de propósitos. " <>
-      "ESTE TURNO DEBES hacer algo DISTINTO y CONCRETO que la partida aún no haya visto: " <>
-      "caminar hacia una salida/puesta/objeto, abrir o inspeccionar algo físico, hablar con un PNJ " <>
-      "mencionado por el DM, usar ability_check(\"<tu nombre>\", \"<str|dex|int|wis|cha>\", <DC>) para " <>
-      "intentar algo con riesgo real, o proponer y EJECUTAR una acción nueva en una o dos frases. " <>
-      "Si la vía anterior no avanza, CAMBIA de enfoque. Responde en castellano.\n\n" <>
+      "ESTÁ PROHIBIDO repetir o reformular esa misma intención. " <>
+      "ESTE TURNO haz algo DISTINTO y LOCAL, en ESTA escena: un detalle que no hayas mencionado, " <>
+      "una frase nueva a un compañero o PNJ, inspeccionar lo que ya está delante, o " <>
+      "ability_check(\"<tu nombre>\", \"<str|dex|int|wis|cha>\", <DC>) si hay riesgo real. " <>
+      "PROHIBIDO: marcharte, viajar, cruzar umbrales, abrir lo que el humano pidió no abrir, " <>
+      "ejecutar un plan de varios pasos, o narrar que otro PC te sigue. Responde en castellano.\n\n" <>
       base
   end
 

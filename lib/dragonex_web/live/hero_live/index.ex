@@ -9,22 +9,16 @@ defmodule DragonexWeb.HeroLive.Index do
   alias Dragonex.{Accounts, Heroes.Catalog}
 
   @impl true
-  def mount(_params, session, socket) do
-    case Accounts.get_user(session["user_id"]) do
-      nil ->
-        {:ok, Phoenix.LiveView.redirect(socket, to: "/login")}
+  def mount(_params, _session, socket) do
+    user = socket.assigns.current_user
+    heroes = Accounts.list_heroes(user)
 
-      user ->
-        heroes = Accounts.list_heroes(user)
-
-        {:ok,
-         assign(socket,
-           current_user: user,
-           heroes: heroes,
-           used_hero_ids: MapSet.new(Accounts.used_hero_ids(user)),
-           error: nil
-         )}
-    end
+    {:ok,
+     assign(socket,
+       heroes: heroes,
+       used_hero_ids: MapSet.new(Accounts.used_hero_ids(user)),
+       error: nil
+     )}
   end
 
   @impl true
@@ -35,11 +29,8 @@ defmodule DragonexWeb.HeroLive.Index do
     # nil for a hero that isn't ours, so a forged phx-value-id can't delete
     # another user's hero.
     error =
-      with %{} = hero <- Accounts.get_user_hero(user, id),
-           {:ok, _} <- Accounts.delete_hero(hero.id) do
-        nil
-      else
-        nil -> "No se pudo borrar el héroe."
+      case Accounts.delete_hero(user, id) do
+        {:ok, _} -> nil
         {:error, :in_game} -> "No puedes borrar un héroe que ya está en una partida."
         {:error, _} -> "No se pudo borrar el héroe."
       end

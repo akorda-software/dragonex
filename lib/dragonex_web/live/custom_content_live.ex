@@ -13,20 +13,13 @@ defmodule DragonexWeb.CustomContentLive do
   @tabs CustomContent.kinds()
 
   @impl true
-  def mount(_params, session, socket) do
-    case Accounts.get_user(session["user_id"]) do
-      nil ->
-        {:ok, Phoenix.LiveView.redirect(socket, to: "/login")}
-
-      user ->
-        {:ok,
-         socket
-         |> assign(:current_user, user)
-         |> assign(:tab, "weapon")
-         |> assign(:error, nil)
-         |> assign(:editing, nil)
-         |> load_items()}
-    end
+  def mount(_params, _session, socket) do
+    {:ok,
+     socket
+     |> assign(:tab, "weapon")
+     |> assign(:error, nil)
+     |> assign(:editing, nil)
+     |> load_items()}
   end
 
   defp load_items(socket) do

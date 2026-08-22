@@ -113,6 +113,163 @@ defmodule Dragonex.TurnMasterLoopTest do
     assert Game.status(pid) in [:waiting, :running]
   end
 
+  test "mute TM at exploration start passes to the DM without relevo" do
+    {:ok, game} =
+      Games.create_game(
+        title: "opener",
+        scene: "una taberna",
+        roster: [{Archetypes.fighter(), :human}, {Archetypes.wizard(), :ai}]
+      )
+
+    pid =
+      start_supervised!(
+        {Dragonex.Game,
+         {game.id,
+          [
+            model: %Test{script: [text("El posadero limpia un vaso.")] ++ [text("ok")]},
+            turnmaster_model: %Test{label: "(no decision)"}
+          ]}}
+      )
+
+    assert :ok ==
+             Game.await(
+               pid,
+               fn s ->
+                 Enum.any?(s.events, fn e ->
+                   e.type == :narration and e.actor == "dm" and
+                     (e.payload["text"] || "") =~ "posadero"
+                 end)
+               end,
+               10_000
+             )
+
+    events = Games.list_events(game.id)
+    notes = Enum.map(events, &(&1.payload["note"] || ""))
+    assert Enum.any?(notes, &(&1 =~ "El turno pasa al DM."))
+    refute Enum.any?(notes, &(&1 =~ "relevo"))
+  end
+
+  test "after a PC in exploration the world answers without a TM beat" do
+    {:ok, game} =
+      Games.create_game(
+        title: "mesa pass",
+        scene: "una taberna",
+        roster: [{Archetypes.fighter(), :human}, {Archetypes.wizard(), :ai}]
+      )
+
+    pid =
+      start_supervised!(
+        {Dragonex.Game,
+         {game.id,
+          [
+            model: %Test{script: [text("Thane pregunta al tabernero.")] ++ [text("ok")]},
+            turnmaster_model: %Test{
+              script: tm_script_give("Thane") ++ tm_script_give("Lyra") ++ tm_script_give("Lyra")
+            }
+          ]}}
+      )
+
+    assert :ok == Game.await(pid, waiting_on("Thane"), 10_000)
+    assert {:ok, _} = Game.declare(pid, "Thane", "Pregunto al tabernero qué se cuece.")
+
+    assert :ok ==
+             Game.await(
+               pid,
+               fn s ->
+                 notes =
+                   s.events
+                   |> Enum.filter(&(&1.type == :system))
+                   |> Enum.map(&(&1.payload["note"] || ""))
+
+                 Enum.any?(notes, &(&1 =~ "El turno pasa al DM."))
+               end,
+               10_000
+             )
+
+    events = Games.list_events(game.id)
+    refute Enum.any?(events, fn e -> (e.payload["note"] || "") =~ "relevo" end)
+
+    thane_then_dm =
+      events
+      |> Enum.filter(&(&1.type == :system))
+      |> Enum.map(&(&1.payload["note"] || ""))
+      |> Enum.filter(&(&1 =~ "El turno pasa"))
+
+    assert Enum.any?(thane_then_dm, &(&1 =~ "al DM"))
+  end
+
+  test "after a DM question to a human the other PC does not take the floor" do
+    {:ok, game} =
+      Games.create_game(
+        title: "dm pregunta",
+        scene: "una taberna",
+        roster: [{Archetypes.fighter(), :human}, {Archetypes.wizard(), :human}]
+      )
+
+    pid =
+      start_supervised!(
+        {Dragonex.Game,
+         {game.id,
+          [
+            model: %Test{script: [text("Thane, el pergamino está cerrado. ¿Lo abres?")]},
+            turnmaster_model: %Test{
+              script: tm_script_give("Lyra") ++ tm_script_give("Lyra") ++ tm_script_give("Lyra")
+            }
+          ]}}
+      )
+
+    assert :ok == Game.await(pid, waiting_on("Thane"), 10_000)
+    refute Game.snapshot(pid).current == "Lyra"
+  end
+
+  test "a tú/si quieres prompt after a human keeps that human on the floor" do
+    {:ok, game} =
+      Games.create_game(
+        title: "abrelo tu",
+        scene: "una taberna",
+        roster: [{Archetypes.fighter(), :human}, {Archetypes.wizard(), :human}]
+      )
+
+    pid =
+      start_supervised!(
+        {Dragonex.Game,
+         {game.id,
+          [
+            model: %Test{
+              script:
+                [text("El pergamino descansa en la mesa.")] ++
+                  [text("Thane se acerca.")] ++
+                  [text("Ábrelo tú, si quieres.")]
+            },
+            turnmaster_model: %Test{
+              script:
+                tm_script_give("Thane") ++
+                  tm_script_give("Lyra") ++
+                  tm_script_give("Lyra") ++
+                  tm_script_give("Lyra")
+            }
+          ]}}
+      )
+
+    assert :ok == Game.await(pid, waiting_on("Thane"), 10_000)
+    assert {:ok, _} = Game.declare(pid, "Thane", "Miro el pergamino.")
+
+    assert :ok ==
+             Game.await(
+               pid,
+               fn s ->
+                 Enum.any?(s.events, fn e ->
+                   e.type == :narration and e.actor == "dm" and
+                     (e.payload["text"] || "") =~ "si quieres"
+                 end)
+               end,
+               10_000
+             )
+
+    assert :ok == Game.await(pid, waiting_on("Thane"), 10_000)
+    refute Game.snapshot(pid).current == "Lyra"
+  end
+
   test "acted_this_round codec round-trip" do
     w =
       World.new(
@@ -234,5 +391,183 @@ defmodule Dragonex.TurnMasterLoopTest do
                (e.payload["kind"] == "cut_in" or e.payload["kind"] == :cut_in or
                   (e.payload["note"] || "") =~ "interrumpe")
            end)
+  end
+
+  defp two_humans_opts do
+    [
+      title: "tm intents",
+      scene: "a torchlit ruin",
+      roster: [
+        {Archetypes.fighter(), :human},
+        {Archetypes.wizard(), :human},
+        {Monsters.goblin(), :ai}
+      ],
+      initiative: ["goblin", "Thane", "Lyra"]
+    ]
+  end
+
+  test "queued human intent is visible to TurnMaster and can steal the floor" do
+    {:ok, game} = Games.create_game(two_humans_opts())
+
+    tm =
+      %Test{
+        script:
+          tm_script_give("dm") ++
+            tm_script_give("Thane") ++
+            tm_script_give("Lyra")
+      }
+
+    lyra_cast = [
+      tool_calls([
+        call("cast_spell", %{"caster" => "Lyra", "spell" => "firebolt", "target" => "goblin"})
+      ]),
+      text("Lyra lanza un rayo.")
+    ]
+
+    pid =
+      start_supervised!(
+        {Dragonex.Game,
+         {game.id,
+          [
+            model: %Test{script: dm_script() ++ lyra_cast},
+            turnmaster_model: tm,
+            roller: hit_roller()
+          ]}}
+      )
+
+    assert :ok == Game.await(pid, waiting_on("Thane"), 10_000)
+    assert {:ok, :queued} = Game.declare(pid, "Lyra", "me pongo delante del golpe")
+
+    assert :ok ==
+             Game.await(
+               pid,
+               fn s ->
+                 Enum.any?(s.events, fn e -> e.type == :action and e.actor == "Lyra" end)
+               end,
+               10_000
+             )
+
+    refute Map.has_key?(Games.get_game(game.id).intents, "Lyra")
+  end
+
+  test "TurnMaster can keep the waiter; queued intent stays" do
+    {:ok, game} = Games.create_game(two_humans_opts())
+
+    tm =
+      %Test{
+        script:
+          tm_script_give("dm") ++
+            tm_script_give("Thane") ++
+            tm_script_give("Thane")
+      }
+
+    pid =
+      start_supervised!(
+        {Dragonex.Game,
+         {game.id,
+          [model: %Test{script: dm_script()}, turnmaster_model: tm, roller: hit_roller()]}}
+      )
+
+    assert :ok == Game.await(pid, waiting_on("Thane"), 10_000)
+    assert {:ok, :queued} = Game.declare(pid, "Lyra", "abro la puerta")
+
+    assert :ok == Game.await(pid, waiting_on("Thane"), 10_000)
+    assert Dragonex.Intents.text(Games.get_game(game.id).intents["Lyra"]) =~ "abro la puerta"
+  end
+
+  test "same queued text does not re-eval TurnMaster twice" do
+    {:ok, game} = Games.create_game(two_humans_opts())
+
+    tm =
+      %Test{
+        script:
+          tm_script_give("dm") ++
+            tm_script_give("Thane") ++
+            tm_script_give("Thane") ++
+            tm_script_give("Thane")
+      }
+
+    pid =
+      start_supervised!(
+        {Dragonex.Game,
+         {game.id,
+          [model: %Test{script: dm_script()}, turnmaster_model: tm, roller: hit_roller()]}}
+      )
+
+    assert :ok == Game.await(pid, waiting_on("Thane"), 10_000)
+
+    count = fn ->
+      game.id
+      |> Games.list_events()
+      |> Enum.count(&(&1.actor == "turnmaster" and &1.type == :system))
+    end
+
+    before = count.()
+    assert {:ok, :queued} = Game.declare(pid, "Lyra", "salto")
+    assert :ok == Game.await(pid, waiting_on("Thane"), 10_000)
+    after_first = count.()
+    assert after_first == before + 1
+
+    assert {:ok, :queued} = Game.declare(pid, "Lyra", "salto")
+    Process.sleep(80)
+    assert count.() == after_first
+    assert Game.status(pid) == :waiting
+  end
+
+  test "TurnMaster miss on re-eval keeps the waiter and the intent" do
+    {:ok, game} = Games.create_game(two_humans_opts())
+
+    pid =
+      start_supervised!(
+        {Dragonex.Game,
+         {game.id,
+          [
+            model: %Test{script: dm_script()},
+            turnmaster_model: %Test{label: "(no decision)"},
+            roller: hit_roller()
+          ]}}
+      )
+
+    assert :ok == Game.await(pid, waiting_on("Thane"), 10_000)
+    assert {:ok, :queued} = Game.declare(pid, "Lyra", "interrumpo")
+    assert :ok == Game.await(pid, waiting_on("Thane"), 10_000)
+    assert Dragonex.Intents.text(Games.get_game(game.id).intents["Lyra"]) =~ "interrumpo"
+  end
+
+  test "a combat reaction intent cuts in even if TurnMaster gave another actor" do
+    {:ok, game} = Games.create_game(two_humans_opts())
+
+    tm =
+      %Test{
+        script:
+          tm_script_give("dm") ++
+            tm_script_give("Thane") ++
+            tm_script_give("Thane")
+      }
+
+    pid =
+      start_supervised!(
+        {Dragonex.Game,
+         {game.id,
+          [model: %Test{script: dm_script()}, turnmaster_model: tm, roller: hit_roller()]}}
+      )
+
+    assert :ok == Game.await(pid, waiting_on("Thane"), 10_000)
+    assert {:ok, :queued} = Game.declare(pid, "Lyra", "interrumpo con Escudo")
+
+    assert :ok ==
+             Game.await(
+               pid,
+               fn s ->
+                 Enum.any?(s.events, fn e ->
+                   note = e.payload["note"] || ""
+                   kind = e.payload["kind"]
+
+                   e.actor == "turnmaster" and
+                     (note =~ "interrumpe" or kind in ["cut_in", :cut_in])
+                 end)
+               end,
+               10_000
+             )
   end
 end

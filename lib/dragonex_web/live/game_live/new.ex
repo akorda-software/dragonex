@@ -8,7 +8,7 @@ defmodule DragonexWeb.GameLive.New do
   Enemies are never picked by the player — the DM spawns them from the bestiary
   as the story unfolds.
 
-  Future: "open" slots that other human players can claim by joining the game.
+  Open slots for other humans are claimed from the waiting room after create.
   """
 
   use Phoenix.LiveView, layout: {DragonexWeb.Layouts, :app}
@@ -19,31 +19,25 @@ defmodule DragonexWeb.GameLive.New do
   @max_companions 5
 
   @impl true
-  def mount(_params, session, socket) do
-    user = Dragonex.Accounts.get_user(session["user_id"])
+  def mount(_params, _session, socket) do
+    user = socket.assigns.current_user
+    pcs = Enum.filter(Roster.catalog(), &(&1.side == "pc"))
+    heroes = Roster.hero_catalog(user)
 
-    if user == nil do
-      {:ok, Phoenix.LiveView.redirect(socket, to: "/login")}
-    else
-      pcs = Enum.filter(Roster.catalog(), &(&1.side == "pc"))
-      heroes = Roster.hero_catalog(user)
-
-      {:ok,
-       assign(socket,
-         current_user: user,
-         pcs: pcs,
-         heroes: heroes,
-         scenarios: Scenarios.all(),
-         step: :details,
-         selected_scenario: nil,
-         my_hero: nil,
-         companions: List.duplicate(nil, @max_companions),
-         max_companions: @max_companions,
-         picking_slot: nil,
-         dice_engine: "2d",
-         error: nil
-       )}
-    end
+    {:ok,
+     assign(socket,
+       pcs: pcs,
+       heroes: heroes,
+       scenarios: Scenarios.all(),
+       step: :details,
+       selected_scenario: nil,
+       my_hero: nil,
+       companions: List.duplicate(nil, @max_companions),
+       max_companions: @max_companions,
+       picking_slot: nil,
+       dice_engine: "2d",
+       error: nil
+     )}
   end
 
   # --- navigation ---
@@ -175,27 +169,25 @@ defmodule DragonexWeb.GameLive.New do
 
   def handle_event("random", _params, socket) do
     scenario = Enum.random(Scenarios.all())
+    keys = Enum.map(socket.assigns.pcs ++ socket.assigns.heroes, & &1.key)
 
-    all_pcs = socket.assigns.pcs ++ socket.assigns.heroes
-    my_hero = (all_pcs |> Enum.random()).key
+    case Enum.shuffle(keys) do
+      [] ->
+        {:noreply, assign(socket, error: "No hay personajes disponibles.")}
 
-    companions =
-      0..(@max_companions - 1)
-      |> Enum.map(fn _ ->
-        if :rand.uniform() > 0.5 do
-          (all_pcs |> Enum.random()).key
-        else
-          nil
-        end
-      end)
+      [my_hero | rest] ->
+        n = rem(:rand.uniform(1000), @max_companions + 1)
+        picked = Enum.take(rest, n)
+        companions = picked ++ List.duplicate(nil, @max_companions - length(picked))
 
-    {:noreply,
-     assign(socket,
-       selected_scenario: scenario,
-       my_hero: my_hero,
-       companions: companions,
-       error: nil
-     )}
+        {:noreply,
+         assign(socket,
+           selected_scenario: scenario,
+           my_hero: my_hero,
+           companions: companions,
+           error: nil
+         )}
+    end
   end
 
   # --- create ---
@@ -350,7 +342,7 @@ defmodule DragonexWeb.GameLive.New do
           <% end %>
         </div>
 
-        <div class="note">💡 Los enemigos los invoca el DM según la historia. Próximamente: slots abiertos para otros jugadores.</div>
+        <div class="note">💡 Los enemigos los invoca el DM según la historia. Tras crear, puedes dejar slots abiertos para otros jugadores.</div>
 
         <div class="error" :if={@error}>{@error}</div>
 

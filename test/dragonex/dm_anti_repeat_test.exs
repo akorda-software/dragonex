@@ -68,7 +68,8 @@ defmodule Dragonex.DMAntiRepeatTest do
 
     script = [
       "Las antorchas parpadean al pasar el viento frío.",
-      "Un crujido lejano resuena entre la piedra mojada."
+      "Un crujido lejano resuena entre la piedra mojada.",
+      "Gotas de agua golpean el suelo de la cripta."
     ]
 
     model = %Test{script: script}
@@ -82,6 +83,8 @@ defmodule Dragonex.DMAntiRepeatTest do
 
         assert :ok ==
                  Game.await(pid, fn _s -> dm_narration_count(game.id) >= 3 end, 10_000)
+
+        _ = Game.pause(pid)
       end)
 
     refute log =~ "DM repeating narration",

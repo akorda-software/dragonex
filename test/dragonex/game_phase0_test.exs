@@ -6,7 +6,7 @@ defmodule Dragonex.GamePhase0Test do
   Arc (goblin-first combat, fixed roller so attacks hit for minimal damage):
 
     1. Game starts → DM auto-acts (goblin attacks Thane) in a Task.   [AI turn]
-    2. Thane's turn → the test calls act/2 → Thane attacks the goblin. [human turn]
+    2. Thane's turn → the test calls declare/3 → Thane attacks the goblin. [human turn]
     3. DM auto-acts again (goblin attacks Thane).                      [AI turn]
     4. Everything persisted: world jsonb + append-only events.
     5. Kill the process → restart → same game_id resumes on Thane's turn
@@ -192,7 +192,7 @@ defmodule Dragonex.GamePhase0Test do
     assert :ok == Game.pause(pid)
     assert {:ok, :queued} = Game.declare(pid, "Thane", "I attack the goblin.")
     # The intent is durable in the DB.
-    assert Games.get_game(game.id).intents["Thane"] =~ "attack the goblin"
+    assert Dragonex.Intents.text(Games.get_game(game.id).intents["Thane"]) =~ "attack the goblin"
 
     assert :ok == Game.resume(pid)
     # The loop consumes the queued intent → Thane's beat runs → goblin hurt.
@@ -246,10 +246,12 @@ defmodule Dragonex.GamePhase0Test do
     # DM auto-acts (goblin), then it's Thane's turn.
     assert :ok == Game.await(pid, fn s -> s.status == :waiting and s.current == "Thane" end)
 
-    # Lyra declares off-turn (it's Thane's turn) → queued, not resolved.
+    # Lyra declares off-turn (it's Thane's turn) → queued, and may wake the
+    # TurnMaster (D27). Thane declaring in the same breath may race that
+    # re-eval (`:queued`) or still catch `:waiting` (`:resolving`).
     assert {:ok, :queued} = Game.declare(pid, "Lyra", "I cast firebolt at the goblin.")
-    # Thane declares on his own turn → resolves now.
-    assert {:ok, :resolving} = Game.declare(pid, "Thane", "I attack the goblin.")
+    assert {:ok, thane} = Game.declare(pid, "Thane", "I attack the goblin.")
+    assert thane in [:resolving, :queued]
 
     # Thane's beat completes → the loop advances to Lyra and consumes her queued
     # intent automatically (no second declare needed). Wait until both declared

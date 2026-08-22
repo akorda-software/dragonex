@@ -15,22 +15,18 @@ defmodule DragonexWeb.HeroLive.LevelUp do
   alias Dragonex.{Accounts, Heroes.Catalog, Heroes.Progression, Heroes.Translations}
 
   @impl true
-  def mount(%{"id" => id}, session, socket) do
-    case Accounts.get_user(session["user_id"]) do
-      nil ->
-        {:ok, Phoenix.LiveView.redirect(socket, to: "/login")}
+  def mount(%{"id" => id}, _session, socket) do
+    user = socket.assigns.current_user
 
-      user ->
-        with %{} = hero <- Accounts.get_user_hero(user, id),
-             %{} = sheet <- Accounts.hero_sheet(hero) do
-          if sheet.level >= 20 do
-            {:ok, Phoenix.LiveView.push_navigate(socket, to: "/heroes/#{hero.id}")}
-          else
-            {:ok, mount_level_up(socket, user, hero, sheet)}
-          end
-        else
-          _ -> {:ok, Phoenix.LiveView.redirect(socket, to: "/heroes")}
-        end
+    with %{} = hero <- Accounts.get_user_hero(user, id),
+         %{} = sheet <- Accounts.hero_sheet(hero) do
+      if sheet.level >= 20 do
+        {:ok, Phoenix.LiveView.push_navigate(socket, to: "/heroes/#{hero.id}")}
+      else
+        {:ok, mount_level_up(socket, user, hero, sheet)}
+      end
+    else
+      _ -> {:ok, Phoenix.LiveView.redirect(socket, to: "/heroes")}
     end
   end
 

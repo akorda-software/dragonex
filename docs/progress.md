@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **566 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **622 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -52,12 +52,13 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   D20), tools con `max_retries: 3`, capabilities `Events` + `Compaction.Summary`.
 - `PCAgent` — un agent por PC IA, personalidad por clase, tools restringidas,
   `instruction/3` adaptativa (caído→death_save, combate→targets, exploración).
-- **`TurnMaster` (D25, Fase 5)** — agente de orquestación que reparte turnos
-  (`give_turn_to` / `cut_in` / `react` / `pass_to_dm` / `end_scene`). Micro-
-  máquina `actor → turnmaster → handoff` en `Game.advance/1`. **No muta el
-  World** (tools solo registran; el Game aplica). `WorldDriven` queda como
-  fallback + circuit breaker. Combate con `acted_this_round` + mini-turnos.
-  Modelo `Models.turnmaster/0` (barato, `max_tokens` 256). Spec: `TURNMASTER.md`.
+- **`TurnMaster` (D25 + D27)** — orquesta turnos (`give_turn_to` / `cut_in` /
+  `react` / `pass_to_dm` / `end_scene`). Micro-máquina `actor → turnmaster →
+  handoff`. **No muta el World**. `WorldDriven` = fallback + circuit breaker.
+  El brief lista **intenciones humanas pendientes**; un declare off-turn en
+  `:waiting` ajeno re-evalúa al TM sin robar el floor si no decide. Combate
+  con `acted_this_round` + mini-turnos. Modelo `Models.turnmaster/0` (barato,
+  `max_tokens` 256). Spec: `TURNMASTER.md`.
 - `History` — reconstruye contexto compartido desde `game_events` (D19);
   compresión de narraciones viejas, coalescing mismo-actor.
 - `Brief` + `Instructions` — `world_brief` + instruction por turno.
@@ -110,7 +111,18 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   link, el creador pulsa "Empezar".
 
 ### Mejoras transversales (ROADMAP) — todas hechas
-- ✅ Cola de intenciones (`declare/3` off-turn, persiste en `games.intents`).
+- ✅ Cola de intenciones (`declare/3` off-turn, persiste en `games.intents`)
+  **y alimenta al TurnMaster** (D27 + D28): brief + re-eval + anti-spam;
+  fase en el intent; UI declara durante un beat; `cut_in` de reacción.
+- ✅ Recorte estructural D29/D30 (voz PNJ, headers mid-prosa, pregunta del
+  DM retiene el floor — cableado en `Game.Turnmaster`).
+- ✅ Biblia siembra facts + PC IA no ejecuta solo en exploración (D32).
+- ✅ **Refactor estructural D31** — `Game` 2273→~780 con satélites
+  `Game.{Bootstrap,Beats,Settlement,Turnmaster,Combat,Persistence,Participants}`;
+  `GameLive.Show` 1772→~440 (`Chat`, `Settings`, `Dice`, `Snapshot`,
+  `Components`); `HeroLive.New` 1291→~500 (`Heroes.Draft` +
+  `New.Components`). Sin cambio de comportamiento; suite al mismo verde que
+  la recepción (605/606, el fallo es el D30 pendiente).
 - ✅ Robustez del DM (`controlled_by?` directivo + `max_retries: 3`).
 - ✅ Caching de prefijo (D20, medido 44–85%).
 - ✅ Modelo-por-rol + `max_tokens` (D21).

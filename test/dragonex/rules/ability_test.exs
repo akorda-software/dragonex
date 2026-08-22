@@ -32,4 +32,19 @@ defmodule Dragonex.Rules.AbilityTest do
       assert Ability.proficiency(20) == 6
     end
   end
+
+  describe "parse/1" do
+    test "accepts atoms, prefixes and mixed case" do
+      assert Ability.parse(:wis) == {:ok, :wis}
+      assert Ability.parse("STR") == {:ok, :str}
+      assert Ability.parse("dexterity") == {:ok, :dex}
+      assert Ability.parse("  Con  ") == {:ok, :con}
+    end
+
+    test "rejects unknown tokens instead of defaulting to strength" do
+      assert Ability.parse("luck") == :error
+      assert Ability.parse("") == :error
+      assert Ability.parse(nil) == :error
+    end
+  end
 end

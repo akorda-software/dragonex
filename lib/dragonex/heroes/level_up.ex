@@ -23,7 +23,7 @@ defmodule Dragonex.Heroes.LevelUp do
   ASI de CON sigue caído tras subir.
   """
 
-  alias Dragonex.{Character, Spell}
+  alias Dragonex.Character
   alias Dragonex.Heroes.{Classes, Equipment, Progression, Races, Spells}
   alias Dragonex.Rules.Ability
 
@@ -173,9 +173,9 @@ defmodule Dragonex.Heroes.LevelUp do
     ability = casting_ability_for(class_key)
 
     keys
-    |> Enum.map(&resolve_spell(&1, custom))
+    |> Enum.map(&Spells.resolve(&1, custom))
     |> Enum.reject(&is_nil/1)
-    |> Enum.map(&to_spell_struct(&1, ability))
+    |> Enum.map(&Spells.to_character_spell(&1, ability))
   end
 
   # Capacidad de conjuración para fijar `casting_ability` en los hechizos nuevos.
@@ -191,48 +191,6 @@ defmodule Dragonex.Heroes.LevelUp do
   defp half_caster_ability(class) when class in ["paladin", :paladin], do: :cha
   defp half_caster_ability(class) when class in ["ranger", :ranger], do: :wis
   defp half_caster_ability(_), do: nil
-
-  # Resuelve una key de hechizo: custom (`custom_*`) mira el bundle inyectado;
-  # el resto cae al catálogo builtin/SRD.
-  defp resolve_spell(name, custom) do
-    name = to_string(name)
-
-    if String.starts_with?(name, "custom_") do
-      case Enum.find(custom[:spells] || [], &(&1.key == name)) do
-        nil -> nil
-        %{name: n, definition: d} -> spell_data_from_def(n, d)
-      end
-    else
-      Spells.get(name)
-    end
-  end
-
-  defp spell_data_from_def(name, d) do
-    save = Dragonex.MapUtil.get(d, "save_ability")
-
-    %{
-      name: name,
-      level: Dragonex.MapUtil.get(d, "level"),
-      kind: Dragonex.MapUtil.to_atom(Dragonex.MapUtil.get(d, "kind")),
-      save_ability: save && Dragonex.MapUtil.to_atom(save),
-      dice: Dragonex.MapUtil.get(d, "dice"),
-      damage_type: Dragonex.MapUtil.get(d, "damage_type"),
-      effect: Dragonex.MapUtil.get(d, "effect")
-    }
-  end
-
-  defp to_spell_struct(data, casting_ability) do
-    %Spell{
-      name: data.name,
-      level: data.level,
-      kind: data.kind,
-      casting_ability: casting_ability,
-      save_ability: data.save_ability,
-      dice: data.dice,
-      damage_type: data.damage_type,
-      effect: data.effect
-    }
-  end
 
   defp apply_asi(nil, _), do: nil
   defp apply_asi(score, nil), do: score

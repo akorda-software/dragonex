@@ -42,7 +42,8 @@ defmodule Dragonex.Games do
     user_id = Keyword.get(opts, :user_id)
     open_slots = Keyword.get(opts, :open_slots, 0)
 
-    {world, participants, characters} = build_scenario(scene, roster, initiative, user_id)
+    {world, participants, characters} =
+      build_scenario(scene, roster, initiative, user_id, story_bible || %{})
 
     # Games with open slots start in :configuring (waiting room); others start
     # immediately in :running.
@@ -242,7 +243,7 @@ defmodule Dragonex.Games do
   defp scene_from(_roster, scene), do: scene
 
   # Build the world + assoc structs from a roster of {character, kind} tuples.
-  defp build_scenario(scene, roster, initiative, creator_user_id) do
+  defp build_scenario(scene, roster, initiative, creator_user_id, story_bible) do
     dm = struct(Participant, %{name: "dm", kind: :ai, side: "dm"})
 
     {participants, characters, add_fns} =
@@ -298,12 +299,20 @@ defmodule Dragonex.Games do
             w3
         end
       end)
+      |> seed_bible_facts(story_bible)
 
     {world, participants, characters}
   end
 
   defp normalize_roster_entry({sheet, kind, hero_id}), do: {sheet, kind, hero_id}
   defp normalize_roster_entry({sheet, kind}), do: {sheet, kind, nil}
+
+  defp seed_bible_facts(world, bible) do
+    Enum.reduce(Dragonex.Scenarios.seed_facts(bible), world, fn fact, w ->
+      {:ok, next} = Dragonex.World.add_fact(fact).(w)
+      next
+    end)
+  end
 
   defp opening_for(scene), do: "La escena está preparada: #{scene}."
 
@@ -346,23 +355,43 @@ defmodule Dragonex.Games do
   def join_game(game, user, sheet, opts \\ [])
 
   def join_game(
-        %Game{id: game_id, open_slots: open} = _game,
+        %Game{id: game_id, open_slots: open} = game,
         user,
         %Dragonex.Character{} = sheet,
         opts
       )
       when open > 0 do
+    if already_joined?(game, user) do
+      {:error, :already_joined}
+    else
+      do_join_game(game_id, open, user, sheet, opts)
+    end
+  end
+
+  def join_game(%Game{open_slots: 0}, _user, _sheet, _opts), do: {:error, :no_open_slots}
+
+  defp already_joined?(%Game{} = game, user) do
+    game
+    |> Repo.preload(:participants)
+    |> Map.get(:participants, [])
+    |> Enum.any?(&(&1.user_id == user.id))
+  end
+
+  defp do_join_game(game_id, open, user, sheet, opts) do
     hero_id = Keyword.get(opts, :hero_id)
 
     Repo.transaction(fn ->
       # Create the participant (linked to the user)
-      {:ok, _participant} =
-        %Participant{}
-        |> Ecto.Changeset.cast(
-          %{game_id: game_id, user_id: user.id, name: sheet.name, kind: :human, side: "pc"},
-          [:game_id, :user_id, :name, :kind, :side]
-        )
-        |> Repo.insert()
+      case %Participant{}
+           |> Ecto.Changeset.cast(
+             %{game_id: game_id, user_id: user.id, name: sheet.name, kind: :human, side: "pc"},
+             [:game_id, :user_id, :name, :kind, :side]
+           )
+           |> Ecto.Changeset.unique_constraint([:game_id, :user_id])
+           |> Repo.insert() do
+        {:ok, _participant} -> :ok
+        {:error, _} -> Repo.rollback(:already_joined)
+      end
 
       # Store the character sheet
       {:ok, _char} =
@@ -413,8 +442,6 @@ defmodule Dragonex.Games do
     end)
   end
 
-  def join_game(%Game{open_slots: 0}, _user, _sheet, _opts), do: {:error, :no_open_slots}
-
   @doc "Can the given user access this game (creator, participant, or open slots)?"
   @spec can_access?(Game.t(), Dragonex.Accounts.User.t() | nil) :: boolean()
   def can_access?(%Game{user_id: uid}, %Dragonex.Accounts.User{id: uid}), do: true
@@ -449,11 +476,13 @@ defmodule Dragonex.Games do
     )
   end
 
-  @spec delete_game(term()) :: {:ok, Game.t()} | {:error, :not_found}
-  def delete_game(id) do
+  @spec delete_game(Dragonex.Accounts.User.t(), term()) ::
+          {:ok, Game.t()} | {:error, :not_found | :forbidden}
+  def delete_game(%Dragonex.Accounts.User{id: uid}, id) do
     case Repo.get(Game, id) do
       nil -> {:error, :not_found}
-      %Game{} = game -> {:ok, Repo.delete!(game)}
+      %Game{user_id: ^uid} = game -> {:ok, Repo.delete!(game)}
+      %Game{} -> {:error, :forbidden}
     end
   end
 
@@ -679,6 +708,13 @@ defmodule Dragonex.Games do
   @spec append_event(term(), atom(), String.t() | nil, String.t(), map()) ::
           {:ok, GameEvent.t()} | {:error, term()}
   def append_event(game_id, type, actor, visible_to, payload) do
+    do_append_event(game_id, type, actor, visible_to, payload, 4)
+  end
+
+  defp do_append_event(_game_id, _type, _actor, _visible_to, _payload, 0),
+    do: {:error, :seq_conflict}
+
+  defp do_append_event(game_id, type, actor, visible_to, payload, retries) do
     %GameEvent{}
     |> Ecto.Changeset.cast(
       %{
@@ -691,7 +727,22 @@ defmodule Dragonex.Games do
       },
       [:game_id, :seq, :type, :actor, :visible_to, :payload]
     )
+    |> Ecto.Changeset.unique_constraint([:game_id, :seq])
     |> Repo.insert()
+    |> case do
+      {:ok, _} = ok ->
+        ok
+
+      {:error, %Ecto.Changeset{errors: errors}} when retries > 1 ->
+        if Keyword.has_key?(errors, :seq) do
+          do_append_event(game_id, type, actor, visible_to, payload, retries - 1)
+        else
+          {:error, :insert_failed}
+        end
+
+      {:error, _} ->
+        {:error, :insert_failed}
+    end
   end
 
   @doc """

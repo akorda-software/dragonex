@@ -98,6 +98,18 @@ defmodule Dragonex.RestTest do
     test "refuses a missing character" do
       assert {:error, _} = Actions.short_rest(World.new(), "ghost", fixed(10))
     end
+
+    test "refuses during combat" do
+      w = world_with_hurt_fighter()
+
+      {:ok, w} =
+        World.add_character(Character.new(name: "goblin", hp: 7, max_hp: 7, side: "enemy")).(w)
+
+      {:ok, w} = World.begin_combat(["hero", "goblin"]).(w)
+
+      assert {:error, msg} = Actions.short_rest(w, "hero", fixed(7))
+      assert msg =~ "combate"
+    end
   end
 
   describe "long_rest/2" do
@@ -116,6 +128,18 @@ defmodule Dragonex.RestTest do
       {:ok, w} = World.add_character(fighter).(World.new())
 
       assert {:error, _} = Actions.long_rest(w, "down")
+    end
+
+    test "refuses during combat" do
+      w = world_with_hurt_fighter()
+
+      {:ok, w} =
+        World.add_character(Character.new(name: "goblin", hp: 7, max_hp: 7, side: "enemy")).(w)
+
+      {:ok, w} = World.begin_combat(["hero", "goblin"]).(w)
+
+      assert {:error, msg} = Actions.long_rest(w, "hero")
+      assert msg =~ "combate"
     end
   end
 end

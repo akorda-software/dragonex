@@ -42,6 +42,53 @@ defmodule Dragonex.Heroes.Spells do
     Enum.find(all(), &(String.downcase(&1.name) == normalized))
   end
 
+  @doc """
+  Resolve a spell key: `custom_*` looks in the injected bundle, everything else
+  falls through to the builtin/SRD catalogue.
+  """
+  @spec resolve(term(), map()) :: spell_data() | nil
+  def resolve(name, custom \\ %{}) do
+    name = to_string(name)
+
+    if String.starts_with?(name, "custom_") do
+      case Enum.find(custom[:spells] || [], &(&1.key == name)) do
+        nil -> nil
+        %{name: n, definition: d} -> from_custom_def(n, d)
+      end
+    else
+      get(name)
+    end
+  end
+
+  @doc "Turn catalogue/custom spell data into a `Dragonex.Spell` for the sheet."
+  @spec to_character_spell(spell_data(), atom()) :: Dragonex.Spell.t()
+  def to_character_spell(data, casting_ability) do
+    %Dragonex.Spell{
+      name: data.name,
+      level: data.level,
+      kind: data.kind,
+      casting_ability: casting_ability,
+      save_ability: data.save_ability,
+      dice: data.dice,
+      damage_type: data.damage_type,
+      effect: data.effect
+    }
+  end
+
+  defp from_custom_def(name, d) do
+    save = Dragonex.MapUtil.get(d, "save_ability")
+
+    %{
+      name: name,
+      level: Dragonex.MapUtil.get(d, "level"),
+      kind: Dragonex.MapUtil.to_atom(Dragonex.MapUtil.get(d, "kind")),
+      save_ability: save && Dragonex.MapUtil.to_atom(save),
+      dice: Dragonex.MapUtil.get(d, "dice"),
+      damage_type: Dragonex.MapUtil.get(d, "damage_type"),
+      effect: Dragonex.MapUtil.get(d, "effect")
+    }
+  end
+
   @doc "All spells available to a given class key (any level)."
   @spec by_class(String.t()) :: [spell_data()]
   def by_class(class_key) when is_binary(class_key) do

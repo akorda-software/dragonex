@@ -171,6 +171,107 @@ defmodule Dragonex.Scenarios do
     }
   end
 
+  @doc """
+  Canonical facts seeded into `world.facts` at create (D32). The DM reads
+  them every turn, so the bible's posadero stays Borin instead of Grimm.
+  """
+  @spec seed_facts(map()) :: [String.t()]
+  def seed_facts(bible) when is_map(bible) do
+    npcs = bible["npcs"] || bible[:npcs] || ""
+    locs = bible["locations"] || bible[:locations] || ""
+    hook = bible["hook"] || bible[:hook] || ""
+    enemies = bible["enemies"] || bible[:enemies] || ""
+
+    parse_npc_facts(npcs) ++
+      parse_location_facts(locs) ++
+      parse_hook_facts(hook) ++
+      parse_enemy_facts(enemies)
+  end
+
+  def seed_facts(_), do: []
+
+  defp parse_npc_facts(npcs) when is_binary(npcs) and npcs != "" do
+    npcs
+    |> split_npc_chunks()
+    |> Enum.map(&npc_fact/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp parse_npc_facts(_), do: []
+
+  defp split_npc_chunks(text) do
+    {chunks, cur, _depth} =
+      text
+      |> String.graphemes()
+      |> Enum.reduce({[], "", 0}, fn
+        "(", {acc, cur, d} -> {acc, cur <> "(", d + 1}
+        ")", {acc, cur, d} -> {acc, cur <> ")", max(d - 1, 0)}
+        ",", {acc, cur, 0} -> {[String.trim(cur) | acc], "", 0}
+        g, {acc, cur, d} -> {acc, cur <> g, d}
+      end)
+
+    Enum.reverse([String.trim(cur) | chunks]) |> Enum.reject(&(&1 == ""))
+  end
+
+  defp npc_fact(chunk) do
+    core = chunk |> String.replace(~r/\s*\([^)]*\)/u, "") |> String.trim()
+
+    cond do
+      m = Regex.run(~r/^([A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)\s+el\s+(.+)$/u, core) ->
+        [_, name, role] = m
+        "El #{role} se llama #{name}."
+
+      m = Regex.run(~r/^([A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)\s+la\s+(.+)$/u, core) ->
+        [_, name, role] = m
+        "La #{role} se llama #{name}."
+
+      m = Regex.run(~r/^(el|la)\s+(.+?)\s+([A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)$/u, core) ->
+        [_, art, role, name] = m
+        "#{String.capitalize(art)} #{role} se llama #{name}."
+
+      m = Regex.run(~r/^([A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)/u, core) ->
+        [_, name] = m
+        "#{name} está en esta aventura."
+
+      true ->
+        nil
+    end
+  end
+
+  defp parse_location_facts(loc) when is_binary(loc) and loc != "" do
+    first = loc |> String.split(",") |> List.first() |> String.trim()
+    if first == "", do: [], else: ["El lugar inicial es #{first}."]
+  end
+
+  defp parse_location_facts(_), do: []
+
+  defp parse_hook_facts(hook) when is_binary(hook) and hook != "" do
+    trimmed = String.trim(hook)
+    if trimmed == "", do: [], else: ["Gancho de la biblia: #{trimmed}"]
+  end
+
+  defp parse_hook_facts(_), do: []
+
+  defp parse_enemy_facts(enemies) when is_binary(enemies) and enemies != "" do
+    case Regex.run(~r/:\s*(.+)$/u, enemies) do
+      [_, list] ->
+        names =
+          list
+          |> String.split(",")
+          |> Enum.map(&String.trim/1)
+          |> Enum.reject(&(&1 == ""))
+          |> Enum.uniq()
+          |> Enum.join(", ")
+
+        if names == "", do: [], else: ["Los enemigos previstos son: #{names}."]
+
+      _ ->
+        []
+    end
+  end
+
+  defp parse_enemy_facts(_), do: []
+
   @doc "A list of random fantasy hero names."
   @spec random_name() :: String.t()
   def random_name do

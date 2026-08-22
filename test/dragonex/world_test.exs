@@ -67,6 +67,27 @@ defmodule Dragonex.WorldTest do
       assert w.characters["g"].hp == 7
       assert w.characters["g"].death_saves == %{successes: 0, fails: 0}
     end
+
+    test "does not clear death saves when heal leaves hp at 0" do
+      w =
+        World.new()
+        |> apply!(
+          World.add_character(
+            Character.new(
+              name: "g",
+              class: "m",
+              hp: 0,
+              max_hp: 7,
+              side: "enemy",
+              death_saves: %{successes: 1, fails: 2}
+            )
+          )
+        )
+
+      w = apply!(w, World.heal("g", 0))
+      assert w.characters["g"].hp == 0
+      assert w.characters["g"].death_saves == %{successes: 1, fails: 2}
+    end
   end
 
   describe "begin_combat/1 + end_combat/0" do

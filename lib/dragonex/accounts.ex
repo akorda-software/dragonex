@@ -18,8 +18,7 @@ defmodule Dragonex.Accounts do
   @spell_kinds CustomContent.spell_kinds()
   @item_kinds CustomContent.item_kinds()
 
-  # El mismo patrón que usa el motor (Dragonex.Dice.roll_expr/1): NdM[±K].
-  @dice_pattern ~r/^(\d+)d(\d+)(?:([+-])(\d+))?$/
+  # Fuente única: `Dragonex.Dice.valid?/1`.
 
   # ----------------------------------------------------------------- users
 
@@ -157,10 +156,10 @@ defmodule Dragonex.Accounts do
     )
   end
 
-  @doc "Delete a hero."
-  @spec delete_hero(term()) :: {:ok, Hero.t()} | {:error, :not_found}
-  def delete_hero(id) do
-    case Repo.get(Hero, id) do
+  @doc "Delete a hero owned by `user`."
+  @spec delete_hero(User.t(), term()) :: {:ok, Hero.t()} | {:error, :not_found | :in_game}
+  def delete_hero(%User{} = user, id) do
+    case get_user_hero(user, id) do
       nil ->
         {:error, :not_found}
 
@@ -191,7 +190,7 @@ defmodule Dragonex.Accounts do
 
       %Hero{} = hero ->
         sheet = hero_sheet(hero)
-        updated = %{sheet | xp: (sheet.xp || 0) + max(amount, 0)}
+        updated = %{sheet | xp: sheet.xp + max(amount, 0)}
 
         hero
         |> Ecto.Changeset.cast(%{sheet: Codec.encode_character(updated)}, [:sheet])
@@ -510,7 +509,7 @@ defmodule Dragonex.Accounts do
   end
 
   defp valid_dice(dice) when is_binary(dice) do
-    if Regex.match?(@dice_pattern, String.trim(dice)),
+    if Dragonex.Dice.valid?(dice),
       do: {:ok, String.trim(dice)},
       else: {:error, "dice no es una expresión válida (p. ej. 2d6, 1d8+2)"}
   end

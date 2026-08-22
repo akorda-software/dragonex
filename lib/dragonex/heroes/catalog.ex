@@ -16,9 +16,9 @@ defmodule Dragonex.Heroes.Catalog do
     1. **SRD completo** importado (fase siguiente), y
     2. **Contenido custom por usuario** persistido en DB.
 
-  Ambos se inyectan aquí: el `Catalog` mezcla builtin + importado + custom y la
-  UI no se entera de dónde viene cada entrada. Por eso cada entrada lleva un
-  `source` (`:builtin` hoy; `:srd` y `:custom` mañana).
+  Ambos se inyectan aquí: el `Catalog` mezcla builtin + SRD + custom y la
+  UI no se entera de dónde viene cada entrada. Cada entrada lleva
+  `source: :builtin | :srd | :custom`.
 
   ## Contrato
 

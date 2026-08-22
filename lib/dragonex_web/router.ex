@@ -27,21 +27,23 @@ defmodule DragonexWeb.Router do
     post("/login", UserSessionController, :login)
     delete("/logout", UserSessionController, :logout)
 
-    # Lobby — accessible to all (shows prompt if not logged in).
-    live("/", GameLive.Index, :index)
+    live_session :public, on_mount: [{DragonexWeb.UserAuth, :mount_current}] do
+      live("/", GameLive.Index, :index)
+    end
 
-    # Protected routes
     scope "/" do
       pipe_through(:auth)
 
-      live("/heroes", HeroLive.Index, :index)
-      live("/heroes/new", HeroLive.New, :new)
-      live("/heroes/:id/edit", HeroLive.New, :edit)
-      live("/heroes/:id/level-up", HeroLive.LevelUp, :level_up)
-      live("/heroes/:id", HeroLive.Show, :show)
-      live("/mi-contenido", CustomContentLive, :index)
-      live("/games/new", GameLive.New, :new)
-      live("/games/:game_id", GameLive.Show, :show)
+      live_session :authed, on_mount: [{DragonexWeb.UserAuth, :ensure_authed}] do
+        live("/heroes", HeroLive.Index, :index)
+        live("/heroes/new", HeroLive.New, :new)
+        live("/heroes/:id/edit", HeroLive.New, :edit)
+        live("/heroes/:id/level-up", HeroLive.LevelUp, :level_up)
+        live("/heroes/:id", HeroLive.Show, :show)
+        live("/mi-contenido", CustomContentLive, :index)
+        live("/games/new", GameLive.New, :new)
+        live("/games/:game_id", GameLive.Show, :show)
+      end
     end
   end
 end

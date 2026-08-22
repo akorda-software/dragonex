@@ -6,9 +6,9 @@ defmodule Dragonex.Games.GameEvent do
   narration, player action, tool resolution, die roll and system note, in order.
   It serves three purposes: (a) replay/debug, (b) the chat narrative line (the
   LiveView renders `:visible_to :all` entries), and (c) agent context (recent
-  events seed each agent's prompt). It is strictly append-only — never updated
-  or deleted, so `seq` is monotonic per game and `inserted_at` is the only
-  timestamp.
+  events seed each agent's prompt). Append-only by convention; the only
+  deletion is `Games.delete_narrations_for_turn/2` (wipe a truncated
+  max_tokens draft before retry). `seq` is monotonic per game.
   """
 
   use Ecto.Schema

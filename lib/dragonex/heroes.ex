@@ -37,12 +37,11 @@ defmodule Dragonex.Heroes do
 
   ## Level scope
 
-  Level 1 is fully supported (per the SRD). The `level` field is stored on the
-  character but all derivations (HP, spell counts) are level-1; multi-level
-  progression is a future enhancement.
+  `build/1` produces a level-1 sheet. Further levels go through
+  `Dragonex.Heroes.LevelUp.apply/2` (milestone, D10).
   """
 
-  alias Dragonex.{Character, Item, Spell, Weapon}
+  alias Dragonex.{Character, Item, Weapon}
 
   alias Dragonex.Heroes.{
     Backgrounds,
@@ -133,7 +132,7 @@ defmodule Dragonex.Heroes do
          eq <- apply_extra_equipment(eq0, choices[:extra_equipment], custom),
          hp <- compute_hp(class, final, race, choices[:level] || 1),
          ac <- compute_ac(eq, class, final),
-         spells <- build_spells(class, choices[:spells], custom),
+         {:ok, spells} <- build_spells(class, choices[:spells], custom),
          languages <- resolve_languages(race, bg, choices[:extra_languages]),
          attrs =
            to_attrs(choices, race, class, bg, final, hp, ac, eq, spells, skills, languages),
@@ -398,10 +397,18 @@ defmodule Dragonex.Heroes do
   defp normalize_pick_map(nil), do: %{}
 
   defp normalize_pick_map(picks) when is_map(picks) do
-    Map.new(picks, fn
+    picks
+    |> Enum.map(fn
       {k, v} when is_atom(k) -> {k, v}
-      {k, v} when is_binary(k) -> {String.to_atom(k), v}
+      {k, v} when is_binary(k) -> {Dragonex.MapUtil.to_atom(k), v}
+      _ -> nil
     end)
+    |> Enum.reject(fn
+      nil -> true
+      {nil, _} -> true
+      _ -> false
+    end)
+    |> Map.new()
   end
 
   defp process_equipment(slots) do
@@ -567,74 +574,70 @@ defmodule Dragonex.Heroes do
 
   # ---------------------------------------------------------------- spells
 
-  defp build_spells(%{spellcasting: nil}, _user_picks, _custom), do: []
+  defp build_spells(%{spellcasting: nil}, _user_picks, _custom), do: {:ok, []}
 
-  defp build_spells(%{spellcasting: sc}, user_picks, custom) do
-    {cantrip_names, spell_names} =
-      case user_picks do
-        nil ->
-          {sc.defaults.cantrips, sc.defaults.spells}
-
-        picks when is_list(picks) ->
-          Enum.split_with(picks, fn name ->
-            case resolve_spell(name, custom) do
-              %{level: 0} -> true
-              _ -> false
-            end
-          end)
-      end
-
-    (cantrip_names ++ spell_names)
-    |> Enum.map(&resolve_spell(&1, custom))
-    |> Enum.reject(&is_nil/1)
-    |> Enum.map(&to_spell_struct(&1, sc.ability))
+  defp build_spells(%{spellcasting: sc}, nil, custom) do
+    names = sc.defaults.cantrips ++ sc.defaults.spells
+    {:ok, materialize_spells(names, sc.ability, custom)}
   end
 
-  # Resuelve una key de hechizo: custom (`custom_*`) mira el bundle inyectado;
-  # el resto cae al catálogo builtin/SRD.
-  defp resolve_spell(name, custom) do
-    name = to_string(name)
+  defp build_spells(%{spellcasting: sc, key: class_key}, picks, custom) when is_list(picks) do
+    resolved =
+      Enum.map(picks, fn name ->
+        {to_string(name), Spells.resolve(name, custom)}
+      end)
 
-    if String.starts_with?(name, "custom_") do
-      case Enum.find(custom[:spells] || [], &(&1.key == name)) do
-        nil -> nil
-        %{name: n, definition: d} -> spell_data_from_def(n, d)
-      end
-    else
-      Spells.get(name)
+    unknown = for {name, nil} <- resolved, do: name
+
+    cond do
+      unknown != [] ->
+        {:error, "unknown spells: #{Enum.join(unknown, ", ")}"}
+
+      true ->
+        data = Enum.map(resolved, fn {_n, d} -> d end)
+        cantrips = Enum.filter(data, &(&1.level == 0))
+        level1 = Enum.filter(data, &(&1.level == 1))
+        catalog_higher = Enum.filter(data, &(&1.level > 1 and is_list(Map.get(&1, :classes))))
+        not_on_list = Enum.reject(data, &spell_allowed_for_class?(&1, class_key, custom))
+
+        cond do
+          catalog_higher != [] ->
+            {:error, "level-1 characters cannot learn: #{spell_names(catalog_higher)}"}
+
+          length(cantrips) > sc.cantrips ->
+            {:error, "expected at most #{sc.cantrips} cantrips, got #{length(cantrips)}"}
+
+          length(level1) > sc.spells_level1 ->
+            {:error, "expected at most #{sc.spells_level1} level-1 spells, got #{length(level1)}"}
+
+          not_on_list != [] ->
+            {:error, "spells not on the class list: #{spell_names(not_on_list)}"}
+
+          true ->
+            {:ok, Enum.map(data, &Spells.to_character_spell(&1, sc.ability))}
+        end
     end
   end
 
-  defp spell_data_from_def(name, d) do
-    save = defv(d, "save_ability")
-
-    %{
-      name: name,
-      level: defv(d, "level"),
-      kind: to_atom(defv(d, "kind")),
-      save_ability: save && to_atom(save),
-      dice: defv(d, "dice"),
-      damage_type: defv(d, "damage_type"),
-      effect: defv(d, "effect")
-    }
+  defp materialize_spells(names, ability, custom) do
+    names
+    |> Enum.map(&Spells.resolve(&1, custom))
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(&Spells.to_character_spell(&1, ability))
   end
 
-  defp to_spell_struct(data, casting_ability) do
-    %Spell{
-      name: data.name,
-      level: data.level,
-      kind: data.kind,
-      casting_ability: casting_ability,
-      save_ability: data.save_ability,
-      dice: data.dice,
-      damage_type: data.damage_type,
-      effect: data.effect
-    }
+  defp spell_allowed_for_class?(%{classes: classes}, class_key, _custom) when is_list(classes) do
+    class_key in classes
   end
+
+  defp spell_allowed_for_class?(_custom_spell, _class_key, _custom), do: true
+
+  defp spell_names(list), do: Enum.map_join(list, ", ", & &1.name)
 
   # ---------------------------------------------------------------- skills
 
   defp validate_skills(class, nil), do: {:ok, default_skills(class)}
+  defp validate_skills(class, []), do: {:ok, default_skills(class)}
 
   defp validate_skills(%{skill_list: :any, skill_count: count}, skills) when is_list(skills) do
     cond do
@@ -803,10 +806,18 @@ defmodule Dragonex.Heroes do
   # ---------------------------------------------------------------- helpers
 
   defp normalize_keys(map) do
-    Map.new(map, fn
+    map
+    |> Enum.map(fn
       {k, v} when is_atom(k) -> {k, v}
-      {k, v} when is_binary(k) -> {String.to_atom(k), v}
+      {k, v} when is_binary(k) -> {Dragonex.MapUtil.to_atom(k), v}
+      _ -> nil
     end)
+    |> Enum.reject(fn
+      nil -> true
+      {nil, _} -> true
+      _ -> false
+    end)
+    |> Map.new()
   end
 
   defp fetch(_module, nil, field), do: {:error, "#{field} is required"}

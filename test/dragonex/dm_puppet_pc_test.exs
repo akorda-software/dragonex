@@ -3,11 +3,9 @@ defmodule Dragonex.DMPuppetPCTest do
   Bug #4 — the DM occasionally narrates a PC acting on its behalf ("*Lyra
   desenvaina y ataca*"), which rule 14 forbids. The prompt alone leaks through.
 
-  Fix: `Dragonex.Game.with_dm_no_puppet_nudge/3` inspects the DM's last narration
-  for a "<pc-name> <action-verb>" pattern and, when it matches, stitches a
-  rule-14 reminder onto the DM's next instruction. No scrubbing — that risks
-  mangling legitimate narration ("Lyra cae herida" is fine); a targeted reminder
-  corrects course on the next beat.
+   Persist path (`Text.strip_puppet_clauses/2`, D29) drops subject-initial
+   "<pc-name> <action-verb>" clauses. The detector/nudge still covers mid-clause
+   leaks the strip leaves in place. Passive state ("Lyra cae herida") is kept.
   """
 
   use ExUnit.Case, async: false
@@ -37,7 +35,7 @@ defmodule Dragonex.DMPuppetPCTest do
     end)
   end
 
-  test "the DM narrating a PC acting triggers a rule-14 reminder" do
+  test "subject-initial puppet clauses are stripped before persist" do
     {:ok, game} =
       Games.create_game(
         title: "puppet",
@@ -45,24 +43,57 @@ defmodule Dragonex.DMPuppetPCTest do
         roster: [{Archetypes.wizard(), :ai}]
       )
 
-    # The DM's first beat puppeteers Lyra (an action verb right after her name);
-    # the second beat is benign. The reminder should land on the SECOND DM turn.
     script = [
-      "Lyra ataca el aire con su daga, probando el peso del arma.",
-      "La cripta guarda silencio."
+      "Lyra ataca el aire con su daga, probando el peso del arma. La cripta espera.",
+      "Un viento frío recorre la cripta."
     ]
 
-    model = %Test{script: script}
+    pid =
+      ExUnit.Callbacks.start_supervised!(
+        {Dragonex.Game, {game.id, [model: %Test{script: script}, roller: fn _ -> 10 end]}}
+      )
+
+    assert :ok ==
+             Game.await(
+               pid,
+               fn _s -> dm_narration_count(game.id) >= 1 end,
+               10_000
+             )
+
+    texts =
+      game.id
+      |> Games.list_events()
+      |> Enum.filter(&(&1.type == :narration and &1.actor == "dm"))
+      |> Enum.map(&(&1.payload["text"] || ""))
+      |> Enum.reject(&String.starts_with?(&1, "La escena está preparada"))
+
+    joined = Enum.join(texts, " ")
+    refute joined =~ ~r/Lyra ataca/i
+    assert joined =~ "La cripta espera"
+  end
+
+  test "mid-clause puppet leak still triggers a rule-14 reminder" do
+    {:ok, game} =
+      Games.create_game(
+        title: "puppet",
+        scene: "una cripta silenciosa",
+        roster: [{Archetypes.wizard(), :ai}]
+      )
+
+    # Does not start with the PC name, so the structural strip keeps it;
+    # the looser detector still nudges the next beat.
+    script = [
+      "Entre las sombras, junto a un pilar, Lyra ataca el aire.",
+      "La cripta guarda silencio."
+    ]
 
     log =
       capture_log(fn ->
         pid =
           ExUnit.Callbacks.start_supervised!(
-            {Dragonex.Game, {game.id, [model: model, roller: fn _ -> 10 end]}}
+            {Dragonex.Game, {game.id, [model: %Test{script: script}, roller: fn _ -> 10 end]}}
           )
 
-        # Wait for at least two DM narrations — the second one runs WITH the
-        # rule-14 nudge stitched onto its instruction.
         assert :ok ==
                  Game.await(
                    pid,
@@ -71,8 +102,7 @@ defmodule Dragonex.DMPuppetPCTest do
                  )
       end)
 
-    assert log =~ "reinforcing rule 14",
-           "the DM narrating a PC acting should trigger the rule-14 reminder on the next beat"
+    assert log =~ "reinforcing rule 14"
   end
 
   test "detector catches playtest-style puppet leaks (pure)" do

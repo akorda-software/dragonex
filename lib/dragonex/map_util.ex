@@ -21,9 +21,15 @@ defmodule Dragonex.MapUtil do
     end
   end
 
-  # Devuelve la clave en la otra forma (atom ↔ string).
+  # Devuelve la clave en la otra forma (atom ↔ string). Fuera del Codec
+  # no se crean átomos nuevos (D8).
   defp to_other_form(key) when is_atom(key), do: Atom.to_string(key)
-  defp to_other_form(key) when is_binary(key), do: String.to_atom(key)
+
+  defp to_other_form(key) when is_binary(key) do
+    String.to_existing_atom(key)
+  rescue
+    ArgumentError -> nil
+  end
 
   @doc """
   Convierte a atom existente un valor acotado (abilities, kinds). Cae al propio

@@ -78,7 +78,9 @@ sistema lo resuelve solo y narra. El humano puede **activar el auto-play 🤖** 
 su propio personaje para que la IA lo juegue cuando le toque.
 
 El jugador puede **pausar** y **reanudar** la partida cuando quiera (el estado se
-persiste), y **declarar fuera de turno** (la acción se encola para cuando toque).
+persiste), y **declarar fuera de turno**: la acción se encola y el orquestador
+de turnos **la ve** — puede adelantarte si la iniciativa lo merece, o dejarla
+para tu turno.
 
 ## El bucle de gameplay (vista producto)
 

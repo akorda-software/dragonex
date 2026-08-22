@@ -226,6 +226,99 @@ Dotenvy todavía no ha cargado `.env.dev` y la variable debe estar en el shell.
 que exportar a mano. Docker (`compose.dev.yml`) **siempre** usa GitHub: no hay
 motivo para montar `../` dentro del contenedor y añade complejidad.
 
+### D27 — Intenciones humanas alimentan al TurnMaster
+Las declaraciones off-turn (`games.intents`) no son solo un buzón para el
+turno propio: son **señales de iniciativa**. El brief del TurnMaster las
+lista (scrubbed, D7, preview 200). En exploración el prompt prioriza a quien
+tiene algo escrito; en combate justifican `cut_in`/`react` sin sustituir el
+`initiative_order`.
+
+Si la partida está `:waiting` en un humano A y B declara, el Game **re-evalúa**
+al TM (un beat). Fallback de esa re-eval **no** avanza `WorldDriven` (no se
+salta a A). Mismo texto dos veces no dispara otra re-eval. El TM elige; el
+motor resuelve. Los bots no encolan.
+
+### D28 — Intenciones con fase; la UI no tapa el buzón
+Las intenciones se guardan con la fase en que se encolaron. Un `interrumpo`
+de combate **no** se consume como acción de exploración cuando el combate
+ya cerró (se descarta con nota de sistema). Un plan de exploración sí
+sobrevive si arranca un combate.
+
+El motor honra reacciones claras (`interrumpo`, `escudo`, `me pongo
+  delante`…) con `cut_in` aunque el TurnMaster hubiera cedido a otro. En
+  exploración, tras un PC el motor **pasa al DM** (sin beat TM): el mundo
+  responde; un intent humano pendiente sigue teniendo prioridad. La
+  LiveView **no** deshabilita el input mientras hay un beat en vuelo: el
+  humano puede encolar; el TM lo ve al cerrar el beat (D27).
+
+### D29 — Recorte estructural de fugas de mesa (no solo nudge)
+El modelo desobedece el prompt (regla 14, time-skip, voz de PNJ). D7 ya
+exige `Text.scrub` antes de persistir; D29 añade **recorte de cláusulas**
+determinista, no un recordatorio al siguiente beat:
+
+- **DM**: se tiran frases que empiezan por `<PC> <verbo de acción>`
+  (`Lyra se acerca…`). Quedan estados pasivos (`Lyra está herida`,
+  `Lyra cae herida`) y menciones que no son sujeto (`junto a Lyra, el
+  tabernero abre`). El nudge de regla 14 se conserva para fugas
+  mid-cláusula que el recorte no cubre.
+- **PC** (humano o IA): se tiran frases de time-skip (`media hora
+  después`) y diálogo atribuido a un tercero (`—… —dice el tabernero`).
+  El diálogo propio del actor se conserva.
+- **Opener / TM mudo en exploración**: cero «El motor toma el relevo».
+  El primer tick cede al DM (`pass_to_dm`, nota «El turno pasa al DM.»)
+  sin beat TM. «Relevo» solo si el TM está mudo **en combate**.
+
+La LiveView no recorta: el persist (`Events`) es el cuello (D6/D7).
+
+### D30 — Pregunta del DM al humano retiene el floor
+Tras un beat del DM en exploración, si la última narración es una
+pregunta dirigida a un PC humano (`¿` + nombre, «ante ti», «¿qué hace»,
+o un `¿…?` suelto), el motor **entrega el turno a ese humano** (o al
+último humano que habló, si no hay nombre). Un intent pendiente sigue
+ganando (D27). No se pide al TurnMaster que lo recuerde.
+
+El recorte de voz de PNJ en un beat de PC corta **desde el primer
+atribuidor** (`baja la voz:`, `el posadero "…"`, `dice Borin`) y no
+parte por `.` dentro de comillas. El diálogo propio (`—¿Qué se
+cuece? —pregunto`) se conserva. Los headers de history
+`[R2 · Turno de X]` y `[→ Name decide]` se tiran en cualquier sitio
+(D7), no solo al inicio.
+
+### D31 — Descomposición de los módulos monolito (refactor estructural)
+Los tres mayores módulos se partieron en satélites con dependencias
+**unidireccionales** (nunca cíclicas), sin cambio de comportamiento:
+
+- `Dragonex.Game` (2273→~780 líneas) conserva el struct de estado, la API
+  pública y los callbacks del GenServer + `advance/1`. Alrededor:
+  `Game.Bootstrap` (rehydrate/agentes), `Game.Beats` (lanzar beats),
+  `Game.Settlement` (asentar resultados y reintentos), `Game.Turnmaster`
+  (aplicar decisiones TM + fallback WorldDriven), `Game.Combat`
+  (combate/rounds), `Game.Persistence` (Postgres+PubSub) y
+  `Game.Participants` (predicados del roster). Todos **corren dentro del
+  proceso del Game** (single-writer D6 intacto): son funciones puras
+  `state → state`, no procesos nuevos.
+- `GameLive.Show` (1772→~440) queda como LiveView delgada; el view-model
+  del chat en `GameLive.Chat`, el modal de Ajustes y sus eventos en
+  `GameLive.Settings`, el FSM de dados en `GameLive.Dice`, la proyección
+  snapshot→assigns en `GameLive.Snapshot` y el markup (mesa + sala de
+  espera) en `GameLive.Components`.
+- `HeroLive.New` (1291→~500) conserva eventos y máquina de pasos; el
+  mapping form↔draft (puro, offline, D9) en `Dragonex.Heroes.Draft` y el
+  markup de los pasos en `HeroLive.New.Components`.
+
+Regla para el futuro: un módulo nuevo no supera ~500 líneas; cuando el
+GenServer/LiveView anfitrión crezca, extraer otro satélite con esta misma
+forma (delegación fina, estado como dato, sin procesos extra).
+
+### D32 — La biblia siembra facts; el PC IA no cierra solo
+Los PNJ y el lugar inicial de la story bible se copian a `world.facts`
+en `Games.create_game`. El DM los lee cada turno (D16): el posadero
+sigue siendo Borin. No hay tool nueva.
+
+Un PC IA en exploración, con humano en mesa, no persiste cláusulas de
+ejecución en solitario (`despliega el pergamino`, `coge el…`) — propone
+y espera. Combate no se toca. Recorte en `Text.scrub` (D7/D29).
+
 ---
 
 ## Pendientes de decisión (abiertas)

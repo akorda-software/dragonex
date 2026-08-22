@@ -78,4 +78,40 @@ defmodule Dragonex.GamesContextSmokeTest do
              e.type == :dice and e.payload["turn_id"] == "AAA"
            end)
   end
+
+  test "join_game is idempotent for the same user" do
+    {:ok, owner} =
+      Dragonex.Accounts.register(%{
+        email: "owner#{System.unique_integer([:positive])}@t.test",
+        password: "password123",
+        display_name: "Owner"
+      })
+
+    {:ok, joiner} =
+      Dragonex.Accounts.register(%{
+        email: "join#{System.unique_integer([:positive])}@t.test",
+        password: "password123",
+        display_name: "Joiner"
+      })
+
+    {:ok, sheet} =
+      Dragonex.Heroes.build(%{
+        name: "Nara",
+        race: "human",
+        class: "fighter",
+        background: "soldier"
+      })
+
+    {:ok, game} =
+      Games.create_game(
+        title: "open",
+        scene: "x",
+        user_id: owner.id,
+        open_slots: 2,
+        roster: [{Archetypes.fighter(), :human}]
+      )
+
+    assert {:ok, _} = Games.join_game(game, joiner, sheet)
+    assert {:error, :already_joined} = Games.join_game(Games.get_game(game.id), joiner, sheet)
+  end
 end

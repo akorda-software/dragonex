@@ -162,7 +162,8 @@ defmodule Dragonex.Tools do
 
   @doc "Short rest: spend a hit die to recover HP. Available outside combat."
   deftool short_rest(ctx, target :: String.t()) do
-    with {:ok, msg, change} <-
+    with :ok <- assert_rest_target(ctx, target),
+         {:ok, msg, change} <-
            Dragonex.Actions.short_rest(world(ctx), target, ctx.deps.roller, ctx.deps[:roll_log]),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
@@ -171,7 +172,8 @@ defmodule Dragonex.Tools do
 
   @doc "Long rest: restore all HP. Available outside combat."
   deftool long_rest(ctx, target :: String.t()) do
-    with {:ok, msg, change} <- Dragonex.Actions.long_rest(world(ctx), target),
+    with :ok <- assert_rest_target(ctx, target),
+         {:ok, msg, change} <- Dragonex.Actions.long_rest(world(ctx), target),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
     end
@@ -262,7 +264,7 @@ defmodule Dragonex.Tools do
     end
   end
 
-  @doc "Heal `target` by a dice expression (e.g. \"1d8+3\"); caps at max hp, clears death saves."
+  @doc "Heal `target` by a dice expression (e.g. \"1d8+3\"); caps at max hp. Death saves clear only if hp rises above 0."
   deftool heal(ctx, target :: String.t(), dice :: String.t()) do
     with {:ok, msg, change} <-
            Dragonex.Actions.heal(world(ctx), target, dice, ctx.deps.roller, ctx.deps[:roll_log]),
@@ -274,8 +276,8 @@ defmodule Dragonex.Tools do
   @doc """
   Resolve a non-combat ability check: the DM sets the `dc` (5/10/15/20 by 5e
   difficulty), the engine rolls d20 + the ability modifier for `who`.
-  `proficient` (optional, the DM asserts it) adds the proficiency bonus.
-  Pass mode "advantage"/"disadvantage" when it applies.
+  Skill proficiency is not applied in v1 (the sheet stores it; resolution does
+  not). Pass mode "advantage"/"disadvantage" when it applies.
   """
   deftool ability_check(
             ctx,
@@ -285,11 +287,12 @@ defmodule Dragonex.Tools do
             mode :: String.t()
           ) do
     with :ok <- assert_controls(ctx, who),
+         {:ok, ability_atom} <- parse_ability(ability),
          {:ok, msg, change} <-
            Dragonex.Actions.check(
              world(ctx),
              who,
-             parse_ability(ability),
+             ability_atom,
              dc,
              false,
              ctx.deps.roller,
@@ -315,15 +318,13 @@ defmodule Dragonex.Tools do
     end
   end
 
-  defp parse_ability(s) when is_binary(s) do
-    case String.downcase(s) do
-      "str" <> _ -> :str
-      "dex" <> _ -> :dex
-      "con" <> _ -> :con
-      "int" <> _ -> :int
-      "wis" <> _ -> :wis
-      "cha" <> _ -> :cha
-      _ -> :str
+  defp parse_ability(s) do
+    case Dragonex.Rules.Ability.parse(s) do
+      {:ok, atom} ->
+        {:ok, atom}
+
+      :error ->
+        {:error, "característica desconocida: #{inspect(s)} (usa str/dex/con/int/wis/cha)"}
     end
   end
 
@@ -338,6 +339,17 @@ defmodule Dragonex.Tools do
   # monster from acting on a player's turn (and vice versa). The error is
   # *directive* — it tells the DM exactly who must act and how to re-issue, so a
   # confused model self-corrects on the retry instead of repeating the mistake.
+  # PCs only rest themselves; the DM (referee) may rest anyone between fights.
+  defp assert_rest_target(ctx, target) do
+    proposer = ctx.deps.state.participant_id
+
+    if proposer == "dm" or proposer == target do
+      :ok
+    else
+      {:error, "RECHAZADO — solo puedes descansar tú mismo (#{proposer}), no a #{target}."}
+    end
+  end
+
   defp assert_controls(ctx, actor) do
     proposer = ctx.deps.state.participant_id
 

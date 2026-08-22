@@ -16,20 +16,20 @@ defmodule Dragonex.TextTest do
   describe "scrub/2 self-name stripping" do
     test "strips the actor's own name opening a third-person narration" do
       assert Text.scrub("Lyra levanta la mano y sonríe.", "Lyra") ==
-               "levanta la mano y sonríe."
+               "Levanta la mano y sonríe."
 
       assert Text.scrub("Thane desenvaina su espada.", "Thane") ==
-               "desenvaina su espada."
+               "Desenvaina su espada."
     end
 
     test "strips variants: em-dash prefix, colon, markdown italic" do
       assert Text.scrub("—Lyra: sonríe con confianza.", "Lyra") ==
-               "sonríe con confianza."
+               "Sonríe con confianza."
 
       assert Text.scrub("*Lyra desenfunda su arco.*", "Lyra") ==
-               "desenfunda su arco.*"
+               "Desenfunda su arco."
 
-      assert Text.scrub("Lyra, dice: vale.", "Lyra") == "dice: vale."
+      assert Text.scrub("Lyra, dice: vale.", "Lyra") == "Dice: vale."
     end
 
     test "does NOT strip a PC name when the actor is the DM" do
@@ -45,30 +45,30 @@ defmodule Dragonex.TextTest do
       # the prefix — accepted because PC names (Thane/Vex/Lyra) aren't prefixes
       # of words that actually occur in a Dragonex partida.
       assert Text.scrub("Thanedeja apoyado su escudo contra la pared.", "Thane") ==
-               "deja apoyado su escudo contra la pared."
+               "Deja apoyado su escudo contra la pared."
 
       assert Text.scrub("Vexse incorpora y guarda la piedra.", "Vex") ==
-               "se incorpora y guarda la piedra."
+               "Se incorpora y guarda la piedra."
     end
 
     test "strips a name wrapped in markdown bold at the start" do
       # The most common DeepSeek leak in the wild: the name in **bold** glued to
       # the verb. The closing `**` used to defeat the strip.
       assert Text.scrub("**Thane**alza el mapa y lo dobla.", "Thane") ==
-               "alza el mapa y lo dobla."
+               "Alza el mapa y lo dobla."
 
       assert Text.scrub("**Thane** deja el pergamino sobre la mesa.", "Thane") ==
-               "deja el pergamino sobre la mesa."
+               "Deja el pergamino sobre la mesa."
 
       assert Text.scrub("*Lyra*se acerca al círculo.", "Lyra") ==
-               "se acerca al círculo."
+               "Se acerca al círculo."
     end
 
     test "does NOT strip a name that is a proper-noun prefix when followed by a space" do
       # Word-boundary safe when the separator is present: "Lyranthropo" alone is
       # ambiguous, but when the name is followed by a SPACE we keep the original
       # behaviour (only the fused-no-space form is treated as the leak).
-      assert Text.scrub("Lyra observa el altar.", "Lyra") == "observa el altar."
+      assert Text.scrub("Lyra observa el altar.", "Lyra") == "Observa el altar."
     end
 
     test "leaves narration that doesn't start with the name untouched" do
@@ -88,7 +88,7 @@ defmodule Dragonex.TextTest do
     test "strips leaked tags AND the self-name together" do
       # The model opened with a history tag it imitated, then its own name.
       assert Text.scrub("[Lyra]: Lyra lanza un firebolt.", "Lyra") ==
-               "lanza un firebolt."
+               "Lanza un firebolt."
     end
 
     test "strips inline HP leaks regardless of actor" do
@@ -129,13 +129,13 @@ defmodule Dragonex.TextTest do
                ""
 
       assert Text.scrub("Uso spawn_monster(\"goblin\", \"g1\") para la emboscada.", "dm") ==
-               "Uso  para la emboscada."
+               "Uso para la emboscada."
 
       # Bracketed-tag leaks (the surrounding `**` bold markers stay as orphans;
       # that's a minor cosmetic we accept — the important thing is the fake tool
       # tag itself is gone, not rendered to the player as an "action").
       assert Text.scrub("Bien. **[Establecer hecho: Thane aceptó la misión.]** Y ahora...", "dm") ==
-               "Bien. **** Y ahora..."
+               "Bien. Y ahora..."
     end
 
     test "strips DM fourth-wall / meta phrases" do
@@ -192,6 +192,194 @@ defmodule Dragonex.TextTest do
       # A standalone "d20" without a count is left to the engine-signature
       # pattern; the dice-notation scrub only matches NdM with a count.
       assert Text.scrub("Sacó un d20 natural.", "dm") =~ "d20"
+    end
+
+    test "unwraps leftover markdown italics in prose" do
+      out = Text.scrub("Se inclina. *Deja caer un trozo de pan.* Sigue hablando.", "dm")
+      refute out =~ "*"
+      assert out =~ "Deja caer un trozo de pan"
+    end
+
+    test "strips orphan asterisks and meta chequeo lines" do
+      out = Text.scrub("hacia la barra.* —Buen hombre.", "dm")
+      refute out =~ "*"
+      assert out =~ "Buen hombre"
+
+      meta = Text.scrub("El éxito del chequeo le devuelve la memoria. El frío seca.", "Lyra")
+      refute meta =~ "éxito del chequeo"
+      assert meta =~ "El frío seca"
+    end
+
+    test "strips DM puppet clauses that start with a PC action" do
+      out =
+        Text.scrub(
+          "Lyra se acerca al tablón y lee el aviso. El fuego crepita en el hogar.",
+          "dm",
+          pc_names: ["Lyra", "Thane"]
+        )
+
+      refute out =~ ~r/se acerca/i
+      assert out =~ "El fuego crepita"
+
+      kept = Text.scrub("Lyra está herida junto a la valla.", "dm", pc_names: ["Lyra"])
+      assert kept =~ "Lyra está herida"
+
+      kept2 = Text.scrub("Lyra cae herida por el golpe.", "dm", pc_names: ["Lyra"])
+      assert kept2 =~ "Lyra cae herida"
+
+      kept3 =
+        Text.scrub(
+          "Junto a Lyra, el tabernero abre la puerta trasera.",
+          "dm",
+          pc_names: ["Lyra"]
+        )
+
+      assert kept3 =~ "el tabernero abre"
+    end
+
+    test "strips time-skip and NPC voice from a PC beat" do
+      skip =
+        Text.scrub(
+          "Asiento. Media hora después llegáis a la torre. El frío muerde.",
+          "Thane"
+        )
+
+      refute skip =~ ~r/media hora/i
+      assert skip =~ "El frío muerde"
+
+      voice =
+        Text.scrub(
+          "Me acerco a la barra. —Pasad al fondo —dice el tabernero. Espero su gesto.",
+          "Thane"
+        )
+
+      refute voice =~ "dice el tabernero"
+      assert voice =~ "Me acerco a la barra"
+      assert voice =~ "Espero su gesto"
+
+      own = Text.scrub("—¿Qué se cuece? —pregunto al posadero.", "Thane")
+      assert own =~ "¿Qué se cuece?"
+
+      borin =
+        Text.scrub(
+          "Dejo una moneda. El posadero baja la voz: \"Raro, anoche pasaron dos encapuchados.\" Espero.",
+          "Thane"
+        )
+
+      refute borin =~ "encapuchados"
+      assert borin =~ "Dejo una moneda"
+    end
+
+    test "cuts NPC voice from a run-on clause without a period" do
+      out =
+        Text.scrub(
+          "Me acerco al posadero y le pregunto qué se cuece y el posadero baja la voz: \"Raro, anteanoche dos tipos preguntaron por la torre\" mientras dejo la moneda.",
+          "Thane"
+        )
+
+      refute out =~ "encapuchados"
+      refute out =~ "anteanoche"
+      refute out =~ "baja la voz"
+      assert out =~ "Me acerco al posadero"
+      assert out =~ "pregunto qué se cuece"
+    end
+
+    test "cuts time-skip from a run-on clause and keeps the prefix" do
+      out =
+        Text.scrub("Asiento y media hora después llegáis a la torre y el frío muerde", "Thane")
+
+      refute out =~ ~r/media hora/i
+      assert out =~ "Asiento"
+    end
+
+    test "keeps the actor's own quoted question" do
+      own = Text.scrub("—¿Qué se cuece? —pregunto.", "Thane")
+      assert own =~ "¿Qué se cuece?"
+      assert own =~ "pregunto"
+    end
+
+    test "strips mid-prose history headers" do
+      out =
+        Text.scrub(
+          "El pergamino pesa. [R2 · Turno de Thane]: ¿Lo abres? El sello cruje.",
+          "dm"
+        )
+
+      refute out =~ "R2"
+      refute out =~ "Turno de Thane"
+      assert out =~ "¿Lo abres?"
+      assert out =~ "El sello cruje"
+
+      out2 =
+        Text.scrub(
+          "La puerta cede. [→ Thane decide] Un golpe sordo.",
+          "dm"
+        )
+
+      refute out2 =~ "decide"
+      refute out2 =~ "→"
+      assert out2 =~ "La puerta cede"
+      assert out2 =~ "Un golpe sordo"
+    end
+
+    test "strips a name fused to chequeo/ataque" do
+      out = Text.scrub("Lyrachequeo de Inteligencia falla en el aire.", "Lyra")
+      refute out =~ "Lyrachequeo"
+      assert out =~ ~r/chequeo de Inteligencia/i
+    end
+
+    test "addressed_pc detects a question to a named human" do
+      assert Text.addressed_pc("Thane, el sello espera. ¿Lo abres?", ["Thane", "Lyra"]) ==
+               {:named, "Thane"}
+
+      assert Text.addressed_pc("¿Lo abres?", ["Thane"]) == :question
+      assert Text.addressed_pc("Ábrelo tú, si quieres.", ["Thane"]) == :question
+      assert Text.addressed_pc("El fuego crepita en el hogar.", ["Thane"]) == nil
+      assert Text.addressed_pc("Thane, pasa al fondo.", ["Thane"]) == nil
+    end
+
+    test "cuts a shouted NPC line from a PC beat" do
+      out =
+        Text.scrub(
+          "El acero silba. El hombre saca una daga y el enano Borin se agacha tras la barra gritando: —¡Cuidado!",
+          "Thane"
+        )
+
+      refute out =~ "Cuidado"
+      refute out =~ "gritando"
+      assert out =~ "El acero silba"
+    end
+
+    test "strips solo execution from an AI PC when a human is at the table" do
+      out =
+        Text.scrub(
+          "Se acerca a la barra. Desliza la uña bajo el lacre y despliega el pergamino. ¿Qué opinas, Thane?",
+          "Lyra",
+          wait_for_human: true
+        )
+
+      refute out =~ "despliega"
+      refute out =~ "lacre"
+      assert out =~ "Se acerca a la barra"
+      assert out =~ "¿Qué opinas, Thane?"
+
+      kept =
+        Text.scrub(
+          "Desliza la uña bajo el lacre y despliega el pergamino.",
+          "Lyra"
+        )
+
+      assert kept =~ "despliega"
+    end
+
+    test "strips an English possessive glued to the actor" do
+      assert Text.scrub("Thane's hand cierra en torno a la empuñadura.", "Thane") ==
+               "Cierra en torno a la empuñadura."
+    end
+
+    test "strips a name fused to Se/Me with a capital S" do
+      assert Text.scrub("ThaneSe levanta de la mesa.", "Thane") == "Se levanta de la mesa."
+      assert Text.scrub("LyraSe acerca a la barra.", "Lyra") == "Se acerca a la barra."
     end
 
     test "sanitize_utf8 strips stray lead bytes that would break Jason" do

@@ -54,8 +54,8 @@ defmodule Dragonex.Brief do
   Compact brief for the TurnMaster beat (D25): initiative, who already acted
   this round, living/down, and who holds the word now.
   """
-  @spec turnmaster_brief(World.t(), String.t() | nil, [String.t()]) :: String.t()
-  def turnmaster_brief(%World{} = w, last_actor, participants \\ []) do
+  @spec turnmaster_brief(World.t(), String.t() | nil, [String.t()], map()) :: String.t()
+  def turnmaster_brief(%World{} = w, last_actor, participants \\ [], intents \\ %{}) do
     phase =
       case w.phase do
         :combat ->
@@ -86,9 +86,52 @@ defmodule Dragonex.Brief do
         "- #{name} (#{c.side}): #{status}"
       end)
 
-    [phase, last, acted, roster, "Estado:", living, "Escena: #{w.scene}"]
+    [
+      phase,
+      last,
+      acted,
+      roster,
+      human_intents_block(intents),
+      "Estado:",
+      living,
+      "Escena: #{w.scene}"
+    ]
     |> Enum.reject(&(&1 == ""))
     |> Enum.join("\n")
+  end
+
+  @intent_preview 200
+
+  defp human_intents_block(intents) when intents == %{}, do: ""
+  defp human_intents_block(intents) when not is_map(intents), do: ""
+
+  defp human_intents_block(intents) do
+    lines =
+      intents
+      |> Enum.sort_by(fn {name, _} -> to_string(name) end)
+      |> Enum.map(&intent_line/1)
+      |> Enum.reject(&is_nil/1)
+
+    case lines do
+      [] -> ""
+      list -> "Intenciones humanas pendientes:\n" <> Enum.join(list, "\n")
+    end
+  end
+
+  defp intent_line({name, raw}) do
+    cleaned =
+      raw
+      |> Dragonex.Intents.text()
+      |> Dragonex.Text.scrub()
+      |> trim_preview()
+
+    if cleaned == "", do: nil, else: "- #{name}: «#{cleaned}»"
+  end
+
+  defp trim_preview(text) do
+    if String.length(text) <= @intent_preview,
+      do: text,
+      else: String.slice(text, 0, @intent_preview) <> "…"
   end
 
   defp acted_this_round_line(%World{phase: :combat, acted_this_round: %MapSet{} = acted}) do
@@ -182,21 +225,9 @@ defmodule Dragonex.Brief do
     ai_tag = if kinds[name] == :ai, do: " IA", else: ""
 
     cond_str =
-      case c.conditions || [] do
-        [] ->
-          ""
-
-        conds ->
-          names =
-            Enum.map(conds, fn
-              %{condition: cd} -> cd
-              %{"condition" => cd} -> cd
-              cd when is_binary(cd) -> cd
-              _ -> nil
-            end)
-            |> Enum.reject(&is_nil/1)
-
-          if names == [], do: "", else: " [#{Enum.join(names, ", ")}]"
+      case Character.condition_names(c) do
+        [] -> ""
+        names -> " [#{Enum.join(names, ", ")}]"
       end
 
     you = if name == current and current != dm, do: "  <- ACTÚA AHORA", else: ""

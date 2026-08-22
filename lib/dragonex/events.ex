@@ -61,7 +61,10 @@ defmodule Dragonex.Events do
       resp
       |> Response.text()
       |> String.trim()
-      |> Text.scrub(actor)
+      |> Text.scrub(actor,
+        pc_names: beat[:pc_names] || [],
+        wait_for_human: beat[:wait_for_human] == true
+      )
 
     if text == "" do
       :ok

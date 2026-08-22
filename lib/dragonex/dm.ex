@@ -21,10 +21,15 @@ defmodule Dragonex.DM do
   """
   @spec tools() :: [term()]
   def tools do
-    resolution = ~w(make_attack cast_spell ability_check make_death_save heal roll_initiative)a
+    resolution = ~w(make_attack cast_spell ability_check make_death_save heal roll_initiative)
+    # Spike stubs stay in `Tools` for framework tests; the live DM only sees
+    # rules-driven tools (D1).
+    legacy = ~w(attack roll spawn_character next_round)
 
-    Enum.map(Tools.tools(), fn tool ->
-      if tool.name in resolution, do: %{tool | max_retries: 3}, else: tool
+    Tools.tools()
+    |> Enum.reject(fn tool -> to_string(tool.name) in legacy end)
+    |> Enum.map(fn tool ->
+      if to_string(tool.name) in resolution, do: %{tool | max_retries: 3}, else: tool
     end)
   end
 

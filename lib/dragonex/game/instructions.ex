@@ -16,10 +16,15 @@ defmodule Dragonex.Game.Instructions do
   @spec human_instruction(String.t(), String.t()) :: String.t()
   def human_instruction(name, text),
     do:
-      "Es el turno de #{name}. Estás proponiendo COMO #{name}: en CADA llamada a una herramienta " <>
-        "el atacante/conjurador/quien DEBE ser \"#{name}\" (nunca un monstruo — que un monstruo actúe " <>
-        "ahora es RECHAZADO). #{name} (un personaje jugador) declara: \"#{if text == "", do: "(pasa)", else: text}\". " <>
-        "Resuélvelo por las reglas (llama a la herramienta adecuada con \"#{name}\" como actor) y luego narra. Responde en castellano."
+      "Es el turno de #{name}. Estás resolviendo SOLO lo que #{name} acaba de declarar, actuando COMO #{name}. " <>
+        "En CADA herramienta el atacante/conjurador/quien DEBE ser \"#{name}\" (nunca un monstruo — RECHAZADO). " <>
+        "#{name} declara: \"#{if text == "", do: "(pasa)", else: text}\". " <>
+        "Resuélvelo por las reglas y narra 2-4 frases de prosa limpia (sin markdown, sin *asteriscos*). " <>
+        "Narra SOLO a #{name} en ESTA escena. NO hables ni actúes por otros PCs (ni diálogo, ni gestos, ni que te sigan). " <>
+        "NO des voz a PNJs: si #{name} les habla, termina cuando #{name} termina de hablar — el DM responde. " <>
+        "NO saltes el tiempo ni cambies de lugar (nada de 'media hora después', caminatas, llegadas, set_scene): " <>
+        "quédate aquí. El viaje y la respuesta del mundo los narra el DM. " <>
+        "Responde en castellano."
 
   @doc "The default DM instruction for its turn."
   @spec dm_instruction() :: String.t()
