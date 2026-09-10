@@ -1,4 +1,4 @@
-# Catálogo de mecánicas 5e (M1–M24)
+# Catálogo de mecánicas 5e (M1–M27)
 
 > **Técnico.** Cada mecánica implementada, con identificador estable `Mxx`,
 > dónde vive (módulo:función), qué regla 5e aplica, sus simplificaciones (ADR)
@@ -180,7 +180,8 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 - **Dónde**: `LevelUp.apply/2` (ficha) y `World.level_up/2` (mesa);
   `Games.sync_hero_level_up` + `Game.sync_hero_level_up` (sync a partida viva,
   D6) + `merge_character_level_up` (preserva hp dañado/conditions/slots/AC).
-- **5e/simplif**: milestone sin XP (D10); PG = dado medio+CON+racial con
+- **5e/simplif**: XP 5e (D43; D10 SUPERSEDED); el DM otorga con `grant_xp`
+  (no auto-level, no calculadora CR); PG = dado medio+CON+racial con
   retro-CON; **RAW no cura** (D11); ASI 2 pts en `[4,8,12,16,19]` cap 20, sin
   feats (D13); hechizos nuevos respetando `max_spell_level`; half-casters
   desde L2.
@@ -241,17 +242,27 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   fuente de verdad.
 - **Tests**: `rage_test.exs`, `codec_test.exs`, `heroes/progression_test.exs`.
 
+### M27 — Otorgar XP (`grant_xp`, D43)
+- **Dónde**: `World.grant_xp/2`; tool `grant_xp` (solo DM).
+- **5e**: suma `amount` > 0 a `Character.xp`. No sube de nivel, no toca
+  hp/slots. Umbral PHB en `Progression` (`xp_threshold`, `can_level_up?`).
+  El mensaje factual incluye total, umbral del siguiente nivel y si
+  puede subir. Sin calculadora de encuentro/CR: el DM decide cuánto.
+  `Accounts.grant_xp/3` (ficha persistida) no se rediseña.
+- **Tests**: `world_test.exs`, `grant_xp_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
 
 reacciones como mecánica formal (TurnMaster da interrupciones narrativas) ·
 multiclase · feats. Pact Magic: **D40**. Sneak Attack: **D41**. Rage: **D42**.
+XP en partida: **D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
 **D38 / M25**. Reckless Attack y cupo de Rage/día siguen fuera.
 
-Para que una de estas entre: ADR nuevo + mecánica `M27+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M28+` en este catálogo +
 tests.
 
 ## Dados

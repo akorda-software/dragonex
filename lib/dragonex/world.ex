@@ -18,7 +18,8 @@ defmodule Dragonex.World do
     * `begin_combat` requires the exploration phase and known combatants,
     * the death-save tracker resolves dead (3 fails) / stable (3 successes) /
       revive (nat 20) and looks at `hp`, not `temp_hp`,
-    * Rage (D42) ends on 0 hp, unconscious, `end_combat`, or `end_rage`.
+    * Rage (D42) ends on 0 hp, unconscious, `end_combat`, or `end_rage`,
+    * `grant_xp` adds to `Character.xp` and never levels up (D43).
 
   Characters are stored as full `Dragonex.Character` structs, so the engine can
   read any stat (AC, abilities, weapons ...) straight from the world.
@@ -369,6 +370,28 @@ defmodule Dragonex.World do
   @doc "End Rage (D42). Idempotent if already false."
   @spec end_rage(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
   def end_rage(name), do: set_raging(name, false)
+
+  @doc """
+  Grant XP (5e, D43). Adds `amount` to `Character.xp`. Does not level up
+  and does not touch hp or spell slots. Amount must be positive.
+  """
+  @spec grant_xp(String.t(), integer()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def grant_xp(_name, amount) when is_integer(amount) and amount <= 0 do
+    fn _w -> {:error, "xp amount must be positive (got #{amount})"} end
+  end
+
+  def grant_xp(name, amount) when is_integer(amount) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          current = c.xp || 0
+          {:ok, put_char(w, name, %{c | xp: current + amount})}
+      end
+    end
+  end
 
   @spec heal(String.t(), non_neg_integer()) ::
           (t() -> {:ok, t()} | {:error, String.t()})

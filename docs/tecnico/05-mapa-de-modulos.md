@@ -58,7 +58,7 @@ GitHub `kukapu/exagent` branch `main`.)
 
 Tools reales: `set_scene`, `establish_fact`, `roll_dice`, `roll_initiative`,
 `make_attack`, `cast_spell`, `make_death_save`, `end_combat`, `short_rest`,
-`long_rest`, `spawn_monster`, `heal`, `grant_temp_hp`, `drop_concentration`, `start_rage`, `end_rage`, `ability_check`, `apply_condition`,
+`long_rest`, `spawn_monster`, `heal`, `grant_temp_hp`, `grant_xp`, `drop_concentration`, `start_rage`, `end_rage`, `ability_check`, `apply_condition`,
 `remove_condition`, `level_up`.
 Stubs legacy (sólo para tests del framework exAgent): `attack/2`, `roll/1`,
 `spawn_character/2`, `next_round/0`.
@@ -107,7 +107,7 @@ Stubs legacy (sólo para tests del framework exAgent): `attack/2`, `roll/1`,
 
 | Módulo | Responsabilidad |
 |---|---|
-| `Dragonex.Accounts` | Users (bcrypt + timing guard), heroes (save/list/get/update/level_up), `grant_xp` (latente), custom content CRUD con **validación server-side** |
+| `Dragonex.Accounts` | Users (bcrypt + timing guard), heroes (save/list/get/update/level_up), `grant_xp` (ficha persistida), custom content CRUD con **validación server-side** |
 | `Dragonex.Accounts.User` / `Hero` / `CustomContent` | Esquemas. `CustomContent` expone abilities/kinds como fuente única de validación |
 
 ## S10 · Config / Modelos / Misc — `lib/dragonex/`

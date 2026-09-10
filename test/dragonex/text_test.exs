@@ -131,6 +131,9 @@ defmodule Dragonex.TextTest do
       assert Text.scrub("Uso spawn_monster(\"goblin\", \"g1\") para la emboscada.", "dm") ==
                "Uso para la emboscada."
 
+      assert Text.scrub("Uso grant_xp(\"Thane\", 300) tras el combate.", "dm") ==
+               "Uso tras el combate."
+
       # Bracketed-tag leaks (the surrounding `**` bold markers stay as orphans;
       # that's a minor cosmetic we accept — the important thing is the fake tool
       # tag itself is gone, not rendered to the player as an "action").

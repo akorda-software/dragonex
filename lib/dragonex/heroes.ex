@@ -38,7 +38,7 @@ defmodule Dragonex.Heroes do
   ## Level scope
 
   `build/1` produces a level-1 sheet. Further levels go through
-  `Dragonex.Heroes.LevelUp.apply/2` (milestone, D10).
+  `Dragonex.Heroes.LevelUp.apply/2` (XP 5e, D43; subida explícita).
   """
 
   alias Dragonex.{Character, Item, Weapon}

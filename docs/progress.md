@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **844 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **851 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -32,7 +32,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   concentración D37, resist/vuln/immune D38, `initiative`, `death_save`, `heal`,
   `short_rest`, `long_rest`, `check`). Con `RollLog` para dados estructurados.
 - `Tools` — `deftool`s que el LLM invoca: `make_attack`, `cast_spell`,
-  `roll_initiative`, `make_death_save`, `heal`, `grant_temp_hp`, `drop_concentration`, `start_rage`, `end_rage`, `ability_check`, `end_combat`,
+   `roll_initiative`, `make_death_save`, `heal`, `grant_temp_hp`, `grant_xp`, `drop_concentration`, `start_rage`, `end_rage`, `ability_check`, `end_combat`,
   `short_rest`, `long_rest`, `spawn_monster`, `apply_condition`,
   `remove_condition`, `set_scene`, `establish_fact`, `level_up`, `roll_dice`.
 - `TurnPolicy.WorldDriven` — turno leído del World; un beat por monstruo
@@ -95,7 +95,9 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 - Merge en `Catalog` con `source: :custom`; builder lo consume vía
   `custom: %{...}` + `extra_equipment`.
 
-### Subida de nivel (milestone, D10)
+### Subida de nivel (XP 5e, D43)
+- `World.grant_xp/2` + tool `grant_xp` (DM): suma XP, no sube de nivel,
+  no toca hp/slots. D10 SUPERSEDED. Sin calculadora CR.
 - `LevelUp.apply/2` — nivel+1 (tope 20), PG (dado medio + CON + racial),
   retro-CON, **RAW no cura** (D11), ASI a `[4,8,12,16,19]` cap 20 (D13),
   AC recalculada, hechizos nuevos (respeta `max_spell_level`), features.
@@ -158,6 +160,9 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   `rage_damage/1` en cada hit; overlay B/P/S; no spells; STR check
   ventaja; termina en `end_rage` / 0 hp / unconscious / `end_combat`.
   Sin Reckless, sin usos/día, sin reloj de 1 minuto.
+- ✅ XP 5e en partida (D43): `World.grant_xp/2` + tool `grant_xp` (DM).
+  Suma XP; no auto-level-up. Subida explícita (ficha / `level_up`).
+  D10 SUPERSEDED. Sin calculadora CR/encuentro.
 
 ---
 

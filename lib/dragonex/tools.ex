@@ -292,6 +292,24 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
+  Grant `amount` XP to `who` (5e, D43). Does not level up and does not
+  touch hp or spell slots. Amount must be positive. DM only.
+  """
+  deftool grant_xp(ctx, who :: String.t(), amount :: integer()) do
+    c = Dragonex.World.character(world(ctx), who)
+    current_xp = if c, do: c.xp || 0, else: 0
+    level = if c, do: c.level || 1, else: 1
+
+    with :ok <- assert_grant_xp(ctx),
+         {:ok, _} <- propose(ctx, Dragonex.World.grant_xp(who, amount)) do
+      xp = current_xp + amount
+      threshold = Dragonex.Heroes.Progression.xp_threshold(level + 1)
+      can? = Dragonex.Heroes.Progression.can_level_up?(level, xp)
+      {:ok, grant_xp_message(who, amount, xp, threshold, can?)}
+    end
+  end
+
+  @doc """
   Drop concentration (5e, D37). The DM may drop anyone; a PC may only drop
   themselves.
   """
@@ -408,6 +426,28 @@ defmodule Dragonex.Tools do
     else
       {:error, "RECHAZADO — solo puedes descansar tú mismo (#{proposer}), no a #{target}."}
     end
+  end
+
+  defp assert_grant_xp(ctx) do
+    proposer = ctx.deps.state.participant_id
+
+    if proposer == "dm" do
+      :ok
+    else
+      {:error, "RECHAZADO — solo el DM puede otorgar XP."}
+    end
+  end
+
+  defp grant_xp_message(who, amount, xp, nil, _can?) do
+    "#{who} gana #{amount} XP (total #{xp}; nivel máximo; no puede subir de nivel)."
+  end
+
+  defp grant_xp_message(who, amount, xp, threshold, true) do
+    "#{who} gana #{amount} XP (total #{xp}; umbral siguiente nivel #{threshold}; puede subir de nivel)."
+  end
+
+  defp grant_xp_message(who, amount, xp, threshold, false) do
+    "#{who} gana #{amount} XP (total #{xp}; umbral siguiente nivel #{threshold}; aún no puede subir de nivel)."
   end
 
   defp assert_grant_temp_hp(ctx, who) do

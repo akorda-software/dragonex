@@ -7,6 +7,7 @@ defmodule Dragonex.WorldTest do
   use ExUnit.Case, async: true
 
   alias Dragonex.{Character, World}
+  alias Dragonex.Heroes.Progression
 
   defp goblin(hp),
     do: Character.new(name: "goblin", class: "monster", hp: hp, max_hp: 7, side: "enemy")
@@ -239,6 +240,43 @@ defmodule Dragonex.WorldTest do
 
       assert {:error, "no such character: ghost"} =
                World.clear_concentration("ghost").(World.new())
+    end
+  end
+
+  describe "grant_xp/2" do
+    test "L1 +300 reaches threshold and can_level_up? without leveling" do
+      w = World.new() |> apply!(World.add_character(pc("hero")))
+      hp = w.characters["hero"].hp
+      slots = w.spell_slots
+
+      w = apply!(w, World.grant_xp("hero", 300))
+      c = w.characters["hero"]
+      assert c.xp == 300
+      assert c.level == 1
+      assert c.hp == hp
+      assert w.spell_slots == slots
+      assert Progression.can_level_up?(c.level, c.xp)
+    end
+
+    test "+100 does not reach next level" do
+      w = World.new() |> apply!(World.add_character(pc("hero")))
+      w = apply!(w, World.grant_xp("hero", 100))
+      c = w.characters["hero"]
+      assert c.xp == 100
+      assert c.level == 1
+      refute Progression.can_level_up?(c.level, c.xp)
+    end
+
+    test "rejects non-positive amount" do
+      w = World.new() |> apply!(World.add_character(pc("hero")))
+      assert {:error, msg} = World.grant_xp("hero", 0).(w)
+      assert msg =~ "positive"
+      assert {:error, _} = World.grant_xp("hero", -5).(w)
+      assert w.characters["hero"].xp == 0
+    end
+
+    test "errors on an unknown character" do
+      assert {:error, "no such character: ghost"} = World.grant_xp("ghost", 300).(World.new())
     end
   end
 

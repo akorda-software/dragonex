@@ -67,6 +67,8 @@ los tests corren `async: true` sin sandbox y el builder es reproducible.
 ## Mundo de juego y reglas 5e
 
 ### D10 — Progresión por **milestone**, no por XP
+**SUPERSEDED** por D43.
+
 El DM decide "subes de nivel"; el jugador humano lo ejecuta desde la ficha
 (`/heroes/:id/level-up`), disponible siempre que `level < 20` (sin gate de
 XP). Los PCs IA los sube el DM con la tool `level_up`. La infraestructura de
@@ -578,6 +580,24 @@ No Reckless Attack. No cambia `Weapon`/`Spell`/`Item`. D35–D41 intactos.
 
 R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42 y
 spellcasting paladín/ranger L2; el resto de features por nivel sigue 🟡.
+
+### D43 — XP 5e como fuente de progresión
+Estado: **Aceptada** — 2026-09-10.
+
+SUPERSEDE D10 (milestone). La tabla PHB ya vive en `Progression`
+(`xp_threshold`, `can_level_up?`, `xp_to_next_level`); `Character.xp`
+ya existe. El DM otorga XP en partida con `grant_xp(who, amount)` →
+`World.grant_xp/2`. `amount` > 0; suma a `Character.xp`. No toca hp/slots.
+
+No aplica `level_up` automáticamente (D11 intacto: subir no cura). La
+subida sigue siendo explícita: ficha humana / tool `level_up`. El
+mensaje factual incluye XP actual, umbral del siguiente nivel y si
+`can_level_up?`.
+
+`Accounts.grant_xp/3` (ficha persistida fuera de partida) no se
+rediseña. No hay calculadora de XP por CR/encuentro: el DM decide
+cuánto. D11/D13/D14 intactos. Sin feats, sin multiclase. D33 (sin
+banner in-game) sigue: el humano sube desde la ficha.
 
 ---
 

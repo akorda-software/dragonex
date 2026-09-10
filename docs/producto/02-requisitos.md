@@ -86,8 +86,10 @@ usuarios (D22).
 - AC-7.2: el contenido custom aparece en el builder y en la mesa con la misma
   mecánica que el builtin (consume structs, no JSON crudo).
 
-### R08 — Subida de nivel (milestone) ✅
-Desde `/heroes/:id/level-up` cuando `level < 20`, sin gate de XP (D10).
+### R08 — Subida de nivel (XP 5e, D43) ✅
+El DM otorga XP en partida (`grant_xp`); no hay auto-level-up (D43;
+D10 SUPERSEDED). La subida sigue explícita: `/heroes/:id/level-up`
+(humano) o tool `level_up` (IA). Ficha humana: cuando `level < 20`.
 `LevelUp.apply`: +1 nivel, PG (dado medio + CON + racial), retro-CON, **RAW no
 cura** (D11), ASI 2 puntos en `[4,8,12,16,19]` cap 20 (D13), AC recalculada,
 hechizos nuevos respetando `max_spell_level`, half-casters desde nivel 2.

@@ -300,6 +300,7 @@ defmodule Dragonex.PCAgentTest do
       refute "apply_condition" in tool_names
       refute "remove_condition" in tool_names
       refute "grant_temp_hp" in tool_names
+      refute "grant_xp" in tool_names
       refute "heal" in tool_names
     end
   end
