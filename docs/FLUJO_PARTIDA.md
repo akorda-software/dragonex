@@ -645,7 +645,7 @@ tópico `dragonex:game:<id>` y re-fetch del snapshot al recibir
 4. Pausar/reanudar cuando haga falta. Logs: `docker logs -f dragonex-app`.
 
 ## Tests
-- `MIX_ENV=test mix test` → suite verde (**809** actualmente).
+- `MIX_ENV=test mix test` → suite verde (**818** actualmente).
 - Tests aislados por bug: `game_retry_test` (incluye circuit breaker),
   `ghost_combat_test`, `pc_anti_loop_test`, `dm_puppet_pc_test`,
   `exploration_limbo_test`, `text_test` (scrub/2 + bold + stats + leak + meta +

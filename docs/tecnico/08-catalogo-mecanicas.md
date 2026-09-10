@@ -97,11 +97,12 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 
 ### M10 — Spell slots
 - **Dónde**: `World.has_slot?/3`, `consume_slot/2`, `restore_slots/1`;
-  `Actions.spell` consume si `level > 0`; tabla por clase (full/half-caster)
-  en `spell_slots.ex`.
+  `Actions.spell` consume si `level > 0`; tabla por clase (full/half-caster
+  + Pact Magic warlock D40) en `spell_slots.ex`.
 - **Compat**: caster **no trackeado** (bestiario, partidas viejas) → los
   hechizos SIEMPRE funcionan (backward-compat deliberado).
-- **Simplificación**: warlock = tabla full-caster, sin Pact Magic (D12).
+- **Pact Magic (D40)**: el brujo gasta un hueco de pacto (todos del mismo
+  nivel, 1º–5º); short rest los restaura. Sin Mystic Arcanum ni upcast.
 - **Tests**: `test/dragonex/spell_slots_test.exs`, `multi_level_test.exs`.
 
 ### M11 — Save DC y spell attack
@@ -222,7 +223,7 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 ## Declarado NO implementado (no son bugs — R28)
 
 reacciones como mecánica formal (TurnMaster da interrupciones narrativas) ·
-multiclase · feats · Pact Magic. Iniciativa individual por monstruo: **D34**.
+multiclase · feats. Pact Magic: **D40**. Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
 **D38 / M25**.
 

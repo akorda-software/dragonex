@@ -515,9 +515,14 @@ defmodule Dragonex.World do
     %{w | spell_slots: slots}
   end
 
-  @doc "Does `name` have at least one level-`level` slot remaining?"
+  @doc """
+  Does `name` have at least one slot remaining for a spell of `level`?
+
+  Warlocks (D40) check the pact-slot level, not `spell.level` raw.
+  Untracked worlds / casters not in the map → true (backward compat).
+  """
   @spec has_slot?(t(), String.t(), pos_integer()) :: boolean()
-  def has_slot?(%__MODULE__{spell_slots: slots}, name, level) do
+  def has_slot?(%__MODULE__{spell_slots: slots} = w, name, level) do
     cond do
       # No slot tracking → backward compat (spells always work)
       slots == %{} ->
@@ -527,16 +532,22 @@ defmodule Dragonex.World do
       not is_map_key(slots, name) ->
         true
 
-      # Tracked: check the count
+      # Tracked: check the count (pact casters remap to pact slot level)
       true ->
+        slot_level = slot_level_for(w, name, level)
+
         slots
         |> Map.get(name, %{})
-        |> Map.get(level, 0)
+        |> Map.get(slot_level, 0)
         |> Kernel.>(0)
     end
   end
 
-  @doc "Consume one level-`level` slot from `name`. No-op if level 0 (cantrip) or untracked."
+  @doc """
+  Consume one slot from `name` for a spell of `level`.
+
+  Warlocks (D40) spend a pact slot. No-op if level 0 (cantrip) or untracked.
+  """
   @spec consume_slot(String.t(), pos_integer()) :: (t() -> {:ok, t()} | {:error, String.t()})
   def consume_slot(_name, 0), do: fn w -> {:ok, w} end
 
@@ -548,18 +559,30 @@ defmodule Dragonex.World do
           {:ok, w}
 
         true ->
-          case get_in(w.spell_slots, [name, level]) do
+          slot_level = slot_level_for(w, name, level)
+
+          case get_in(w.spell_slots, [name, slot_level]) do
             n when is_integer(n) and n > 0 ->
-              {:ok, put_in(w.spell_slots[name][level], n - 1)}
+              {:ok, put_in(w.spell_slots[name][slot_level], n - 1)}
 
             _ ->
-              {:error, "#{name} has no level-#{level} spell slots remaining"}
+              {:error, "#{name} has no level-#{slot_level} spell slots remaining"}
           end
       end
     end
   end
 
-  @doc "Restore all spell slots for `name` to their maximum (called by long_rest)."
+  defp slot_level_for(w, name, spell_level) do
+    case character(w, name) do
+      %Character{class: class, level: char_level} ->
+        Dragonex.SpellSlots.slot_level_for(class, char_level, spell_level)
+
+      _ ->
+        spell_level
+    end
+  end
+
+  @doc "Restore all spell slots for `name` to their maximum (long rest; warlock short rest)."
   @spec restore_slots(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
   def restore_slots(name) do
     fn w ->

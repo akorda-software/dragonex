@@ -13,11 +13,9 @@ defmodule Dragonex.Heroes.Progression do
 
   ## Simplificaciones de la v1 (documentadas)
 
-    * **Warlock como full-caster**: el brujo usa la tabla de conjurador completo
-      (`max_spell_level` + `SpellSlots`), cuando en 5e su Pact Magic es distinto
-      (huecos de 1º–5º todos del mismo nivel, se recuperan en descanso corto, más
-      1 Mystic Arcanum por nivel 6º–9º). Es una simplificación de impacto bajo a
-      niveles típicos; se documenta también en `Dragonex.SpellSlots`.
+    * **Pact Magic (D40)**: el brujo usa huecos de pacto (todos del mismo nivel,
+      1º–5º, short rest). `max_spell_level` es el nivel de pacto, cap 5. Mystic
+      Arcanum (6º–9º 1/long rest) y el escalado de daño por upcast quedan fuera.
     * **Hechizos conocidos**: las clases preparadoras (clérigo/druida) y de
       grimorio (mago) cambian su lista libremente al subir; las de lista cerrada
       (bardo/hechicero/brujo) reciben un cupo derivado. Aquí `spells_known/2`
@@ -59,8 +57,9 @@ defmodule Dragonex.Heroes.Progression do
   # Puntos a repartir en cada ASI (5e: +2 o equivalente).
   @asi_points 2
 
-  @full_casters ~w(bard cleric druid sorcerer warlock wizard)a
+  @full_casters ~w(bard cleric druid sorcerer wizard)a
   @half_casters ~w(paladin ranger)a
+  @pact_casters ~w(warlock)a
   @extra_attack_classes ~w(fighter barbarian paladin ranger monk)a
 
   # ------------------------------------------------------------ XP / nivel
@@ -111,14 +110,18 @@ defmodule Dragonex.Heroes.Progression do
 
   # ------------------------------------------------------------ conjuración
 
-  @doc "¿Es la clase un conjurador (completo o parcial)?"
+  @doc "¿Es la clase un conjurador (completo, parcial o de pacto)?"
   @spec caster?(String.t() | atom()) :: boolean()
-  def caster?(class), do: class_name(class) in @full_casters or class_name(class) in @half_casters
+  def caster?(class) do
+    c = class_name(class)
+    c in @full_casters or c in @half_casters or c in @pact_casters
+  end
 
   @doc "Nivel máximo de hechizo que puede conocer un conjurador a `level` (0 si no lanza)."
   @spec max_spell_level(String.t() | atom(), pos_integer()) :: non_neg_integer()
   def max_spell_level(class, level) do
     cond do
+      class_name(class) in @pact_casters -> min(div(level + 1, 2), 5)
       class_name(class) in @full_casters -> min(div(level + 1, 2), 9) |> max(0)
       class_name(class) in @half_casters -> half_caster_max(level)
       true -> 0

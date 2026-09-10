@@ -81,6 +81,8 @@ conserva el déficit dañado. Un personaje caído (0 pg) **no revive** por subir
 Decidido en `1161f9e`.
 
 ### D12 — Warlock modelado como full-caster (simplificación v1)
+**SUPERSEDED** por D40.
+
 Pact Magic real (huecos 1º–5º, short rest, 1 Mystic Arcanum por nivel 6º–9º)
 queda **fuera de v1**. El brujo recibe la tabla full-caster (con 6º–9º).
 Documentado en `spell_slots.ex:9-12` y `progression.ex`. Impacto bajo a
@@ -477,6 +479,33 @@ D35–D38 intactos.
 
 Deuda: el roll-off 5e (d20 extra entre empatados) queda fuera para no
 consumir el roller inyectado.
+
+### D40 — Pact Magic del warlock
+Estado: **Aceptada** — 2026-09-10. SUPERSEDE D12.
+
+RAW v1 de Pact Magic (PHB 5.1). El brujo deja de usar la tabla full-caster.
+
+- Tabla de huecos (solo 1º–5º, todos del mismo nivel):
+  L1: 1×1º; L2: 2×1º; L3–4: 2×2º; L5–6: 2×3º; L7–8: 2×4º; L9–10: 2×5º;
+  L11–16: 3×5º; L17–20: 4×5º.
+- Al lanzar un hechizo de nivel ≥1 consume UN hueco de pacto (el único
+  nivel que tiene), no un hueco del nivel del hechizo. Un brujo L5 que
+  lanza magic missile (1º) gasta un hueco de 3º. `has_slot?` acepta
+  `spell.level` si `spell.level ≤` nivel de pacto y queda al menos 1 hueco.
+- No puede lanzar un hechizo cuyo nivel > nivel de pacto actual.
+- Descanso corto restaura los huecos del brujo (además del dado de golpe).
+  Wizard/clérigo no recuperan huecos en short rest.
+- Descanso largo sigue restaurando todos (`restore_slots` ya usa `for_class`).
+- `caster?(warlock)` true (slots desde L1). `full_caster?(warlock)` false.
+- `max_spell_level` del warlock es el nivel de pacto, cap 5.
+
+Deuda:
+- **Mystic Arcanum** (hechizos 6º–9º 1/long rest) queda fuera.
+- Escalado de daño por upcast (magic missile extra darts, etc.) no se
+  implementa salvo que ya exista. El hueco gastado sí es el de pacto.
+
+No cambia `Character`/`Weapon`/`Spell`/`Item`. D13/D14 intactos. D15 ya
+SUPERSEDED por D39.
 
 ---
 

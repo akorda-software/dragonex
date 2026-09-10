@@ -14,7 +14,17 @@ defmodule Dragonex.Actions do
   No exAgent here: deterministic and unit-testable with a fixed roller.
   """
 
-  alias Dragonex.{Character, Dice, RollLog, Rules.Ability, Rules.Combat, Rules.Conditions, World}
+  alias Dragonex.{
+    Character,
+    Dice,
+    RollLog,
+    Rules.Ability,
+    Rules.Combat,
+    Rules.Conditions,
+    SpellSlots,
+    World
+  }
+
   alias Dragonex.Heroes.{Progression, Spells}
 
   @type roller :: (pos_integer() -> pos_integer())
@@ -252,6 +262,7 @@ defmodule Dragonex.Actions do
   A short rest: the character spends hit dice to recover HP.
 
   At level 1, a character has 1 hit die. The heal is `roll(hit_die) + con_mod`.
+  Warlocks (D40) also restore Pact Magic slots; other casters do not.
   """
   @spec short_rest(World.t(), String.t(), roller(), RollLog.t() | nil) :: result()
   def short_rest(world, name, roller, roll_log \\ nil) do
@@ -276,9 +287,23 @@ defmodule Dragonex.Actions do
           RollLog.close(close, total: rolled, against: nil, outcome: nil)
           applied = min(rolled, max_hp - hp)
 
-          {:ok,
-           "#{name} hace un descanso corto y recupera #{applied} pg (1d#{hit_die}#{signed(con_mod)} = #{rolled}, ahora #{hp + applied}/#{max_hp}).",
-           World.heal(name, applied)}
+          msg =
+            "#{name} hace un descanso corto y recupera #{applied} pg (1d#{hit_die}#{signed(con_mod)} = #{rolled}, ahora #{hp + applied}/#{max_hp})."
+
+          {msg, change} =
+            if SpellSlots.pact_caster?(c.class) do
+              composed = fn w ->
+                {:ok, w2} = World.heal(name, applied).(w)
+                {:ok, w3} = World.restore_slots(name).(w2)
+                {:ok, w3}
+              end
+
+              {msg <> " Casillas de pacto recuperadas.", composed}
+            else
+              {msg, World.heal(name, applied)}
+            end
+
+          {:ok, msg, change}
         end
     end
   end

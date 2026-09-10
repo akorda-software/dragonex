@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **809 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **818 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -83,8 +83,9 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 - `LevelUp` + `Progression` — subida 5e (más abajo).
 - ✅ Golden SRD del creador (F6.5): 12 clases × L1/L3/L5 en
   `test/dragonex/heroes/srd_golden_test.exs`. Oráculos a mano; sin bugs
-  de HP/AC/slots/saves vs SRD. Pact Magic / feats / features por nivel
-  (salvo Extra Attack D35 y spellcasting paladín/ranger L2) siguen en 🟡.
+  de HP/AC/slots/saves vs SRD. Pact Magic (D40) en ✅. Feats / features
+  por nivel (salvo Extra Attack D35 y spellcasting paladín/ranger L2)
+  siguen en 🟡.
 
 ### Contenido custom por usuario
 - CRUD `custom_contents` (weapon/spell/item, unique por usuario) con
@@ -146,6 +147,9 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 - ✅ Resistencias 5e (D38 / M25): tres listas en `Character` + Codec;
   `apply_damage/3`; skeleton SRD; hellish resistance. Concentración
   post-resist; `temp_hp` sobre el amount modificado. Sin magic vs mundane.
+- ✅ Pact Magic del warlock (D40): tabla PHB 5.1 (huecos 1º–5º del mismo
+  nivel); consume el hueco de pacto, no el del hechizo; short rest
+  restaura solo al brujo. Sin Mystic Arcanum ni upcast de daño.
 
 ---
 
@@ -153,7 +157,6 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
 | Ítem | Decisión | Ref |
 |---|---|---|
-| Warlock | Full-caster, no Pact Magic | D12 |
 | Dotes | Fuera; ASI = +2 fijo | D13 |
 | `spells_known` | `nil` (sin cap estricto por clase) | D14 |
 | Features por nivel | Extra Attack D35 + spellcasting paladín/ranger L2; el resto 🟡 | D35 |

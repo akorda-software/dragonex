@@ -67,6 +67,14 @@ defmodule Dragonex.Heroes.ProgressionTest do
     test "no conjurador: 0" do
       assert Progression.max_spell_level("fighter", 5) == 0
     end
+
+    test "warlock: nivel de pacto, cap 5" do
+      assert Progression.max_spell_level("warlock", 1) == 1
+      assert Progression.max_spell_level("warlock", 5) == 3
+      assert Progression.max_spell_level("warlock", 11) == 5
+      assert Progression.max_spell_level("warlock", 17) == 5
+      assert Progression.max_spell_level("warlock", 20) == 5
+    end
   end
 
   describe "features_at/2" do

@@ -25,7 +25,7 @@ existe" sino por "se verifica".**
 | F4 — Héroes | Forjar y crecer | Builder 5 pasos + catálogos SRD ES + custom (D22) + level-up (D10–D13) |
 | F5 — TurnMaster | La partida fluye | Orquestador de turnos (D25) con fallback WorldDriven |
 
-Verde de referencia hoy: **809 tests passed**, compile sin warnings.
+Verde de referencia hoy: **818 tests passed**, compile sin warnings.
 
 ---
 
@@ -80,8 +80,8 @@ enemigos consecutivos; `acted_this_round` marca el monstruo, no `"dm"`.
 Hecho: `test/dragonex/heroes/srd_golden_test.exs` — 12 clases × {1, 3, 5}
 = 36 oráculos a mano (humano + soldier + standard array, ASI +2 al
 primario en L4). HP/AC/saves/slots/DC coinciden con SRD 5.1 y el modelo
-Dragonex (warlock full-caster D12; paladín/ranger spellcasting a L2 R09).
-Sin bugs de derivados; las simplificaciones (Pact Magic, feats, features
+Dragonex (warlock Pact Magic D40; paladín/ranger spellcasting a L2 R09).
+Sin bugs de derivados; las simplificaciones (feats, features
 por nivel salvo Extra Attack D35 y spellcasting paladín/ranger L2,
 `spells_known`) quedan en 🟡.
 
@@ -105,7 +105,9 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
   `temp_hp` post-mod; concentración post-resist; skeleton SRD;
   hellish resistance. Sin magic vs mundane.
 - **Feats** (D13): catálogo + integración en ASI (elección feat vs +2).
-- **Pact Magic del warlock** (D12): tabla propia de slots short-rest.
+- **Pact Magic del warlock** (D40): **entregado.** Tabla PHB 5.1 (huecos
+  1º–5º del mismo nivel); consume el hueco de pacto; short rest restaura
+  solo al brujo. Sin Mystic Arcanum ni upcast de daño.
 - **Multiclase**: fuera del builder actual por diseño; implicaría rehacer
   progression.
 - **Marketplace de contenido custom** (D22): compartir entre usuarios.
@@ -123,7 +125,7 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
 3. Implementa con tests (ver [`../tecnico/09-estrategia-pruebas.md`](../tecnico/09-estrategia-pruebas.md)
    para qué capa de test exige cada cambio).
 4. Verifica: `mix compile` (0 warnings) → `mix format` → `MIX_ENV=test mix test`
-   (809+ verde). Si toca prompts/agentes: smoke con TestModel incluido.
+   (818+ verde). Si toca prompts/agentes: smoke con TestModel incluido.
 5. Actualiza `../progress.md` (mueve el ítem) y este doc (marca el ítem). Si
    tomaste una decisión no trivial: ADR en `../decisions.md`.
 6. Commit estilizado (`feat(motor): …`, `fix(hero): …`).

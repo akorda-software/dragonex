@@ -101,7 +101,8 @@ hechizos nuevos respetando `max_spell_level`, half-casters desde nivel 2.
   (`game_sync_genserver_test.exs`).
 
 ### R09 — Fidelidad de clase (simplificaciones declaradas) 🟡
-- Warlock modelado como full-caster, sin Pact Magic (D12).
+- Pact Magic del warlock entregado (D40). Quedan fuera Mystic Arcanum
+  (6º–9º 1/long rest) y el escalado de daño por upcast.
 - Sin feats; ASI = 2 puntos (D13).
 - `spells_known` sin tope modelado (D14).
 - Features de clase por nivel: Extra Attack a L5 (D35) y spellcasting de

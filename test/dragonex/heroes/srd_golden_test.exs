@@ -19,14 +19,13 @@ defmodule Dragonex.Heroes.SrdGoldenTest do
   Scores finales L1 = array + 1 → 16/15/14/13/11/9. CON queda +2 en las
   12 clases. HP L1 = hit_die + 2. Subida = `div(die, 2) + 1 + 2`.
   AC: armadura default + DEX con techo, o unarmored_defense (bárbaro/monje).
-  Slots: tabla PHB de full-caster / half-caster L2+; warlock como
-  full-caster (D12), no Pact Magic. DC = 8 + prof (L1–4 = 2, L5 = 3) +
+  Slots: tabla PHB de full-caster / half-caster L2+; warlock Pact Magic
+  (D40). DC = 8 + prof (L1–4 = 2, L5 = 3) +
   mod de conjuro.   Features: las de L1 del catálogo; paladín/ranger
   ganan `spellcasting` a L2 (R09); marciales ganan `extra_attack` a L5 (D35).
 
   ## Simplificaciones declaradas (no son bugs; no se implementan aquí)
 
-  * Pact Magic del warlock (D12) — slots de full-caster.
   * Feats (D13) — ASI es +2, nunca dote.
   * `spells_known` / cantrips por nivel (D14) — sin cap estricto.
   * Features por nivel salvo Extra Attack D35 y spellcasting paladín/ranger L2.
@@ -184,9 +183,9 @@ defmodule Dragonex.Heroes.SrdGoldenTest do
       features: ~w(eldritch_invocations pact_magic otherworldly_patron),
       casting: :cha,
       levels: %{
-        1 => %{hp: 10, ac: 13, slots: %{1 => 2}, dc: 13},
-        3 => %{hp: 24, ac: 13, slots: %{1 => 4, 2 => 2}, dc: 13},
-        5 => %{hp: 38, ac: 13, slots: %{1 => 4, 2 => 3, 3 => 2}, dc: 15}
+        1 => %{hp: 10, ac: 13, slots: %{1 => 1}, dc: 13},
+        3 => %{hp: 24, ac: 13, slots: %{2 => 2}, dc: 13},
+        5 => %{hp: 38, ac: 13, slots: %{3 => 2}, dc: 15}
       }
     },
     "wizard" => %{

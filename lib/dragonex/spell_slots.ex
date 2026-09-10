@@ -2,14 +2,14 @@ defmodule Dragonex.SpellSlots do
   @moduledoc """
   SRD 5.1 spell-slot progression.
 
-  Full casters (bard, cleric, druid, sorcerer, warlock, wizard) get slots from
-  level 1. Half casters (paladin, ranger) start at level 2. Non-casters get no
-  slots.
+  Full casters (bard, cleric, druid, sorcerer, wizard) get slots from level 1.
+  Half casters (paladin, ranger) start at level 2. Warlocks use Pact Magic
+  (D40): all slots are the same level (1st–5th) and return on a short rest.
+  Non-casters get no slots.
 
-  Warlock slots are simplified to the full-caster table (they differ in 5e —
-  warlock slots are all the same level and return on a short rest — but the
-  distinction is minor at low levels and the simplification keeps the engine
-  clean).
+  Mystic Arcanum (6th–9th, 1/long rest) is out of v1 — warlock `max_spell_level`
+  caps at 5. Damage upcasting (extra magic-missile darts, etc.) is not modeled;
+  the slot spent is still the pact slot.
 
   ## Table (full casters)
 
@@ -21,6 +21,21 @@ defmodule Dragonex.SpellSlots do
     3 |   4    2    —    —    —    —    —    —    —
     4 |   4    3    —    —    —    —    —    —    —
     5 |   4    3    2    —    —    —    —    —    —
+  ```
+
+  ## Pact Magic (warlock)
+
+  ```
+  Lvl   | slots
+  ------+-----------
+  1     | 1×1st
+  2     | 2×1st
+  3–4   | 2×2nd
+  5–6   | 2×3rd
+  7–8   | 2×4th
+  9–10  | 2×5th
+  11–16 | 3×5th
+  17–20 | 4×5th
   ```
   """
 
@@ -70,8 +85,32 @@ defmodule Dragonex.SpellSlots do
     20 => %{1 => 4, 2 => 3, 3 => 3, 4 => 3, 5 => 2}
   }
 
-  @full_casters ~w(bard cleric druid sorcerer warlock wizard)
+  @pact_magic %{
+    1 => %{1 => 1},
+    2 => %{1 => 2},
+    3 => %{2 => 2},
+    4 => %{2 => 2},
+    5 => %{3 => 2},
+    6 => %{3 => 2},
+    7 => %{4 => 2},
+    8 => %{4 => 2},
+    9 => %{5 => 2},
+    10 => %{5 => 2},
+    11 => %{5 => 3},
+    12 => %{5 => 3},
+    13 => %{5 => 3},
+    14 => %{5 => 3},
+    15 => %{5 => 3},
+    16 => %{5 => 3},
+    17 => %{5 => 4},
+    18 => %{5 => 4},
+    19 => %{5 => 4},
+    20 => %{5 => 4}
+  }
+
+  @full_casters ~w(bard cleric druid sorcerer wizard)
   @half_casters ~w(paladin ranger)
+  @pact_casters ~w(warlock)
 
   @doc "The slot map for a class at a given level: `%{slot_level => count}`."
   @spec for_class(String.t(), pos_integer()) :: %{pos_integer() => non_neg_integer()}
@@ -79,15 +118,45 @@ defmodule Dragonex.SpellSlots do
     cond do
       class in @full_casters -> Map.get(@full_caster, level, %{})
       class in @half_casters -> Map.get(@half_caster, level, %{})
+      class in @pact_casters -> Map.get(@pact_magic, level, %{})
       true -> %{}
     end
   end
 
   @doc "Whether a class is any kind of caster."
   @spec caster?(String.t()) :: boolean()
-  def caster?(class), do: class in @full_casters or class in @half_casters
+  def caster?(class),
+    do: class in @full_casters or class in @half_casters or class in @pact_casters
 
-  @doc "Whether a class is a full caster (slots from level 1)."
+  @doc "Whether a class is a full caster (slots from level 1, full-caster table)."
   @spec full_caster?(String.t()) :: boolean()
   def full_caster?(class), do: class in @full_casters
+
+  @doc "Whether a class uses Pact Magic (warlock)."
+  @spec pact_caster?(String.t()) :: boolean()
+  def pact_caster?(class), do: class in @pact_casters
+
+  @doc """
+  Slot key consumed when casting a spell of `spell_level`.
+
+  Warlocks spend one pact slot (the only level they have) if the spell's
+  level is > 0 and ≤ that pact level. Other casters spend a slot of
+  `spell_level`. Cantrips and over-level warlock spells return `spell_level`.
+  """
+  @spec slot_level_for(String.t(), pos_integer(), non_neg_integer()) :: non_neg_integer()
+  def slot_level_for(class, character_level, spell_level) do
+    if pact_caster?(class) and spell_level > 0 do
+      pact = pact_slot_level(character_level)
+      if spell_level <= pact, do: pact, else: spell_level
+    else
+      spell_level
+    end
+  end
+
+  defp pact_slot_level(character_level) do
+    case @pact_magic |> Map.get(character_level, %{}) |> Map.keys() do
+      [level] -> level
+      _ -> 0
+    end
+  end
 end
