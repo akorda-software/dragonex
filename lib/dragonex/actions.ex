@@ -377,6 +377,20 @@ defmodule Dragonex.Actions do
           end
 
         cond do
+          # False Life (SRD): 1d4+4 temp_hp on the caster. No Spell-shape change (D36).
+          false_life?(spell) ->
+            rolled = Dice.roll_expr("1d4+4", r)
+
+            RollLog.close(close,
+              kind: :heal,
+              reason: "pg temporales de #{spell.name}",
+              total: rolled,
+              outcome: nil
+            )
+
+            {:ok, "#{caster_name} conjura #{spell.name}; obtiene #{rolled} pg temporales.",
+             World.apply_temp_hp(caster_name, rolled)}
+
           # Healing spell: no damage_type but has dice → heal the target
           spell.damage_type == nil and amount > 0 ->
             cast_mod = Character.modifier(c, spell.casting_ability)
@@ -668,6 +682,15 @@ defmodule Dragonex.Actions do
   defp find_weapon(%Character{weapons: weapons}, name), do: match_named(weapons, name)
 
   defp find_spell(%Character{spells: spells}, name), do: match_named(spells, name)
+
+  defp false_life?(%{name: name, dice: dice}) when dice in [nil, ""] and is_binary(name) do
+    name
+    |> String.downcase()
+    |> String.replace(~r/[\s_-]+/, "")
+    |> Kernel.==("falselife")
+  end
+
+  defp false_life?(_), do: false
 
   # Fuzzy name lookup for weapons/spells: the LLM often says "sword" for
   # "longsword", "firebolt" for "fire bolt", or varies casing. We match

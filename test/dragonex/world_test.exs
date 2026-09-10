@@ -44,6 +44,54 @@ defmodule Dragonex.WorldTest do
       w = World.new()
       assert {:error, "no such character: ghost"} = World.apply_damage("ghost", 1).(w)
     end
+
+    test "temp_hp absorbs damage first; leftover hits hp (D36)" do
+      w =
+        World.new()
+        |> apply!(World.add_character(%{goblin(10) | hp: 10, max_hp: 10, temp_hp: 5}))
+
+      w = apply!(w, World.apply_damage("goblin", 3))
+      assert w.characters["goblin"].temp_hp == 2
+      assert w.characters["goblin"].hp == 10
+
+      w = apply!(w, World.apply_damage("goblin", 8))
+      assert w.characters["goblin"].temp_hp == 0
+      assert w.characters["goblin"].hp == 4
+    end
+
+    test "5 temp + 8 damage on 10 hp → temp 0, hp 7" do
+      w =
+        World.new()
+        |> apply!(World.add_character(%{goblin(10) | hp: 10, max_hp: 10, temp_hp: 5}))
+
+      w = apply!(w, World.apply_damage("goblin", 8))
+      assert w.characters["goblin"].temp_hp == 0
+      assert w.characters["goblin"].hp == 7
+    end
+  end
+
+  describe "apply_temp_hp/2" do
+    test "does not stack: keeps the higher value" do
+      w = World.new() |> apply!(World.add_character(goblin(7)))
+      w = apply!(w, World.apply_temp_hp("goblin", 3))
+      assert w.characters["goblin"].temp_hp == 3
+      w = apply!(w, World.apply_temp_hp("goblin", 5))
+      assert w.characters["goblin"].temp_hp == 5
+      w = apply!(w, World.apply_temp_hp("goblin", 3))
+      assert w.characters["goblin"].temp_hp == 5
+    end
+
+    test "rejects non-positive amount" do
+      w = World.new() |> apply!(World.add_character(goblin(7)))
+      assert {:error, msg} = World.apply_temp_hp("goblin", 0).(w)
+      assert msg =~ "positive"
+      assert {:error, _} = World.apply_temp_hp("goblin", -2).(w)
+      assert w.characters["goblin"].temp_hp == 0
+    end
+
+    test "errors on an unknown character" do
+      assert {:error, "no such character: ghost"} = World.apply_temp_hp("ghost", 5).(World.new())
+    end
   end
 
   describe "heal/2" do
@@ -66,6 +114,20 @@ defmodule Dragonex.WorldTest do
       w = apply!(w, World.heal("g", 50))
       assert w.characters["g"].hp == 7
       assert w.characters["g"].death_saves == %{successes: 0, fails: 0}
+    end
+
+    test "does not touch temp_hp" do
+      w =
+        World.new()
+        |> apply!(
+          World.add_character(
+            Character.new(name: "g", class: "m", hp: 3, max_hp: 7, side: "enemy", temp_hp: 5)
+          )
+        )
+
+      w = apply!(w, World.heal("g", 2))
+      assert w.characters["g"].hp == 5
+      assert w.characters["g"].temp_hp == 5
     end
 
     test "does not clear death saves when heal leaves hp at 0" do

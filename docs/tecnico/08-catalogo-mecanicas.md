@@ -182,15 +182,25 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   quién) es la base de las guardas de tools.
 - **Tests**: `world_test.exs` + transversales.
 
+### M23 — Puntos de golpe temporales (`temp_hp`, D36)
+- **Dónde**: `World.apply_damage/2` absorbe `temp_hp` primero (nunca
+  negativo), resto a `hp` (floor 0). `World.apply_temp_hp/2` otorga sin
+  apilar (`max(actual, nuevo)`); amount ≤ 0 → error. Tool `grant_temp_hp`
+  (DM cualquiera; PC sólo sí mismo). `heal` no escribe el campo. Death
+  saves / `down?` miran `hp`. Sin reloj de duración; `long_rest` no wipe.
+  False Life SRD (`dice` nil): `Actions.spell` tira 1d4+4 al caster.
+- **Tests**: `world_test.exs`, `healing_and_bestiary_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
 
-Concentración · `temp_hp` funcional · resistencias/vulnerabilidades ·
+Concentración · resistencias/vulnerabilidades ·
 reacciones como mecánica formal (TurnMaster da interrupciones narrativas) ·
 multiclase · feats · Pact Magic. Iniciativa individual por monstruo: **D34**.
+`temp_hp`: **D36 / M23**.
 
-Para que una de estas entre: ADR nuevo + mecánica `M23+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M24+` en este catálogo +
 tests.
 
 ## Dados

@@ -74,7 +74,6 @@ Dragonex resuelve eso con un DM por IA que:
 ## Fuera de alcance / no implementado (ver [`../progress.md`](../progress.md) § 🔴)
 
 - **Concentración** de hechizos (no se modela; no se rompe al recibir daño).
-- **`temp_hp`** (el campo existe pero ninguna regla lo consume).
 - **Resistencias / vulnerabilidades / inmunidades** de daño.
 - **Iniciativa individual por monstruo** (hoy colapsados al turno del DM).
 - **Reacciones / "preparar acción".**

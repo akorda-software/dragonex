@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **767 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **774 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -21,16 +21,16 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 - `Rules.Ability` (modificadores, competencia) + `Rules.Combat` (ataques,
   daño, críticos, salvaciones, chequeos, death saves, ventaja/desventaja).
 - `World` — máquina de estados `:exploration`/`:combat`, change-fns puras,
-  invariantes (damage floor 0, `controlled_by?/3`), `facts` durables (D16),
-  condiciones, spell slots, `level_up`.
+  invariantes (damage floor 0, `temp_hp` absorbe primero D36, `controlled_by?/3`),
+  `facts` durables (D16), condiciones, spell slots, `level_up`.
 - `Rules.Conditions` — tabla M06: condición → ventaja/desventaja/auto-fallo
   en ataque, salvación y chequeo (cancelación 5e).
 - `Actions` — puente intent→world (`attack` con Extra Attack 5e / D35,
-  `spell` automatic/attack/save + consumo de slot, `initiative`,
-  `death_save`, `heal`, `short_rest`, `long_rest`, `check`). Con `RollLog`
-  para dados estructurados.
+  `spell` automatic/attack/save + consumo de slot, False Life → temp_hp D36,
+  `initiative`, `death_save`, `heal`, `short_rest`, `long_rest`, `check`).
+  Con `RollLog` para dados estructurados.
 - `Tools` — `deftool`s que el LLM invoca: `make_attack`, `cast_spell`,
-  `roll_initiative`, `make_death_save`, `heal`, `ability_check`, `end_combat`,
+  `roll_initiative`, `make_death_save`, `heal`, `grant_temp_hp`, `ability_check`, `end_combat`,
   `short_rest`, `long_rest`, `spawn_monster`, `apply_condition`,
   `remove_condition`, `set_scene`, `establish_fact`, `level_up`, `roll_dice`.
 - `TurnPolicy.WorldDriven` — turno leído del World; un beat por monstruo

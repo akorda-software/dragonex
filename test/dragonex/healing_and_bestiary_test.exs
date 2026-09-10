@@ -158,6 +158,48 @@ defmodule Dragonex.HealingAndBestiaryTest do
       {:ok, w2} = change.(w)
       assert w2.characters["gob"].hp < 7
     end
+
+    test "false life grants 1d4+4 temp_hp to the caster and consumes a slot" do
+      wizard =
+        Character.new(
+          name: "Lyra",
+          class: "wizard",
+          level: 1,
+          hp: 8,
+          max_hp: 8,
+          ac: 10,
+          str: 8,
+          dex: 14,
+          con: 14,
+          int: 16,
+          wis: 12,
+          cha: 10,
+          spells: [
+            %Dragonex.Spell{
+              name: "false life",
+              level: 1,
+              kind: :automatic,
+              casting_ability: :int,
+              dice: nil,
+              damage_type: nil
+            }
+          ],
+          side: "pc"
+        )
+
+      {:ok, w} = World.add_character(wizard).(World.new())
+      w = World.init_spell_slots(w)
+
+      # 1d4+4 with roller=4 → 8 temp_hp on the caster (not the target name)
+      {:ok, msg, change} = Actions.spell(w, "Lyra", "false life", "Lyra", fixed(4))
+
+      assert msg =~ "pg temporales"
+      refute msg =~ "recibe"
+      {:ok, w2} = change.(w)
+      assert w2.characters["Lyra"].temp_hp == 8
+      assert w2.characters["Lyra"].hp == 8
+      assert w2.spell_slots["Lyra"][1] == 1
+    end
   end
 
   describe "bestiary" do

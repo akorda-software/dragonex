@@ -380,6 +380,31 @@ Attack. No cambia `Character`/`Weapon`/`Spell`/`Item`.
 R09 queda **parcial**: Extra Attack entra; el resto de features por nivel
 sigue 🟡. D12–D15 intactos (no SUPERSEDED).
 
+### D36 — Puntos de golpe temporales 5e
+Estado: **Aceptada** — 2026-09-10.
+
+El campo `Character.temp_hp` ya existía y el Codec lo round-trippea; no
+había regla que lo consumiera. Entra RAW v1:
+
+- El daño golpea primero `temp_hp`; el resto a `hp`. `temp_hp` nunca
+  negativo. `World.apply_damage/2` es el único sitio que resta.
+- No se acumulan: al otorgar, el personaje se queda con
+  `max(temp_hp actual, cantidad nueva)` (no sumar).
+- `heal` no toca `temp_hp`.
+- Caer a 0 hp (death saves, `down?/2`, Extra Attack mid-action) mira
+  `hp`, no `temp_hp`.
+- Sin reloj de duración (False Life 1h etc. queda fuera). `long_rest`
+  no borra `temp_hp`: hoy no limpia estado transitorio y no se inventa
+  un wipe.
+- Otorgar: `World.apply_temp_hp/2` + tool `grant_temp_hp` (DM a
+  cualquiera; PC sólo sobre sí mismo). El LLM no escribe el campo a
+  mano.
+- No cambia `Character`/`Weapon`/`Spell`/`Item`. D12–D15 y D35 intactos.
+
+False Life (key SRD `"false life"`, `dice` nil): `Actions.spell` tira
+`1d4+4` con el roller inyectado, aplica `apply_temp_hp` al **caster**
+y consume slot. No se retargetea a daño. Duración 1h no se modela.
+
 ---
 
 ## Pendientes de decisión (abiertas)

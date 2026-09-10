@@ -11,10 +11,11 @@ defmodule Dragonex.World do
   Invariants enforced by the transitions (not by the LLM):
 
     * damage floors at 0,
+    * damage hits `temp_hp` first, remainder to `hp` (D36); `temp_hp` never negative,
     * you can't damage/heal a missing character,
     * `begin_combat` requires the exploration phase and known combatants,
     * the death-save tracker resolves dead (3 fails) / stable (3 successes) /
-      revive (nat 20).
+      revive (nat 20) and looks at `hp`, not `temp_hp`.
 
   Characters are stored as full `Dragonex.Character` structs, so the engine can
   read any stat (AC, abilities, weapons ...) straight from the world.
@@ -256,8 +257,36 @@ defmodule Dragonex.World do
           {:error, "no such character: #{target}"}
 
         %Character{} = c ->
-          new_hp = max(0, c.hp - amount)
-          {:ok, %{w | characters: Map.put(w.characters, target, %{c | hp: new_hp})}}
+          temp = c.temp_hp || 0
+          absorbed = min(temp, amount)
+          rest = amount - absorbed
+          new_temp = temp - absorbed
+          new_hp = max(0, (c.hp || 0) - rest)
+          {:ok, put_char(w, target, %{c | hp: new_hp, temp_hp: new_temp})}
+      end
+    end
+  end
+
+  @doc """
+  Grant temporary hit points (5e, D36). Does not stack: the character keeps
+  `max(current temp_hp, amount)`. Amount must be positive; `heal/2` never
+  writes this field.
+  """
+  @spec apply_temp_hp(String.t(), integer()) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def apply_temp_hp(_name, amount) when is_integer(amount) and amount <= 0 do
+    fn _w -> {:error, "temp_hp amount must be positive (got #{amount})"} end
+  end
+
+  def apply_temp_hp(name, amount) when is_integer(amount) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          current = c.temp_hp || 0
+          {:ok, put_char(w, name, %{c | temp_hp: max(current, amount)})}
       end
     end
   end

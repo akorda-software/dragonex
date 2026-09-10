@@ -264,12 +264,30 @@ defmodule Dragonex.Tools do
     end
   end
 
-  @doc "Heal `target` by a dice expression (e.g. \"1d8+3\"); caps at max hp. Death saves clear only if hp rises above 0."
+  @doc "Heal `target` by a dice expression (e.g. \"1d8+3\"); caps at max hp. Death saves clear only if hp rises above 0. Does not touch temp_hp."
   deftool heal(ctx, target :: String.t(), dice :: String.t()) do
     with {:ok, msg, change} <-
            Dragonex.Actions.heal(world(ctx), target, dice, ctx.deps.roller, ctx.deps[:roll_log]),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
+    end
+  end
+
+  @doc """
+  Grant `amount` temporary hit points to `who` (5e, D36). Does not stack: the
+  character keeps the higher of current temp_hp and `amount`. Does not heal.
+  The DM may grant to anyone; a PC may only grant to themselves.
+  """
+  deftool grant_temp_hp(ctx, who :: String.t(), amount :: integer()) do
+    current =
+      case Dragonex.World.character(world(ctx), who) do
+        nil -> 0
+        c -> c.temp_hp || 0
+      end
+
+    with :ok <- assert_grant_temp_hp(ctx, who),
+         {:ok, _} <- propose(ctx, Dragonex.World.apply_temp_hp(who, amount)) do
+      {:ok, "#{who} queda con #{max(current, amount)} pg temporales."}
     end
   end
 
@@ -347,6 +365,17 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error, "RECHAZADO — solo puedes descansar tú mismo (#{proposer}), no a #{target}."}
+    end
+  end
+
+  defp assert_grant_temp_hp(ctx, who) do
+    proposer = ctx.deps.state.participant_id
+
+    if proposer == "dm" or proposer == who do
+      :ok
+    else
+      {:error,
+       "RECHAZADO — solo puedes otorgar pg temporales a ti mismo (#{proposer}), no a #{who}."}
     end
   end
 
