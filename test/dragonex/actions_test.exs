@@ -304,6 +304,38 @@ defmodule Dragonex.ActionsTest do
       {:ok, w2} = change.(world)
       assert w2.initiative_order == ["Thane"]
     end
+
+    test "same total, higher DEX score goes first" do
+      low =
+        Character.new(name: "Aldo", class: "fighter", hp: 10, max_hp: 10, dex: 16)
+
+      high =
+        Character.new(name: "Zed", class: "fighter", hp: 10, max_hp: 10, dex: 17)
+
+      world =
+        World.new()
+        |> then_apply(World.add_character(low))
+        |> then_apply(World.add_character(high))
+
+      # both mod +3, roller 10 → total 13; Zed wins on DEX 17 > 16 (not name).
+      assert {:ok, _msg, change} = Actions.initiative(world, always(10))
+      {:ok, w2} = change.(world)
+      assert w2.initiative_order == ["Zed", "Aldo"]
+    end
+
+    test "same total and DEX breaks ties by name ascending" do
+      zed = Character.new(name: "Zed", class: "fighter", hp: 10, max_hp: 10, dex: 14)
+      aldo = Character.new(name: "Aldo", class: "fighter", hp: 10, max_hp: 10, dex: 14)
+
+      world =
+        World.new()
+        |> then_apply(World.add_character(zed))
+        |> then_apply(World.add_character(aldo))
+
+      assert {:ok, _msg, change} = Actions.initiative(world, always(10))
+      {:ok, w2} = change.(world)
+      assert w2.initiative_order == ["Aldo", "Zed"]
+    end
   end
 
   describe "death_save/3" do

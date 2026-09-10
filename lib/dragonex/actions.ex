@@ -175,8 +175,8 @@ defmodule Dragonex.Actions do
 
   @doc """
   Roll initiative for every conscious combatant (hp > 0), highest total first,
-  and produce a `begin_combat` change. Ties break by name for determinism (5e
-  would use dexterity then a roll-off — a refinement for later).
+  and produce a `begin_combat` change. Ties break by DEX score desc, then name
+  asc (D39). 5e would then roll off — skipped so fixed rollers stay deterministic.
   """
   @spec initiative(World.t(), roller(), RollLog.t() | nil) :: result()
   def initiative(world, roller, roll_log \\ nil) do
@@ -189,12 +189,12 @@ defmodule Dragonex.Actions do
         rolled = Combat.roll_initiative(c, r)
         {_d20, total} = rolled
         RollLog.close(close, total: total, against: nil, outcome: nil)
-        {name, rolled}
+        {name, rolled, c.dex}
       end)
-      |> Enum.sort_by(fn {name, {_d20, total}} -> {-total, name} end)
+      |> Enum.sort_by(fn {name, {_d20, total}, dex} -> {-total, -dex, name} end)
 
     summary =
-      Enum.map_join(ordered, ", ", fn {name, {d20, total}} -> "#{name} #{d20}→#{total}" end)
+      Enum.map_join(ordered, ", ", fn {name, {d20, total}, _dex} -> "#{name} #{d20}→#{total}" end)
 
     names = Enum.map(ordered, &elem(&1, 0))
 

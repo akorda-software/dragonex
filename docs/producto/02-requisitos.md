@@ -106,7 +106,7 @@ hechizos nuevos respetando `max_spell_level`, half-casters desde nivel 2.
 - `spells_known` sin tope modelado (D14).
 - Features de clase por nivel: Extra Attack a L5 (D35) y spellcasting de
   paladín/ranger a L2; el resto sigue fuera.
-- Empate de iniciativa por nombre, no dex+roll-off (D15).
+- Empate de iniciativa por DEX score y luego nombre; sin roll-off extra (D39).
 
 > **No son bugs.** Cambiar cualquiera exige un ADR que reemplace al vigente.
 

@@ -24,7 +24,8 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 ### M02 — Iniciativa
 - **Dónde**: `Actions.initiative/3` + `World.begin_combat/1`.
 - **5e**: d20+dex por combatiente consciente; orden desc.
-- **Simplificación**: empate rompe por **nombre**, no dex+roll-off (D15).
+- **Simplificación**: empate por **DEX score** desc, luego **nombre** asc;
+  sin d20 de desempate (D39). El roll-off extra rompería rollers fijos.
 - **Extras**: `join_initiative/1` para monstruos que entran tarde (composición
   segura en exploración); `acted_this_round` para mini-turnos del TurnMaster.
 - **Tests**: `actions_test.exs`, `turn_master_loop_test.exs`.

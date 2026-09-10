@@ -98,6 +98,8 @@ subir; los de lista cerrada (bardo/hechicero) no tienen tope modelado. Por
 simplificar; documentado en `progression.ex:14-28`.
 
 ### D15 — Iniciativa: empate rompe por nombre
+**SUPERSEDED** por D39.
+
 `Actions.initiative/3` desempata por nombre para determinismo (tests). 5e
 usaría destreza y luego roll-off; queda como refinamiento futuro
 (`actions.ex:231`).
@@ -458,6 +460,23 @@ Entra RAW v1 de resistencias 5e. El LLM no calcula el modificador (D1).
   para fichas viejas.
 - No magic vs mundane, no "resistance to all but …". D35–D37 intactos.
   No se cambia `Weapon`/`Spell`/`Item`.
+
+### D39 — Iniciativa: empate por DEX luego nombre
+Estado: **Aceptada** — 2026-09-10. SUPERSEDE D15.
+
+RAW v1 de desempate, **sin** roll-off extra (un d20 extra rompería
+rollers fijos de tests). Orden en `Actions.initiative/3`:
+
+1. total (d20 + mod DEX) descendente
+2. puntuación DEX descendente
+3. nombre ascendente (determinista)
+
+`sort_by({-total, -dex, name})`. Los tests Vex/Thane (totales distintos)
+siguen verdes. No cambia `Character`/`Weapon`/`Spell`/`Item`. D12–D14 y
+D35–D38 intactos.
+
+Deuda: el roll-off 5e (d20 extra entre empatados) queda fuera para no
+consumir el roller inyectado.
 
 ---
 

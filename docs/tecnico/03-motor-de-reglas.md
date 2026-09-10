@@ -64,7 +64,7 @@ cada tirada para el dado modal (`RollLog`).
 |---|---|
 | `attack/7` | arma vs objetivo; ajusta modo por `Rules.Conditions.attack_mode/3` |
 | `spell/6` | rama por `spell.kind`: `:automatic` (magic missile), `:attack` (fire bolt, crit dobla dados, modo por condiciones, se trata como ranged), `:save` (mitad en éxito; DEX restrained = desventaja; STR/DEX auto-fallo si paralizado/aturdido/inconsciente/petrificado). Consume slot si `level > 0`. |
-| `initiative/3` | tira iniciativa para todos los conscientes, ordena desc con tiebreak por nombre (`D15`) |
+| `initiative/3` | tira iniciativa para todos los conscientes, ordena desc con tiebreak DEX luego nombre (`D39`) |
 | `death_save/4` | rechaza muertos (3 fails), estables (3 éxitos) y no-caídos |
 | `heal/5` | parsea la expresión (p.ej. `1d8+3`), tope max_hp; resetea death_saves |
 | `short_rest/4` / `long_rest/2` | descanso; `long_rest` restaura slots |
@@ -153,4 +153,4 @@ Resistencias: D38.
 
 - [`04-agentes-dm-y-pc.md`](04-agentes-dm-y-pc.md) — cómo el LLM llama a estas tools.
 - [`01-bucle-del-agente.md`](01-bucle-del-agente.md) — dónde encaja el motor en el beat.
-- [`../decisions.md`](../decisions.md) — `D1` (motor = verdad), `D15` (iniciativa), `D16` (facts).
+- [`../decisions.md`](../decisions.md) — `D1` (motor = verdad), `D39` (iniciativa), `D16` (facts).
