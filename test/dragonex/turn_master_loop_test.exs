@@ -24,6 +24,13 @@ defmodule Dragonex.TurnMasterLoopTest do
     end
   end
 
+  defp kill_roller do
+    fn
+      20 -> 15
+      _n -> 6
+    end
+  end
+
   # DM narrates once; TurnMaster hands to Thane then back to dm.
   defp dm_script do
     [
@@ -421,6 +428,69 @@ defmodule Dragonex.TurnMasterLoopTest do
     assert Enum.any?(notes, &(&1 =~ "g1"))
     assert Enum.any?(notes, &(&1 =~ "g2"))
     assert Enum.any?(notes, &(&1 =~ "g3"))
+  end
+
+  test "mid-round monster death skips the fallen and still beats remaining slots (D34)" do
+    {:ok, game} =
+      Games.create_game(
+        title: "d34 mid-round death",
+        scene: "a torchlit ruin",
+        roster: [
+          {Archetypes.fighter(), :human},
+          {Monsters.goblin(name: "g1"), :ai},
+          {Monsters.goblin(name: "g2"), :ai},
+          {Monsters.goblin(name: "g3"), :ai}
+        ],
+        initiative: ["g1", "g2", "g3", "Thane"]
+      )
+
+    dm_beats = [
+      tool_calls([
+        call("make_attack", %{
+          "attacker" => "g1",
+          "target" => "g2",
+          "weapon" => "scimitar"
+        })
+      ]),
+      text("g1 abate a g2."),
+      tool_calls([
+        call("make_attack", %{
+          "attacker" => "g3",
+          "target" => "Thane",
+          "weapon" => "scimitar"
+        })
+      ]),
+      text("g3 ataca."),
+      text("El DM cierra."),
+      text("ok")
+    ]
+
+    pid =
+      start_supervised!(
+        {Dragonex.Game,
+         {game.id,
+          [
+            model: %Test{script: dm_beats},
+            turnmaster_model: %Test{label: "(no decision)"},
+            roller: kill_roller()
+          ]}}
+      )
+
+    assert :ok == Game.await(pid, waiting_on("Thane"), 15_000)
+
+    snap = Game.snapshot(pid)
+    assert snap.world.phase == :combat
+    assert snap.world.characters["g2"].hp == 0
+    cycle = World.combat_cycle(snap.world)
+    refute "g2" in cycle
+    assert "g1" in cycle
+    assert "g3" in cycle
+    assert "Thane" in cycle
+
+    events = Games.list_events(game.id)
+    dm_narr = Enum.filter(events, &(&1.actor == "dm" and &1.type == :narration))
+    texts = Enum.map(dm_narr, &(&1.payload["text"] || ""))
+    assert Enum.any?(texts, &(&1 =~ "g3 ataca"))
   end
 
   test "cut_in records mini-turn decision without requiring Game mutation from tools" do

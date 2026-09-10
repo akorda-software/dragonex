@@ -74,6 +74,19 @@ defmodule Dragonex.CodecTest do
       assert Codec.decode(Codec.encode(w)).current_combatant == "goblin"
     end
 
+    test "current_combatant absent in old jsonb is nil" do
+      w = World.new(phase: :combat, initiative_order: ["goblin", "Thane"])
+      encoded = w |> Codec.encode() |> Map.delete("current_combatant")
+      refute Map.has_key?(encoded, "current_combatant")
+
+      {:ok, json} = Jason.encode(encoded)
+      {:ok, decoded_map} = Jason.decode(json)
+
+      decoded = Codec.decode(decoded_map)
+      assert %World{} = decoded
+      assert decoded.current_combatant == nil
+    end
+
     test "death_saves tracker survives" do
       c =
         Character.new(
