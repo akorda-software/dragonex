@@ -58,7 +58,7 @@ GitHub `kukapu/exagent` branch `main`.)
 
 Tools reales: `set_scene`, `establish_fact`, `roll_dice`, `roll_initiative`,
 `make_attack`, `cast_spell`, `make_death_save`, `end_combat`, `short_rest`,
-`long_rest`, `spawn_monster`, `heal`, `grant_temp_hp`, `ability_check`, `apply_condition`,
+`long_rest`, `spawn_monster`, `heal`, `grant_temp_hp`, `drop_concentration`, `ability_check`, `apply_condition`,
 `remove_condition`, `level_up`.
 Stubs legacy (sólo para tests del framework exAgent): `attack/2`, `roll/1`,
 `spawn_character/2`, `next_round/0`.

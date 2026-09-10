@@ -34,6 +34,18 @@ defmodule Dragonex.Heroes.SRDSpellsTest do
       names = Enum.map(all, & &1.name)
       assert names == Enum.uniq(names)
     end
+
+    test "concentration?/1: SRD flag wins; builtin without flag is false (D37)" do
+      refute Spells.concentration?("magic missile")
+      refute Spells.concentration?("fire bolt")
+      refute Spells.concentration?("unknown spell xyz")
+
+      if SRDSpells.loaded?() do
+        assert Spells.concentration?("bless")
+        assert Spells.concentration?("shield of faith")
+        assert Spells.concentration?("hold person")
+      end
+    end
   end
 
   # Lo siguiente solo si el importer ya corrió.

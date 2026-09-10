@@ -20,13 +20,15 @@ defmodule Dragonex.PCAgent do
   @doc """
   The PC's tool set — a restricted subset of the game tools.
 
-  PCs can attack, cast spells, make ability checks, death-save, and rest.
-  They CANNOT: set the scene, spawn monsters, roll initiative, end combat,
-  level up, or apply conditions (the DM and the engine handle those).
+  PCs can attack, cast spells, make ability checks, death-save, rest, and
+  drop their own concentration. They CANNOT: set the scene, spawn monsters,
+  roll initiative, end combat, level up, or apply conditions (the DM and
+  the engine handle those).
   """
   @spec tools() :: [term()]
   def tools do
-    pc_tools = ~w(make_attack cast_spell ability_check make_death_save short_rest long_rest)
+    pc_tools =
+      ~w(make_attack cast_spell ability_check make_death_save short_rest long_rest drop_concentration)
 
     Tools.tools()
     |> Enum.filter(fn tool -> to_string(tool.name) in pc_tools end)

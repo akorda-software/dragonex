@@ -712,6 +712,7 @@ defmodule Dragonex.Heroes do
       hp: hp,
       max_hp: hp,
       temp_hp: 0,
+      concentrating: nil,
       ac: ac,
       speed: race.speed,
       str: scores[:str],

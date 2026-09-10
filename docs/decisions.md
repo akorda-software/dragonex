@@ -405,6 +405,33 @@ False Life (key SRD `"false life"`, `dice` nil): `Actions.spell` tira
 `1d4+4` con el roller inyectado, aplica `apply_temp_hp` al **caster**
 y consume slot. No se retargetea a daño. Duración 1h no se modela.
 
+### D37 — Concentración 5e
+Estado: **Aceptada** — 2026-09-10.
+
+Entra el **estado** de concentrar y **romperlo**. El LLM sigue narrando
+el buff; el motor dice si se mantiene o se pierde (D1). No hay reloj de
+duración ni efecto mecánico de Bless/Hold Person/+1d4.
+
+- `Character.concentrating` : `String.t() | nil` — clave del hechizo, `nil`
+  si no concentra. Codec encode/decode; jsonb viejo sin clave → `nil`
+  (como `current_combatant` D34). Primer cambio de forma de `Character`
+  de esta tanda (D4/D8).
+- ¿Es de concentración? `Heroes.Spells.concentration?/1` lee el catálogo
+  (`Spells.get/1` / SRD, `concentration: true`). Builtin sin flag = no
+  concentración, salvo que el SRD traiga la clave (el SRD gana).
+- Al lanzar un hechizo de concentración se reemplaza el anterior (no hay
+  dos a la vez). Tool `drop_concentration(who)` para soltar a propósito
+  (DM cualquiera; PC sólo sí mismo).
+- Al recibir daño > 0 (el amount **original** del golpe, tras absorber
+  `temp_hp` en hp): salvación CON DC = `max(10, div(damage, 2))`. Fallo →
+  `concentrating` nil. Cada golpe de Extra Attack es un chequeo (RAW) si
+  el concentrador sigue en pie. El roller no cabe en `World.apply_damage`
+  (change_fn puro); el chequeo vive en `Actions`. `World.apply_damage`
+  sigue solo hp/`temp_hp`. Helper `World.clear_concentration/1`.
+- Condiciones que rompen sin tirada (al `apply_condition`): unconscious,
+  incapacitated, stunned, paralyzed, petrified. hp a 0 rompe.
+- No se cambia `Weapon`/`Spell`/`Item`. D35/D36 intactos.
+
 ---
 
 ## Pendientes de decisión (abiertas)

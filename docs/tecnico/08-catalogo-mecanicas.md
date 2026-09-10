@@ -1,4 +1,4 @@
-# Catálogo de mecánicas 5e (M1–M22)
+# Catálogo de mecánicas 5e (M1–M24)
 
 > **Técnico.** Cada mecánica implementada, con identificador estable `Mxx`,
 > dónde vive (módulo:función), qué regla 5e aplica, sus simplificaciones (ADR)
@@ -191,16 +191,27 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   False Life SRD (`dice` nil): `Actions.spell` tira 1d4+4 al caster.
 - **Tests**: `world_test.exs`, `healing_and_bestiary_test.exs`.
 
+### M24 — Concentración (`concentrating`, D37)
+- **Dónde**: `Character.concentrating` (Codec, default nil). Catálogo
+  `Heroes.Spells.concentration?/1`. `Actions.spell` fija el campo al
+  lanzar; `Actions.attack`/`spell` (daño) tira salvación CON
+  DC = `max(10, div(damage, 2))` por golpe. `World.clear_concentration/1`,
+  `World.set_concentration/2`. `apply_condition` de unconscious /
+  incapacitated / stunned / paralyzed / petrified rompe sin tirada. hp a
+  0 rompe. Tool `drop_concentration`. Sin reloj de duración; el LLM narra
+  el buff.
+- **Tests**: `concentration_test.exs`, `codec_test.exs`, `world_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
 
-Concentración · resistencias/vulnerabilidades ·
+resistencias/vulnerabilidades ·
 reacciones como mecánica formal (TurnMaster da interrupciones narrativas) ·
 multiclase · feats · Pact Magic. Iniciativa individual por monstruo: **D34**.
-`temp_hp`: **D36 / M23**.
+`temp_hp`: **D36 / M23**. Concentración: **D37 / M24**.
 
-Para que una de estas entre: ADR nuevo + mecánica `M24+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M25+` en este catálogo +
 tests.
 
 ## Dados

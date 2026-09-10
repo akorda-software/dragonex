@@ -286,6 +286,7 @@ defmodule Dragonex.PCAgentTest do
       assert "make_death_save" in tool_names
       assert "short_rest" in tool_names
       assert "long_rest" in tool_names
+      assert "drop_concentration" in tool_names
 
       # PC CANNOT use these (DM-only)
       refute "set_scene" in tool_names

@@ -291,6 +291,37 @@ defmodule Dragonex.World do
     end
   end
 
+  @doc """
+  Set `who`'s concentration to a spell key (5e, D37). Replaces any previous
+  concentration. Does not inspect the catalogue — the caller decides.
+  """
+  @spec set_concentration(String.t(), String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def set_concentration(name, spell_name) when is_binary(spell_name) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          {:ok, put_char(w, name, %{c | concentrating: spell_name})}
+      end
+    end
+  end
+
+  @doc "Drop concentration (5e, D37). Idempotent if already nil."
+  @spec clear_concentration(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def clear_concentration(name) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          {:ok, put_char(w, name, %{c | concentrating: nil})}
+      end
+    end
+  end
+
   @spec heal(String.t(), non_neg_integer()) ::
           (t() -> {:ok, t()} | {:error, String.t()})
   def heal(target, amount) do
@@ -595,6 +626,8 @@ defmodule Dragonex.World do
     end
   end
 
+  @breaks_concentration ~w(unconscious incapacitated stunned paralyzed petrified)
+
   @doc "Apply a condition to a character (idempotent — duplicates are skipped)."
   @spec apply_condition(String.t(), String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
   def apply_condition(target, condition) do
@@ -604,12 +637,19 @@ defmodule Dragonex.World do
           {:error, "no such character: #{target}"}
 
         %Character{conditions: conds} = c ->
-          if has_condition?(w, target, condition) do
-            {:ok, w}
-          else
-            updated = %{c | conditions: conds ++ [%{condition: condition}]}
-            {:ok, put_char(w, target, updated)}
-          end
+          updated =
+            if has_condition?(w, target, condition) do
+              c
+            else
+              %{c | conditions: conds ++ [%{condition: condition}]}
+            end
+
+          updated =
+            if condition in @breaks_concentration,
+              do: %{updated | concentrating: nil},
+              else: updated
+
+          {:ok, put_char(w, target, updated)}
       end
     end
   end

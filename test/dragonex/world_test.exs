@@ -94,6 +94,52 @@ defmodule Dragonex.WorldTest do
     end
   end
 
+  describe "concentration (D37)" do
+    test "set_concentration / clear_concentration" do
+      w = World.new() |> apply!(World.add_character(goblin(7)))
+      assert w.characters["goblin"].concentrating == nil
+
+      w = apply!(w, World.set_concentration("goblin", "bless"))
+      assert w.characters["goblin"].concentrating == "bless"
+
+      w = apply!(w, World.set_concentration("goblin", "shield of faith"))
+      assert w.characters["goblin"].concentrating == "shield of faith"
+
+      w = apply!(w, World.clear_concentration("goblin"))
+      assert w.characters["goblin"].concentrating == nil
+
+      w = apply!(w, World.clear_concentration("goblin"))
+      assert w.characters["goblin"].concentrating == nil
+    end
+
+    test "apply_condition of incapacitated-class conditions drops concentration" do
+      w =
+        World.new()
+        |> apply!(World.add_character(%{goblin(7) | concentrating: "bless"}))
+
+      w = apply!(w, World.apply_condition("goblin", "stunned"))
+      assert w.characters["goblin"].concentrating == nil
+      assert World.has_condition?(w, "goblin", "stunned")
+    end
+
+    test "apply_damage does not itself clear concentration" do
+      w =
+        World.new()
+        |> apply!(World.add_character(%{goblin(7) | concentrating: "bless"}))
+
+      w = apply!(w, World.apply_damage("goblin", 3))
+      assert w.characters["goblin"].concentrating == "bless"
+    end
+
+    test "errors on an unknown character" do
+      assert {:error, "no such character: ghost"} =
+               World.set_concentration("ghost", "bless").(World.new())
+
+      assert {:error, "no such character: ghost"} =
+               World.clear_concentration("ghost").(World.new())
+    end
+  end
+
   describe "heal/2" do
     test "is capped at max_hp and clears the death-save tracker" do
       w =

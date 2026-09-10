@@ -507,7 +507,7 @@ defmodule Dragonex.Games do
 
   Aplica los deltas (nivel, max_hp, vitalidad retroactiva de CON, atributos ASI,
   hechizos nuevos, class_features, xp) **sin pisar** el estado transitorio del
-  combate (hp actual dañado, condiciones, death_saves, temp_hp, slots usados):
+  combate (hp actual dañado, condiciones, death_saves, temp_hp, concentrating, slots usados):
   subir de nivel no cura (RAW). También actualiza el snapshot `characters.sheet`.
 
   Limitación v1: si el proceso `Game` está activo procesando beats, su próxima

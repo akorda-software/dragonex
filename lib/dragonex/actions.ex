@@ -15,7 +15,7 @@ defmodule Dragonex.Actions do
   """
 
   alias Dragonex.{Character, Dice, RollLog, Rules.Ability, Rules.Combat, Rules.Conditions, World}
-  alias Dragonex.Heroes.Progression
+  alias Dragonex.Heroes.{Progression, Spells}
 
   @type roller :: (pos_integer() -> pos_integer())
   @type result ::
@@ -100,8 +100,13 @@ defmodule Dragonex.Actions do
             swings =
               resolve_swings(a, t, attacker, target, weapon, roller, roll_log, effective_mode, n)
 
-            {:ok, format_attack_message(attacker, target, weapon, t.ac, effective_mode, swings),
-             apply_swing_damages(target, swings)}
+            {notes, change} = pipe_damage(target, swing_amounts(swings), roller, roll_log, t)
+
+            {:ok,
+             append_notes(
+               format_attack_message(attacker, target, weapon, t.ac, effective_mode, swings),
+               notes
+             ), change}
         end
     end
   end
@@ -143,7 +148,10 @@ defmodule Dragonex.Actions do
                  "(debe descansar para recuperarlas). Los trucos siempre están disponibles."}
             else
               result = resolve_spell(c, caster_name, t, target_name, spell, roller, roll_log)
-              compose_slot_consumption(result, caster_name, spell.level)
+
+              result
+              |> compose_slot_consumption(caster_name, spell.level)
+              |> compose_concentration(caster_name, spell)
             end
         end
     end
@@ -418,9 +426,14 @@ defmodule Dragonex.Actions do
               outcome: nil
             )
 
-            {:ok,
-             "#{caster_name} conjura #{spell.name}; #{target_name} recibe #{amount} de daño #{spell.damage_type}#{verb}.",
-             World.apply_damage(target_name, amount)}
+            with_conc_damage(
+              "#{caster_name} conjura #{spell.name}; #{target_name} recibe #{amount} de daño #{spell.damage_type}#{verb}.",
+              target_name,
+              amount,
+              roller,
+              roll_log,
+              t
+            )
 
           # Utility spell (shield, bless, etc.): no dice → just report
           true ->
@@ -467,9 +480,14 @@ defmodule Dragonex.Actions do
 
           RollLog.close(close_dmg, total: dmg, against: nil, outcome: nil)
 
-          {:ok,
-           "#{caster_name} conjura #{spell.name}; impacta a #{target_name} (d20 #{d20}: #{total} vs CA #{t.ac}) por #{dmg} de daño #{spell.damage_type}#{mode_tag(effective_mode)}.",
-           World.apply_damage(target_name, dmg)}
+          with_conc_damage(
+            "#{caster_name} conjura #{spell.name}; impacta a #{target_name} (d20 #{d20}: #{total} vs CA #{t.ac}) por #{dmg} de daño #{spell.damage_type}#{mode_tag(effective_mode)}.",
+            target_name,
+            dmg,
+            roller,
+            roll_log,
+            t
+          )
         else
           {:ok,
            "#{caster_name} conjura #{spell.name}; falla contra #{target_name} (d20 #{d20}: #{total} vs CA #{t.ac})#{mode_tag(effective_mode)}.",
@@ -498,9 +516,14 @@ defmodule Dragonex.Actions do
         full = dice_with(spell, r2)
         RollLog.close(close_dmg, total: full, against: nil, outcome: nil)
 
-        {:ok,
-         "#{caster_name} conjura #{spell.name}; #{target_name} falla automáticamente la salvación de #{ability_es(spell.save_ability)} vs CD #{dc} — #{full} de daño #{spell.damage_type}.",
-         World.apply_damage(target_name, full)}
+        with_conc_damage(
+          "#{caster_name} conjura #{spell.name}; #{target_name} falla automáticamente la salvación de #{ability_es(spell.save_ability)} vs CD #{dc} — #{full} de daño #{spell.damage_type}.",
+          target_name,
+          full,
+          roller,
+          roll_log,
+          t
+        )
 
       {:roll, save_mode} ->
         {r, close_save} =
@@ -540,9 +563,14 @@ defmodule Dragonex.Actions do
               "supera la salvación (d20 #{d20}: #{stotal} vs CD #{dc})#{mode_tag(save_mode)}, mitad de daño",
             else: "falla la salvación (d20 #{d20}: #{stotal} vs CD #{dc})#{mode_tag(save_mode)}"
 
-        {:ok,
-         "#{caster_name} conjura #{spell.name}; #{target_name} #{verdict} — #{dmg} de daño #{spell.damage_type}.",
-         World.apply_damage(target_name, dmg)}
+        with_conc_damage(
+          "#{caster_name} conjura #{spell.name}; #{target_name} #{verdict} — #{dmg} de daño #{spell.damage_type}.",
+          target_name,
+          dmg,
+          roller,
+          roll_log,
+          t
+        )
     end
   end
 
@@ -651,33 +679,133 @@ defmodule Dragonex.Actions do
     "#{verb} (d20 #{d20}: #{total} vs CA #{ac}) por #{dmg} de daño #{weapon.damage_type}"
   end
 
-  defp apply_swing_damages(target, swings) do
-    amounts = for %{dmg: dmg} <- swings, dmg > 0, do: dmg
+  defp swing_amounts(swings), do: for(%{dmg: dmg} <- swings, dmg > 0, do: dmg)
 
-    case amounts do
-      [] ->
-        noop()
-
-      amounts ->
-        fn w ->
-          Enum.reduce_while(amounts, {:ok, w}, fn amount, {:ok, acc} ->
-            case World.character(acc, target) do
-              %Character{hp: hp} when hp <= 0 ->
-                {:halt, {:ok, acc}}
-
-              %Character{} ->
-                case World.apply_damage(target, amount).(acc) do
-                  {:ok, next} -> {:cont, {:ok, next}}
-                  error -> {:halt, error}
-                end
-
-              nil ->
-                {:halt, {:error, "no such character: #{target}"}}
-            end
-          end)
+  defp compose_concentration({:ok, msg, change}, caster, spell) do
+    if Spells.concentration?(spell.name) do
+      combined = fn w ->
+        case change.(w) do
+          {:ok, w2} -> World.set_concentration(caster, spell.name).(w2)
+          error -> error
         end
+      end
+
+      {:ok, "#{msg} #{caster} concentra en #{spell.name}.", combined}
+    else
+      {:ok, msg, change}
     end
   end
+
+  defp compose_concentration(result, _caster, _spell), do: result
+
+  defp with_conc_damage(msg, target_name, amount, roller, roll_log, target_char) do
+    {notes, change} = pipe_damage(target_name, [amount], roller, roll_log, target_char)
+    {:ok, append_notes(msg, notes), change}
+  end
+
+  defp pipe_damage(_target, [], _roller, _roll_log, _char), do: {[], noop()}
+
+  defp pipe_damage(target, amounts, roller, roll_log, char) do
+    amounts = Enum.filter(amounts, &(&1 > 0))
+
+    {pairs, _char} =
+      Enum.map_reduce(amounts, char, fn amount, c ->
+        {note, break?, c2} = one_hit_concentration(c, amount, roller, roll_log)
+        {{note, break?}, c2}
+      end)
+
+    notes = pairs |> Enum.map(&elem(&1, 0)) |> Enum.reject(&is_nil/1)
+    flags = Enum.map(pairs, &elem(&1, 1))
+
+    change = fn w ->
+      Enum.reduce_while(Enum.zip(amounts, flags), {:ok, w}, fn {amount, break?}, {:ok, acc} ->
+        case World.character(acc, target) do
+          %Character{hp: hp} when hp <= 0 ->
+            {:halt, {:ok, acc}}
+
+          %Character{} ->
+            case World.apply_damage(target, amount).(acc) do
+              {:ok, next} ->
+                next =
+                  if break? do
+                    case World.clear_concentration(target).(next) do
+                      {:ok, cleared} -> cleared
+                      _ -> next
+                    end
+                  else
+                    next
+                  end
+
+                {:cont, {:ok, next}}
+
+              error ->
+                {:halt, error}
+            end
+
+          nil ->
+            {:halt, {:error, "no such character: #{target}"}}
+        end
+      end)
+    end
+
+    {notes, change}
+  end
+
+  defp one_hit_concentration(%Character{concentrating: nil} = c, amount, _roller, _roll_log) do
+    {nil, false, simulate_damage(c, amount)}
+  end
+
+  defp one_hit_concentration(%Character{} = c, amount, roller, roll_log) do
+    c2 = simulate_damage(c, amount)
+
+    cond do
+      c2.hp <= 0 ->
+        {"#{c.name} cae a 0 pg y pierde la concentración en #{c.concentrating}.", true,
+         %{c2 | concentrating: nil}}
+
+      amount > 0 ->
+        dc = max(10, div(amount, 2))
+        {:roll, mode} = Conditions.save_mode(c, :con)
+
+        {r, close} =
+          RollLog.open(
+            roll_log,
+            roller,
+            c.name,
+            :save,
+            "salvación de Constitución (concentración)"
+          )
+
+        {d20, total, success?} = Combat.saving_throw(c, :con, dc, r, mode)
+
+        RollLog.close(close,
+          total: total,
+          against: {:dc, dc},
+          outcome: if(success?, do: :success, else: :failure)
+        )
+
+        if success? do
+          {"#{c.name} mantiene la concentración en #{c.concentrating} (d20 #{d20}: #{total} vs CD #{dc}).",
+           false, c2}
+        else
+          {"#{c.name} pierde la concentración en #{c.concentrating} (d20 #{d20}: #{total} vs CD #{dc}).",
+           true, %{c2 | concentrating: nil}}
+        end
+
+      true ->
+        {nil, false, c2}
+    end
+  end
+
+  defp simulate_damage(%Character{} = c, amount) do
+    temp = c.temp_hp || 0
+    absorbed = min(temp, amount)
+    rest = amount - absorbed
+    %{c | temp_hp: temp - absorbed, hp: max(0, (c.hp || 0) - rest)}
+  end
+
+  defp append_notes(msg, []), do: msg
+  defp append_notes(msg, notes), do: msg <> " " <> Enum.join(notes, " ")
 
   defp find_weapon(%Character{weapons: weapons}, name), do: match_named(weapons, name)
 

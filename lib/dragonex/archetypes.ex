@@ -32,6 +32,7 @@ defmodule Dragonex.Archetypes do
       hp: 12,
       max_hp: 12,
       temp_hp: 0,
+      concentrating: nil,
       ac: 16,
       speed: 30,
       backstory:
@@ -69,6 +70,7 @@ defmodule Dragonex.Archetypes do
       hp: 7,
       max_hp: 7,
       temp_hp: 0,
+      concentrating: nil,
       ac: 12,
       speed: 30,
       backstory:
@@ -105,6 +107,7 @@ defmodule Dragonex.Archetypes do
       hp: 10,
       max_hp: 10,
       temp_hp: 0,
+      concentrating: nil,
       ac: 14,
       speed: 30,
       backstory:

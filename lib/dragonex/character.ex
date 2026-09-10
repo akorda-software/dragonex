@@ -32,6 +32,7 @@ defmodule Dragonex.Character do
     field(:hp, :integer, default: 0)
     field(:max_hp, :integer, default: 0)
     field(:temp_hp, :integer, default: 0)
+    field(:concentrating, :string)
     field(:ac, :integer, default: 10)
     field(:speed, :integer, default: 30)
 
@@ -79,6 +80,7 @@ defmodule Dragonex.Character do
         :hp,
         :max_hp,
         :temp_hp,
+        :concentrating,
         :ac,
         :speed,
         :str,
@@ -141,6 +143,7 @@ defmodule Dragonex.Character do
       hp: 0,
       max_hp: 0,
       temp_hp: 0,
+      concentrating: nil,
       ac: 10,
       speed: 30,
       str: 10,

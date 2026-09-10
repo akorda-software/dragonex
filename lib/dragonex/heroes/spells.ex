@@ -43,6 +43,22 @@ defmodule Dragonex.Heroes.Spells do
   end
 
   @doc """
+  Does this spell require concentration (D37)?
+
+  Builtin entries without a flag are not concentration unless the SRD map
+  carries `concentration: true` (SRD wins when the key is present).
+  """
+  @spec concentration?(String.t()) :: boolean()
+  def concentration?(name) when is_binary(name) do
+    case get(name) do
+      %{concentration: true} -> true
+      %{concentration: false} -> false
+      data when is_map(data) -> srd_concentration?(name)
+      nil -> srd_concentration?(name)
+    end
+  end
+
+  @doc """
   Resolve a spell key: `custom_*` looks in the injected bundle, everything else
   falls through to the builtin/SRD catalogue.
   """
@@ -546,10 +562,25 @@ defmodule Dragonex.Heroes.Spells do
             b
             |> Map.put(:name_es, s.name_es)
             |> Map.put(:effect, s[:effect] || b.effect)
+            |> put_srd_concentration(s)
         end
       end)
 
     taken = MapSet.new(builtin, & &1.name)
     enriched ++ Enum.reject(srd, &MapSet.member?(taken, &1.name))
+  end
+
+  defp put_srd_concentration(b, %{concentration: v}) when is_boolean(v),
+    do: Map.put(b, :concentration, v)
+
+  defp put_srd_concentration(b, _), do: b
+
+  defp srd_concentration?(name) do
+    normalized = String.downcase(name)
+
+    case Enum.find(Dragonex.Heroes.SRDSpells.all(), &(String.downcase(&1.name) == normalized)) do
+      %{concentration: true} -> true
+      _ -> false
+    end
   end
 end

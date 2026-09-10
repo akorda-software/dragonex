@@ -87,6 +87,33 @@ defmodule Dragonex.CodecTest do
       assert decoded.current_combatant == nil
     end
 
+    test "concentrating survives" do
+      c =
+        Character.new(
+          name: "hero",
+          class: "cleric",
+          hp: 10,
+          max_hp: 10,
+          side: "pc",
+          concentrating: "bless"
+        )
+
+      w = add(World.new(), World.add_character(c))
+      assert Codec.decode(Codec.encode(w)).characters["hero"].concentrating == "bless"
+    end
+
+    test "concentrating absent in old jsonb is nil" do
+      c = Character.new(name: "hero", class: "fighter", hp: 10, max_hp: 10, side: "pc")
+      encoded = c |> Codec.encode_character() |> Map.delete("concentrating")
+      refute Map.has_key?(encoded, "concentrating")
+
+      {:ok, json} = Jason.encode(encoded)
+      {:ok, decoded_map} = Jason.decode(json)
+
+      decoded = Codec.decode_character(decoded_map)
+      assert decoded.concentrating == nil
+    end
+
     test "death_saves tracker survives" do
       c =
         Character.new(

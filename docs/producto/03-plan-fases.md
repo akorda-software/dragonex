@@ -25,7 +25,7 @@ existe" sino por "se verifica".**
 | F4 — Héroes | Forjar y crecer | Builder 5 pasos + catálogos SRD ES + custom (D22) + level-up (D10–D13) |
 | F5 — TurnMaster | La partida fluye | Orquestador de turnos (D25) con fallback WorldDriven |
 
-Verde de referencia hoy: **774 tests passed**, compile sin warnings.
+Verde de referencia hoy: **793 tests passed**, compile sin warnings.
 
 ---
 
@@ -97,9 +97,12 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
 - **temp_hp** (D36): **entregado.** Daño absorbe `temp_hp` primero; no
   apila; `heal` no lo toca; tool `grant_temp_hp`; False Life 1d4+4 al
   caster. Sin reloj de duración.
+- **Concentración** (D37): **entregado.** `Character.concentrating` +
+  Codec; CON save al daño; rotura a 0 hp / incapacitated-class; tool
+  `drop_concentration`. Sin reloj ni efecto de Bless.
 - **Feats** (D13): catálogo + integración en ASI (elección feat vs +2).
-- **Concentración / resistencias**: mecánicas de motor nuevas
-  (`M24+`), tocan `Character`/`Codec`/`Actions`.
+- **Resistencias**: mecánica de motor nueva (`M25+`), toca
+  `Actions`/daño.
 - **Pact Magic del warlock** (D12): tabla propia de slots short-rest.
 - **Multiclase**: fuera del builder actual por diseño; implicaría rehacer
   progression.
@@ -118,7 +121,7 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
 3. Implementa con tests (ver [`../tecnico/09-estrategia-pruebas.md`](../tecnico/09-estrategia-pruebas.md)
    para qué capa de test exige cada cambio).
 4. Verifica: `mix compile` (0 warnings) → `mix format` → `MIX_ENV=test mix test`
-   (774+ verde). Si toca prompts/agentes: smoke con TestModel incluido.
+   (793+ verde). Si toca prompts/agentes: smoke con TestModel incluido.
 5. Actualiza `../progress.md` (mueve el ítem) y este doc (marca el ítem). Si
    tomaste una decisión no trivial: ADR en `../decisions.md`.
 6. Commit estilizado (`feat(motor): …`, `fix(hero): …`).

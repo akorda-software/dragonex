@@ -54,6 +54,7 @@ Fuente canónica del código: `lib/dragonex/tools.ex` (S5), sets por agente en
 | `make_death_save` | `(character)` | `assert_controls(character)` | Death save: nat20 revive, nat1 doble fallo, 3/3 (M14) |
 | `heal` | `(target, dice)` | — | Curación por expresión (`1d8+3`), cap max_hp, resetea death saves (M15). No toca `temp_hp` |
 | `grant_temp_hp` | `(who, amount)` | DM cualquiera; PC sólo sí mismo | Otorga pg temporales sin apilar (`max` actual vs nuevo) (M23 / D36) |
+| `drop_concentration` | `(who)` | DM cualquiera; PC sólo sí mismo | Suelta la concentración actual (M24 / D37) |
 | `short_rest` | `(target)` | — | Hit die, fuera de combate (M16) |
 | `long_rest` | `(target)` | — | PG completos + slots restaurados (M17) |
 | `roll_dice` | `(count, sides)` | — | Tirada libre NdM para el modelo |
@@ -81,7 +82,7 @@ los usa en producción. Se mantienen para los tests de capacidades de exAgent
 | Agente | Tools | Extras |
 |---|---|---|
 | **DM** | TODAS las de `Tools.tools()` | `make_attack`, `cast_spell`, `ability_check`, `make_death_save`, `heal`, `roll_initiative` con `max_retries: 3` (margen para autocorrección tras error directivo) |
-| **PCAgent** | `make_attack`, `cast_spell`, `ability_check`, `make_death_save`, `short_rest`, `long_rest` | `make_attack`/`cast_spell` con `max_retries: 3`. **Nunca**: escenas, monstruos, condiciones, nivel, iniciativa, end_combat |
+| **PCAgent** | `make_attack`, `cast_spell`, `ability_check`, `make_death_save`, `short_rest`, `long_rest`, `drop_concentration` | `make_attack`/`cast_spell` con `max_retries: 3`. **Nunca**: escenas, monstruos, condiciones, nivel, iniciativa, end_combat |
 | **TurnMaster** | `{give_turn_to, cut_in, react, pass_to_dm, end_scene}` (propias, `turn_master/tools.ex`) | **Ninguna muta el world**: registran una `Decision`; el `Game` la aplica (`Session.handoff/2`/`update_state/3`). `end_scene` propone cambio de escena vía el Game, no directo |
 
 ### Semántica de las tools del TurnMaster

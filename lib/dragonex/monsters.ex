@@ -199,6 +199,7 @@ defmodule Dragonex.Monsters do
       hp: hp,
       max_hp: hp,
       temp_hp: 0,
+      concentrating: nil,
       ac: ac,
       speed: speed,
       backstory: Keyword.get(opts, :backstory, backstory),

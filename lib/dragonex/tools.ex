@@ -292,6 +292,27 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
+  Drop concentration (5e, D37). The DM may drop anyone; a PC may only drop
+  themselves.
+  """
+  deftool drop_concentration(ctx, who :: String.t()) do
+    spell =
+      case Dragonex.World.character(world(ctx), who) do
+        nil -> nil
+        c -> c.concentrating
+      end
+
+    with :ok <- assert_drop_concentration(ctx, who),
+         {:ok, _} <- propose(ctx, Dragonex.World.clear_concentration(who)) do
+      if is_binary(spell) do
+        {:ok, "#{who} deja de concentrarse en #{spell}."}
+      else
+        {:ok, "#{who} no estaba concentrado."}
+      end
+    end
+  end
+
+  @doc """
   Resolve a non-combat ability check: the DM sets the `dc` (5/10/15/20 by 5e
   difficulty), the engine rolls d20 + the ability modifier for `who`.
   Skill proficiency is not applied in v1 (the sheet stores it; resolution does
@@ -376,6 +397,17 @@ defmodule Dragonex.Tools do
     else
       {:error,
        "RECHAZADO — solo puedes otorgar pg temporales a ti mismo (#{proposer}), no a #{who}."}
+    end
+  end
+
+  defp assert_drop_concentration(ctx, who) do
+    proposer = ctx.deps.state.participant_id
+
+    if proposer == "dm" or proposer == who do
+      :ok
+    else
+      {:error,
+       "RECHAZADO — solo puedes soltar tu propia concentración (#{proposer}), no la de #{who}."}
     end
   end
 

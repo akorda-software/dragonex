@@ -258,9 +258,11 @@ humanos **siempre** desde su ficha (la tool los rechaza con mensaje directivo).
   ficha, no aplica cambios (`tools_level_up_test.exs`).
 
 ### R28 — Declarado fuera de v1 (no bugs)
-`temp_hp` entra (**D36**). Siguen fuera: concentración, resistencias/vulnerabilidades, reacciones
-como mecánica formal (TurnMaster da interrupciones narrativas, no la mecánica
-5e), multiclase. Cada una requiere ADR propio para entrar. Iniciativa
+`temp_hp` entra (**D36**). Concentración entra (**D37**): estado + rotura
+(CON save / 0 hp / incapacitated-class); sin reloj ni efecto de Bless.
+Siguen fuera: resistencias/vulnerabilidades, reacciones como mecánica
+formal (TurnMaster da interrupciones narrativas, no la mecánica 5e),
+multiclase. Cada una requiere ADR propio para entrar. Iniciativa
 individual por monstruo → **D34 / F6.4**.
 
 ---
