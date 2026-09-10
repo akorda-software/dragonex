@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **756 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **767 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -25,9 +25,10 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   condiciones, spell slots, `level_up`.
 - `Rules.Conditions` — tabla M06: condición → ventaja/desventaja/auto-fallo
   en ataque, salvación y chequeo (cancelación 5e).
-- `Actions` — puente intent→world (`attack`, `spell` automatic/attack/save +
-  consumo de slot, `initiative`, `death_save`, `heal`, `short_rest`,
-  `long_rest`, `check`). Con `RollLog` para dados estructurados.
+- `Actions` — puente intent→world (`attack` con Extra Attack 5e / D35,
+  `spell` automatic/attack/save + consumo de slot, `initiative`,
+  `death_save`, `heal`, `short_rest`, `long_rest`, `check`). Con `RollLog`
+  para dados estructurados.
 - `Tools` — `deftool`s que el LLM invoca: `make_attack`, `cast_spell`,
   `roll_initiative`, `make_death_save`, `heal`, `ability_check`, `end_combat`,
   `short_rest`, `long_rest`, `spawn_monster`, `apply_condition`,
@@ -81,7 +82,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 - ✅ Golden SRD del creador (F6.5): 12 clases × L1/L3/L5 en
   `test/dragonex/heroes/srd_golden_test.exs`. Oráculos a mano; sin bugs
   de HP/AC/slots/saves vs SRD. Pact Magic / feats / features por nivel
-  siguen en 🟡.
+  (salvo Extra Attack D35 y spellcasting paladín/ranger L2) siguen en 🟡.
 
 ### Contenido custom por usuario
 - CRUD `custom_contents` (weapon/spell/item, unique por usuario) con
@@ -147,7 +148,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 | Warlock | Full-caster, no Pact Magic | D12 |
 | Dotes | Fuera; ASI = +2 fijo | D13 |
 | `spells_known` | `nil` (sin cap estricto por clase) | D14 |
-| Features por nivel | Solo spellcasting de paladín/ranger a L2 | `progression.ex` |
+| Features por nivel | Extra Attack D35 + spellcasting paladín/ranger L2; el resto 🟡 | D35 |
 | Empate iniciativa | Rompe por nombre, no dex+roll-off | D15 |
 | Banner level-up in-game | Eliminado (D33); subida desde la ficha | D33 |
 | Stub legado en `Tools` | `attack`/`roll`/`spawn_character`/`next_round` mantenidos para tests del framework exAgent | `tools.ex:31-72` |

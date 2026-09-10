@@ -77,5 +77,45 @@ defmodule Dragonex.Heroes.ProgressionTest do
     test "fighter no gana features modeladas a L2" do
       assert Progression.features_at("fighter", 2) == []
     end
+
+    test "L5 marciales ganan extra_attack" do
+      for class <- ~w(fighter barbarian paladin ranger monk) do
+        assert Progression.features_at(class, 5) == ["extra_attack"]
+      end
+    end
+
+    test "L5 no marciales y L3/L11 marciales no añaden extra_attack" do
+      assert Progression.features_at("wizard", 5) == []
+      assert Progression.features_at("rogue", 5) == []
+      assert Progression.features_at("fighter", 3) == []
+      assert Progression.features_at("fighter", 11) == []
+    end
+  end
+
+  describe "attack_count/2" do
+    test "fighter escala 1/2/3/4" do
+      assert Progression.attack_count("fighter", 1) == 1
+      assert Progression.attack_count("fighter", 4) == 1
+      assert Progression.attack_count("fighter", 5) == 2
+      assert Progression.attack_count("fighter", 10) == 2
+      assert Progression.attack_count("fighter", 11) == 3
+      assert Progression.attack_count("fighter", 19) == 3
+      assert Progression.attack_count("fighter", 20) == 4
+    end
+
+    test "bárbaro paladín ranger monje: 2 a L5+" do
+      for class <- ~w(barbarian paladin ranger monk) do
+        assert Progression.attack_count(class, 4) == 1
+        assert Progression.attack_count(class, 5) == 2
+        assert Progression.attack_count(class, 20) == 2
+      end
+    end
+
+    test "resto siempre 1" do
+      for class <- ~w(wizard rogue warlock bard cleric sorcerer druid) do
+        assert Progression.attack_count(class, 5) == 1
+        assert Progression.attack_count(class, 20) == 1
+      end
+    end
   end
 end

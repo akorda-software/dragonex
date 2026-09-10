@@ -15,6 +15,7 @@ defmodule Dragonex.Actions do
   """
 
   alias Dragonex.{Character, Dice, RollLog, Rules.Ability, Rules.Combat, Rules.Conditions, World}
+  alias Dragonex.Heroes.Progression
 
   @type roller :: (pos_integer() -> pos_integer())
   @type result ::
@@ -53,9 +54,12 @@ defmodule Dragonex.Actions do
   end
 
   @doc """
-  Resolve a weapon attack: attack roll (with crit/fumble) then, on a hit, a
-  damage roll, applied to the target's hp. The attacker and target must already
-  be in the world, and the attacker must wield the named weapon.
+  Resolve a weapon Attack action: N attack rolls (with crit/fumble) against
+  the same target, then damage on each hit. N comes from
+  `Progression.attack_count/2` (Extra Attack 5e, D35). If the target drops
+  (hp ≤ 0) mid-action, remaining swings are skipped (no retarget). The
+  attacker and target must already be in the world, and the attacker must
+  wield the named weapon.
   """
   @spec attack(
           World.t(),
@@ -91,48 +95,13 @@ defmodule Dragonex.Actions do
             effective_mode =
               Conditions.attack_mode(a, t, requested: mode, ranged: weapon.ranged == true)
 
-            {r, close_atk} =
-              RollLog.open(
-                roll_log,
-                roller,
-                attacker,
-                :attack,
-                "ataque a #{target} con #{weapon.name}"
-              )
+            n = Progression.attack_count(a.class, a.level)
 
-            {kind, d20, total} = Combat.attack_roll(a, weapon, t.ac, r, effective_mode)
-            RollLog.close(close_atk, total: total, against: {:ac, t.ac}, outcome: kind)
+            swings =
+              resolve_swings(a, t, attacker, target, weapon, roller, roll_log, effective_mode, n)
 
-            case kind do
-              :miss ->
-                {:ok,
-                 "#{attacker} lanza un golpe a #{target} — fallo (d20 #{d20}: #{total} vs CA #{t.ac})#{mode_tag(effective_mode)}.",
-                 noop()}
-
-              k ->
-                {r2, close_dmg} =
-                  RollLog.open(
-                    roll_log,
-                    roller,
-                    attacker,
-                    :damage,
-                    "daño #{weapon.damage_type} a #{target}"
-                  )
-
-                dmg = Combat.damage_roll(a, weapon, k, r2)
-
-                RollLog.close(close_dmg,
-                  total: dmg,
-                  against: nil,
-                  outcome: if(k == :crit, do: :crit, else: nil)
-                )
-
-                verb = if k == :crit, do: "CRÍTICO", else: "acierta"
-
-                {:ok,
-                 "#{attacker} #{verb} a #{target} (d20 #{d20}: #{total} vs CA #{t.ac}) por #{dmg} de daño #{weapon.damage_type}#{mode_tag(effective_mode)}.",
-                 World.apply_damage(target, dmg)}
-            end
+            {:ok, format_attack_message(attacker, target, weapon, t.ac, effective_mode, swings),
+             apply_swing_damages(target, swings)}
         end
     end
   end
@@ -589,6 +558,112 @@ defmodule Dragonex.Actions do
     do: "#{name} saca #{d20} — un éxito de salvación de muerte."
 
   # ----------------------------------------------------------------- helpers
+
+  defp resolve_swings(a, t, attacker, target, weapon, roller, roll_log, mode, n) do
+    {swings, _hp} =
+      Enum.reduce_while(1..n, {[], t.hp}, fn _i, {acc, hp} ->
+        if hp <= 0 do
+          {:halt, {acc, hp}}
+        else
+          swing = resolve_one_swing(a, t, attacker, target, weapon, roller, roll_log, mode)
+          new_hp = if swing.dmg > 0, do: max(0, hp - swing.dmg), else: hp
+          {:cont, {acc ++ [swing], new_hp}}
+        end
+      end)
+
+    swings
+  end
+
+  defp resolve_one_swing(a, t, attacker, target, weapon, roller, roll_log, mode) do
+    {r, close_atk} =
+      RollLog.open(
+        roll_log,
+        roller,
+        attacker,
+        :attack,
+        "ataque a #{target} con #{weapon.name}"
+      )
+
+    {kind, d20, total} = Combat.attack_roll(a, weapon, t.ac, r, mode)
+    RollLog.close(close_atk, total: total, against: {:ac, t.ac}, outcome: kind)
+
+    case kind do
+      :miss ->
+        %{kind: :miss, d20: d20, total: total, dmg: 0}
+
+      k ->
+        {r2, close_dmg} =
+          RollLog.open(
+            roll_log,
+            roller,
+            attacker,
+            :damage,
+            "daño #{weapon.damage_type} a #{target}"
+          )
+
+        dmg = Combat.damage_roll(a, weapon, k, r2)
+
+        RollLog.close(close_dmg,
+          total: dmg,
+          against: nil,
+          outcome: if(k == :crit, do: :crit, else: nil)
+        )
+
+        %{kind: k, d20: d20, total: total, dmg: dmg}
+    end
+  end
+
+  defp format_attack_message(attacker, target, _weapon, ac, mode, [%{kind: :miss} = s]) do
+    "#{attacker} lanza un golpe a #{target} — fallo (d20 #{s.d20}: #{s.total} vs CA #{ac})#{mode_tag(mode)}."
+  end
+
+  defp format_attack_message(attacker, target, weapon, ac, mode, [s]) do
+    verb = if s.kind == :crit, do: "CRÍTICO", else: "acierta"
+
+    "#{attacker} #{verb} a #{target} (d20 #{s.d20}: #{s.total} vs CA #{ac}) por #{s.dmg} de daño #{weapon.damage_type}#{mode_tag(mode)}."
+  end
+
+  defp format_attack_message(attacker, target, weapon, ac, mode, swings) do
+    parts = Enum.map_join(swings, "; ", &describe_swing(&1, weapon, ac))
+    "#{attacker} ataca a #{target} (#{length(swings)} golpes)#{mode_tag(mode)}: #{parts}."
+  end
+
+  defp describe_swing(%{kind: :miss, d20: d20, total: total}, _weapon, ac) do
+    "fallo (d20 #{d20}: #{total} vs CA #{ac})"
+  end
+
+  defp describe_swing(%{kind: k, d20: d20, total: total, dmg: dmg}, weapon, ac) do
+    verb = if k == :crit, do: "CRÍTICO", else: "acierta"
+    "#{verb} (d20 #{d20}: #{total} vs CA #{ac}) por #{dmg} de daño #{weapon.damage_type}"
+  end
+
+  defp apply_swing_damages(target, swings) do
+    amounts = for %{dmg: dmg} <- swings, dmg > 0, do: dmg
+
+    case amounts do
+      [] ->
+        noop()
+
+      amounts ->
+        fn w ->
+          Enum.reduce_while(amounts, {:ok, w}, fn amount, {:ok, acc} ->
+            case World.character(acc, target) do
+              %Character{hp: hp} when hp <= 0 ->
+                {:halt, {:ok, acc}}
+
+              %Character{} ->
+                case World.apply_damage(target, amount).(acc) do
+                  {:ok, next} -> {:cont, {:ok, next}}
+                  error -> {:halt, error}
+                end
+
+              nil ->
+                {:halt, {:error, "no such character: #{target}"}}
+            end
+          end)
+        end
+    end
+  end
 
   defp find_weapon(%Character{weapons: weapons}, name), do: match_named(weapons, name)
 

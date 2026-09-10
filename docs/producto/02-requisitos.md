@@ -104,7 +104,8 @@ hechizos nuevos respetando `max_spell_level`, half-casters desde nivel 2.
 - Warlock modelado como full-caster, sin Pact Magic (D12).
 - Sin feats; ASI = 2 puntos (D13).
 - `spells_known` sin tope modelado (D14).
-- Features de clase por nivel: sólo spellcasting de paladín/ranger a L2.
+- Features de clase por nivel: Extra Attack a L5 (D35) y spellcasting de
+  paladín/ranger a L2; el resto sigue fuera.
 - Empate de iniciativa por nombre, no dex+roll-off (D15).
 
 > **No son bugs.** Cambiar cualquiera exige un ADR que reemplace al vigente.

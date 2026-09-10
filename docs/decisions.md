@@ -354,6 +354,32 @@ Alternativa descartada: un beat del DM que recorre todos los monstruos
 internamente — barato en tokens, pero el TurnMaster no puede intercalar
 `cut_in` entre enemigos y `acted_this_round` no distingue slots.
 
+### D35 — Extra Attack 5e
+Entra Extra Attack. No es Action Surge ni economía de acciones completa
+(R28 reacciones siguen fuera). Un `make_attack` / `Actions.attack`
+resuelve N tiradas de ataque contra **el mismo objetivo** (la Acción de
+Ataque 5e). Si el objetivo cae (hp ≤ 0) a mitad, se omiten los golpes
+restantes; no se retargetea en esta tool.
+
+N lo calcula el motor (D1) según clase+nivel (`Progression.attack_count/2`),
+no el string en `class_features`: partidas viejas L5+ sin el feature en
+el jsonb siguen recibiendo el N correcto.
+
+- fighter: L1–4 → 1; L5–10 → 2; L11–19 → 3; L20 → 4
+- barbarian, paladin, ranger, monk: L5+ → 2; si no → 1
+- resto → 1
+
+`Progression.features_at/2` añade `"extra_attack"` al llegar a L5 en esas
+cinco clases (ficha/UI). Fighter L11/L20 no necesitan otro string: N sale
+del nivel.
+
+No se limita cuántas veces el LLM llama `make_attack` en un beat: la
+economía de acciones sigue fuera (deuda). `Actions.spell` no aplica Extra
+Attack. No cambia `Character`/`Weapon`/`Spell`/`Item`.
+
+R09 queda **parcial**: Extra Attack entra; el resto de features por nivel
+sigue 🟡. D12–D15 intactos (no SUPERSEDED).
+
 ---
 
 ## Pendientes de decisión (abiertas)

@@ -23,8 +23,10 @@ defmodule Dragonex.Heroes.Progression do
       (bardo/hechicero/brujo) reciben un cupo derivado. Aquí `spells_known/2`
       devuelve `nil` cuando no hay cap estricto (el jugador ajusta libremente).
     * **Dotes**: fuera de la v1; el ASI a 4/8/12/16/19 reparte +2 puntos.
-    * **Features**: solo se modelan las que afectan a la ficha de forma
-      mecánica inmediata (desbloqueo de conjuración en paladín/explorador a L2).
+    * **Features**: se modelan las que afectan a la ficha de forma
+      mecánica inmediata (conjuración paladín/explorador a L2; Extra Attack
+      a L5 en clases marciales, D35). El resto de features por nivel sigue
+      fuera de v1.
   """
 
   # XP total necesario para ALCANZAR cada nivel (tabla de avances 5e).
@@ -59,6 +61,7 @@ defmodule Dragonex.Heroes.Progression do
 
   @full_casters ~w(bard cleric druid sorcerer warlock wizard)a
   @half_casters ~w(paladin ranger)a
+  @extra_attack_classes ~w(fighter barbarian paladin ranger monk)a
 
   # ------------------------------------------------------------ XP / nivel
 
@@ -154,15 +157,46 @@ defmodule Dragonex.Heroes.Progression do
   @doc """
   Features de clase que se desbloquean al ALCANZAR `level`.
 
-  v1 modela solo las que afectan mecánicamente a la ficha: el desbloqueo de
-  conjuración en paladín/explorador a nivel 2 (añade la feature `spellcasting`).
+  v1 modela las que afectan mecánicamente a la ficha: conjuración de
+  paladín/explorador a L2 (`spellcasting`) y Extra Attack a L5 en las
+  cinco clases marciales (`extra_attack`, D35). El N de golpes lo da
+  `attack_count/2` (no el string): fighter L11/L20 no añade otro feature.
   """
   @spec features_at(String.t() | atom(), pos_integer()) :: [String.t()]
   def features_at(class, 2) do
     if class_name(class) in @half_casters, do: ["spellcasting"], else: []
   end
 
+  def features_at(class, 5) do
+    if class_name(class) in @extra_attack_classes, do: ["extra_attack"], else: []
+  end
+
   def features_at(_class, _level), do: []
+
+  @doc """
+  Número de tiradas de ataque que resuelve una Acción de Ataque (D35).
+
+  Tabla 5e; el motor es fuente de verdad (D1), no el string `extra_attack`
+  en `class_features` — partidas viejas L5+ sin el feature siguen recibiendo
+  el N correcto.
+
+    * fighter: L1–4 → 1; L5–10 → 2; L11–19 → 3; L20 → 4
+    * barbarian, paladin, ranger, monk: L5+ → 2; si no → 1
+    * resto → 1
+  """
+  @spec attack_count(String.t() | atom(), pos_integer()) :: pos_integer()
+  def attack_count(class, level) when is_integer(level) and level >= 1 do
+    case class_name(class) do
+      :fighter -> fighter_attack_count(level)
+      c when c in @extra_attack_classes -> if(level >= 5, do: 2, else: 1)
+      _ -> 1
+    end
+  end
+
+  defp fighter_attack_count(level) when level >= 20, do: 4
+  defp fighter_attack_count(level) when level >= 11, do: 3
+  defp fighter_attack_count(level) when level >= 5, do: 2
+  defp fighter_attack_count(_level), do: 1
 
   # ------------------------------------------------------------ helpers
 

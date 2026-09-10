@@ -21,15 +21,15 @@ defmodule Dragonex.Heroes.SrdGoldenTest do
   AC: armadura default + DEX con techo, o unarmored_defense (bárbaro/monje).
   Slots: tabla PHB de full-caster / half-caster L2+; warlock como
   full-caster (D12), no Pact Magic. DC = 8 + prof (L1–4 = 2, L5 = 3) +
-  mod de conjuro. Features: las de L1 del catálogo; paladín/ranger
-  ganan `spellcasting` a L2 (R09).
+  mod de conjuro.   Features: las de L1 del catálogo; paladín/ranger
+  ganan `spellcasting` a L2 (R09); marciales ganan `extra_attack` a L5 (D35).
 
   ## Simplificaciones declaradas (no son bugs; no se implementan aquí)
 
   * Pact Magic del warlock (D12) — slots de full-caster.
   * Feats (D13) — ASI es +2, nunca dote.
   * `spells_known` / cantrips por nivel (D14) — sin cap estricto.
-  * Features por nivel salvo spellcasting paladín/ranger a L2.
+  * Features por nivel salvo Extra Attack D35 y spellcasting paladín/ranger L2.
   """
 
   use ExUnit.Case, async: true
@@ -217,8 +217,16 @@ defmodule Dragonex.Heroes.SrdGoldenTest do
         assert c.saving_proficiencies == meta.saves
         assert SpellSlots.for_class(class, level) == expected.slots
 
-        for feature <- expected_features(class, level, meta.features) do
+        feats = expected_features(class, level, meta.features)
+
+        for feature <- feats do
           assert feature in c.class_features
+        end
+
+        if "extra_attack" in feats do
+          assert "extra_attack" in c.class_features
+        else
+          refute "extra_attack" in c.class_features
         end
 
         if level == 1 do
@@ -273,10 +281,25 @@ defmodule Dragonex.Heroes.SrdGoldenTest do
 
   defp rest(c), do: %{c | hp: c.max_hp}
 
-  defp expected_features(class, level, l1) when class in ["paladin", "ranger"] and level >= 2,
-    do: l1 ++ ["spellcasting"]
+  @extra_attack_classes ~w(fighter barbarian paladin ranger monk)
 
-  defp expected_features(_class, _level, l1), do: l1
+  defp expected_features(class, level, l1) do
+    l1
+    |> maybe_spellcasting(class, level)
+    |> maybe_extra_attack(class, level)
+  end
+
+  defp maybe_spellcasting(features, class, level)
+       when class in ["paladin", "ranger"] and level >= 2,
+       do: features ++ ["spellcasting"]
+
+  defp maybe_spellcasting(features, _class, _level), do: features
+
+  defp maybe_extra_attack(features, class, level)
+       when class in @extra_attack_classes and level >= 5,
+       do: features ++ ["extra_attack"]
+
+  defp maybe_extra_attack(features, _class, _level), do: features
 
   defp ability_score(c, :str), do: c.str
   defp ability_score(c, :dex), do: c.dex

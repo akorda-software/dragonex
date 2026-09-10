@@ -110,6 +110,72 @@ defmodule Dragonex.ActionsTest do
     end
   end
 
+  describe "Extra Attack (D35)" do
+    test "fighter L5 resuelve 2 golpes (N sale del nivel, no del jsonb)" do
+      f = %{Archetypes.fighter() | level: 5}
+      refute "extra_attack" in f.class_features
+
+      g =
+        Character.new(name: "goblin", class: "monster", hp: 30, max_hp: 30, ac: 12, side: "enemy")
+
+      w =
+        World.new()
+        |> then_apply(World.add_character(f))
+        |> then_apply(World.add_character(g))
+
+      # L5: prof 3 + str 3 = +6. d20=10 → 16 vs CA 12 hit; d8=4 +3 = 7. Dos veces.
+      assert {:ok, msg, change} =
+               Actions.attack(w, "Thane", "goblin", "longsword", seq([10, 4, 10, 4]))
+
+      assert msg =~ "2 golpes"
+      assert msg =~ "acierta"
+      {:ok, w2} = change.(w)
+      assert w2.characters["goblin"].hp == 30 - 14
+    end
+
+    test "wizard L5 resuelve 1 golpe" do
+      wiz = %{Archetypes.wizard() | level: 5}
+
+      g =
+        Character.new(name: "goblin", class: "monster", hp: 20, max_hp: 20, ac: 12, side: "enemy")
+
+      w =
+        World.new()
+        |> then_apply(World.add_character(wiz))
+        |> then_apply(World.add_character(g))
+
+      # seq corto: un segundo golpe agotaría la cola y fallaría.
+      assert {:ok, msg, change} =
+               Actions.attack(w, "Lyra", "goblin", "quarterstaff", seq([10, 4]))
+
+      refute msg =~ "2 golpes"
+      {:ok, w2} = change.(w)
+      # str 8 (−1) + prof 3 = +2. d20=10 → 12 vs CA 12 hit; d6=4 −1 = 3.
+      assert w2.characters["goblin"].hp == 20 - 3
+    end
+
+    test "si el primer golpe mata, el segundo no tira ni aplica daño" do
+      f = %{Archetypes.fighter() | level: 5}
+
+      g =
+        Character.new(name: "goblin", class: "monster", hp: 5, max_hp: 15, ac: 12, side: "enemy")
+
+      w =
+        World.new()
+        |> then_apply(World.add_character(f))
+        |> then_apply(World.add_character(g))
+
+      assert {:ok, msg, change} =
+               Actions.attack(w, "Thane", "goblin", "longsword", seq([10, 4, 10, 4]))
+
+      refute msg =~ "2 golpes"
+      {:ok, w2} = change.(w)
+      assert w2.characters["goblin"].hp == 0
+      # El segundo d20+d8 no se consumió.
+      assert Process.get(:seq) == [10, 4]
+    end
+  end
+
   describe "spell/5" do
     setup do
       wiz = Archetypes.wizard()

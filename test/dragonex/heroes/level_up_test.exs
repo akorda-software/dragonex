@@ -86,6 +86,20 @@ defmodule Dragonex.Heroes.LevelUpTest do
       assert "spellcasting" in c2.class_features
     end
 
+    test "fighter L1→L5 (ASI L4 +2 primario) incluye extra_attack; L3 no" do
+      {:ok, c} =
+        Heroes.build(%{name: "X", race: "human", class: "fighter", background: "soldier"})
+
+      {:ok, c2} = Heroes.apply_level_up(c, %{})
+      {:ok, c3} = Heroes.apply_level_up(c2, %{})
+      refute "extra_attack" in c3.class_features
+
+      {:ok, c4} = Heroes.apply_level_up(c3, %{asi: %{str: 2}})
+      {:ok, c5} = Heroes.apply_level_up(c4, %{})
+      assert c5.level == 5
+      assert "extra_attack" in c5.class_features
+    end
+
     test "H1: paladín fija casting_ability al ganar hechizos a L2 (no nil)" do
       {:ok, c} =
         Heroes.build(%{name: "X", race: "human", class: "paladin", background: "soldier"})

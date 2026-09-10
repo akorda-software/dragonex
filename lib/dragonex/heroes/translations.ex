@@ -515,6 +515,7 @@ defmodule Dragonex.Heroes.Translations do
     "divine_domain" => %{es: "Dominio divino", en: "Divine Domain"},
     "druidic" => %{es: "Druídico", en: "Druidic"},
     "wild_shape" => %{es: "Forma salvaje", en: "Wild Shape"},
+    "extra_attack" => %{es: "Ataque extra", en: "Extra Attack"},
     "fighting_style" => %{es: "Estilo de combate", en: "Fighting Style"},
     "second_wind" => %{es: "Segundo aliento", en: "Second Wind"},
     "martial_arts" => %{es: "Artes marciales", en: "Martial Arts"},

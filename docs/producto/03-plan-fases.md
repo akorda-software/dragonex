@@ -25,7 +25,7 @@ existe" sino por "se verifica".**
 | F4 — Héroes | Forjar y crecer | Builder 5 pasos + catálogos SRD ES + custom (D22) + level-up (D10–D13) |
 | F5 — TurnMaster | La partida fluye | Orquestador de turnos (D25) con fallback WorldDriven |
 
-Verde de referencia hoy: **756 tests passed**, compile sin warnings.
+Verde de referencia hoy: **767 tests passed**, compile sin warnings.
 
 ---
 
@@ -82,7 +82,8 @@ Hecho: `test/dragonex/heroes/srd_golden_test.exs` — 12 clases × {1, 3, 5}
 primario en L4). HP/AC/saves/slots/DC coinciden con SRD 5.1 y el modelo
 Dragonex (warlock full-caster D12; paladín/ranger spellcasting a L2 R09).
 Sin bugs de derivados; las simplificaciones (Pact Magic, feats, features
-por nivel, `spells_known`) quedan en 🟡.
+por nivel salvo Extra Attack D35 y spellcasting paladín/ranger L2,
+`spells_known`) quedan en 🟡.
 
 ---
 
@@ -90,6 +91,9 @@ por nivel, `spells_known`) quedan en 🟡.
 
 Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
 
+- **Extra Attack** (D35): **entregado.** `Actions.attack` resuelve N golpes
+  vs el mismo objetivo; N de `Progression.attack_count/2`. No es Action
+  Surge ni economía de acciones (R28 reacciones siguen fuera).
 - **Feats** (D13): catálogo + integración en ASI (elección feat vs +2).
 - **Concentración / temp_hp / resistencias**: mecánicas de motor nuevas
   (`M23+`), tocan `Character`/`Codec`/`Actions`.
@@ -111,7 +115,7 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
 3. Implementa con tests (ver [`../tecnico/09-estrategia-pruebas.md`](../tecnico/09-estrategia-pruebas.md)
    para qué capa de test exige cada cambio).
 4. Verifica: `mix compile` (0 warnings) → `mix format` → `MIX_ENV=test mix test`
-   (756+ verde). Si toca prompts/agentes: smoke con TestModel incluido.
+   (767+ verde). Si toca prompts/agentes: smoke con TestModel incluido.
 5. Actualiza `../progress.md` (mueve el ítem) y este doc (marca el ítem). Si
    tomaste una decisión no trivial: ADR en `../decisions.md`.
 6. Commit estilizado (`feat(motor): …`, `fix(hero): …`).

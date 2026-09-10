@@ -30,10 +30,15 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 - **Tests**: `actions_test.exs`, `turn_master_loop_test.exs`.
 
 ### M03 — Tirada de ataque
-- **Dónde**: `Rules.Combat.attack_roll/5`.
+- **Dónde**: `Rules.Combat.attack_roll/5`; la Acción de Ataque la orquesta
+  `Actions.attack/7`.
 - **5e**: d20 (ventaja/desventaja = 2 dados, el mejor/peor) + prof + mod vs AC
   del defensor; nat 20 = crítico, nat 1 = fallo.
-- **Tests**: `test/dragonex/rules/combat_test.exs`.
+- **Extra Attack (D35)**: `Actions.attack` resuelve N tiradas contra el mismo
+  objetivo (`Progression.attack_count/2`). Si el objetivo cae (hp ≤ 0), se
+  omiten el resto; no hay retarget. `cast_spell` no aplica Extra Attack.
+  Economía de acciones (cuántas veces el LLM llama `make_attack`) sigue fuera.
+- **Tests**: `test/dragonex/rules/combat_test.exs`, `actions_test.exs`.
 
 ### M04 — Daño y críticos
 - **Dónde**: `Rules.Combat.damage_roll/4`.

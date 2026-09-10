@@ -48,7 +48,7 @@ Fuente canónica del código: `lib/dragonex/tools.ex` (S5), sets por agente en
 | Tool | Firma | Guarda | Resuelve |
 |---|---|---|---|
 | `roll_initiative` | `()` | — | Iniciativa de todos los conscientes + `begin_combat` (M2) |
-| `make_attack` | `(attacker, target, weapon, mode)` | `assert_controls(attacker)` | Ataque con arma: d20(+adv/dis) + prof + mod vs AC; crítico dobla dados (M3–M6) |
+| `make_attack` | `(attacker, target, weapon, mode)` | `assert_controls(attacker)` | Acción de Ataque: N golpes vs el mismo objetivo (Extra Attack D35 / M3); d20(+adv/dis) + prof + mod vs AC; crítico dobla dados (M3–M6) |
 | `cast_spell` | `(caster, spell, target)` | `assert_controls(caster)` | Por `kind`: `:automatic` / `:attack` (crit dobla) / `:save` (mitad en éxito); consume slot si nivel > 0 (M7–M11) |
 | `ability_check` | `(who, ability, dc, mode)` | `assert_controls(who)` | d20 + mod (+ prof si el DM la afirma) vs DC del DM (5/10/15/20) |
 | `make_death_save` | `(character)` | `assert_controls(character)` | Death save: nat20 revive, nat1 doble fallo, 3/3 (M14) |
