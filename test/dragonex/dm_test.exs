@@ -36,6 +36,23 @@ defmodule Dragonex.DMTest do
     assert brief =~ "goblin (monster, enemy)"
   end
 
+  test "combat brief with current_combatant names only that monster" do
+    w =
+      World.new()
+      |> add(World.add_character(Archetypes.fighter()))
+      |> add(World.add_character(Monsters.goblin()))
+      |> add(World.add_character(Monsters.orc()))
+      |> add(World.begin_combat(["goblin", "orc", "Thane"]))
+
+    w = %{w | current_combatant: "orc"}
+    brief = Brief.world_brief(w, "dm", "dm")
+
+    assert brief =~ "Es TU turno (DM) -- actúa por: orc."
+    refute brief =~ "actúa por: goblin, orc"
+    assert brief =~ "orc (monster, enemy)"
+    assert brief =~ "<- ACTÚA AHORA"
+  end
+
   test "a downed character is flagged [DOWN]" do
     w =
       World.new()

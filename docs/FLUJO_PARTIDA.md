@@ -308,8 +308,10 @@ herramientas son puentes: nunca calculan números, solo proponen el change.
    `Actions.initiative` rolla d20+mod para cada combatiente consciente, ordena
    descendente y devuelve un `World.begin_combat(order)` change. La fase pasa a
    `:combat`.
-2. **Turnos**: `WorldDriven` cicla `initiative_order` mapeando enemigos al DM.
-   `can_act?` solo admite al participant actual.
+2. **Turnos**: un beat por combatiente (D34). `WorldDriven` cicla
+   `initiative_order` mapeando enemigos al DM **sin** colapsar slots
+   consecutivos. `World.current_combatant` nombra el slot; `can_act?`
+   admite al controlador (`"dm"` o el PC).
 3. **Resolución**: `make_attack`/`cast_spell` resuelven por reglas, persisten
    `:dice` (modal en vivo) y aplican daño.
 4. **Fin automático** (`maybe_end_combat`, `game.ex:1159`): cuando

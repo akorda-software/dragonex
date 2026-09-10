@@ -25,7 +25,7 @@ existe" sino por "se verifica".**
 | F4 — Héroes | Forjar y crecer | Builder 5 pasos + catálogos SRD ES + custom (D22) + level-up (D10–D13) |
 | F5 — TurnMaster | La partida fluye | Orquestador de turnos (D25) con fallback WorldDriven |
 
-Verde de referencia hoy: **585 tests passed**, compile sin warnings.
+Verde de referencia hoy: **713 tests passed**, compile sin warnings.
 
 ---
 
@@ -40,69 +40,40 @@ Hecho: el brief del TM lista intents pendientes; `declare` off-turn en
 anti-spam por firma del mapa de intents. Tests en `brief_test.exs`,
 `turn_master_test.exs`, `turn_master_loop_test.exs`.
 
-### F6.1 — Automatismos de condición → ventaja (R24 🟡→✅)
+### F6.1 — Automatismos de condición → ventaja (R24 🟡→✅) ✅
 
-**Qué**: hoy `adjust_mode_for_conditions` aplica ventaja/desventaja por
-condición en **ataques** (`Rules.Combat.attack_roll`). Falta extender el mismo
-principio a `saving_throw` y `ability_check`: p.ej. poisoned → desventaja en
-checks y saves de STR/DEX (RAW), prone → desventaja en ataque *desde* prone,
-blinded → desventaja general, paralyzed/unconscious → ventaja de los atacantes
-contra el objetivo (esto último puede requerir tocar `Actions.attack`).
+Hecho: `Rules.Conditions` concentra la tabla M06 (ataque / salva / chequeo).
+`Actions.attack`, `Actions.check` y `Actions.spell` (`:attack` y `:save`)
+leen el modo efectivo. STR/DEX auto-fallan si paralizado/aturdido/
+inconsciente/petrificado. Cancelación 5e en todos los caminos. Contrato de
+tools sin cambios. Tests en `rules/conditions_test.exs` + `conditions_test.exs`.
 
-**Dónde**: `lib/dragonex/rules/combat.ex`, `lib/dragonex/actions.ex`
-(`adjust_mode_for_conditions` es el punto de extensión), tests en
-`test/dragonex/rules/combat_test.exs` + `actions_test.exs`.
+Nota: el ejemplo del backlog mezclaba poisoned con saves de STR/DEX; RAW
+poisoned no afecta salvaciones (sí ataques y chequeos). Se implementó RAW.
 
-**Hecho cuando**:
-- AC-1: tabla de mapeo condición→(efecto en attack/save/check) documentada en
-  `08-catalogo-mecanicas` (M6 extendida) y cubierta por tests por condición.
-- AC-2: la cancelación 5e (ventaja+desventaja=normal) se mantiene en todos los
-  caminos.
-- AC-3: suite verde, sin cambios en el contrato de tools (`07-contrato-tools`).
+### F6.2 — Banner de level-up en la mesa (decisión abierta → resolver) ✅
 
-### F6.2 — Banner de level-up en la mesa (decisión abierta → resolver)
+Hecho (D33): se elimina el banner inerte. El humano sube desde la ficha
+(`/heroes/:id/level-up`). Un flag "DM granted" en mesa sería reabrir XP (F7).
 
-**Qué**: `viewer_level_up` en `GameLive.Show` está gateado por XP que nunca
-llega (milestone D10) → nunca se muestra. Decidir: (a) eliminar el banner, o
-(b) cablearlo a un flag "DM granted" (el DM ya puede `level_up` a PCs IA; para
-humanos haría falta una señal del DM o del propio jugador).
+### F6.3 — Mesa responsive (R20 🔴) ✅
 
-**Hecho cuando**: hay ADR en `decisions.md` que cierra la alternativa elegida
-(y el código refleja la decisión). Es una decisión de producto pequeña — no
-necesita más de un párrafo de ADR.
+Hecho: `@media (max-width:720px)` en `game.css` — feed+input primero, rails
+izquierdo oculto (iniciativa ya está en el topbar), ficha derecha en drawer
+CSS (`#sheet-drawer` + label, cero JS). Dados overlay con `max-width:100vw`.
+Nota en `tecnico/00-arquitectura`.
 
-### F6.3 — Mesa responsive (R20 🔴)
+### F6.4 — Iniciativa individual por monstruo (R28 → D34) ✅
 
-**Qué**: la mesa es un grid 3-col que no reflowea en móvil. Diseñar layout
-apilado (feed primero, ficha colapsable, dice modal ya es overlay). Sólo CSS +
-quizá `pending_prefers_reduction` de LiveView para reordenar; **cero lógica**.
+**Qué**: un beat por combatiente; el DM sigue como controlador (D34).
+`World.current_combatant` nombra el slot; `WorldDriven` ya no colapsa
+enemigos consecutivos; `acted_this_round` marca el monstruo, no `"dm"`.
 
 **Hecho cuando**:
-- AC-1: a 375px de ancho el feed es usable (input visible, sin scroll
-  horizontal), la ficha se abre/cierra, los dados se ven.
-- AC-2: sin regresiones a ≥1024px (tests LiveView existentes verde).
-- AC-3: nota en `tecnico/00-arquitectura` si cambia la estructura de
-  componentes.
-
-### F6.4 — Iniciativa individual por monstruo (R28 → requiere mini-ADR)
-
-**Qué**: hoy todos los enemigos colapsan en el turno del DM (dedup en
-WorldDriven). Dar a cada monstruo su slot de iniciativa (manteniendo el DM
-como su *controlador*).
-
-**Ojo**: interacciona con `acted_this_round` y con el TurnMaster (su brief
-muestra el orden; los mini-turnos de monstruos deben seguir fluyendo). Es la
-feature pendiente más "calada" de F6: tocar `world.ex` (initiative_order ya es
-por nombre → los monstruos YA tienen entrada propia si su nombre entra al
-orden; el colapso es política), `turn_policy/world_driven.ex` y el brief.
-
-**Hecho cuando**:
-- AC-1: ADR que fija la semántica (¿un beat por monstruo o un beat del DM que
-  los recorre?).
+- AC-1: ADR D34 — un beat por monstruo, no un beat del DM que los recorre.
 - AC-2: 3 monstruos con iniciativa distinta actúan en su orden, el DM narra
   cada uno; TurnMaster sigue respetando el orden con `cut_in` disponible.
-- AC-3: tests de loop (`turn_master_loop_test.exs` estilo) + flows de combate
-  multi-monstruo verde.
+- AC-3: tests de loop (`turn_master_loop_test.exs`) + `world_driven_test.exs`.
 
 ### F6.5 — Pase de fidelidad SRD del creador (auditoría)
 

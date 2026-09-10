@@ -259,8 +259,8 @@ humanos **siempre** desde su ficha (la tool los rechaza con mensaje directivo).
 ### R28 — Declarado fuera de v1 (no bugs)
 Concentración, `temp_hp` funcional, resistencias/vulnerabilidades, reacciones
 como mecánica formal (TurnMaster da interrupciones narrativas, no la mecánica
-5e), iniciativa individual por monstruo (hoy colapsada al turno del DM),
-multiclase. Cada una requiere ADR propio para entrar.
+5e), multiclase. Cada una requiere ADR propio para entrar. Iniciativa
+individual por monstruo → **D34 / F6.4**.
 
 ---
 
@@ -293,10 +293,10 @@ pendientes** (D27): el TM las considera; no las resuelve.
   humano; si el TM mantiene al waiter, el intent sigue encolado; si el TM
   falla en la re-eval, **no se roba** el turno del waiter.
 
-### R31 — DM con tres sombreros ✅ (D23)
-Árbitro + controlador de monstruos (plegados en su turno) + director narrativo.
-System prompt de 16 reglas, story bible horneada cacheable (D20), budget de
-retries ampliado en tools de resolución.
+### R31 — DM con tres sombreros ✅ (D23, D34)
+Árbitro + controlador de monstruos (un beat por monstruo, D34) + director
+narrativo. System prompt de 16 reglas, story bible horneada cacheable (D20),
+budget de retries ampliado en tools de resolución.
 
 - AC-31.1: el DM nunca narra números que contradigan el motor (guardrails +
   scrub D7; `dm_anti_repeat_test.exs`, `dm_test.exs`).
@@ -348,7 +348,7 @@ Prefijo cacheable medido 44–85% de input cacheado.
 | # | Requisito | Estado |
 |---|---|---|
 | NFR-1 | Determinismo del motor: roller inyectado, nunca `:rand` en `Rules`/`Actions`/`World` | ✅ |
-| NFR-2 | Suite offline verde: `MIX_ENV=test mix test` (585) sin red ni API key | ✅ |
+| NFR-2 | Suite offline verde: `MIX_ENV=test mix test` (713) sin red ni API key | ✅ |
 | NFR-3 | `mix compile` sin warnings; `mix format` limpio | ✅ |
 | NFR-4 | Sanitización determinística en TODO texto persistido (D7) | ✅ |
 | NFR-5 | Latencia: streaming token-a-token; GenServer nunca bloquea en LLM (Task) | ✅ |

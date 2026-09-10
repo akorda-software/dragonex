@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **622 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **720 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -23,6 +23,8 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 - `World` — máquina de estados `:exploration`/`:combat`, change-fns puras,
   invariantes (damage floor 0, `controlled_by?/3`), `facts` durables (D16),
   condiciones, spell slots, `level_up`.
+- `Rules.Conditions` — tabla M06: condición → ventaja/desventaja/auto-fallo
+  en ataque, salvación y chequeo (cancelación 5e).
 - `Actions` — puente intent→world (`attack`, `spell` automatic/attack/save +
   consumo de slot, `initiative`, `death_save`, `heal`, `short_rest`,
   `long_rest`, `check`). Con `RollLog` para dados estructurados.
@@ -30,8 +32,8 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   `roll_initiative`, `make_death_save`, `heal`, `ability_check`, `end_combat`,
   `short_rest`, `long_rest`, `spawn_monster`, `apply_condition`,
   `remove_condition`, `set_scene`, `establish_fact`, `level_up`, `roll_dice`.
-- `TurnPolicy.WorldDriven` — turno leído del World; iniciativa imparcial; el
-  LLM no puede saltar/reordenar.
+- `TurnPolicy.WorldDriven` — turno leído del World; un beat por monstruo
+  (D34); el LLM no puede saltar/reordenar.
 - `Codec` + `Store.Coded` — `World ↔ jsonb` simétrico (D8).
 - `Dice` — RNG inyectable (`dic_ex`), `roll_expr/2` parser NdM±K.
 
@@ -106,7 +108,8 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 - **Mesa** (`GameLive.Show`): feed agrupado por turnos, dice modal (FSM),
   streaming token-a-token con anti-duplicación, paginación del log (tope 400
   bloques), modal Ajustes (provider/model/reasoning con restart), identidad
-  por humano (`?as=<name>` + overlay), "Ver como DM".
+  por humano (`?as=<name>` + overlay), "Ver como DM". Responsive ≤720px
+  (feed primero, ficha en drawer CSS).
 - **Multiplayer** — `join_game` con slots abiertos, waiting room con share
   link, el creador pulsa "Empezar".
 
@@ -128,6 +131,8 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 - ✅ Modelo-por-rol + `max_tokens` (D21).
 - ✅ Compactación (`Compaction.Summary`, umbral 250k → efectivamente off con
   modelos de 1M; cableado y funcional).
+- ✅ Iniciativa individual por monstruo (D34 / F6.4): un beat por
+  combatiente; `World.current_combatant`; DM sigue como controlador.
 
 ---
 
@@ -140,18 +145,12 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 | `spells_known` | `nil` (sin cap estricto por clase) | D14 |
 | Features por nivel | Solo spellcasting de paladín/ranger a L2 | `progression.ex` |
 | Empate iniciativa | Rompe por nombre, no dex+roll-off | D15 |
-| Banner level-up in-game | Inerte bajo milestone (gate XP sin fuente) | abierta |
+| Banner level-up in-game | Eliminado (D33); subida desde la ficha | D33 |
 | Stub legado en `Tools` | `attack`/`roll`/`spawn_character`/`next_round` mantenidos para tests del framework exAgent | `tools.ex:31-72` |
 
 ---
 
 ## 🔴 Pendiente / fuera de v1
-
-- **Mobile responsive** de la mesa (grid 3-col; needs reflow).
-- **Condiciones que disparen ventaja automáticamente** (prone/poisoned →
-  `Rules.Combat` ya aplica adjust por condición en ataque, pero faltan
-  automatismos de condición→ventaja en saves/checks).
-- **Iniciativa individual por monstruo** (hoy colapsados al turno del DM).
 
 - **Multi-nodo** (`Horde`) — pausado (D24).
 

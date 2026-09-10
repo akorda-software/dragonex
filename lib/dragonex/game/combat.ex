@@ -89,9 +89,10 @@ defmodule Dragonex.Game.Combat do
     world = Session.read_state(state.session)
 
     if world.phase == :combat do
+      marked = world.current_combatant || name
       proposer = Session.current(state.session) || name
 
-      case Session.update_state(state.session, proposer, Dragonex.World.mark_acted(name)) do
+      case Session.update_state(state.session, proposer, Dragonex.World.mark_acted(marked)) do
         {:ok, _} -> state
         {:error, _} -> state
       end
@@ -110,7 +111,7 @@ defmodule Dragonex.Game.Combat do
     world = Session.read_state(state.session)
 
     if world.phase == :combat do
-      cycle = Dragonex.TurnPolicy.WorldDriven.combat_participants(world, "dm")
+      cycle = Dragonex.World.combat_cycle(world)
 
       complete? =
         cond do

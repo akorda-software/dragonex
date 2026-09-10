@@ -713,7 +713,7 @@ defmodule Dragonex.Game do
                   Instructions.dm_advance_instruction()
 
                 true ->
-                  Instructions.dm_instruction()
+                  Instructions.dm_instruction(world.current_combatant)
               end
 
             # Bug #4: the DM occasionally narrates a PC acting ("*Lyra ataca al

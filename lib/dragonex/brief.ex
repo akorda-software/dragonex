@@ -15,9 +15,9 @@ defmodule Dragonex.Brief do
   Build the world brief string.
 
   `current` is the participant whose turn it is; `dm` is the DM participant id.
-  When it's the DM's turn, the header lists the monsters it controls (since the
-  policy folds all enemies onto the DM's single turn). `kinds` maps participant
-  name → `:ai` | `:human`.
+   When it's the DM's turn, the header lists the combatant whose slot it is
+   (`world.current_combatant`, D34) or every living monster if unset. `kinds`
+   maps participant name → `:ai` | `:human`.
   """
   @spec world_brief(World.t(), String.t() | nil, String.t(), %{optional(String.t()) => atom()}) ::
           String.t()
@@ -42,7 +42,7 @@ defmodule Dragonex.Brief do
     chars =
       w.characters
       |> Enum.sort_by(fn {name, _} -> name end)
-      |> Enum.map(fn {name, c} -> describe_char(name, c, current, dm, w.spell_slots, kinds) end)
+      |> Enum.map(fn {name, c} -> describe_char(name, c, current, dm, w, kinds) end)
       |> Enum.join("\n")
 
     [phase_line, turn_line, control_line, acted_line, facts_line, "Escena: #{w.scene}", chars]
@@ -195,6 +195,11 @@ defmodule Dragonex.Brief do
 
   defp turn_for(_w, nil, _dm, _kinds), do: ""
 
+  defp turn_for(%World{current_combatant: slot}, current, dm, _kinds)
+       when current == dm and is_binary(slot) and slot != "" do
+    "Es TU turno (DM) -- actúa por: #{slot}."
+  end
+
   defp turn_for(%World{characters: chars}, current, dm, _kinds) when current == dm do
     monsters =
       chars
@@ -212,7 +217,7 @@ defmodule Dragonex.Brief do
     "Es el turno de #{current} (#{role}) -- solo #{current} puede actuar ahora."
   end
 
-  defp describe_char(name, %Character{} = c, current, dm, spell_slots, kinds) do
+  defp describe_char(name, %Character{} = c, current, dm, %World{} = w, kinds) do
     fails = c.death_saves[:fails] || 0
 
     status =
@@ -230,7 +235,13 @@ defmodule Dragonex.Brief do
         names -> " [#{Enum.join(names, ", ")}]"
       end
 
-    you = if name == current and current != dm, do: "  <- ACTÚA AHORA", else: ""
+    you =
+      cond do
+        is_binary(w.current_combatant) and name == w.current_combatant -> "  <- ACTÚA AHORA"
+        name == current and current != dm -> "  <- ACTÚA AHORA"
+        true -> ""
+      end
+
     weapons = c.weapons |> Enum.map(& &1.name) |> Enum.join(", ")
     spells = if c.spells == [], do: [], else: c.spells |> Enum.map(& &1.name) |> Enum.join(", ")
 
@@ -239,7 +250,7 @@ defmodule Dragonex.Brief do
     gear = ["Armas: #{weapons}"] ++ if spells == [], do: [], else: ["Hechizos: #{spells}"]
 
     # Spell slots: only show for tracked casters
-    slot_str = slot_summary(spell_slots, name)
+    slot_str = slot_summary(w.spell_slots, name)
 
     gear = if slot_str != "", do: gear ++ [slot_str], else: gear
 

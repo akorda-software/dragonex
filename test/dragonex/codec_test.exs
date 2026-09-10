@@ -63,6 +63,17 @@ defmodule Dragonex.CodecTest do
       assert {"dm", "combat begins: Thane → goblin"} in decoded.log
     end
 
+    test "current_combatant survives" do
+      w =
+        World.new(
+          phase: :combat,
+          initiative_order: ["goblin", "Thane"],
+          current_combatant: "goblin"
+        )
+
+      assert Codec.decode(Codec.encode(w)).current_combatant == "goblin"
+    end
+
     test "death_saves tracker survives" do
       c =
         Character.new(

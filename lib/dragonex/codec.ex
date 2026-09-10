@@ -29,7 +29,8 @@ defmodule Dragonex.Codec do
       "log" => Enum.map(w.log, fn {actor, entry} -> [actor, entry] end),
       "spell_slots" => w.spell_slots,
       "facts" => w.facts,
-      "acted_this_round" => encode_acted(w.acted_this_round)
+      "acted_this_round" => encode_acted(w.acted_this_round),
+      "current_combatant" => w.current_combatant
     }
   end
 
@@ -50,7 +51,8 @@ defmodule Dragonex.Codec do
       log: Enum.map(m["log"] || [], fn [actor, entry] -> {actor, entry} end),
       spell_slots: decode_spell_slots(m["spell_slots"]),
       facts: m["facts"] || [],
-      acted_this_round: decode_acted(m["acted_this_round"])
+      acted_this_round: decode_acted(m["acted_this_round"]),
+      current_combatant: m["current_combatant"]
     }
   end
 

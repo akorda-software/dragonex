@@ -158,7 +158,9 @@ activas). El motor consume structs, no el JSON crudo → sin cambios en
 ### D23 — El DM es un participant `:ai` con `side: "dm"`
 Los PCs pueden ser IA (su **propio agente** `PCAgent`, con personalidad +
 tools restringidas) o humanos. El DM acumula tres sombreros: árbitro,
-controlador de monstruos (plegados en su turno) y director narrativo.
+controlador de monstruos y director narrativo. El controlador sigue siendo
+el DM; **un beat por monstruo** es D34 (antes los enemigos se plegaban en
+un único slot).
 
 ### D24 — Multi-nodo fuera de alcance
 Sin `Horde` ni replicación; `Registry` alcanza para single-node. Se reabre si
@@ -326,6 +328,31 @@ nunca se mostraba. Se elimina: el humano sube desde la ficha
 (`/heroes/:id/level-up`, callout en `HeroLive.Show` si `level < 20`).
 Cablear un flag "DM granted" en la mesa sería reabrir XP como fuente
 (F7) — fuera de v1.
+
+### D34 — Un beat por monstruo; el DM sigue como controlador
+La iniciativa 5e es por combatiente. `World.initiative_order` ya listaba
+nombres individuales; `WorldDriven` colapsaba enemigos consecutivos en un
+solo slot del DM. Eso mezclaba tres sombreros de D23 (árbitro / controlador
+/ narrador) con un único beat: el DM actuaba por todos los monstruos a la
+vez y `acted_this_round` marcaba `"dm"`.
+
+Semántica (F6.4):
+
+- **Un beat por combatiente** en `initiative_order`. Tres goblins en
+  fila → tres beats del DM. `cut_in`/`react` siguen siendo mini-turnos
+  que no marcan `acted_this_round`.
+- El **controlador** no cambia: `Session.current` en un slot de enemigo
+  es `"dm"`; `controlled_by?` y las tools no se tocan.
+- `World.current_combatant` nombra el slot vivo (persiste en Codec). El
+  Game lo escribe en el handoff/fallback (D6). `mark_acted` usa ese
+  nombre, no `"dm"`. Brief y UI resaltan solo a ese combatiente.
+- `WorldDriven.combat_participants/2` ya no hace dedup consecutivo; el
+  ciclo de ronda es `World.combat_cycle/1` (enemigos vivos + PCs, incluso
+  caídos).
+
+Alternativa descartada: un beat del DM que recorre todos los monstruos
+internamente — barato en tokens, pero el TurnMaster no puede intercalar
+`cut_in` entre enemigos y `acted_this_round` no distingue slots.
 
 ---
 

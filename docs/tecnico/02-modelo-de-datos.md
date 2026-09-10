@@ -71,7 +71,9 @@ Dragonex.World (world.ex)
 ├─ initiative_order [name]                     orden de iniciativa
 ├─ log            [(actor, entry)]             legacy (se codifica como 2-arrays)
 ├─ spell_slots    %{name => %{level => count}}  CLAVES DE NIVEL ENTERAS
-└─ facts          [String]                     hechos durables (D16, cap 30)
+├─ facts          [String]                     hechos durables (D16, cap 30)
+├─ acted_this_round MapSet(name)               main turns gastados (D25)
+└─ current_combatant name | nil                slot vivo en combate (D34)
 
 Dragonex.Character (character.ex)  — Ecto embedded schema
 ├─ identidad: name, race, class, sex, side, level, xp

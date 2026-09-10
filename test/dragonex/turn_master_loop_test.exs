@@ -307,6 +307,122 @@ defmodule Dragonex.TurnMasterLoopTest do
     assert next.round == combat.round + 1
   end
 
+  test "three monsters each get a DM beat before the PC (D34)" do
+    {:ok, game} =
+      Games.create_game(
+        title: "d34 multi monster",
+        scene: "a torchlit ruin",
+        roster: [
+          {Archetypes.fighter(), :human},
+          {Monsters.goblin(name: "g1"), :ai},
+          {Monsters.goblin(name: "g2"), :ai},
+          {Monsters.goblin(name: "g3"), :ai}
+        ],
+        initiative: ["g1", "g2", "g3", "Thane"]
+      )
+
+    dm_beats =
+      Enum.flat_map(["g1", "g2", "g3"], fn name ->
+        [
+          text("El DM sitúa la escena."),
+          tool_calls([
+            call("make_attack", %{
+              "attacker" => name,
+              "target" => "Thane",
+              "weapon" => "scimitar"
+            })
+          ]),
+          text("#{name} ataca."),
+          text("El DM cierra.")
+        ]
+      end)
+
+    pid =
+      start_supervised!(
+        {Dragonex.Game,
+         {game.id,
+          [
+            model: %Test{script: dm_beats},
+            turnmaster_model: %Test{label: "(no decision)"},
+            roller: hit_roller()
+          ]}}
+      )
+
+    assert :ok == Game.await(pid, waiting_on("Thane"), 15_000)
+
+    snap = Game.snapshot(pid)
+    assert MapSet.member?(snap.world.acted_this_round, "g1")
+    assert MapSet.member?(snap.world.acted_this_round, "g2")
+    assert MapSet.member?(snap.world.acted_this_round, "g3")
+    refute MapSet.member?(snap.world.acted_this_round, "Thane")
+    assert snap.world.current_combatant == "Thane"
+
+    events = Games.list_events(game.id)
+    dm_narr = Enum.filter(events, &(&1.actor == "dm" and &1.type == :narration))
+    assert length(dm_narr) >= 3
+  end
+
+  test "TurnMaster give_turn_to each monster then the PC (D34)" do
+    {:ok, game} =
+      Games.create_game(
+        title: "d34 tm named",
+        scene: "a torchlit ruin",
+        roster: [
+          {Archetypes.fighter(), :human},
+          {Monsters.goblin(name: "g1"), :ai},
+          {Monsters.goblin(name: "g2"), :ai},
+          {Monsters.goblin(name: "g3"), :ai}
+        ],
+        initiative: ["g1", "g2", "g3", "Thane"]
+      )
+
+    dm_beats =
+      Enum.flat_map(["g1", "g2", "g3"], fn name ->
+        [
+          text("El DM sitúa la escena."),
+          tool_calls([
+            call("make_attack", %{
+              "attacker" => name,
+              "target" => "Thane",
+              "weapon" => "scimitar"
+            })
+          ]),
+          text("#{name} ataca."),
+          text("El DM cierra.")
+        ]
+      end)
+
+    tm =
+      %Test{
+        script:
+          tm_script_give("g1") ++
+            tm_script_give("g2") ++
+            tm_script_give("g3") ++
+            tm_script_give("Thane")
+      }
+
+    pid =
+      start_supervised!(
+        {Dragonex.Game,
+         {game.id, [model: %Test{script: dm_beats}, turnmaster_model: tm, roller: hit_roller()]}}
+      )
+
+    assert :ok == Game.await(pid, waiting_on("Thane"), 15_000)
+
+    snap = Game.snapshot(pid)
+    assert MapSet.member?(snap.world.acted_this_round, "g1")
+    assert MapSet.member?(snap.world.acted_this_round, "g2")
+    assert MapSet.member?(snap.world.acted_this_round, "g3")
+    assert snap.world.current_combatant == "Thane"
+
+    events = Games.list_events(game.id)
+    tm_notes = Enum.filter(events, &(&1.actor == "turnmaster" and &1.type == :system))
+    notes = Enum.map(tm_notes, &(&1.payload["note"] || ""))
+    assert Enum.any?(notes, &(&1 =~ "g1"))
+    assert Enum.any?(notes, &(&1 =~ "g2"))
+    assert Enum.any?(notes, &(&1 =~ "g3"))
+  end
+
   test "cut_in records mini-turn decision without requiring Game mutation from tools" do
     alias Dragonex.TurnMaster.{Decision, Tools}
 

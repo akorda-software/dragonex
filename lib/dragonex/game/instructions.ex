@@ -26,12 +26,22 @@ defmodule Dragonex.Game.Instructions do
         "quédate aquí. El viaje y la respuesta del mundo los narra el DM. " <>
         "Responde en castellano."
 
-  @doc "The default DM instruction for its turn."
+  @doc "The default DM instruction for its turn. Names the live combat slot when set (D34)."
   @spec dm_instruction() :: String.t()
-  def dm_instruction,
+  @spec dm_instruction(String.t() | nil) :: String.t()
+  def dm_instruction(combatant \\ nil)
+
+  def dm_instruction(combatant) when is_binary(combatant) and combatant != "" do
+    "Actúa SOLO por #{combatant} (su slot de iniciativa). No narres ni ataques con otros monstruos este beat. " <>
+      dm_instruction_tail()
+  end
+
+  def dm_instruction(_),
+    do: "Actúa por cualquier monstruo/PNJ cuyo turno sea. " <> dm_instruction_tail()
+
+  defp dm_instruction_tail,
     do:
-      "Actúa por cualquier monstruo/PNJ cuyo turno sea. " <>
-        "Si los jugadores han pedido algo concreto (combate, explorar, hablar con un PNJ), " <>
+      "Si los jugadores han pedido algo concreto (combate, explorar, hablar con un PNJ), " <>
         "EJECÚTALO ahora: usa spawn_monster si piden pelea, narra lo que encuentran si exploran, " <>
         "responde si preguntan. NO narres que un PNJ 'espera' o 'no responde' — haz que ACTÚE. " <>
         "Si la escena lleva parada más de un turno, introduce algo NUEVO (enemigo, evento, revelación). " <>

@@ -73,12 +73,22 @@ defmodule Dragonex.Game.Settlement do
             Combat.mark_actor_acted(state, current)
           end
 
+        world_before = Session.read_state(state.session)
+        slot = world_before.current_combatant
+
         Combat.maybe_advance_round(state, current, beat_phase)
+
+        last =
+          if is_binary(slot) and slot != "" do
+            slot
+          else
+            current
+          end
 
         state = %{
           state
           | fallback_streak: 0,
-            last_actor: current,
+            last_actor: last,
             last_was_mini: mini_turn
         }
 

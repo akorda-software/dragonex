@@ -239,4 +239,45 @@ defmodule Dragonex.WorldTest do
       refute World.controlled_by?(w, "ghost", "dm")
     end
   end
+
+  describe "combat_cycle and current_combatant (D34)" do
+    test "skips downed enemies, keeps downed PCs" do
+      w =
+        World.new()
+        |> apply!(World.add_character(pc("Thane")))
+        |> apply!(World.add_character(goblin(7)))
+        |> apply!(
+          World.add_character(
+            Character.new(name: "g2", class: "monster", hp: 0, max_hp: 7, side: "enemy")
+          )
+        )
+        |> apply!(World.begin_combat(["goblin", "g2", "Thane"]))
+
+      assert World.combat_cycle(w) == ["goblin", "Thane"]
+
+      w = apply!(w, World.apply_damage("Thane", 99))
+      assert World.down?(w, "Thane")
+      assert World.combat_cycle(w) == ["goblin", "Thane"]
+    end
+
+    test "acting? follows current_combatant in combat" do
+      w =
+        World.new()
+        |> apply!(World.add_character(pc("Thane")))
+        |> apply!(World.add_character(goblin(7)))
+        |> apply!(
+          World.add_character(
+            Character.new(name: "orc", class: "monster", hp: 7, max_hp: 7, side: "enemy")
+          )
+        )
+        |> apply!(World.begin_combat(["goblin", "orc", "Thane"]))
+
+      w = apply!(w, World.set_current_combatant("orc"))
+      assert World.acting?(w, "orc", "dm")
+      refute World.acting?(w, "goblin", "dm")
+      refute World.acting?(w, "Thane", "dm")
+      assert World.resolve_combatant(w, "dm") == "goblin"
+      assert World.resolve_combatant(w, "orc") == "orc"
+    end
+  end
 end

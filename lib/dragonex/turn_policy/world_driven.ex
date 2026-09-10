@@ -11,10 +11,10 @@ defmodule Dragonex.TurnPolicy.WorldDriven do
 
     * **exploration** — round-robin over the participants (the DM narrates on its
       turn, same as everyone else).
-    * **combat** — cycle `world.initiative_order`, mapping each character to the
-      participant that controls it: PCs map to themselves, enemies map to the DM
-      (`:dm` option, default `"dm"`). Consecutive duplicates collapse so all the
-      DM's monsters share one turn per cycle slot.
+    * **combat** — cycle `world.initiative_order` one combatant at a time
+      (D34). PCs map to themselves; each enemy maps to the DM (`:dm` option,
+      default `"dm"`). Consecutive DM slots are **not** collapsed: three
+      monsters in a row yield three DM beats.
 
   When the phase flips (exploration ⇄ combat), the cursor resets so the new
   phase starts cleanly at index 0.
@@ -72,6 +72,8 @@ defmodule Dragonex.TurnPolicy.WorldDriven do
   def can_act?(%__MODULE__{current: current}, id, _ctx),
     do: current != nil and current == id
 
+  def handoff(%__MODULE__{} = state, id, _ctx), do: {:ok, %{state | current: id}}
+
   @impl true
   def participant_joined(%__MODULE__{ids: ids} = state, %{id: id}),
     do: %{state | ids: ids ++ [id]}
@@ -95,27 +97,20 @@ defmodule Dragonex.TurnPolicy.WorldDriven do
   # ----------------------------------------------------------- helpers
 
   @doc """
-  The combat turn cycle as participant ids: each combatant in `initiative_order`
-  mapped to the participant that controls it (PCs → themselves, enemies → the
-  DM), with consecutive duplicates collapsed so all the DM's monsters share one
-  slot per cycle.
-
-  This is the single source of truth for the combat cycle, shared with the Game
-  (round advancement). Downed/dead combatants are NOT filtered here — ending
-  combat the moment it's over is the Game's job (`World.combat_over?`), and a
-  mid-fight casualty just means the DM acts with its remaining monsters.
+  The combat turn cycle as Session participant ids: each name in
+  `initiative_order` mapped to their controller (PCs → themselves, enemies →
+  the DM). Consecutive DM slots are kept (D34: one beat per monster). Downed
+  combatants are not filtered here — ending combat is the Game's job.
   """
   @spec combat_participants(World.t(), term()) :: [term()]
   def combat_participants(%World{phase: :combat, initiative_order: order, characters: chars}, dm)
       when is_list(order) do
-    order
-    |> Enum.map(fn name ->
+    Enum.map(order, fn name ->
       case Map.get(chars, name) do
         %{side: "pc"} -> name
         _ -> dm
       end
     end)
-    |> dedupe_consecutive()
   end
 
   def combat_participants(_, _), do: []
@@ -142,14 +137,4 @@ defmodule Dragonex.TurnPolicy.WorldDriven do
     do: combat_participants(w, dm)
 
   defp combat_order(_, _), do: nil
-
-  defp dedupe_consecutive([]), do: []
-
-  defp dedupe_consecutive([h | t]) do
-    t
-    |> Enum.reduce([h], fn x, acc ->
-      if x == hd(acc), do: acc, else: [x | acc]
-    end)
-    |> Enum.reverse()
-  end
 end

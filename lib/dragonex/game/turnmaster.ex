@@ -204,6 +204,7 @@ defmodule Dragonex.Game.Turnmaster do
     case Session.handoff(state.session, target) do
       {:ok, _} ->
         append_tm_note(state, decision)
+        state = put_current_combatant(state, to)
         %{state | pending_mini: true, tm_fallback_streak: 0}
 
       {:error, _} ->
@@ -218,8 +219,8 @@ defmodule Dragonex.Game.Turnmaster do
 
     case Session.handoff(state.session, target) do
       {:ok, _} ->
-        # Note keeps the raw `to` (may be a monster name) for readable UI.
         append_tm_note(state, decision)
+        state = put_current_combatant(state, to)
 
         %{
           state
@@ -236,8 +237,19 @@ defmodule Dragonex.Game.Turnmaster do
 
   defp handoff_to(state, _, _, _), do: fallback_world_driven(state, :invalid_target)
 
-  # Session participants are "dm" + PC names. Monsters fold onto the DM
-  # (same rule as WorldDriven / controlled_by?).
+  defp put_current_combatant(state, to) do
+    world = Session.read_state(state.session)
+    name = Dragonex.World.resolve_combatant(world, to)
+    proposer = Session.current(state.session) || "dm"
+
+    case Session.update_state(state.session, proposer, Dragonex.World.set_current_combatant(name)) do
+      {:ok, _} -> state
+      {:error, _} -> state
+    end
+  end
+
+  # Session participants are "dm" + PC names. Monsters still resolve to the DM
+  # as controller (D34); the live slot is `World.current_combatant`.
   defp resolve_participant(_state, name) when name == "dm", do: "dm"
 
   defp resolve_participant(state, name) do
@@ -381,6 +393,7 @@ defmodule Dragonex.Game.Turnmaster do
       end
 
     next = Session.current(state.session) || "dm"
+    state = put_current_combatant(state, next)
 
     note =
       case announce do

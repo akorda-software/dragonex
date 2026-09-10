@@ -131,9 +131,9 @@ El turno **no** lo decide el modelo. Lo decide `TurnPolicy.WorldDriven`
 que **lee el `World`**:
 
 - **Exploración** — round-robin entre DM + PCs.
-- **Combate** — cicla `initiative_order`, mapeando cada nombre a su controlador
-  (PCs → ellos mismos, enemigos → DM), y **dedup consecutivos** para que todos los
-  monstruos compartan un único slot de DM.
+- **Combate** — cicla `initiative_order` un combatiente a la vez (D34),
+  mapeando cada nombre a su controlador (PCs → ellos mismos, enemigos → DM).
+  Tres monstruos seguidos → tres beats del DM.
 - `can_act?/3` sólo admite al participante actual. El cursor se resetea al cambiar
   de fase.
 
@@ -143,8 +143,9 @@ El LLM no puede saltarse ni reordenar turnos.
 ## Lo que NO resuelve el motor (declarado)
 
 Ver [`../progress.md`](../progress.md) § 🔴 y [`../producto/00-vision-y-alcance.md`](../producto/00-vision-y-alcance.md) § Fuera de alcance:
-concentración, `temp_hp` funcional, resistencias/vulnerabilidades, iniciativa
-individual por monstruo, reacciones. Son **simplificaciones v1 asumidas**, no bugs.
+concentración, `temp_hp` funcional, resistencias/vulnerabilidades, reacciones.
+Son **simplificaciones v1 asumidas**, no bugs. Iniciativa individual por
+monstruo: D34.
 
 ## Lectura siguiente
 

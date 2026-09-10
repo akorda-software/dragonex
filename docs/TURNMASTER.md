@@ -13,9 +13,10 @@
 >    `acted_this_round` al cerrar el beat del actor (main turn), vía
 >    `World.mark_acted/1` + `Session.update_state/3`. Las tools del TurnMaster
 >    **solo registran** la decisión.
-> 2. **Handoff a monstruos:** `Session.handoff` opera sobre ids de participante
->    (`dm`, nombres de PC). Si el TurnMaster elige un monstruo por nombre, el
->    Game lo resuelve a su controlador (`World.controller_of/2` → `"dm"`).
+> 2. **Handoff a monstruos (D34):** `Session.handoff` opera sobre ids de
+>    participante (`dm`, nombres de PC). Si el TurnMaster elige un monstruo
+>    por nombre, el Game resuelve el controlador a `"dm"` y escribe
+>    `World.current_combatant` con el nombre bruto.
 > 3. **Intenciones humanas (D27):** `turnmaster_brief/4` recibe `games.intents`.
 >    Un `declare/3` off-turn mientras otro humano espera re-evalúa al TM; si
 >    esa re-eval no decide, el floor se queda en el waiter (no WorldDriven).

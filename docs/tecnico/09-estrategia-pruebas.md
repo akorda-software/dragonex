@@ -5,7 +5,7 @@
 > declarar "hecho". Regla fundacional: **verificabilidad antes que
 > afirmaciones** — nada está "funcionando" sin un test verde que lo pruebe.
 
-Verde de referencia: **585 passed, 3 excluded** (`MIX_ENV=test mix test`),
+Verde de referencia: **713 passed, 3 excluded** (`MIX_ENV=test mix test`),
 100% offline, sin API key (los beats usan `TestModel`). `mix compile` sin
 warnings; `mix format` limpio.
 
@@ -33,7 +33,7 @@ warnings; `mix format` limpio.
 
 | Capa | Qué | Dónde | Modo |
 |---|---|---|---|
-| **L1 — Motor puro** | `Rules.Ability`/`Rules.Combat`, `Actions`, `World`, `Dice`, `SpellSlots` (mecánicas `M1`–`M22`) | `test/dragonex/rules/`, `test/dragonex/{actions,world,conditions,spell_slots,rest,world_facts,ghost_combat,healing_and_bestiary}_test.exs` | `async: true`, rollers fijos |
+| **L1 — Motor puro** | `Rules.Ability`/`Rules.Combat`/`Rules.Conditions`, `Actions`, `World`, `Dice`, `SpellSlots` (mecánicas `M1`–`M22`) | `test/dragonex/rules/`, `test/dragonex/{actions,world,conditions,spell_slots,rest,world_facts,ghost_combat,healing_and_bestiary}_test.exs` | `async: true`, rollers fijos |
 | **L2 — Builder/catálogos** | `Heroes.build`, catálogos SRD, `LevelUp`, validaciones, custom content mechanics | `test/dragonex/heroes/*`, `test/dragonex/accounts/level_up_test.exs` | `async: true` sin DB (D9) |
 | **L3 — Bucle y persistencia** | `Game` GenServer, beat completo con TestModel, retries/breaker, rehidratación, sync level-up, multiplayer, codec round-trip | `test/dragonex/{game_*,multi_level,persistence,turn_master*}_test.exs`, `test/dragonex/flows/*` | DB sandbox (ECTO Sandbox) |
 | **L4 — Web** | LiveViews (mesa, wizard, level-up, custom content), auth | `test/dragonex_web/*` | `conn_case` + LiveViewTest |
@@ -73,7 +73,7 @@ rompiendo alguno de estos **no está terminado**.
 ```sh
 mix compile --warnings-as-errors   # 0 warnings
 mix format --check-formatted       # formato limpio
-MIX_ENV=test mix test              # 585+ passed, 0 failed
+MIX_ENV=test mix test              # 720+ passed, 0 failed
 ```
 
 Y según la tabla anterior: tests nuevos de la capa que toca, docs actualizados
@@ -85,4 +85,3 @@ opcionalmente: `DRAGONEX_RUN_LIVE=1 OPENROUTER_API_KEY=… mix test --include in
 - No hay CI que corra la suite en cada push (pendiente de infra; el verde de
   referencia es local). Al añadir CI, este doc es el contrato de qué correr.
 - Los tests golden de fichas SRD completos están en curso (F6.5).
-- Cobertura de mobile/L4 responsive pendiente con F6.3.

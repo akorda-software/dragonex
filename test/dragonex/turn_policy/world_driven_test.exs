@@ -2,7 +2,7 @@ defmodule Dragonex.TurnPolicy.WorldDrivenTest do
   @moduledoc """
   The turn policy in isolation: feed it worlds and rosters, assert it sequences
     * round-robin in exploration,
-    * along the World's initiative order in combat (monsters folded onto the DM),
+    * along the World's initiative order in combat (one beat per monster, DM controller),
     * resetting the cursor on a phase change.
   No Session, no agents.
   """
@@ -67,6 +67,25 @@ defmodule Dragonex.TurnPolicy.WorldDrivenTest do
       assert WorldDriven.can_act?(s, current, ctx(w)) == true
       other = if current == "dm", do: "Vex", else: "dm"
       refute WorldDriven.can_act?(s, other, ctx(w))
+    end
+
+    test "three consecutive monsters yield three DM beats then the PC" do
+      w =
+        World.new()
+        |> then_add(World.add_character(pc("Vex")))
+        |> then_add(World.add_character(foe("g1")))
+        |> then_add(World.add_character(foe("g2")))
+        |> then_add(World.add_character(foe("g3")))
+        |> then_add(World.begin_combat(["g1", "g2", "g3", "Vex"]))
+
+      s = state(["dm", "Vex"])
+      {id1, s} = turn(s, w)
+      {id2, s} = turn(s, w)
+      {id3, s} = turn(s, w)
+      {id4, s} = turn(s, w)
+      {id5, _} = turn(s, w)
+
+      assert [id1, id2, id3, id4, id5] == ["dm", "dm", "dm", "Vex", "dm"]
     end
 
     test "a phase change to combat resets the cursor", %{world: combat} do

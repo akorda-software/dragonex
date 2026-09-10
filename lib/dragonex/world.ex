@@ -44,7 +44,8 @@ defmodule Dragonex.World do
             # Updated by the Game on give_turn_to handoffs — never by TurnMaster
             # tools (single-writer). cut_in/react mini-turns do NOT mark here.
             # Cleared when the round advances.
-            acted_this_round: MapSet.new()
+            acted_this_round: MapSet.new(),
+            current_combatant: nil
 
   @type phase :: :exploration | :combat
 
@@ -57,7 +58,8 @@ defmodule Dragonex.World do
           log: [{String.t(), String.t()}],
           spell_slots: %{String.t() => %{pos_integer() => non_neg_integer()}},
           facts: [String.t()],
-          acted_this_round: MapSet.t(String.t())
+          acted_this_round: MapSet.t(String.t()),
+          current_combatant: String.t() | nil
         }
 
   @spec new(keyword()) :: t()
@@ -154,6 +156,45 @@ defmodule Dragonex.World do
 
   def controller_of(_w, %Character{side: "pc"} = c), do: c.name
   def controller_of(_w, _enemy_or_nil), do: "dm"
+
+  @doc """
+  Combatants who still occupy an initiative slot this round (D34): living
+  enemies and PCs (including downed PCs, who take death saves). Dead creatures
+  and downed enemies are skipped.
+  """
+  @spec combat_cycle(t()) :: [String.t()]
+  def combat_cycle(%__MODULE__{phase: :combat, initiative_order: order} = w)
+      when is_list(order) do
+    Enum.filter(order, &in_combat_cycle?(w, &1))
+  end
+
+  def combat_cycle(_), do: []
+
+  @doc "Whose combat slot is live: `current_combatant` in combat, else controller."
+  @spec acting?(t(), String.t(), String.t() | nil) :: boolean()
+  def acting?(%__MODULE__{phase: :combat, current_combatant: slot}, name, _current)
+      when is_binary(slot) and slot != "",
+      do: name == slot
+
+  def acting?(%__MODULE__{} = w, name, current), do: controller_of(w, name) == current
+
+  @doc "Next unacted combatant in the cycle, or `to` when it names a character."
+  @spec resolve_combatant(t(), String.t() | nil) :: String.t() | nil
+  def resolve_combatant(%__MODULE__{phase: :combat} = w, to) do
+    cond do
+      is_binary(to) and to != "dm" and Map.has_key?(w.characters, to) ->
+        to
+
+      true ->
+        acted = w.acted_this_round || MapSet.new()
+
+        Enum.find(combat_cycle(w), fn name ->
+          not MapSet.member?(acted, name) and controller_of(w, name) == "dm"
+        end)
+    end
+  end
+
+  def resolve_combatant(_, _), do: nil
 
   # ---------------------------------------------------------- change functions
 
@@ -264,6 +305,7 @@ defmodule Dragonex.World do
              | phase: :combat,
                initiative_order: initiative_order,
                acted_this_round: MapSet.new(),
+               current_combatant: nil,
                log: log(w, "dm", "combat begins: #{Enum.join(initiative_order, " → ")}")
            }}
       end
@@ -278,6 +320,7 @@ defmodule Dragonex.World do
          w
          | phase: :exploration,
            acted_this_round: MapSet.new(),
+           current_combatant: nil,
            log: log(w, "dm", "combat ends")
        }}
     end
@@ -350,7 +393,29 @@ defmodule Dragonex.World do
   @doc "Bump the round counter and clear `acted_this_round` (D25)."
   @spec next_round() :: (t() -> {:ok, t()})
   def next_round do
-    fn w -> {:ok, %{w | round: w.round + 1, acted_this_round: MapSet.new()}} end
+    fn w ->
+      {:ok, %{w | round: w.round + 1, acted_this_round: MapSet.new(), current_combatant: nil}}
+    end
+  end
+
+  @doc "Record whose initiative slot the current beat is (D34). Nil outside combat."
+  @spec set_current_combatant(String.t() | nil) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def set_current_combatant(name) when is_binary(name) or is_nil(name) do
+    fn w ->
+      cond do
+        w.phase != :combat ->
+          {:ok, %{w | current_combatant: nil}}
+
+        is_nil(name) or name == "" ->
+          {:ok, %{w | current_combatant: nil}}
+
+        Map.has_key?(w.characters, name) ->
+          {:ok, %{w | current_combatant: name}}
+
+        true ->
+          {:error, "no such character: #{name}"}
+      end
+    end
   end
 
   @doc """
@@ -539,6 +604,15 @@ defmodule Dragonex.World do
   # Newest-first. Capped so the persisted jsonb does not grow without bound;
   # the canonical timeline is `game_events`, not this field.
   @max_log 50
+
+  defp in_combat_cycle?(w, name) do
+    cond do
+      dead?(w, name) -> false
+      match?(%Character{side: "pc"}, character(w, name)) -> true
+      match?(%Character{hp: hp} when hp > 0, character(w, name)) -> true
+      true -> false
+    end
+  end
 
   defp log(%__MODULE__{log: l}, actor, entry), do: Enum.take([{actor, entry} | l], @max_log)
 
