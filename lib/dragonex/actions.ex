@@ -69,7 +69,8 @@ defmodule Dragonex.Actions do
   `Progression.attack_count/2` (Extra Attack 5e, D35). If the target drops
   (hp ≤ 0) mid-action, remaining swings are skipped (no retarget). The
   attacker and target must already be in the world, and the attacker must
-  wield the named weapon.
+  wield the named weapon. Sneak Attack (D41) adds N d6 to the first hit
+  of this call when the rogue qualifies.
   """
   @spec attack(
           World.t(),
@@ -106,9 +107,21 @@ defmodule Dragonex.Actions do
               Conditions.attack_mode(a, t, requested: mode, ranged: weapon.ranged == true)
 
             n = Progression.attack_count(a.class, a.level)
+            sneak = sneak_opts(world, a, attacker, target, weapon, effective_mode)
 
             swings =
-              resolve_swings(a, t, attacker, target, weapon, roller, roll_log, effective_mode, n)
+              resolve_swings(
+                a,
+                t,
+                attacker,
+                target,
+                weapon,
+                roller,
+                roll_log,
+                effective_mode,
+                n,
+                sneak
+              )
 
             {notes, change} =
               pipe_damage(target, swing_amounts(swings), roller, roll_log, t, weapon.damage_type)
@@ -631,23 +644,26 @@ defmodule Dragonex.Actions do
 
   # ----------------------------------------------------------------- helpers
 
-  defp resolve_swings(a, t, attacker, target, weapon, roller, roll_log, mode, n) do
-    {swings, _hp} =
-      Enum.reduce_while(1..n, {[], t.hp}, fn _i, {acc, hp} ->
+  defp resolve_swings(a, t, attacker, target, weapon, roller, roll_log, mode, n, sneak) do
+    {swings, _hp, _sneak} =
+      Enum.reduce_while(1..n, {[], t.hp, sneak}, fn _i, {acc, hp, sneak_left} ->
         if hp <= 0 do
-          {:halt, {acc, hp}}
+          {:halt, {acc, hp, sneak_left}}
         else
-          swing = resolve_one_swing(a, t, attacker, target, weapon, roller, roll_log, mode)
+          swing =
+            resolve_one_swing(a, t, attacker, target, weapon, roller, roll_log, mode, sneak_left)
+
           incoming = Character.incoming_damage(t, swing.dmg, weapon.damage_type)
           new_hp = if incoming > 0, do: max(0, hp - incoming), else: hp
-          {:cont, {acc ++ [swing], new_hp}}
+          sneak_left = if swing.sneak > 0, do: nil, else: sneak_left
+          {:cont, {acc ++ [swing], new_hp, sneak_left}}
         end
       end)
 
     swings
   end
 
-  defp resolve_one_swing(a, t, attacker, target, weapon, roller, roll_log, mode) do
+  defp resolve_one_swing(a, t, attacker, target, weapon, roller, roll_log, mode, sneak) do
     {r, close_atk} =
       RollLog.open(
         roll_log,
@@ -662,7 +678,7 @@ defmodule Dragonex.Actions do
 
     case kind do
       :miss ->
-        %{kind: :miss, d20: d20, total: total, dmg: 0}
+        %{kind: :miss, d20: d20, total: total, dmg: 0, sneak: 0}
 
       k ->
         {r2, close_dmg} =
@@ -675,14 +691,16 @@ defmodule Dragonex.Actions do
           )
 
         dmg = Combat.damage_roll(a, weapon, k, r2)
+        sneak_dmg = sneak_damage(sneak, k, r2)
+        total_dmg = dmg + sneak_dmg
 
         RollLog.close(close_dmg,
-          total: dmg,
+          total: total_dmg,
           against: nil,
           outcome: if(k == :crit, do: :crit, else: nil)
         )
 
-        %{kind: k, d20: d20, total: total, dmg: dmg}
+        %{kind: k, d20: d20, total: total, dmg: total_dmg, sneak: sneak_dmg}
     end
   end
 
@@ -693,7 +711,7 @@ defmodule Dragonex.Actions do
   defp format_attack_message(attacker, target, weapon, ac, mode, [s]) do
     verb = if s.kind == :crit, do: "CRÍTICO", else: "acierta"
 
-    "#{attacker} #{verb} a #{target} (d20 #{s.d20}: #{s.total} vs CA #{ac}) por #{s.dmg} de daño #{weapon.damage_type}#{mode_tag(mode)}."
+    "#{attacker} #{verb} a #{target} (d20 #{s.d20}: #{s.total} vs CA #{ac}) por #{s.dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{mode_tag(mode)}."
   end
 
   defp format_attack_message(attacker, target, weapon, ac, mode, swings) do
@@ -705,9 +723,10 @@ defmodule Dragonex.Actions do
     "fallo (d20 #{d20}: #{total} vs CA #{ac})"
   end
 
-  defp describe_swing(%{kind: k, d20: d20, total: total, dmg: dmg}, weapon, ac) do
+  defp describe_swing(%{kind: k, d20: d20, total: total, dmg: dmg} = s, weapon, ac) do
     verb = if k == :crit, do: "CRÍTICO", else: "acierta"
-    "#{verb} (d20 #{d20}: #{total} vs CA #{ac}) por #{dmg} de daño #{weapon.damage_type}"
+
+    "#{verb} (d20 #{d20}: #{total} vs CA #{ac}) por #{dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}"
   end
 
   defp swing_amounts(swings), do: for(%{dmg: dmg} <- swings, dmg > 0, do: dmg)
@@ -839,6 +858,45 @@ defmodule Dragonex.Actions do
 
   defp append_notes(msg, []), do: msg
   defp append_notes(msg, notes), do: msg <> " " <> Enum.join(notes, " ")
+
+  @incapacitating_ally ~w(unconscious incapacitated stunned paralyzed petrified)
+
+  defp sneak_opts(world, attacker, attacker_name, target_name, weapon, mode) do
+    dice = Progression.sneak_attack_dice(attacker.class, attacker.level)
+    weapon_ok? = weapon.finesse == true or weapon.ranged == true
+
+    circumstance? =
+      case mode do
+        :disadvantage -> false
+        :advantage -> true
+        _ -> conscious_ally?(world, attacker, attacker_name, target_name)
+      end
+
+    if dice > 0 and weapon_ok? and circumstance?, do: %{dice: dice}, else: nil
+  end
+
+  defp conscious_ally?(
+         %World{characters: chars},
+         %Character{} = attacker,
+         attacker_name,
+         target_name
+       ) do
+    Enum.any?(chars, fn {name, c} ->
+      name != attacker_name and name != target_name and c.side == attacker.side and
+        (c.hp || 0) > 0 and
+        not Enum.any?(Character.condition_names(c), &(&1 in @incapacitating_ally))
+    end)
+  end
+
+  defp sneak_damage(nil, _kind, _roller), do: 0
+
+  defp sneak_damage(%{dice: n}, kind, roller) when n > 0 do
+    count = if kind == :crit, do: n * 2, else: n
+    Enum.sum(for _ <- 1..count, do: roller.(6))
+  end
+
+  defp sneak_tag(%{sneak: n}) when is_integer(n) and n > 0, do: " (+#{n} sneak)"
+  defp sneak_tag(_), do: ""
 
   defp find_weapon(%Character{weapons: weapons}, name), do: match_named(weapons, name)
 

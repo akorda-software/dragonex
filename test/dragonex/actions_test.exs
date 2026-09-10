@@ -100,10 +100,18 @@ defmodule Dragonex.ActionsTest do
       RollLog.stop(rec)
     end
 
-    test "finesse weapon uses the higher of str/dex", %{world: w} do
+    test "finesse weapon uses the higher of str/dex" do
       rogue = Archetypes.rogue(name: "Vex")
-      w = then_apply(w, World.add_character(rogue))
-      # shortsword finesse: dex 16 +3 + prof 2 = +5. seq: d20=10 hit; d6=4 +3 = 7.
+
+      g =
+        Character.new(name: "goblin", class: "monster", hp: 15, max_hp: 15, ac: 12, side: "enemy")
+
+      w =
+        World.new()
+        |> then_apply(World.add_character(rogue))
+        |> then_apply(World.add_character(g))
+
+      # sin aliado ni ventaja: no sneak. shortsword: dex +3 + prof 2. d20=10 hit; d6=4 +3 = 7.
       assert {:ok, _msg, change} = Actions.attack(w, "Vex", "goblin", "shortsword", seq([10, 4]))
       {:ok, w2} = change.(w)
       assert w2.characters["goblin"].hp == 15 - 7

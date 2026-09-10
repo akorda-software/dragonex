@@ -105,8 +105,8 @@ hechizos nuevos respetando `max_spell_level`, half-casters desde nivel 2.
   (6º–9º 1/long rest) y el escalado de daño por upcast.
 - Sin feats; ASI = 2 puntos (D13).
 - `spells_known` sin tope modelado (D14).
-- Features de clase por nivel: Extra Attack a L5 (D35) y spellcasting de
-  paladín/ranger a L2; el resto sigue fuera.
+- Features de clase por nivel: Extra Attack a L5 (D35), Sneak Attack del
+  rogue (D41) y spellcasting de paladín/ranger a L2; el resto sigue fuera.
 - Empate de iniciativa por DEX score y luego nombre; sin roll-off extra (D39).
 
 > **No son bugs.** Cambiar cualquiera exige un ADR que reemplace al vigente.
@@ -259,7 +259,8 @@ humanos **siempre** desde su ficha (la tool los rechaza con mensaje directivo).
   ficha, no aplica cambios (`tools_level_up_test.exs`).
 
 ### R28 — Declarado fuera de v1 (no bugs)
-`temp_hp` entra (**D36**). Concentración entra (**D37**): estado + rotura
+Sneak Attack del rogue entra (**D41**): sin grid ni once-per-turn entre
+varias llamadas `make_attack`. `temp_hp` entra (**D36**). Concentración entra (**D37**): estado + rotura
 (CON save / 0 hp / incapacitated-class); sin reloj ni efecto de Bless.
 Resistencias/vulnerabilidades/inmunidades entran (**D38**): tres listas
 en `Character`, `apply_damage/3` por tipo, skeleton SRD, hellish

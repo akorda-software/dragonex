@@ -507,6 +507,42 @@ Deuda:
 No cambia `Character`/`Weapon`/`Spell`/`Item`. D13/D14 intactos. D15 ya
 SUPERSEDED por D39.
 
+### D41 — Sneak Attack 5e
+Estado: **Aceptada** — 2026-09-10.
+
+RAW v1 sin posiciones. El daño extra lo calcula el motor (D1) según
+clase+nivel (`Progression.sneak_attack_dice/2`), no el string
+`"sneak_attack"` en `class_features`: partidas viejas L1 rogue sin el
+feature en el jsonb siguen recibiendo los dados. El string L1 del
+catálogo se queda (ficha/UI).
+
+- Dados: `div(level + 1, 2)` d6 para rogue; 0 para el resto.
+  L1=1, L3=2, L5=3, … L19=10.
+- Arma cualificada: `weapon.finesse == true` O `weapon.ranged == true`.
+  Longsword sin finesse NUNCA.
+- Circunstancia (sin grid): se aplica si el modo efectivo del ataque
+  (`Conditions.attack_mode`) es `:advantage`, O si hay un **aliado**
+  consciente (hp>0, mismo `side` que el atacante, nombre distinto del
+  atacante y del objetivo, sin condición incapacitante:
+  unconscious/incapacitated/stunned/paralyzed/petrified). Si el modo
+  efectivo es `:disadvantage`, NUNCA (aunque haya aliado).
+- Una vez por llamada a `Actions.attack`: solo el **primer golpe que
+  acierta** de la secuencia Extra Attack recibe los dados (el rogue no
+  tiene Extra Attack hoy).
+- Crítico: los dados de sneak se tiran dos veces (RAW), con el roller
+  inyectado (2N d6), no se duplica el total a ciegas.
+- El daño extra usa el mismo `damage_type` del arma y pasa por
+  `apply_damage/3` (resistencias D38).
+
+Deuda: "once per turn" vs múltiples `make_attack` en el mismo beat
+(economía de acciones sigue fuera, como D35).
+
+No Cunning Action, no Uncanny Dodge, no grid. No cambia
+`Character`/`Weapon`/`Spell`/`Item`. D35–D40 intactos.
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41 y
+spellcasting paladín/ranger L2; el resto de features por nivel sigue 🟡.
+
 ---
 
 ## Pendientes de decisión (abiertas)

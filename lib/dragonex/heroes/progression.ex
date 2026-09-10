@@ -23,8 +23,8 @@ defmodule Dragonex.Heroes.Progression do
     * **Dotes**: fuera de la v1; el ASI a 4/8/12/16/19 reparte +2 puntos.
     * **Features**: se modelan las que afectan a la ficha de forma
       mecánica inmediata (conjuración paladín/explorador a L2; Extra Attack
-      a L5 en clases marciales, D35). El resto de features por nivel sigue
-      fuera de v1.
+      a L5 en clases marciales, D35; Sneak Attack del rogue, D41). El resto
+      de features por nivel sigue fuera de v1.
   """
 
   # XP total necesario para ALCANZAR cada nivel (tabla de avances 5e).
@@ -200,6 +200,24 @@ defmodule Dragonex.Heroes.Progression do
   defp fighter_attack_count(level) when level >= 11, do: 3
   defp fighter_attack_count(level) when level >= 5, do: 2
   defp fighter_attack_count(_level), do: 1
+
+  @doc """
+  Dados de Sneak Attack (d6) según clase y nivel (D41).
+
+  Tabla 5e; el motor es fuente de verdad (D1), no el string `sneak_attack`
+  en `class_features` — partidas viejas L1 rogue sin el feature siguen
+  recibiendo los dados. El string L1 del catálogo se queda (ficha/UI).
+
+    * rogue: `div(level + 1, 2)` — L1=1, L3=2, L5=3, … L19=10
+    * resto → 0
+  """
+  @spec sneak_attack_dice(String.t() | atom(), pos_integer()) :: non_neg_integer()
+  def sneak_attack_dice(class, level) when is_integer(level) and level >= 1 do
+    case class_name(class) do
+      :rogue -> div(level + 1, 2)
+      _ -> 0
+    end
+  end
 
   # ------------------------------------------------------------ helpers
 

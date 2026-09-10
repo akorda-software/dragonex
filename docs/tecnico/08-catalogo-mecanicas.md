@@ -39,7 +39,14 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   objetivo (`Progression.attack_count/2`). Si el objetivo cae (hp ≤ 0), se
   omiten el resto; no hay retarget. `cast_spell` no aplica Extra Attack.
   Economía de acciones (cuántas veces el LLM llama `make_attack`) sigue fuera.
-- **Tests**: `test/dragonex/rules/combat_test.exs`, `actions_test.exs`.
+- **Sneak Attack (D41)**: `Progression.sneak_attack_dice/2` + primer hit
+  de `Actions.attack`. Arma `finesse` o `ranged`; circunstancia
+  `:advantage` o aliado consciente (mismo `side`, hp>0, no incapacitado);
+  `:disadvantage` bloquea. Crítico tira 2N d6 (roller inyectado). Mismo
+  `damage_type` del arma (`apply_damage/3`). Sin grid. El string
+  `sneak_attack` del catálogo L1 no es la fuente de verdad.
+- **Tests**: `test/dragonex/rules/combat_test.exs`, `actions_test.exs`,
+  `sneak_attack_test.exs`.
 
 ### M04 — Daño y críticos
 - **Dónde**: `Rules.Combat.damage_roll/4`.
@@ -223,7 +230,7 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 ## Declarado NO implementado (no son bugs — R28)
 
 reacciones como mecánica formal (TurnMaster da interrupciones narrativas) ·
-multiclase · feats. Pact Magic: **D40**. Iniciativa individual por monstruo: **D34**.
+multiclase · feats. Pact Magic: **D40**. Sneak Attack: **D41**. Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
 **D38 / M25**.
 

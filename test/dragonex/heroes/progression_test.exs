@@ -126,4 +126,24 @@ defmodule Dragonex.Heroes.ProgressionTest do
       end
     end
   end
+
+  describe "sneak_attack_dice/2" do
+    test "rogue sigue la tabla 5e" do
+      assert Progression.sneak_attack_dice("rogue", 1) == 1
+      assert Progression.sneak_attack_dice("rogue", 2) == 1
+      assert Progression.sneak_attack_dice(:rogue, 3) == 2
+      assert Progression.sneak_attack_dice("rogue", 4) == 2
+      assert Progression.sneak_attack_dice("rogue", 5) == 3
+      assert Progression.sneak_attack_dice("rogue", 19) == 10
+      assert Progression.sneak_attack_dice("rogue", 20) == 10
+    end
+
+    test "el resto es 0" do
+      for class <-
+            ~w(fighter wizard barbarian paladin ranger monk bard cleric sorcerer warlock druid) do
+        assert Progression.sneak_attack_dice(class, 1) == 0
+        assert Progression.sneak_attack_dice(class, 20) == 0
+      end
+    end
+  end
 end
