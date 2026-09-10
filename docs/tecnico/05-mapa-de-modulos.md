@@ -46,6 +46,7 @@ GitHub `kukapu/exagent` branch `main`.)
 |---|---|
 | `Dragonex.Rules.Ability` | Matemática pura: modificadores y competencia por nivel |
 | `Dragonex.Rules.Combat` | Resolución pura de combate (roller inyectado) |
+| `Dragonex.Rules.Conditions` | Condición → ventaja/desventaja/auto-fallo en ataque, salva y chequeo (M06) |
 | `Dragonex.Actions` | Puente intent→world: `attack`, `spell`, `initiative`, `death_save`, `heal`, `short_rest`, `long_rest`, `check`, `roll` |
 | `Dragonex.World` | Estado + máquina de combate + mutadores (change fns) + spell slots + facts |
 

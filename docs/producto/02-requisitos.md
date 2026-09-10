@@ -220,10 +220,18 @@ slot (nivel > 0), save DC y spell attack por aptitud de conjuración.
 - AC-23.1: ver `M7`–`M11`; crítico de spell attack dobla dados (test de
   regresión).
 
-### R24 — Condiciones ✅/🟡
-`apply/remove_condition` persisten; `adjust_mode_for_conditions` aplica
-ventaja/desventaja por condición **en ataques**. 🟡 Faltan automatismos de
-condición→ventaja en **saves y checks** (🔴 item F6).
+### R24 — Condiciones ✅
+`apply/remove_condition` persisten; `Rules.Conditions` aplica ventaja/
+desventaja/auto-fallo por condición en **ataques, salvaciones y chequeos**
+(tabla M06). Cancelación 5e (ventaja+desventaja=normal) en todos los caminos.
+
+- AC-24.1: cada condición de la tabla M06 tiene test de ataque/salva/chequeo
+  en `test/dragonex/rules/conditions_test.exs`.
+- AC-24.2: `Actions.check` y `Actions.spell` (`:save` / `:attack`) leen el
+  modo efectivo; paralizado auto-falla STR/DEX sin tirar
+  (`conditions_test.exs`).
+- AC-24.3: cancelación 5e se mantiene cuando se cruzan condición y `mode` del
+  modelo.
 
 ### R25 — Escenas y hechos durables ✅
 `set_scene` (escena actual, scrubbed) y `establish_fact` (hechos canónicos,

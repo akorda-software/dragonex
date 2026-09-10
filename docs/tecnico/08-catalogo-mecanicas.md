@@ -42,17 +42,34 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 - **Tests**: `rules/combat_test.exs`, `actions_test.exs`.
 
 ### M05 — Ventaja/desventaja (cancelación 5e)
-- **Dónde**: `adjust_mode_for_conditions` en `actions.ex` (dos fuentes:
-  condiciones + `mode` pedido por el modelo).
+- **Dónde**: `Rules.Conditions.combine/2` (dos fuentes: condiciones + `mode`
+  pedido por el modelo). `Actions` lo aplica en ataque, salvación y chequeo.
 - **5e**: cualquier ventaja + cualquier desventaja = normal.
-- **Tests**: `actions_test.exs` (tabla de combinaciones).
+- **Tests**: `test/dragonex/rules/conditions_test.exs`, `conditions_test.exs`.
 
-### M06 — Condiciones que afectan al ataque
-- **Dónde**: `adjust_mode_for_conditions` — poisoned/blinded/restrained/prone/
-  paralyzed/unconscious… suman ventaja/desventaja al ataque.
-- **🟡 Límite**: sólo afectan **ataques**. Saves/checks no leen condiciones
-  todavía (→ F6.1 en [`../producto/03-plan-fases.md`](../producto/03-plan-fases.md)).
-- **Tests**: `test/dragonex/conditions_test.exs`.
+### M06 — Condiciones → ataque / salvación / chequeo
+- **Dónde**: `Rules.Conditions` (`attack_mode/3`, `save_mode/3`, `check_mode/3`);
+  `Actions.attack`, `Actions.check`, `Actions.spell` (`:attack` y `:save`).
+- **5e (tabla; claves de `apply_condition`)**:
+
+  | Condición | Ataque (actor) | Ataque vs objetivo | Salvación | Chequeo |
+  |---|---|---|---|---|
+  | `poisoned` | desventaja | — | — | desventaja |
+  | `frightened` | desventaja | — | — | desventaja |
+  | `blinded` | desventaja | ventaja | — | — |
+  | `restrained` | desventaja | ventaja | DEX desventaja | — |
+  | `prone` | desventaja | melee ventaja / ranged desventaja | — | — |
+  | `paralyzed` / `stunned` / `unconscious` / `petrified` | — | ventaja | STR/DEX auto-fallo | — |
+  | `invisible` | ventaja | desventaja | — | — |
+
+- **Auto-fallo**: STR/DEX de paralizado/aturdido/inconsciente/petrificado no
+  tira; el hechizo `:save` aplica daño completo.
+- **Simplificaciones v1**: `frightened` siempre (sin línea de visión a la
+  fuente); cegado/sordo no auto-fallan chequeos (el motor no sabe si el
+  chequeo exige vista/oído); ataques de hechizo se tratan como a distancia
+  para `prone`; las death saves no son salvaciones de aptitud.
+- **Tests**: `test/dragonex/rules/conditions_test.exs` (un caso por
+  condición), `test/dragonex/conditions_test.exs` (cableado en Actions).
 
 ## Hechizos
 
@@ -90,12 +107,14 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 
 ### M12 — Salvaciones
 - **Dónde**: `Rules.Combat.saving_throw/5` — d20+mod(+prof si salva) vs DC.
-- **Tests**: `rules/combat_test.exs`.
+  El modo lo decide `Rules.Conditions.save_mode/3` (M06) antes de tirar.
+- **Tests**: `rules/combat_test.exs`, `conditions_test.exs`.
 
 ### M13 — Chequeos de aptitud
 - **Dónde**: `Rules.Combat.ability_check/6` + `Actions.check/8` — el DM fija
-  DC (5/10/15/20) y afirma competencia.
-- **Tests**: `rules/combat_test.exs`, `flows/*`.
+  DC (5/10/15/20) y afirma competencia. El modo lo decide
+  `Rules.Conditions.check_mode/3` (M06).
+- **Tests**: `rules/combat_test.exs`, `conditions_test.exs`, `flows/*`.
 
 ### M14 — Death saves
 - **Dónde**: `Rules.Combat.death_save/1`, `Actions.death_save/4`,
@@ -137,8 +156,8 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 
 ### M20 — Condiciones
 - **Dónde**: `World.apply_condition/2`, `remove_condition/2`; efecto en
-  combate vía M06.
-- **Tests**: `conditions_test.exs`.
+  ataque/salva/chequeo vía M06.
+- **Tests**: `conditions_test.exs`, `rules/conditions_test.exs`.
 
 ### M21 — Subida de nivel
 - **Dónde**: `LevelUp.apply/2` (ficha) y `World.level_up/2` (mesa);
@@ -164,7 +183,7 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 
 Concentración · `temp_hp` funcional · resistencias/vulnerabilidades ·
 reacciones como mecánica formal (TurnMaster da interrupciones narrativas) ·
-iniciativa individual por monstruo · multiclase · feats · Pact Magic.
+multiclase · feats · Pact Magic. Iniciativa individual por monstruo: **D34**.
 
 Para que una de estas entre: ADR nuevo + mecánica `M23+` en este catálogo +
 tests.

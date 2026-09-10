@@ -1,12 +1,12 @@
 defmodule Dragonex.ConditionsTest do
   @moduledoc """
-  The conditions system: prone grants advantage on melee attacks and
-  disadvantage on ranged; poisoned/blinded grant disadvantage to the attacker.
+  Conditions persist on the World and feed Rules.Conditions: attacks, saves
+  and checks pick up advantage / disadvantage / auto-fail.
   """
 
   use ExUnit.Case, async: true
 
-  alias Dragonex.{Actions, Character, World}
+  alias Dragonex.{Actions, Character, Spell, World}
 
   defp fixed(value), do: Dragonex.Dice.always(value)
 
@@ -176,5 +176,182 @@ defmodule Dragonex.ConditionsTest do
       refute msg =~ "ventaja"
       refute msg =~ "desventaja"
     end
+
+    test "prone attacker has disadvantage on melee" do
+      w = world_with_fighter_and_goblin()
+      {:ok, w} = World.apply_condition("hero", "prone").(w)
+
+      {:ok, msg, _} = Actions.attack(w, "hero", "goblin", "longsword", fixed(15), :normal)
+      assert msg =~ "desventaja"
+    end
+
+    test "invisible attacker has advantage" do
+      w = world_with_fighter_and_goblin()
+      {:ok, w} = World.apply_condition("hero", "invisible").(w)
+
+      {:ok, msg, _} = Actions.attack(w, "hero", "goblin", "longsword", fixed(10), :normal)
+      assert msg =~ "ventaja"
+    end
+  end
+
+  describe "conditions affect ability checks" do
+    test "poisoned grants disadvantage on checks" do
+      w = world_with_fighter_and_goblin()
+      {:ok, w} = World.apply_condition("hero", "poisoned").(w)
+
+      {:ok, msg, _} = Actions.check(w, "hero", :str, 10, false, fixed(15), :normal)
+      assert msg =~ "desventaja"
+    end
+
+    test "frightened grants disadvantage on checks" do
+      w = world_with_fighter_and_goblin()
+      {:ok, w} = World.apply_condition("hero", "frightened").(w)
+
+      {:ok, msg, _} = Actions.check(w, "hero", :wis, 10, false, fixed(15), :normal)
+      assert msg =~ "desventaja"
+    end
+
+    test "poisoned + model advantage cancel to normal" do
+      w = world_with_fighter_and_goblin()
+      {:ok, w} = World.apply_condition("hero", "poisoned").(w)
+
+      {:ok, msg, _} = Actions.check(w, "hero", :str, 10, false, fixed(15), :advantage)
+      refute msg =~ "ventaja"
+      refute msg =~ "desventaja"
+    end
+
+    test "poisoned does not affect WIS saves (RAW: checks and attacks only)" do
+      w = world_with_save_caster()
+      {:ok, w} = World.apply_condition("goblin", "poisoned").(w)
+
+      {:ok, msg, _} = Actions.spell(w, "mage", "vicious mockery", "goblin", fixed(15))
+      refute msg =~ "desventaja"
+      refute msg =~ "automáticamente"
+    end
+  end
+
+  describe "conditions affect saving throws" do
+    test "restrained grants disadvantage on DEX saves" do
+      w = world_with_save_caster()
+      {:ok, w} = World.apply_condition("goblin", "restrained").(w)
+
+      {:ok, msg, _} = Actions.spell(w, "mage", "acid splash", "goblin", fixed(15))
+      assert msg =~ "desventaja"
+    end
+
+    test "restrained does not grant disadvantage on WIS saves" do
+      w = world_with_save_caster()
+      {:ok, w} = World.apply_condition("goblin", "restrained").(w)
+
+      {:ok, msg, _} = Actions.spell(w, "mage", "vicious mockery", "goblin", fixed(15))
+      refute msg =~ "desventaja"
+    end
+
+    test "paralyzed auto-fails STR/DEX saves without rolling" do
+      w = world_with_save_caster()
+      {:ok, w} = World.apply_condition("goblin", "paralyzed").(w)
+
+      # seq: if the save were rolled it would consume 20 (success vs CD 13);
+      # damage would then be 4. Auto-fail skips the d20 so damage is 20.
+      {:ok, msg, change} = Actions.spell(w, "mage", "acid splash", "goblin", seq([20, 4]))
+      assert msg =~ "automáticamente"
+      {:ok, w2} = change.(w)
+      assert w2.characters["goblin"].hp == 20 - 20
+    end
+
+    test "stunned auto-fails DEX saves; WIS still rolls" do
+      w = world_with_save_caster()
+      {:ok, w} = World.apply_condition("goblin", "stunned").(w)
+
+      {:ok, msg, _} = Actions.spell(w, "mage", "acid splash", "goblin", fixed(15))
+      assert msg =~ "automáticamente"
+
+      {:ok, wis, _} = Actions.spell(w, "mage", "vicious mockery", "goblin", fixed(15))
+      refute wis =~ "automáticamente"
+    end
+
+    test "prone target: ranged spell attack has disadvantage" do
+      w = world_with_save_caster()
+      {:ok, w} = World.apply_condition("goblin", "prone").(w)
+
+      {:ok, msg, _} = Actions.spell(w, "mage", "firebolt", "goblin", fixed(15))
+      assert msg =~ "desventaja"
+    end
+  end
+
+  defp seq(values) do
+    Process.put(:seq, values)
+
+    fn _sides ->
+      [h | rest] = Process.get(:seq)
+      Process.put(:seq, rest)
+      h
+    end
+  end
+
+  defp world_with_save_caster do
+    mage =
+      Character.new(
+        name: "mage",
+        class: "wizard",
+        hp: 7,
+        max_hp: 7,
+        ac: 12,
+        str: 8,
+        dex: 14,
+        con: 13,
+        int: 16,
+        wis: 12,
+        cha: 10,
+        side: "pc",
+        spells: [
+          %Spell{
+            name: "acid splash",
+            level: 0,
+            kind: :save,
+            casting_ability: :int,
+            save_ability: :dex,
+            dice: "1d6",
+            damage_type: "acid"
+          },
+          %Spell{
+            name: "vicious mockery",
+            level: 0,
+            kind: :save,
+            casting_ability: :int,
+            save_ability: :wis,
+            dice: "1d4",
+            damage_type: "psychic"
+          },
+          %Spell{
+            name: "firebolt",
+            level: 0,
+            kind: :attack,
+            casting_ability: :int,
+            dice: "1d10",
+            damage_type: "fire"
+          }
+        ]
+      )
+
+    goblin =
+      Character.new(
+        name: "goblin",
+        class: "monster",
+        hp: 20,
+        max_hp: 20,
+        ac: 15,
+        str: 8,
+        dex: 14,
+        con: 10,
+        int: 10,
+        wis: 8,
+        cha: 8,
+        side: "enemy"
+      )
+
+    World.new()
+    |> add(World.add_character(mage))
+    |> add(World.add_character(goblin))
   end
 end

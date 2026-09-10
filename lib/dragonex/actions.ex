@@ -14,7 +14,7 @@ defmodule Dragonex.Actions do
   No exAgent here: deterministic and unit-testable with a fixed roller.
   """
 
-  alias Dragonex.{Character, Dice, RollLog, Rules.Ability, Rules.Combat, World}
+  alias Dragonex.{Character, Dice, RollLog, Rules.Ability, Rules.Combat, Rules.Conditions, World}
 
   @type roller :: (pos_integer() -> pos_integer())
   @type result ::
@@ -88,7 +88,8 @@ defmodule Dragonex.Actions do
             {:error, "#{attacker} no tiene el arma #{weapon_name}"}
 
           weapon ->
-            effective_mode = adjust_mode_for_conditions(mode, a, t, weapon)
+            effective_mode =
+              Conditions.attack_mode(a, t, requested: mode, ranged: weapon.ranged == true)
 
             {r, close_atk} =
               RollLog.open(
@@ -135,45 +136,6 @@ defmodule Dragonex.Actions do
         end
     end
   end
-
-  # 5e condition-aware mode adjustment: certain conditions grant advantage or
-  # disadvantage on attack rolls. The model may also request a mode (:advantage /
-  # :disadvantage). In 5e ANY source of advantage cancels ANY source of
-  # disadvantage (net :normal), so we fold the model's mode into the same
-  # advantage?/disadvantage? tally instead of letting conditions silently
-  # override the model (or vice-versa).
-  defp adjust_mode_for_conditions(mode, attacker, target, weapon) do
-    attacker_conds = condition_names(attacker)
-    target_conds = condition_names(target)
-
-    condition_disadvantage? =
-      Enum.any?(attacker_conds, &(&1 in ~w(poisoned frightened blinded restrained))) or
-        ("prone" in target_conds and weapon.ranged)
-
-    condition_advantage? =
-      cond do
-        "prone" in target_conds and not weapon.ranged ->
-          true
-
-        Enum.any?(target_conds, &(&1 in ~w(blinded stunned paralyzed unconscious restrained))) ->
-          true
-
-        true ->
-          false
-      end
-
-    disadvantage? = condition_disadvantage? or mode == :disadvantage
-    advantage? = condition_advantage? or mode == :advantage
-
-    cond do
-      advantage? and disadvantage? -> :normal
-      advantage? -> :advantage
-      disadvantage? -> :disadvantage
-      true -> :normal
-    end
-  end
-
-  defp condition_names(%Character{} = c), do: Character.condition_names(c)
 
   @doc """
   Resolve a spell against a single target by its `kind`:
@@ -403,10 +365,13 @@ defmodule Dragonex.Actions do
         {:error, "#{who} está caído (0 pg) y no puede hacer chequeos"}
 
       %Character{} = c ->
+        effective_mode = Conditions.check_mode(c, ability, mode)
+
         {r, close} =
           RollLog.open(roll_log, roller, who, :check, "chequeo de #{ability_es(ability)}")
 
-        {d20, total, success?} = Combat.ability_check(c, ability, dc, r, proficient, mode)
+        {d20, total, success?} =
+          Combat.ability_check(c, ability, dc, r, proficient, effective_mode)
 
         RollLog.close(close,
           total: total,
@@ -424,7 +389,7 @@ defmodule Dragonex.Actions do
           |> then(fn p -> if prof != 0, do: p ++ ["#{prof} (competencia)"], else: p end)
 
         {:ok,
-         "#{who} hace un chequeo de #{ability_es(ability)}#{mode_tag(mode)}: #{Enum.join(parts, " + ")} = #{total} vs CD #{dc} — #{verdict}.",
+         "#{who} hace un chequeo de #{ability_es(ability)}#{mode_tag(effective_mode)}: #{Enum.join(parts, " + ")} = #{total} vs CD #{dc} — #{verdict}.",
          noop()}
     end
   end
@@ -485,11 +450,12 @@ defmodule Dragonex.Actions do
 
       :attack ->
         bonus = Combat.spell_attack_bonus(c, spell)
+        effective_mode = Conditions.attack_mode(c, t, requested: :normal, ranged: true)
 
         {r, close_atk} =
           RollLog.open(roll_log, roller, caster_name, :attack, "ataque con #{spell.name}")
 
-        d20 = r.(20)
+        d20 = kept_d20(r, effective_mode)
         total = d20 + bonus
         hit? = d20 == 20 or (d20 != 1 and total >= t.ac)
 
@@ -509,9 +475,6 @@ defmodule Dragonex.Actions do
               "daño de #{spell.name} (#{spell.damage_type})"
             )
 
-          # RAW 5e: a spell attack crit doubles the damage dice (roll them
-          # twice), exactly like a weapon crit. Previously the dice were rolled
-          # only once even on a nat 20 (e.g. guiding bolt 4d6 stayed 4d6).
           dmg =
             if d20 == 20 do
               dice_with(spell, r2) + dice_with(spell, r2)
@@ -522,17 +485,41 @@ defmodule Dragonex.Actions do
           RollLog.close(close_dmg, total: dmg, against: nil, outcome: nil)
 
           {:ok,
-           "#{caster_name} conjura #{spell.name}; impacta a #{target_name} (d20 #{d20}: #{total} vs CA #{t.ac}) por #{dmg} de daño #{spell.damage_type}.",
+           "#{caster_name} conjura #{spell.name}; impacta a #{target_name} (d20 #{d20}: #{total} vs CA #{t.ac}) por #{dmg} de daño #{spell.damage_type}#{mode_tag(effective_mode)}.",
            World.apply_damage(target_name, dmg)}
         else
           {:ok,
-           "#{caster_name} conjura #{spell.name}; falla contra #{target_name} (d20 #{d20}: #{total} vs CA #{t.ac}).",
+           "#{caster_name} conjura #{spell.name}; falla contra #{target_name} (d20 #{d20}: #{total} vs CA #{t.ac})#{mode_tag(effective_mode)}.",
            noop()}
         end
 
       :save ->
-        dc = Combat.spell_save_dc(c, spell)
+        resolve_save_spell(c, caster_name, t, target_name, spell, roller, roll_log)
+    end
+  end
 
+  defp resolve_save_spell(c, caster_name, t, target_name, spell, roller, roll_log) do
+    dc = Combat.spell_save_dc(c, spell)
+
+    case Conditions.save_mode(t, spell.save_ability) do
+      :auto_fail ->
+        {r2, close_dmg} =
+          RollLog.open(
+            roll_log,
+            roller,
+            caster_name,
+            :damage,
+            "daño de #{spell.name} (#{spell.damage_type})"
+          )
+
+        full = dice_with(spell, r2)
+        RollLog.close(close_dmg, total: full, against: nil, outcome: nil)
+
+        {:ok,
+         "#{caster_name} conjura #{spell.name}; #{target_name} falla automáticamente la salvación de #{ability_es(spell.save_ability)} vs CD #{dc} — #{full} de daño #{spell.damage_type}.",
+         World.apply_damage(target_name, full)}
+
+      {:roll, save_mode} ->
         {r, close_save} =
           RollLog.open(
             roll_log,
@@ -542,7 +529,7 @@ defmodule Dragonex.Actions do
             "salvación de #{ability_es(spell.save_ability)} contra #{spell.name}"
           )
 
-        {d20, stotal, success?} = Combat.saving_throw(t, spell.save_ability, dc, r)
+        {d20, stotal, success?} = Combat.saving_throw(t, spell.save_ability, dc, r, save_mode)
 
         RollLog.close(close_save,
           total: stotal,
@@ -566,14 +553,22 @@ defmodule Dragonex.Actions do
 
         verdict =
           if success?,
-            do: "supera la salvación (d20 #{d20}: #{stotal} vs CD #{dc}), mitad de daño",
-            else: "falla la salvación (d20 #{d20}: #{stotal} vs CD #{dc})"
+            do:
+              "supera la salvación (d20 #{d20}: #{stotal} vs CD #{dc})#{mode_tag(save_mode)}, mitad de daño",
+            else: "falla la salvación (d20 #{d20}: #{stotal} vs CD #{dc})#{mode_tag(save_mode)}"
 
         {:ok,
          "#{caster_name} conjura #{spell.name}; #{target_name} #{verdict} — #{dmg} de daño #{spell.damage_type}.",
          World.apply_damage(target_name, dmg)}
     end
   end
+
+  defp kept_d20(roller, mode) when mode in [:advantage, :disadvantage] do
+    {kept, _, _} = Dice.roll_advantage(20, mode, roller)
+    kept
+  end
+
+  defp kept_d20(roller, _), do: roller.(20)
 
   defp dice_with(%{dice: nil}, _roller), do: 0
   defp dice_with(%{dice: expr}, roller), do: Dice.roll_expr(expr, roller)

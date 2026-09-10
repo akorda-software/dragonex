@@ -50,6 +50,10 @@ romperías el determinismo.
 | `ability_check/6` | d20 + mod + prof vs DC |
 | `death_save/1` | d20 → `:revive` (nat 20) / `:crit_fail` (nat 1 = 2 fallos) / `:success` / `:fail` |
 
+`Rules.Conditions` no tira dados: calcula el modo (`:normal` / `:advantage` /
+`:disadvantage`) o `:auto_fail` a partir de las condiciones del personaje y
+del `mode` que pida el modelo. Tabla en M06.
+
 ## Qué hace de puente `Actions`
 
 Cada función de `Actions` sigue el patrón `(...params, roller, roll_log) → result`
@@ -58,13 +62,13 @@ cada tirada para el dado modal (`RollLog`).
 
 | Acción | Notas |
 |---|---|
-| `attack/7` | arma vs objetivo; ajusta modo por condiciones (`adjust_mode_for_conditions`) |
-| `spell/6` | rama por `spell.kind`: `:automatic` (magic missile), `:attack` (fire bolt, crit dobla dados), `:save` (mitad en éxito). Consume slot si `level > 0`. |
+| `attack/7` | arma vs objetivo; ajusta modo por `Rules.Conditions.attack_mode/3` |
+| `spell/6` | rama por `spell.kind`: `:automatic` (magic missile), `:attack` (fire bolt, crit dobla dados, modo por condiciones, se trata como ranged), `:save` (mitad en éxito; DEX restrained = desventaja; STR/DEX auto-fallo si paralizado/aturdido/inconsciente/petrificado). Consume slot si `level > 0`. |
 | `initiative/3` | tira iniciativa para todos los conscientes, ordena desc con tiebreak por nombre (`D15`) |
 | `death_save/4` | rechaza muertos (3 fails), estables (3 éxitos) y no-caídos |
 | `heal/5` | parsea la expresión (p.ej. `1d8+3`), tope max_hp; resetea death_saves |
 | `short_rest/4` / `long_rest/2` | descanso; `long_rest` restaura slots |
-| `check/8` | chequeo de aptitud vs DC |
+| `check/8` | chequeo de aptitud vs DC; modo por `Rules.Conditions.check_mode/3` |
 | `roll/5` | tirada libre NdM |
 
 ### Guards de consciencia
@@ -81,14 +85,15 @@ test de regresión.
 
 ### Ventaja/desventaja con mode del modelo
 
-`adjust_mode_for_conditions` combina **dos fuentes** y aplica el principio 5e
+`Rules.Conditions` combina **dos fuentes** y aplica el principio 5e
 "cualquier ventaja cancela cualquier desventaja":
 
-- condiciones (poisoned/blinded/restrained/prone/paralyzed/unconscious/…),
+- condiciones (tabla M06: poisoned/blinded/restrained/prone/paralyzed/…),
 - el `mode` que el modelo pida (`:advantage`/`:disadvantage`).
 
 Ambas se suman a un cómputo `advantage?` / `disadvantage?`; si las dos, `:normal`.
 Esto evita que una condición silenciosamente pise el `mode` del modelo (o al revés).
+El mismo principio cubre ataques, salvaciones y chequeos.
 
 ## `World`: el estado y sus invariantes
 
