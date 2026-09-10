@@ -78,6 +78,10 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   inyectado con `source: :builtin | :srd | :custom` (offline-safe).
 - `Translations` — i18n ES/EN de todo el catálogo + tipos de daño/habilidades.
 - `LevelUp` + `Progression` — subida 5e (más abajo).
+- ✅ Golden SRD del creador (F6.5): 12 clases × L1/L3/L5 en
+  `test/dragonex/heroes/srd_golden_test.exs`. Oráculos a mano; sin bugs
+  de HP/AC/slots/saves vs SRD. Pact Magic / feats / features por nivel
+  siguen en 🟡.
 
 ### Contenido custom por usuario
 - CRUD `custom_contents` (weapon/spell/item, unique por usuario) con

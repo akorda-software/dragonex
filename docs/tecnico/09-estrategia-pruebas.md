@@ -84,4 +84,5 @@ opcionalmente: `DRAGONEX_RUN_LIVE=1 OPENROUTER_API_KEY=… mix test --include in
 
 - No hay CI que corra la suite en cada push (pendiente de infra; el verde de
   referencia es local). Al añadir CI, este doc es el contrato de qué correr.
-- Los tests golden de fichas SRD completos están en curso (F6.5).
+- Golden SRD del creador (F6.5): `test/dragonex/heroes/srd_golden_test.exs`
+  (12 clases × L1/L3/L5).

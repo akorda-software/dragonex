@@ -75,17 +75,14 @@ enemigos consecutivos; `acted_this_round` marca el monstruo, no `"dm"`.
   cada uno; TurnMaster sigue respetando el orden con `cut_in` disponible.
 - AC-3: tests de loop (`turn_master_loop_test.exs`) + `world_driven_test.exs`.
 
-### F6.5 — Pase de fidelidad SRD del creador (auditoría)
+### F6.5 — Pase de fidelidad SRD del creador (auditoría) ✅
 
-**Qué**: verificación sistemática de los derivados del builder contra el SRD
-(HP/AC/slots/save DC/proficiencias por clase-raza nivel 1 y en level-ups
-muestra 2/3/4/5). No es implementar nada: es una **batería de tests golden**
-con fichas esperadas escritas a mano del SRD.
-
-**Hecho cuando**: tabla de casos golden en
-`test/dragonex/heroes/sheet_fields_test.exs` (o fichero nuevo) cubriendo las
-12 clases × {nivel 1, 3, 5} mínimo; discrepancias encontradas se reportan como
-ítems propios (o se corrigen si son bugs).
+Hecho: `test/dragonex/heroes/srd_golden_test.exs` — 12 clases × {1, 3, 5}
+= 36 oráculos a mano (humano + soldier + standard array, ASI +2 al
+primario en L4). HP/AC/saves/slots/DC coinciden con SRD 5.1 y el modelo
+Dragonex (warlock full-caster D12; paladín/ranger spellcasting a L2 R09).
+Sin bugs de derivados; las simplificaciones (Pact Magic, feats, features
+por nivel, `spells_known`) quedan en 🟡.
 
 ---
 
