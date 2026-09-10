@@ -188,8 +188,14 @@ exactamente donde estaba (incluso tras kill del proceso).
 - AC-19.1: matar el GenServer y reabrir la partida rehidrata estado + historial
   y el turno en curso (`game_sync_genserver_test.exs`).
 
-### R20 — Mesa responsive 🔴
-La mesa (grid 3 columnas) no reflowea en móvil. Pendiente de diseño.
+### R20 — Mesa responsive ✅
+A ≤720px la mesa apila: feed + input primero, ficha en un drawer CSS
+(`#sheet-drawer`), sin scroll horizontal. Dados ya son overlay. ≥1024px
+sigue el grid 3-col. Estilos en `priv/static/assets/game.css`.
+
+- AC-20.1: a 375px el input queda visible y no hay overflow-x; la ficha
+  se abre/cierra con el control «Ficha».
+- AC-20.2: tests LiveView de la mesa siguen verdes.
 
 ---
 

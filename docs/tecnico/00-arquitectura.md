@@ -28,6 +28,7 @@ proceso puede morir y la partida rehidrata.
 │ S1  Web / LiveView            lib/dragonex_web/                          │
 │     Phoenix.LiveView: la mesa, el creador de héroes, lobby, auth.        │
 │     NUNCA escribe en Repo datos de partida (D6).                         │
+│     Mesa: grid 3-col ≥721px; ≤720px feed+input y ficha en drawer CSS.    │
 ├──────────────────────────────────────────────────────────────────────────┤
 │ S2  Partida / Game GenServer   lib/dragonex/game.ex + lib/dragonex/game/ │
 │     Un proceso :transient por game_id. Es el ÚNICO escritor del World.  │

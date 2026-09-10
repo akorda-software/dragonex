@@ -38,7 +38,7 @@ defmodule DragonexWeb.GameLive.Components do
     ~H"""
     <span class="round">Round {@round}</span>
     <ul class="initiative">
-      <li :for={name <- @w.initiative_order} :key={name} class={if World.controller_of(@w, name) == @current, do: "active", else: ""}>
+      <li :for={name <- @w.initiative_order} :key={name} class={if World.acting?(@w, name, @current), do: "active", else: ""}>
         {name}
       </li>
     </ul>
@@ -123,7 +123,7 @@ defmodule DragonexWeb.GameLive.Components do
 
   def combatant(assigns) do
     c = Map.get(assigns.world.characters, assigns.name)
-    acting = World.controller_of(assigns.world, assigns.name) == assigns.current
+    acting = World.acting?(assigns.world, assigns.name, assigns.current)
     pct = if c && c.max_hp > 0, do: max(0, c.hp) / c.max_hp * 100, else: 0
     conds = if c, do: Enum.map(c.conditions || [], &cond_name/1), else: []
 
@@ -234,6 +234,7 @@ defmodule DragonexWeb.GameLive.Components do
     </div>
 
     <div class="game-body">
+    <input type="checkbox" id="sheet-drawer" class="sheet-drawer-toggle" />
     <aside class="game-rail game-rail-left">
       <%= if @world != nil and @world.phase == :combat do %>
         <.combat_tracker world={@world} current={@current} round={@round} viewer={@viewer} />
@@ -307,18 +308,8 @@ defmodule DragonexWeb.GameLive.Components do
       </div>
     </section>
 
+    <label for="sheet-drawer" class="sheet-drawer-label">Ficha</label>
     <aside class="game-rail game-rail-right">
-      <%= if assigns[:viewer_level_up] do %>
-        <style>
-          .level-up-banner{background:#241c14;border:1px solid #a72;border-radius:12px;padding:.7rem .8rem;margin-bottom:.6rem;color:#fc8;font-size:.82rem;line-height:1.4;}
-          .level-up-banner strong{display:block;margin-bottom:.4rem;}
-          .level-up-banner .btn{display:inline-block;background:#3a2a1a;border:1px solid #a72;color:#fc8;border-radius:8px;padding:.3rem .7rem;text-decoration:none;font-size:.78rem;}
-        </style>
-        <div class="level-up-banner">
-          <strong>¡Tu héroe puede subir a nivel {assigns[:viewer_level_up].target}!</strong>
-          <.link navigate={"/heroes/#{assigns[:viewer_level_up].hero_id}/level-up"} class="btn">Gestionar subida →</.link>
-        </div>
-      <% end %>
       <%= if @world != nil and @world.phase == :combat and @viewer != "dm" and @world.characters[@viewer] != nil do %>
         <.detail_sheet card={@world.characters[@viewer]} />
       <% else %>
@@ -462,7 +453,7 @@ defmodule DragonexWeb.GameLive.Components do
       |> Enum.map(&elem(&1, 1))
 
   defp active_card?(%World{} = w, %Character{} = c, current),
-    do: World.controller_of(w, c) == current and c.hp > 0
+    do: World.acting?(w, c.name, current) and c.hp > 0
 
   defp active_card?(_, _, _), do: false
 

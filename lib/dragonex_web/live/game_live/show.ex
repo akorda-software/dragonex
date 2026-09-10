@@ -404,7 +404,6 @@ defmodule DragonexWeb.GameLive.Show do
             participants={@participants}
             my_turn={@my_turn}
             my_intent={@my_intent}
-            viewer_level_up={assigns[:viewer_level_up]}
             chat={@chat}
             busy={@busy}
             busy_actor={@busy_actor}

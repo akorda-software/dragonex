@@ -3,13 +3,13 @@ defmodule DragonexWeb.GameLive.Snapshot do
   Projects a `Dragonex.Game` snapshot into the game table's LiveView assigns.
 
   Extracted from `DragonexWeb.GameLive.Show`: owns the default assign set
-  (`base_assigns/2`), the viewer-resolution rules (auto-assign the user's own
-  participant, `?as=` override) and the level-up banner cache.
+  (`base_assigns/2`) and the viewer-resolution rules (auto-assign the user's
+  own participant, `?as=` override).
   """
 
   use Phoenix.Component
 
-  alias Dragonex.{Game, Games, Heroes.Progression}
+  alias Dragonex.{Game, Games}
   alias DragonexWeb.GameLive.Chat
 
   def base_assigns(socket, game_id) do
@@ -47,8 +47,6 @@ defmodule DragonexWeb.GameLive.Snapshot do
       join_error: nil,
       auto_play: false,
       is_creator: false,
-      viewer_level_up: nil,
-      viewer_level_up_cache: {nil, nil},
       # Ajustes de IA modal (gear button). provider/model/reasoning are the
       # in-modal selections; the effective config lives in Dragonex.ModelConfig.
       show_settings: false,
@@ -122,14 +120,6 @@ defmodule DragonexWeb.GameLive.Snapshot do
               socket.assigns[:live_last_narration_seq]
             )
 
-          {vlu, vlu_cache} =
-            compute_viewer_level_up(
-              viewer,
-              game,
-              socket.assigns[:current_user],
-              socket.assigns[:viewer_level_up_cache]
-            )
-
           assign(socket,
             loaded: true,
             connected: true,
@@ -165,55 +155,9 @@ defmodule DragonexWeb.GameLive.Snapshot do
             dice_flush_ref: socket.assigns[:dice_flush_ref] || nil,
             dice_hide_ref: socket.assigns[:dice_hide_ref] || nil,
             dice_engine: socket.assigns[:dice_engine] || (game && game.dice_engine) || "2d",
-            auto_play: viewer != nil and MapSet.member?(snap[:auto] || MapSet.new(), viewer),
-            viewer_level_up: vlu,
-            viewer_level_up_cache: vlu_cache
+            auto_play: viewer != nil and MapSet.member?(snap[:auto] || MapSet.new(), viewer)
           )
         end
-    end
-  end
-
-  # Banner de subida de nivel del viewer: su héroe de biblioteca puede subir.
-  # El nivel/XP se leen del `Hero.sheet` (fuente de verdad). Para no decodificar
-  # el sheet en cada broadcast, cacheamos por `(hero_id, hero.updated_at)`: solo
-  # refrescamos cuando el héroe cambia (gana XP / sube), que es lo único que mueve
-  # el banner.
-  defp compute_viewer_level_up(viewer, game, user, {prev_key, prev_val}) do
-    gc = Enum.find((game && game.characters) || [], &(&1.name == viewer))
-
-    with gc when gc != nil <- gc,
-         %{hero_id: hero_id} when hero_id != nil <- gc,
-         %{} = hero <- Dragonex.Accounts.get_hero(hero_id) do
-      cache_key = {hero_id, hero.updated_at}
-
-      if cache_key == prev_key do
-        {prev_val, {cache_key, prev_val}}
-      else
-        sheet =
-          case user && Dragonex.Accounts.get_user_hero(user, hero_id) do
-            nil -> nil
-            h -> Dragonex.Accounts.hero_sheet(h)
-          end
-
-        val =
-          cond do
-            sheet == nil ->
-              nil
-
-            sheet.level >= 20 ->
-              nil
-
-            Progression.can_level_up?(sheet.level, sheet.xp || 0) ->
-              %{hero_id: hero_id, target: sheet.level + 1}
-
-            true ->
-              nil
-          end
-
-        {val, {cache_key, val}}
-      end
-    else
-      _ -> {nil, {nil, nil}}
     end
   end
 

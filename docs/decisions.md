@@ -319,14 +319,18 @@ Un PC IA en exploración, con humano en mesa, no persiste cláusulas de
 ejecución en solitario (`despliega el pergamino`, `coge el…`) — propone
 y espera. Combate no se toca. Recorte en `Text.scrub` (D7/D29).
 
+### D33 — Sin banner de level-up en la mesa
+Bajo milestone (D10) no hay fuente de XP, así que el banner
+`viewer_level_up` de la mesa (gateado por `Progression.can_level_up?/2`)
+nunca se mostraba. Se elimina: el humano sube desde la ficha
+(`/heroes/:id/level-up`, callout en `HeroLive.Show` si `level < 20`).
+Cablear un flag "DM granted" en la mesa sería reabrir XP como fuente
+(F7) — fuera de v1.
+
 ---
 
 ## Pendientes de decisión (abiertas)
 
-- **Banner in-game de level-up inerte bajo milestone**: `viewer_level_up` en
-  `GameLive.Show` sigue gateado por `Progression.can_level_up?(level, xp)`.
-  Como no hay fuente de XP, nunca se muestra. Si se quiere un nudge en la mesa,
-  cablear a un flag "DM granted" en vez de a XP. (No bloqueante.)
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,
   Implementada)**. Validar en partida live que el ritmo y la equidad se
   sostienen; si no, ajustar prompt/brief del TurnMaster (no volver al
