@@ -25,7 +25,7 @@ existe" sino por "se verifica".**
 | F4 — Héroes | Forjar y crecer | Builder 5 pasos + catálogos SRD ES + custom (D22) + level-up (D10–D13) |
 | F5 — TurnMaster | La partida fluye | Orquestador de turnos (D25) con fallback WorldDriven |
 
-Verde de referencia hoy: **851 tests passed**, compile sin warnings.
+Verde de referencia hoy: **867 tests passed**, compile sin warnings.
 
 ---
 
@@ -83,7 +83,7 @@ primario en L4). HP/AC/saves/slots/DC coinciden con SRD 5.1 y el modelo
 Dragonex (warlock Pact Magic D40; paladín/ranger spellcasting a L2 R09).
 Sin bugs de derivados; las simplificaciones (feats, features
 por nivel salvo Extra Attack D35, Pact Magic D40, Sneak Attack D41,
-Rage D42 y spellcasting paladín/ranger L2, `spells_known`) quedan en 🟡.
+Rage D42, Reckless Attack D44 y spellcasting paladín/ranger L2, `spells_known`) quedan en 🟡.
 
 ---
 
@@ -115,7 +115,11 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
 - **Rage del bárbaro** (D42): **entregado.** `Character.raging` + Codec;
   bonus melee `rage_damage/1` en cada hit; overlay B/P/S; no spells;
   STR check ventaja; termina en end_rage / 0 hp / unconscious /
-  end_combat. Sin Reckless, sin usos/día, sin reloj de 1 minuto.
+  end_combat. Sin usos/día, sin reloj de 1 minuto.
+- **Reckless Attack del bárbaro** (D44): **entregado.** `Character.reckless`
+  + Codec; melee STR ventaja; cualquier ataque vs el bárbaro ventaja;
+  expira al inicio de su turno (`set_current_combatant`); también
+  end_reckless / 0 hp / unconscious / end_combat. Sin cupo/día.
 - **Multiclase**: fuera del builder actual por diseño; implicaría rehacer
   progression.
 - **Marketplace de contenido custom** (D22): compartir entre usuarios.
@@ -135,7 +139,7 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
 3. Implementa con tests (ver [`../tecnico/09-estrategia-pruebas.md`](../tecnico/09-estrategia-pruebas.md)
    para qué capa de test exige cada cambio).
 4. Verifica: `mix compile` (0 warnings) → `mix format` → `MIX_ENV=test mix test`
-   (851 verde). Si toca prompts/agentes: smoke con TestModel incluido.
+   (867 verde). Si toca prompts/agentes: smoke con TestModel incluido.
 5. Actualiza `../progress.md` (mueve el ítem) y este doc (marca el ítem). Si
    tomaste una decisión no trivial: ADR en `../decisions.md`.
 6. Commit estilizado (`feat(motor): …`, `fix(hero): …`).

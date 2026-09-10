@@ -106,7 +106,12 @@ defmodule Dragonex.Actions do
 
           weapon ->
             effective_mode =
-              Conditions.attack_mode(a, t, requested: mode, ranged: weapon.ranged == true)
+              Conditions.attack_mode(a, t,
+                requested: mode,
+                ranged: weapon.ranged == true,
+                attack_ability: weapon.attack_ability,
+                finesse: weapon.finesse == true
+              )
 
             n = Progression.attack_count(a.class, a.level)
             sneak = sneak_opts(world, a, attacker, target, weapon, effective_mode)

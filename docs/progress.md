@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **851 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **867 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -32,7 +32,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   concentración D37, resist/vuln/immune D38, `initiative`, `death_save`, `heal`,
   `short_rest`, `long_rest`, `check`). Con `RollLog` para dados estructurados.
 - `Tools` — `deftool`s que el LLM invoca: `make_attack`, `cast_spell`,
-   `roll_initiative`, `make_death_save`, `heal`, `grant_temp_hp`, `grant_xp`, `drop_concentration`, `start_rage`, `end_rage`, `ability_check`, `end_combat`,
+   `roll_initiative`, `make_death_save`, `heal`, `grant_temp_hp`, `grant_xp`, `drop_concentration`, `start_rage`, `end_rage`, `start_reckless`, `end_reckless`, `ability_check`, `end_combat`,
   `short_rest`, `long_rest`, `spawn_monster`, `apply_condition`,
   `remove_condition`, `set_scene`, `establish_fact`, `level_up`, `roll_dice`.
 - `TurnPolicy.WorldDriven` — turno leído del World; un beat por monstruo
@@ -159,7 +159,11 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 - ✅ Rage del bárbaro (D42): `Character.raging` + Codec; melee
   `rage_damage/1` en cada hit; overlay B/P/S; no spells; STR check
   ventaja; termina en `end_rage` / 0 hp / unconscious / `end_combat`.
-  Sin Reckless, sin usos/día, sin reloj de 1 minuto.
+  Sin usos/día, sin reloj de 1 minuto.
+- ✅ Reckless Attack del bárbaro (D44): `Character.reckless` + Codec;
+  melee STR ventaja; cualquier ataque vs el bárbaro ventaja; expira
+  al inicio de su turno (`set_current_combatant`); también
+  `end_reckless` / 0 hp / unconscious / `end_combat`. Sin cupo/día.
 - ✅ XP 5e en partida (D43): `World.grant_xp/2` + tool `grant_xp` (DM).
   Suma XP; no auto-level-up. Subida explícita (ficha / `level_up`).
   D10 SUPERSEDED. Sin calculadora CR/encuentro.
@@ -172,7 +176,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 |---|---|---|
 | Dotes | Fuera; ASI = +2 fijo | D13 |
 | `spells_known` | `nil` (sin cap estricto por clase) | D14 |
-| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42 |
+| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + Reckless Attack D44 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44 |
 | Empate iniciativa | DEX score desc, luego nombre; sin roll-off extra | D39 |
 | Banner level-up in-game | Eliminado (D33); subida desde la ficha | D33 |
 | Stub legado en `Tools` | `attack`/`roll`/`spawn_character`/`next_round` mantenidos para tests del framework exAgent | `tools.ex:31-72` |

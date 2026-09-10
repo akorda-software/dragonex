@@ -714,6 +714,7 @@ defmodule Dragonex.Heroes do
       temp_hp: 0,
       concentrating: nil,
       raging: false,
+      reckless: false,
       damage_resistances: racial_damage_resistances(race.traits),
       damage_vulnerabilities: [],
       damage_immunities: [],

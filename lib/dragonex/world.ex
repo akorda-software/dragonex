@@ -19,6 +19,9 @@ defmodule Dragonex.World do
     * the death-save tracker resolves dead (3 fails) / stable (3 successes) /
       revive (nat 20) and looks at `hp`, not `temp_hp`,
     * Rage (D42) ends on 0 hp, unconscious, `end_combat`, or `end_rage`,
+    * Reckless Attack (D44) ends on the barbarian's next turn start
+      (`set_current_combatant/1`), `end_reckless`, 0 hp, unconscious, or
+      `end_combat`,
     * `grant_xp` adds to `Character.xp` and never levels up (D43).
 
   Characters are stored as full `Dragonex.Character` structs, so the engine can
@@ -270,7 +273,10 @@ defmodule Dragonex.World do
           new_temp = temp - absorbed
           new_hp = max(0, (c.hp || 0) - rest)
           updated = %{c | hp: new_hp, temp_hp: new_temp}
-          updated = if new_hp == 0, do: %{updated | raging: false}, else: updated
+
+          updated =
+            if new_hp == 0, do: %{updated | raging: false, reckless: false}, else: updated
+
           {:ok, put_char(w, target, updated)}
       end
     end
@@ -372,6 +378,44 @@ defmodule Dragonex.World do
   def end_rage(name), do: set_raging(name, false)
 
   @doc """
+  Set `who`'s Reckless Attack flag (5e, D44). Does not check class —
+  `start_reckless/1` does.
+  """
+  @spec set_reckless(String.t(), boolean()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def set_reckless(name, reckless) when is_boolean(reckless) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          {:ok, put_char(w, name, %{c | reckless: reckless})}
+      end
+    end
+  end
+
+  @doc "Enter Reckless Attack (D44). Only `class == \"barbarian\"`."
+  @spec start_reckless(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def start_reckless(name) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{class: "barbarian"} ->
+          set_reckless(name, true).(w)
+
+        %Character{} ->
+          {:error, "#{name} no es bárbaro y no puede atacar de forma temeraria"}
+      end
+    end
+  end
+
+  @doc "End Reckless Attack (D44). Idempotent if already false."
+  @spec end_reckless(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def end_reckless(name), do: set_reckless(name, false)
+
+  @doc """
   Grant XP (5e, D43). Adds `amount` to `Character.xp`. Does not level up
   and does not touch hp or spell slots. Amount must be positive.
   """
@@ -448,7 +492,7 @@ defmodule Dragonex.World do
     fn w ->
       characters =
         Map.new(w.characters, fn
-          {name, %Character{} = c} -> {name, %{c | raging: false}}
+          {name, %Character{} = c} -> {name, %{c | raging: false, reckless: false}}
           other -> other
         end)
 
@@ -536,7 +580,10 @@ defmodule Dragonex.World do
     end
   end
 
-  @doc "Record whose initiative slot the current beat is (D34). Nil outside combat."
+  @doc """
+  Record whose initiative slot the current beat is (D34). Nil outside combat.
+  Starting a combatant's turn ends their Reckless Attack (D44).
+  """
   @spec set_current_combatant(String.t() | nil) :: (t() -> {:ok, t()} | {:error, String.t()})
   def set_current_combatant(name) when is_binary(name) or is_nil(name) do
     fn w ->
@@ -548,7 +595,13 @@ defmodule Dragonex.World do
           {:ok, %{w | current_combatant: nil}}
 
         Map.has_key?(w.characters, name) ->
-          {:ok, %{w | current_combatant: name}}
+          characters =
+            Map.update!(w.characters, name, fn
+              %Character{} = c -> %{c | reckless: false}
+              other -> other
+            end)
+
+          {:ok, %{w | current_combatant: name, characters: characters}}
 
         true ->
           {:error, "no such character: #{name}"}
@@ -752,7 +805,7 @@ defmodule Dragonex.World do
 
           updated =
             if condition == "unconscious",
-              do: %{updated | raging: false},
+              do: %{updated | raging: false, reckless: false},
               else: updated
 
           {:ok, put_char(w, target, updated)}

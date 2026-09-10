@@ -34,6 +34,7 @@ defmodule Dragonex.Character do
     field(:temp_hp, :integer, default: 0)
     field(:concentrating, :string)
     field(:raging, :boolean, default: false)
+    field(:reckless, :boolean, default: false)
     field(:damage_resistances, {:array, :string}, default: [])
     field(:damage_vulnerabilities, {:array, :string}, default: [])
     field(:damage_immunities, {:array, :string}, default: [])
@@ -86,6 +87,7 @@ defmodule Dragonex.Character do
         :temp_hp,
         :concentrating,
         :raging,
+        :reckless,
         :damage_resistances,
         :damage_vulnerabilities,
         :damage_immunities,
@@ -153,6 +155,7 @@ defmodule Dragonex.Character do
       temp_hp: 0,
       concentrating: nil,
       raging: false,
+      reckless: false,
       damage_resistances: [],
       damage_vulnerabilities: [],
       damage_immunities: [],

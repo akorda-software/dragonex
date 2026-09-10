@@ -289,6 +289,8 @@ defmodule Dragonex.PCAgentTest do
       assert "drop_concentration" in tool_names
       assert "start_rage" in tool_names
       assert "end_rage" in tool_names
+      assert "start_reckless" in tool_names
+      assert "end_reckless" in tool_names
 
       # PC CANNOT use these (DM-only)
       refute "set_scene" in tool_names

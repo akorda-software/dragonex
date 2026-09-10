@@ -111,8 +111,10 @@ El mismo principio cubre ataques, salvaciones y chequeos.
 - **Personajes**: `add_character/1`, `apply_damage/2` (sin tipo = plano)
   y `apply_damage/3` (inmunidad/resist/vuln D38, overlay Rage B/P/S D42,
   luego absorbe `temp_hp` D36), `heal/2` (no toca `temp_hp`), `apply_temp_hp/2`,
-  `start_rage/1`, `end_rage/1`, `set_raging/2`.
-- **Combate**: `begin_combat/1` (pide orden de iniciativa), `end_combat/0` (apaga raging),
+  `start_rage/1`, `end_rage/1`, `set_raging/2`,
+  `start_reckless/1`, `end_reckless/1`, `set_reckless/2`.
+- **Combate**: `begin_combat/1` (pide orden de iniciativa), `end_combat/0` (apaga raging y reckless),
+  `set_current_combatant/1` (apaga reckless de ese name, D44),
   `join_initiative/1`, `apply_death_save/2`, `apply_condition/2`, `remove_condition/2`.
 - **Nivel**: `level_up/2`.
 - **Spell slots**: `has_slot?/3`, `consume_slot/2`, `restore_slots/1`.

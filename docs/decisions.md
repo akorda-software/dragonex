@@ -599,6 +599,41 @@ rediseña. No hay calculadora de XP por CR/encuentro: el DM decide
 cuánto. D11/D13/D14 intactos. Sin feats, sin multiclase. D33 (sin
 banner in-game) sigue: el humano sube desde la ficha.
 
+### D44 — Reckless Attack 5e
+Estado: **Aceptada** — 2026-09-10.
+
+Cierra la deuda de Reckless dejada por D42 (Rage intacto). El LLM no
+calcula la ventaja (D1): llama `start_reckless`; el motor la aplica en
+`Conditions.attack_mode`. Cupo de usos/día de Rage y reloj de 1 minuto
+siguen fuera. Sin feats.
+
+- Solo `class == "barbarian"`. Tools `start_reckless(who)` /
+  `end_reckless(who)` (DM cualquiera; PC sólo sí mismo, mismo patrón
+  que Rage). `end_reckless` es idempotente.
+- `Character.reckless` boolean, default `false`. Codec encode/decode
+  (`== true`); jsonb viejo sin clave → `false` (D4/D8).
+- Mientras reckless:
+  - Ataques de arma **melee que usen STR** (`weapon.ranged != true` y
+    el golpe usa Fuerza: `attack_ability` STR, o finesse con
+    `mod STR ≥ mod DEX`) del bárbaro tienen ventaja.
+  - Finesse con DEX mayor y armas ranged **no** dan ventaja al atacante.
+  - **Cualquier** ataque contra ese personaje tiene ventaja.
+  - Se combina con Conditions: adv+desv = normal (`combine/2`).
+- No es un `mode` que el LLM pase a `make_attack`. Extra Attack (D35):
+  todos los swings de esa llamada usan el mismo `effective_mode`.
+  Sin guarda “solo el primer ataque del turno”: si `start_reckless`
+  llega tarde, aplica a los ataques que queden.
+- Expira al **empezar su siguiente turno**: `World.set_current_combatant(name)`
+  apaga `reckless` de ese name. También apaga: `end_reckless`; hp a 0;
+  `unconscious`; `World.end_combat` (todos).
+- Sin cupo/día.
+
+No cambia `Weapon`/`Spell`/`Item`. D42 intacto.
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
+Reckless Attack D44 y spellcasting paladín/ranger L2; el resto de
+features por nivel sigue 🟡.
+
 ---
 
 ## Pendientes de decisión (abiertas)

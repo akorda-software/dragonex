@@ -26,7 +26,13 @@ defmodule Dragonex.Rules.Conditions do
   @check_disadvantage ~w(poisoned frightened)
   @auto_fail_saves ~w(paralyzed stunned unconscious petrified)
 
-  @doc "Effective attack-roll mode for `attacker` vs `target`."
+  @doc """
+  Effective attack-roll mode for `attacker` vs `target`.
+
+  Reckless Attack (D44): melee Strength attacks by a reckless attacker have
+  advantage; any attack against a reckless target has advantage. Combines
+  with conditions via `combine/2`.
+  """
   @spec attack_mode(Character.t(), Character.t(), keyword()) :: mode()
   def attack_mode(%Character{} = attacker, %Character{} = target, opts \\ []) do
     requested = Keyword.get(opts, :requested, :normal)
@@ -37,7 +43,9 @@ defmodule Dragonex.Rules.Conditions do
     advantage? =
       requested == :advantage or
         Enum.any?(attacker_conds, &(&1 in @attack_self_advantage)) or
-        target_grants_attack_advantage?(target_conds, ranged?)
+        target_grants_attack_advantage?(target_conds, ranged?) or
+        reckless_attacker_advantage?(attacker, opts) or
+        target.reckless == true
 
     disadvantage? =
       requested == :disadvantage or
@@ -84,6 +92,28 @@ defmodule Dragonex.Rules.Conditions do
   def combine(true, false), do: :advantage
   def combine(false, true), do: :disadvantage
   def combine(false, false), do: :normal
+
+  defp reckless_attacker_advantage?(%Character{} = attacker, opts) do
+    attacker.reckless == true and
+      Keyword.get(opts, :ranged, false) != true and
+      uses_strength?(attacker, opts)
+  end
+
+  defp uses_strength?(%Character{} = attacker, opts) do
+    ability = Keyword.get(opts, :attack_ability, :str)
+    finesse? = Keyword.get(opts, :finesse, false) == true
+
+    cond do
+      finesse? ->
+        Character.modifier(attacker, :str) >= Character.modifier(attacker, :dex)
+
+      ability in [:str, "str"] ->
+        true
+
+      true ->
+        false
+    end
+  end
 
   defp target_grants_attack_advantage?(conds, ranged?) do
     (not ranged? and "prone" in conds) or

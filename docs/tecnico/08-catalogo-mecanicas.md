@@ -1,4 +1,4 @@
-# Catálogo de mecánicas 5e (M1–M27)
+# Catálogo de mecánicas 5e (M1–M28)
 
 > **Técnico.** Cada mecánica implementada, con identificador estable `Mxx`,
 > dónde vive (módulo:función), qué regla 5e aplica, sus simplificaciones (ADR)
@@ -48,8 +48,10 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 - **Rage (D42)**: `Progression.rage_damage/1` + bonus en cada hit melee
   (`weapon.ranged != true`) si `attacker.raging`. Overlay B/P/S en
   `incoming_damage/3`. Ver M26.
+- **Reckless Attack (D44)**: `attacker.reckless` + melee STR → ventaja;
+  `target.reckless` → ventaja en cualquier ataque. Ver M28.
 - **Tests**: `test/dragonex/rules/combat_test.exs`, `actions_test.exs`,
-  `sneak_attack_test.exs`, `rage_test.exs`.
+  `sneak_attack_test.exs`, `rage_test.exs`, `reckless_attack_test.exs`.
 
 ### M04 — Daño y críticos
 - **Dónde**: `Rules.Combat.damage_roll/4`.
@@ -58,10 +60,12 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 - **Tests**: `rules/combat_test.exs`, `actions_test.exs`.
 
 ### M05 — Ventaja/desventaja (cancelación 5e)
-- **Dónde**: `Rules.Conditions.combine/2` (dos fuentes: condiciones + `mode`
-  pedido por el modelo). `Actions` lo aplica en ataque, salvación y chequeo.
+- **Dónde**: `Rules.Conditions.combine/2` (fuentes: condiciones + `mode`
+  pedido por el modelo + Reckless D44). `Actions` lo aplica en ataque,
+  salvación y chequeo.
 - **5e**: cualquier ventaja + cualquier desventaja = normal.
-- **Tests**: `test/dragonex/rules/conditions_test.exs`, `conditions_test.exs`.
+- **Tests**: `test/dragonex/rules/conditions_test.exs`, `conditions_test.exs`,
+  `reckless_attack_test.exs`.
 
 ### M06 — Condiciones → ataque / salvación / chequeo
 - **Dónde**: `Rules.Conditions` (`attack_mode/3`, `save_mode/3`, `check_mode/3`);
@@ -237,9 +241,9 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   `Progression.rage_damage/1` en cada hit de `Actions.attack`. Overlay
   B/P/S en `incoming_damage/3` (no muta listas; combina D38).
   `Actions.spell` error si el caster está raging. Chequeo STR con
-  ventaja. Tools `start_rage`/`end_rage`. Sin Reckless, sin usos/día,
-  sin reloj de 1 minuto. El string `"rage"` del catálogo L1 no es la
-  fuente de verdad.
+  ventaja. Tools `start_rage`/`end_rage`. Sin usos/día, sin reloj de
+  1 minuto. Reckless es M28 / D44. El string `"rage"` del catálogo L1
+  no es la fuente de verdad.
 - **Tests**: `rage_test.exs`, `codec_test.exs`, `heroes/progression_test.exs`.
 
 ### M27 — Otorgar XP (`grant_xp`, D43)
@@ -251,18 +255,32 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   `Accounts.grant_xp/3` (ficha persistida) no se rediseña.
 - **Tests**: `world_test.exs`, `grant_xp_test.exs`.
 
+### M28 — Reckless Attack (`reckless`, D44)
+- **Dónde**: `Character.reckless` (Codec, default false).
+  `World.start_reckless/1` (sólo `class == "barbarian"`),
+  `World.end_reckless/1`, `World.set_reckless/2`.
+  `set_current_combatant(name)` apaga reckless de ese name (inicio de
+  su turno). `end_combat` apaga reckless en todos; hp a 0 y
+  `unconscious` también. `Conditions.attack_mode`: melee STR del
+  atacante reckless → ventaja; cualquier ataque vs target reckless →
+  ventaja; `combine/2` con condiciones. Finesse con DEX mayor y ranged
+  no dan ventaja al atacante. Tools `start_reckless`/`end_reckless`.
+  El LLM no pasa mode a `make_attack`. Extra Attack: mismo
+  `effective_mode` en todos los swings. Sin cupo/día.
+- **Tests**: `reckless_attack_test.exs`, `codec_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
 
 reacciones como mecánica formal (TurnMaster da interrupciones narrativas) ·
 multiclase · feats. Pact Magic: **D40**. Sneak Attack: **D41**. Rage: **D42**.
-XP en partida: **D43 / M27**.
+Reckless Attack: **D44 / M28**. XP en partida: **D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
-**D38 / M25**. Reckless Attack y cupo de Rage/día siguen fuera.
+**D38 / M25**. Cupo de Rage/día sigue fuera.
 
-Para que una de estas entre: ADR nuevo + mecánica `M28+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M29+` en este catálogo +
 tests.
 
 ## Dados

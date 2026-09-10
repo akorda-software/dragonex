@@ -80,6 +80,7 @@ Dragonex.Character (character.ex)  — Ecto embedded schema
 ├─ vitales:   hp, max_hp, temp_hp, ac, speed
 ├─ concentrating: String | nil     hechizo de concentración (D37)
 ├─ raging:        boolean          furia del bárbaro; default false (D42)
+├─ reckless:      boolean          Reckless Attack; default false (D44)
 ├─ damage_resistances / damage_vulnerabilities / damage_immunities
 │                 [String]         tipos 5e; default [] (D38)
 ├─ atributos: str/dex/con/int/wis/cha
