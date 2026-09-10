@@ -109,9 +109,10 @@ El mismo principio cubre ataques, salvaciones y chequeos.
 
 - **Escena/hechos**: `set_scene/1`, `add_fact/1` (idempotente, cap 30 — `D16`).
 - **Personajes**: `add_character/1`, `apply_damage/2` (sin tipo = plano)
-  y `apply_damage/3` (inmunidad/resist/vuln D38, luego absorbe `temp_hp`
-  D36), `heal/2` (no toca `temp_hp`), `apply_temp_hp/2`.
-- **Combate**: `begin_combat/1` (pide orden de iniciativa), `end_combat/0`,
+  y `apply_damage/3` (inmunidad/resist/vuln D38, overlay Rage B/P/S D42,
+  luego absorbe `temp_hp` D36), `heal/2` (no toca `temp_hp`), `apply_temp_hp/2`,
+  `start_rage/1`, `end_rage/1`, `set_raging/2`.
+- **Combate**: `begin_combat/1` (pide orden de iniciativa), `end_combat/0` (apaga raging),
   `join_initiative/1`, `apply_death_save/2`, `apply_condition/2`, `remove_condition/2`.
 - **Nivel**: `level_up/2`.
 - **Spell slots**: `has_slot?/3`, `consume_slot/2`, `restore_slots/1`.
@@ -147,7 +148,7 @@ El LLM no puede saltarse ni reordenar turnos.
 Ver [`../progress.md`](../progress.md) § 🔴 y [`../producto/00-vision-y-alcance.md`](../producto/00-vision-y-alcance.md) § Fuera de alcance:
 reacciones. Son **simplificaciones v1 asumidas**, no bugs. Iniciativa
 individual por monstruo: D34. `temp_hp`: D36. Concentración: D37.
-Resistencias: D38.
+Resistencias: D38. Rage: D42.
 
 ## Lectura siguiente
 

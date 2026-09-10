@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **829 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **844 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -21,18 +21,18 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 - `Rules.Ability` (modificadores, competencia) + `Rules.Combat` (ataques,
   daño, críticos, salvaciones, chequeos, death saves, ventaja/desventaja).
 - `World` — máquina de estados `:exploration`/`:combat`, change-fns puras,
-   invariantes (damage floor 0, resist/vuln/immune D38, `temp_hp` absorbe
-   primero D36, concentración D37, `controlled_by?/3`), `facts` durables
+   invariantes (damage floor 0, resist/vuln/immune D38, overlay Rage B/P/S D42,
+   `temp_hp` absorbe primero D36, concentración D37, `controlled_by?/3`), `facts` durables
    (D16), condiciones, spell slots,
   `level_up`.
 - `Rules.Conditions` — tabla M06: condición → ventaja/desventaja/auto-fallo
   en ataque, salvación y chequeo (cancelación 5e).
-- `Actions` — puente intent→world (`attack` con Extra Attack 5e / D35 y
-  Sneak Attack D41, `spell` automatic/attack/save + consumo de slot, False Life → temp_hp D36,
+- `Actions` — puente intent→world (`attack` con Extra Attack 5e / D35,
+  Sneak Attack D41 y Rage D42, `spell` automatic/attack/save + consumo de slot, False Life → temp_hp D36,
   concentración D37, resist/vuln/immune D38, `initiative`, `death_save`, `heal`,
   `short_rest`, `long_rest`, `check`). Con `RollLog` para dados estructurados.
 - `Tools` — `deftool`s que el LLM invoca: `make_attack`, `cast_spell`,
-  `roll_initiative`, `make_death_save`, `heal`, `grant_temp_hp`, `drop_concentration`, `ability_check`, `end_combat`,
+  `roll_initiative`, `make_death_save`, `heal`, `grant_temp_hp`, `drop_concentration`, `start_rage`, `end_rage`, `ability_check`, `end_combat`,
   `short_rest`, `long_rest`, `spawn_monster`, `apply_condition`,
   `remove_condition`, `set_scene`, `establish_fact`, `level_up`, `roll_dice`.
 - `TurnPolicy.WorldDriven` — turno leído del World; un beat por monstruo
@@ -85,7 +85,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   `test/dragonex/heroes/srd_golden_test.exs`. Oráculos a mano; sin bugs
   de HP/AC/slots/saves vs SRD. Pact Magic (D40) y Sneak Attack (D41) en ✅.
   Feats / features por nivel (salvo Extra Attack D35, Pact Magic D40,
-  Sneak Attack D41 y spellcasting paladín/ranger L2) siguen en 🟡.
+  Sneak Attack D41, Rage D42 y spellcasting paladín/ranger L2) siguen en 🟡.
 
 ### Contenido custom por usuario
 - CRUD `custom_contents` (weapon/spell/item, unique por usuario) con
@@ -154,6 +154,10 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   ranged; advantage o aliado consciente; disadvantage bloquea; primer
   hit de `Actions.attack`; crítico 2N d6. Sin grid ni once-per-turn
   entre varias llamadas.
+- ✅ Rage del bárbaro (D42): `Character.raging` + Codec; melee
+  `rage_damage/1` en cada hit; overlay B/P/S; no spells; STR check
+  ventaja; termina en `end_rage` / 0 hp / unconscious / `end_combat`.
+  Sin Reckless, sin usos/día, sin reloj de 1 minuto.
 
 ---
 
@@ -163,7 +167,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 |---|---|---|
 | Dotes | Fuera; ASI = +2 fijo | D13 |
 | `spells_known` | `nil` (sin cap estricto por clase) | D14 |
-| Features por nivel | Extra Attack D35 + Sneak Attack D41 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41 |
+| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42 |
 | Empate iniciativa | DEX score desc, luego nombre; sin roll-off extra | D39 |
 | Banner level-up in-game | Eliminado (D33); subida desde la ficha | D33 |
 | Stub legado en `Tools` | `attack`/`roll`/`spawn_character`/`next_round` mantenidos para tests del framework exAgent | `tools.ex:31-72` |

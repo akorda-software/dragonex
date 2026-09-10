@@ -24,7 +24,8 @@ defmodule Dragonex.Heroes.Progression do
     * **Features**: se modelan las que afectan a la ficha de forma
       mecánica inmediata (conjuración paladín/explorador a L2; Extra Attack
       a L5 en clases marciales, D35; Sneak Attack del rogue, D41). El resto
-      de features por nivel sigue fuera de v1.
+       de features por nivel sigue fuera de v1. Rage del bárbaro (D42) usa
+       `rage_damage/1`, no el string `"rage"`.
   """
 
   # XP total necesario para ALCANZAR cada nivel (tabla de avances 5e).
@@ -218,6 +219,17 @@ defmodule Dragonex.Heroes.Progression do
       _ -> 0
     end
   end
+
+  @doc """
+  Bonus de daño de Rage según nivel (D42). Tabla 5e; el motor es fuente
+  de verdad (D1), no el string `rage` en `class_features`.
+
+    * L1–8 → +2; L9–15 → +3; L16–20 → +4
+  """
+  @spec rage_damage(pos_integer()) :: non_neg_integer()
+  def rage_damage(level) when is_integer(level) and level >= 16, do: 4
+  def rage_damage(level) when is_integer(level) and level >= 9, do: 3
+  def rage_damage(level) when is_integer(level) and level >= 1, do: 2
 
   # ------------------------------------------------------------ helpers
 

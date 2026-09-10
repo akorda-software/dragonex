@@ -33,6 +33,7 @@ defmodule Dragonex.Character do
     field(:max_hp, :integer, default: 0)
     field(:temp_hp, :integer, default: 0)
     field(:concentrating, :string)
+    field(:raging, :boolean, default: false)
     field(:damage_resistances, {:array, :string}, default: [])
     field(:damage_vulnerabilities, {:array, :string}, default: [])
     field(:damage_immunities, {:array, :string}, default: [])
@@ -84,6 +85,7 @@ defmodule Dragonex.Character do
         :max_hp,
         :temp_hp,
         :concentrating,
+        :raging,
         :damage_resistances,
         :damage_vulnerabilities,
         :damage_immunities,
@@ -150,6 +152,7 @@ defmodule Dragonex.Character do
       max_hp: 0,
       temp_hp: 0,
       concentrating: nil,
+      raging: false,
       damage_resistances: [],
       damage_vulnerabilities: [],
       damage_immunities: [],
@@ -216,7 +219,8 @@ defmodule Dragonex.Character do
   Resistance and vulnerability to the same type cancel. Resistance alone
   halves (`div/2`); vulnerability alone doubles. Floor 0.
   Tiefling `hellish_resistance` counts as fire resistance without duplicating
-  the type in `damage_resistances`.
+  the type in `damage_resistances`. Rage (D42) overlays bludgeoning/piercing/
+  slashing resistance while `c.raging` without mutating the persisted lists.
   """
   @spec incoming_damage(t(), integer(), String.t() | nil) :: integer()
   def incoming_damage(%__MODULE__{} = c, amount, type) when is_integer(amount) do
@@ -241,9 +245,12 @@ defmodule Dragonex.Character do
 
   defp vulnerable_to?(%__MODULE__{} = c, type), do: type in list(c.damage_vulnerabilities)
 
+  @rage_resist ~w(bludgeoning piercing slashing)
+
   defp resistant_to?(%__MODULE__{} = c, type) do
     type in list(c.damage_resistances) or
-      (type == "fire" and "hellish_resistance" in list(c.racial_traits))
+      (type == "fire" and "hellish_resistance" in list(c.racial_traits)) or
+      (c.raging == true and type in @rage_resist)
   end
 
   defp list(nil), do: []

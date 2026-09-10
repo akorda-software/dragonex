@@ -66,9 +66,11 @@ defmodule Dragonex.Rules.Conditions do
 
   @doc "Effective ability-check mode for `character`."
   @spec check_mode(Character.t(), atom(), mode()) :: mode()
-  def check_mode(%Character{} = character, _ability, requested \\ :normal) do
+  def check_mode(%Character{} = character, ability, requested \\ :normal) do
     conds = Character.condition_names(character)
-    advantage? = requested == :advantage
+
+    advantage? =
+      requested == :advantage or (ability == :str and character.raging == true)
 
     disadvantage? =
       requested == :disadvantage or Enum.any?(conds, &(&1 in @check_disadvantage))

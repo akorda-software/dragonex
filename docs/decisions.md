@@ -543,6 +543,42 @@ No Cunning Action, no Uncanny Dodge, no grid. No cambia
 R09 queda **parcial**: Extra Attack D35, Sneak Attack D41 y
 spellcasting paladín/ranger L2; el resto de features por nivel sigue 🟡.
 
+### D42 — Rage 5e
+Estado: **Aceptada** — 2026-09-10.
+
+Primer campo nuevo de `Character` de T12. El LLM no calcula el bonus
+ni la resistencia (D1). Reckless Attack, cupo de usos/día y reloj de
+1 minuto quedan fuera.
+
+- `Character.raging` boolean, default `false`. Codec encode/decode;
+  jsonb viejo sin clave → `false` (D4/D8).
+- Solo `class == "barbarian"` puede entrar. Tools `start_rage(who)` /
+  `end_rage(who)` (DM cualquiera; PC sólo sí mismo, mismo patrón que
+  `drop_concentration`). El motor no depende del string `"rage"` del
+  catálogo L1.
+- Al entrar: `raging` true; si concentraba, se suelta (no se puede
+  concentrar ni lanzar en furia). `Actions.spell` error si el caster
+  está raging.
+- Mientras raging:
+  - Bonus de daño en golpes **cuerpo a cuerpo** (`weapon.ranged != true`):
+    +2 L1–8, +3 L9–15, +4 L16–20 (`Progression.rage_damage/1`). Se suma
+    al dmg del arma en **todos** los hits de Extra Attack. No se dobla
+    en crítico.
+  - Resistencia a bludgeoning/piercing/slashing: overlay en
+    `Character.incoming_damage/3` si `c.raging` (no mutar las listas
+    persistidas). Combina con D38 (si ya es vulnerable al mismo tipo,
+    se cancelan).
+  - `Actions.check` de STR en raging → ventaja (cancelación 5e con
+    desventaja de condición). Salvaciones STR no.
+- Termina: `end_rage`; hp a 0; `apply_condition` unconscious;
+  `World.end_combat` apaga raging en todos. Sin cupo de usos (deuda).
+  Sin minuto ni “si no atacas este turno”.
+
+No Reckless Attack. No cambia `Weapon`/`Spell`/`Item`. D35–D41 intactos.
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42 y
+spellcasting paladín/ranger L2; el resto de features por nivel sigue 🟡.
+
 ---
 
 ## Pendientes de decisión (abiertas)

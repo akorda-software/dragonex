@@ -205,6 +205,7 @@ defmodule Dragonex.Monsters do
       max_hp: hp,
       temp_hp: 0,
       concentrating: nil,
+      raging: false,
       damage_resistances: resist,
       damage_vulnerabilities: vuln,
       damage_immunities: immune,

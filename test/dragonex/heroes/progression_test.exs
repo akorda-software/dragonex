@@ -146,4 +146,15 @@ defmodule Dragonex.Heroes.ProgressionTest do
       end
     end
   end
+
+  describe "rage_damage/1" do
+    test "tabla 5e L1–8 +2, L9–15 +3, L16–20 +4" do
+      assert Progression.rage_damage(1) == 2
+      assert Progression.rage_damage(8) == 2
+      assert Progression.rage_damage(9) == 3
+      assert Progression.rage_damage(15) == 3
+      assert Progression.rage_damage(16) == 4
+      assert Progression.rage_damage(20) == 4
+    end
+  end
 end

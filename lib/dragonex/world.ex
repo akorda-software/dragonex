@@ -17,7 +17,8 @@ defmodule Dragonex.World do
     * you can't damage/heal a missing character,
     * `begin_combat` requires the exploration phase and known combatants,
     * the death-save tracker resolves dead (3 fails) / stable (3 successes) /
-      revive (nat 20) and looks at `hp`, not `temp_hp`.
+      revive (nat 20) and looks at `hp`, not `temp_hp`,
+    * Rage (D42) ends on 0 hp, unconscious, `end_combat`, or `end_rage`.
 
   Characters are stored as full `Dragonex.Character` structs, so the engine can
   read any stat (AC, abilities, weapons ...) straight from the world.
@@ -267,7 +268,9 @@ defmodule Dragonex.World do
           rest = incoming - absorbed
           new_temp = temp - absorbed
           new_hp = max(0, (c.hp || 0) - rest)
-          {:ok, put_char(w, target, %{c | hp: new_hp, temp_hp: new_temp})}
+          updated = %{c | hp: new_hp, temp_hp: new_temp}
+          updated = if new_hp == 0, do: %{updated | raging: false}, else: updated
+          {:ok, put_char(w, target, updated)}
       end
     end
   end
@@ -327,6 +330,46 @@ defmodule Dragonex.World do
     end
   end
 
+  @doc """
+  Set `who`'s raging flag (5e, D42). Entering rage (`true`) also drops
+  concentration. Does not check class — `start_rage/1` does.
+  """
+  @spec set_raging(String.t(), boolean()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def set_raging(name, raging) when is_boolean(raging) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          updated = %{c | raging: raging}
+          updated = if raging, do: %{updated | concentrating: nil}, else: updated
+          {:ok, put_char(w, name, updated)}
+      end
+    end
+  end
+
+  @doc "Enter Rage (D42). Only `class == \"barbarian\"`. Clears concentration."
+  @spec start_rage(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def start_rage(name) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{class: "barbarian"} ->
+          set_raging(name, true).(w)
+
+        %Character{} ->
+          {:error, "#{name} no es bárbaro y no puede entrar en furia"}
+      end
+    end
+  end
+
+  @doc "End Rage (D42). Idempotent if already false."
+  @spec end_rage(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def end_rage(name), do: set_raging(name, false)
+
   @spec heal(String.t(), non_neg_integer()) ::
           (t() -> {:ok, t()} | {:error, String.t()})
   def heal(target, amount) do
@@ -380,10 +423,17 @@ defmodule Dragonex.World do
   @spec end_combat() :: (t() -> {:ok, t()})
   def end_combat do
     fn w ->
+      characters =
+        Map.new(w.characters, fn
+          {name, %Character{} = c} -> {name, %{c | raging: false}}
+          other -> other
+        end)
+
       {:ok,
        %{
          w
          | phase: :exploration,
+           characters: characters,
            acted_this_round: MapSet.new(),
            current_combatant: nil,
            log: log(w, "dm", "combat ends")
@@ -675,6 +725,11 @@ defmodule Dragonex.World do
           updated =
             if condition in @breaks_concentration,
               do: %{updated | concentrating: nil},
+              else: updated
+
+          updated =
+            if condition == "unconscious",
+              do: %{updated | raging: false},
               else: updated
 
           {:ok, put_char(w, target, updated)}

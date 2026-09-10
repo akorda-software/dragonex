@@ -45,8 +45,11 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   `:disadvantage` bloquea. Crítico tira 2N d6 (roller inyectado). Mismo
   `damage_type` del arma (`apply_damage/3`). Sin grid. El string
   `sneak_attack` del catálogo L1 no es la fuente de verdad.
+- **Rage (D42)**: `Progression.rage_damage/1` + bonus en cada hit melee
+  (`weapon.ranged != true`) si `attacker.raging`. Overlay B/P/S en
+  `incoming_damage/3`. Ver M26.
 - **Tests**: `test/dragonex/rules/combat_test.exs`, `actions_test.exs`,
-  `sneak_attack_test.exs`.
+  `sneak_attack_test.exs`, `rage_test.exs`.
 
 ### M04 — Daño y críticos
 - **Dónde**: `Rules.Combat.damage_roll/4`.
@@ -225,16 +228,30 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 - **Tests**: `world_test.exs`, `actions_test.exs`, `codec_test.exs`,
   `healing_and_bestiary_test.exs`, `concentration_test.exs`.
 
+### M26 — Rage (`raging`, D42)
+- **Dónde**: `Character.raging` (Codec, default false).
+  `World.start_rage/1` (sólo `class == "barbarian"`; suelta concentración),
+  `World.end_rage/1`, `World.set_raging/2`. `end_combat` apaga raging en
+  todos; hp a 0 y `unconscious` también. Bonus melee
+  `Progression.rage_damage/1` en cada hit de `Actions.attack`. Overlay
+  B/P/S en `incoming_damage/3` (no muta listas; combina D38).
+  `Actions.spell` error si el caster está raging. Chequeo STR con
+  ventaja. Tools `start_rage`/`end_rage`. Sin Reckless, sin usos/día,
+  sin reloj de 1 minuto. El string `"rage"` del catálogo L1 no es la
+  fuente de verdad.
+- **Tests**: `rage_test.exs`, `codec_test.exs`, `heroes/progression_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
 
 reacciones como mecánica formal (TurnMaster da interrupciones narrativas) ·
-multiclase · feats. Pact Magic: **D40**. Sneak Attack: **D41**. Iniciativa individual por monstruo: **D34**.
+multiclase · feats. Pact Magic: **D40**. Sneak Attack: **D41**. Rage: **D42**.
+Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
-**D38 / M25**.
+**D38 / M25**. Reckless Attack y cupo de Rage/día siguen fuera.
 
-Para que una de estas entre: ADR nuevo + mecánica `M26+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M27+` en este catálogo +
 tests.
 
 ## Dados

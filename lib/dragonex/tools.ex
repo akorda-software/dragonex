@@ -313,6 +313,27 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
+  Enter Rage (5e, D42). Barbarian only. Clears concentration. The DM may start
+  anyone; a PC may only start themselves.
+  """
+  deftool start_rage(ctx, who :: String.t()) do
+    with :ok <- assert_rage_self(ctx, who),
+         {:ok, _} <- propose(ctx, Dragonex.World.start_rage(who)) do
+      {:ok, "#{who} entra en furia."}
+    end
+  end
+
+  @doc """
+  End Rage (5e, D42). The DM may end anyone; a PC may only end themselves.
+  """
+  deftool end_rage(ctx, who :: String.t()) do
+    with :ok <- assert_rage_self(ctx, who),
+         {:ok, _} <- propose(ctx, Dragonex.World.end_rage(who)) do
+      {:ok, "#{who} deja la furia."}
+    end
+  end
+
+  @doc """
   Resolve a non-combat ability check: the DM sets the `dc` (5/10/15/20 by 5e
   difficulty), the engine rolls d20 + the ability modifier for `who`.
   Skill proficiency is not applied in v1 (the sheet stores it; resolution does
@@ -408,6 +429,17 @@ defmodule Dragonex.Tools do
     else
       {:error,
        "RECHAZADO — solo puedes soltar tu propia concentración (#{proposer}), no la de #{who}."}
+    end
+  end
+
+  defp assert_rage_self(ctx, who) do
+    proposer = ctx.deps.state.participant_id
+
+    if proposer == "dm" or proposer == who do
+      :ok
+    else
+      {:error,
+       "RECHAZADO — solo puedes controlar tu propia furia (#{proposer}), no la de #{who}."}
     end
   end
 

@@ -18,7 +18,7 @@ defmodule Dragonex.Heroes.LevelUp do
     * AC recalculada si cambian DEX / CON / WIS (según equipo y Defensa sin Armadura).
     * Hechizos nuevos (`choices.spells_added`) y features de clase del nuevo nivel.
 
-  No toca estado transitorio (condiciones, death_saves, temp_hp, concentrating, slots usados). El
+  No toca estado transitorio (condiciones, death_saves, temp_hp, concentrating, raging, slots usados). El
   hp actual solo sube por la vitalidad retroactiva de CON; un caído (0 hp) sin
   ASI de CON sigue caído tras subir.
   """

@@ -70,7 +70,9 @@ defmodule Dragonex.Actions do
   (hp ≤ 0) mid-action, remaining swings are skipped (no retarget). The
   attacker and target must already be in the world, and the attacker must
   wield the named weapon. Sneak Attack (D41) adds N d6 to the first hit
-  of this call when the rogue qualifies.
+  of this call when the rogue qualifies. Rage (D42) adds
+  `Progression.rage_damage/1` to every melee hit (`weapon.ranged != true`)
+  while the attacker is raging.
   """
   @spec attack(
           World.t(),
@@ -155,6 +157,9 @@ defmodule Dragonex.Actions do
       # A downed caster cannot cast — the engine enforces RAW.
       World.character(world, caster_name).hp <= 0 ->
         {:error, "#{caster_name} está caído (0 pg) y no puede conjurar"}
+
+      World.character(world, caster_name).raging == true ->
+        {:error, "#{caster_name} está en furia y no puede conjurar"}
 
       true ->
         c = World.character(world, caster_name)
@@ -678,7 +683,7 @@ defmodule Dragonex.Actions do
 
     case kind do
       :miss ->
-        %{kind: :miss, d20: d20, total: total, dmg: 0, sneak: 0}
+        %{kind: :miss, d20: d20, total: total, dmg: 0, sneak: 0, rage: 0}
 
       k ->
         {r2, close_dmg} =
@@ -692,7 +697,8 @@ defmodule Dragonex.Actions do
 
         dmg = Combat.damage_roll(a, weapon, k, r2)
         sneak_dmg = sneak_damage(sneak, k, r2)
-        total_dmg = dmg + sneak_dmg
+        rage_dmg = rage_bonus(a, weapon)
+        total_dmg = dmg + sneak_dmg + rage_dmg
 
         RollLog.close(close_dmg,
           total: total_dmg,
@@ -700,7 +706,7 @@ defmodule Dragonex.Actions do
           outcome: if(k == :crit, do: :crit, else: nil)
         )
 
-        %{kind: k, d20: d20, total: total, dmg: total_dmg, sneak: sneak_dmg}
+        %{kind: k, d20: d20, total: total, dmg: total_dmg, sneak: sneak_dmg, rage: rage_dmg}
     end
   end
 
@@ -711,7 +717,7 @@ defmodule Dragonex.Actions do
   defp format_attack_message(attacker, target, weapon, ac, mode, [s]) do
     verb = if s.kind == :crit, do: "CRÍTICO", else: "acierta"
 
-    "#{attacker} #{verb} a #{target} (d20 #{s.d20}: #{s.total} vs CA #{ac}) por #{s.dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{mode_tag(mode)}."
+    "#{attacker} #{verb} a #{target} (d20 #{s.d20}: #{s.total} vs CA #{ac}) por #{s.dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{rage_tag(s)}#{mode_tag(mode)}."
   end
 
   defp format_attack_message(attacker, target, weapon, ac, mode, swings) do
@@ -726,7 +732,7 @@ defmodule Dragonex.Actions do
   defp describe_swing(%{kind: k, d20: d20, total: total, dmg: dmg} = s, weapon, ac) do
     verb = if k == :crit, do: "CRÍTICO", else: "acierta"
 
-    "#{verb} (d20 #{d20}: #{total} vs CA #{ac}) por #{dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}"
+    "#{verb} (d20 #{d20}: #{total} vs CA #{ac}) por #{dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{rage_tag(s)}"
   end
 
   defp swing_amounts(swings), do: for(%{dmg: dmg} <- swings, dmg > 0, do: dmg)
@@ -897,6 +903,15 @@ defmodule Dragonex.Actions do
 
   defp sneak_tag(%{sneak: n}) when is_integer(n) and n > 0, do: " (+#{n} sneak)"
   defp sneak_tag(_), do: ""
+
+  defp rage_bonus(%Character{raging: true, level: level}, weapon) when weapon.ranged != true do
+    Progression.rage_damage(level)
+  end
+
+  defp rage_bonus(_, _), do: 0
+
+  defp rage_tag(%{rage: n}) when is_integer(n) and n > 0, do: " (+#{n} furia)"
+  defp rage_tag(_), do: ""
 
   defp find_weapon(%Character{weapons: weapons}, name), do: match_named(weapons, name)
 
