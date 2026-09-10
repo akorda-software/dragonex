@@ -171,6 +171,9 @@ defmodule DragonexWeb.GameLiveTest do
 
       {:ok, view, html} = live(conn, "/games/#{game.id}")
 
+      assert html =~ ~s(id="sheet-drawer")
+      assert html =~ "Ficha"
+
       # No picker — the viewer is auto-assigned to their character
       refute html =~ "¿Quién eres?"
 
