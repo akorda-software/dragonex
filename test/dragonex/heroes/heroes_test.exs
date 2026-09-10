@@ -309,6 +309,8 @@ defmodule Dragonex.HeroesTest do
         })
 
       assert c.int == 13 and c.cha == 17
+      assert "hellish_resistance" in c.racial_traits
+      assert c.damage_resistances == ["fire"]
     end
 
     test "gnome forest: INT +2, DEX +1" do

@@ -432,6 +432,33 @@ duración ni efecto mecánico de Bless/Hold Person/+1d4.
   incapacitated, stunned, paralyzed, petrified. hp a 0 rompe.
 - No se cambia `Weapon`/`Spell`/`Item`. D35/D36 intactos.
 
+### D38 — Resistencia, vulnerabilidad e inmunidad a daño
+Estado: **Aceptada** — 2026-09-10.
+
+Entra RAW v1 de resistencias 5e. El LLM no calcula el modificador (D1).
+
+- Tres listas en `Character`: `damage_resistances`,
+  `damage_vulnerabilities`, `damage_immunities` — arrays de strings
+  (tipos 5e: `slashing`, `fire`, `poison`, …). Default `[]`. Codec
+  encode/decode; jsonb viejo sin clave → `[]` (D4/D8).
+- `World.apply_damage/2` sigue igual (sin tipo = daño plano). Tercer
+  arg opcional: `apply_damage(name, amount, type)`; `type` nil/"" se
+  comporta como hoy.
+- Orden: inmunidad → 0; si resist **y** vuln del mismo tipo se cancelan
+  (daño pleno); solo resist → `div(amount, 2)`; solo vuln → `amount * 2`.
+  Floor 0. Luego `temp_hp` (D36) sobre el amount **ya modificado**.
+  Concentración (D37) usa el daño que realmente entra (post-resist).
+- `Actions.attack` pasa `weapon.damage_type`; `Actions.spell` pasa
+  `spell.damage_type` si hay.
+- Skeleton SRD: vuln `bludgeoning`, immune `poison`
+  (`Monsters.skeleton/1`).
+- Tiefling: si `racial_traits` incluye `hellish_resistance`, fire cuenta
+  como resistencia (sin duplicar en la lista si ya está). El builder
+  rellena `["fire"]` en héroes nuevos; el chequeo también mira el rasgo
+  para fichas viejas.
+- No magic vs mundane, no "resistance to all but …". D35–D37 intactos.
+  No se cambia `Weapon`/`Spell`/`Item`.
+
 ---
 
 ## Pendientes de decisión (abiertas)

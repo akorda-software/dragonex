@@ -68,6 +68,108 @@ defmodule Dragonex.WorldTest do
       assert w.characters["goblin"].temp_hp == 0
       assert w.characters["goblin"].hp == 7
     end
+
+    test "resistance to fire halves 10 → 5 (D38)" do
+      w =
+        World.new()
+        |> apply!(World.add_character(%{goblin(10) | damage_resistances: ["fire"]}))
+
+      w = apply!(w, World.apply_damage("goblin", 10, "fire"))
+      assert w.characters["goblin"].hp == 5
+    end
+
+    test "vulnerability doubles 10 → 20 (D38)" do
+      w =
+        World.new()
+        |> apply!(
+          World.add_character(%{
+            goblin(30)
+            | hp: 30,
+              max_hp: 30,
+              damage_vulnerabilities: ["fire"]
+          })
+        )
+
+      w = apply!(w, World.apply_damage("goblin", 10, "fire"))
+      assert w.characters["goblin"].hp == 10
+    end
+
+    test "immunity deals 0 and hp does not change (D38)" do
+      w =
+        World.new()
+        |> apply!(World.add_character(%{goblin(10) | damage_immunities: ["poison"]}))
+
+      w = apply!(w, World.apply_damage("goblin", 10, "poison"))
+      assert w.characters["goblin"].hp == 10
+    end
+
+    test "resistance and vulnerability to the same type cancel (D38)" do
+      w =
+        World.new()
+        |> apply!(
+          World.add_character(%{
+            goblin(20)
+            | hp: 20,
+              max_hp: 20,
+              damage_resistances: ["fire"],
+              damage_vulnerabilities: ["fire"]
+          })
+        )
+
+      w = apply!(w, World.apply_damage("goblin", 10, "fire"))
+      assert w.characters["goblin"].hp == 10
+    end
+
+    test "untyped damage is unchanged (D38 regression)" do
+      w =
+        World.new()
+        |> apply!(
+          World.add_character(%{
+            goblin(20)
+            | hp: 20,
+              max_hp: 20,
+              damage_resistances: ["fire"],
+              damage_vulnerabilities: ["slashing"],
+              damage_immunities: ["poison"]
+          })
+        )
+
+      w = apply!(w, World.apply_damage("goblin", 10))
+      assert w.characters["goblin"].hp == 10
+    end
+
+    test "5 temp + resist fire 10 → incoming 5, temp absorbs, hp unchanged (D38)" do
+      w =
+        World.new()
+        |> apply!(
+          World.add_character(%{
+            goblin(10)
+            | hp: 10,
+              max_hp: 10,
+              temp_hp: 5,
+              damage_resistances: ["fire"]
+          })
+        )
+
+      w = apply!(w, World.apply_damage("goblin", 10, "fire"))
+      assert w.characters["goblin"].temp_hp == 0
+      assert w.characters["goblin"].hp == 10
+    end
+
+    test "hellish_resistance treats fire as resistance without listing it (D38)" do
+      w =
+        World.new()
+        |> apply!(
+          World.add_character(%{
+            goblin(10)
+            | racial_traits: ["hellish_resistance"],
+              damage_resistances: []
+          })
+        )
+
+      w = apply!(w, World.apply_damage("goblin", 10, "fire"))
+      assert w.characters["goblin"].hp == 5
+    end
   end
 
   describe "apply_temp_hp/2" do

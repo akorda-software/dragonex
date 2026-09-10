@@ -11,7 +11,9 @@ defmodule Dragonex.World do
   Invariants enforced by the transitions (not by the LLM):
 
     * damage floors at 0,
-    * damage hits `temp_hp` first, remainder to `hp` (D36); `temp_hp` never negative,
+    * typed damage is scaled by immunity/resistance/vulnerability first (D38),
+      then hits `temp_hp`, remainder to `hp` (D36); `temp_hp` never negative,
+    * untyped damage (`apply_damage/2` or empty type) is flat — no resist math,
     * you can't damage/heal a missing character,
     * `begin_combat` requires the exploration phase and known combatants,
     * the death-save tracker resolves dead (3 fails) / stable (3 successes) /
@@ -248,18 +250,21 @@ defmodule Dragonex.World do
     end
   end
 
-  @spec apply_damage(String.t(), non_neg_integer()) ::
+  @spec apply_damage(String.t(), integer()) ::
           (t() -> {:ok, t()} | {:error, String.t()})
-  def apply_damage(target, amount) do
+  @spec apply_damage(String.t(), integer(), String.t() | nil) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def apply_damage(target, amount, type \\ nil) do
     fn w ->
       case character(w, target) do
         nil ->
           {:error, "no such character: #{target}"}
 
         %Character{} = c ->
+          incoming = Character.incoming_damage(c, amount, type)
           temp = c.temp_hp || 0
-          absorbed = min(temp, amount)
-          rest = amount - absorbed
+          absorbed = min(temp, incoming)
+          rest = incoming - absorbed
           new_temp = temp - absorbed
           new_hp = max(0, (c.hp || 0) - rest)
           {:ok, put_char(w, target, %{c | hp: new_hp, temp_hp: new_temp})}

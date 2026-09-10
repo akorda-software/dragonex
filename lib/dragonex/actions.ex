@@ -100,7 +100,8 @@ defmodule Dragonex.Actions do
             swings =
               resolve_swings(a, t, attacker, target, weapon, roller, roll_log, effective_mode, n)
 
-            {notes, change} = pipe_damage(target, swing_amounts(swings), roller, roll_log, t)
+            {notes, change} =
+              pipe_damage(target, swing_amounts(swings), roller, roll_log, t, weapon.damage_type)
 
             {:ok,
              append_notes(
@@ -432,7 +433,8 @@ defmodule Dragonex.Actions do
               amount,
               roller,
               roll_log,
-              t
+              t,
+              spell.damage_type
             )
 
           # Utility spell (shield, bless, etc.): no dice → just report
@@ -486,7 +488,8 @@ defmodule Dragonex.Actions do
             dmg,
             roller,
             roll_log,
-            t
+            t,
+            spell.damage_type
           )
         else
           {:ok,
@@ -522,7 +525,8 @@ defmodule Dragonex.Actions do
           full,
           roller,
           roll_log,
-          t
+          t,
+          spell.damage_type
         )
 
       {:roll, save_mode} ->
@@ -569,7 +573,8 @@ defmodule Dragonex.Actions do
           dmg,
           roller,
           roll_log,
-          t
+          t,
+          spell.damage_type
         )
     end
   end
@@ -608,7 +613,8 @@ defmodule Dragonex.Actions do
           {:halt, {acc, hp}}
         else
           swing = resolve_one_swing(a, t, attacker, target, weapon, roller, roll_log, mode)
-          new_hp = if swing.dmg > 0, do: max(0, hp - swing.dmg), else: hp
+          incoming = Character.incoming_damage(t, swing.dmg, weapon.damage_type)
+          new_hp = if incoming > 0, do: max(0, hp - incoming), else: hp
           {:cont, {acc ++ [swing], new_hp}}
         end
       end)
@@ -698,19 +704,19 @@ defmodule Dragonex.Actions do
 
   defp compose_concentration(result, _caster, _spell), do: result
 
-  defp with_conc_damage(msg, target_name, amount, roller, roll_log, target_char) do
-    {notes, change} = pipe_damage(target_name, [amount], roller, roll_log, target_char)
+  defp with_conc_damage(msg, target_name, amount, roller, roll_log, target_char, type) do
+    {notes, change} = pipe_damage(target_name, [amount], roller, roll_log, target_char, type)
     {:ok, append_notes(msg, notes), change}
   end
 
-  defp pipe_damage(_target, [], _roller, _roll_log, _char), do: {[], noop()}
+  defp pipe_damage(_target, [], _roller, _roll_log, _char, _type), do: {[], noop()}
 
-  defp pipe_damage(target, amounts, roller, roll_log, char) do
+  defp pipe_damage(target, amounts, roller, roll_log, char, type) do
     amounts = Enum.filter(amounts, &(&1 > 0))
 
     {pairs, _char} =
       Enum.map_reduce(amounts, char, fn amount, c ->
-        {note, break?, c2} = one_hit_concentration(c, amount, roller, roll_log)
+        {note, break?, c2} = one_hit_concentration(c, amount, roller, roll_log, type)
         {{note, break?}, c2}
       end)
 
@@ -724,7 +730,7 @@ defmodule Dragonex.Actions do
             {:halt, {:ok, acc}}
 
           %Character{} ->
-            case World.apply_damage(target, amount).(acc) do
+            case World.apply_damage(target, amount, type).(acc) do
               {:ok, next} ->
                 next =
                   if break? do
@@ -751,20 +757,21 @@ defmodule Dragonex.Actions do
     {notes, change}
   end
 
-  defp one_hit_concentration(%Character{concentrating: nil} = c, amount, _roller, _roll_log) do
-    {nil, false, simulate_damage(c, amount)}
+  defp one_hit_concentration(%Character{concentrating: nil} = c, amount, _roller, _roll_log, type) do
+    {nil, false, simulate_damage(c, amount, type)}
   end
 
-  defp one_hit_concentration(%Character{} = c, amount, roller, roll_log) do
-    c2 = simulate_damage(c, amount)
+  defp one_hit_concentration(%Character{} = c, amount, roller, roll_log, type) do
+    incoming = Character.incoming_damage(c, amount, type)
+    c2 = simulate_damage(c, amount, type)
 
     cond do
       c2.hp <= 0 ->
         {"#{c.name} cae a 0 pg y pierde la concentración en #{c.concentrating}.", true,
          %{c2 | concentrating: nil}}
 
-      amount > 0 ->
-        dc = max(10, div(amount, 2))
+      incoming > 0 ->
+        dc = max(10, div(incoming, 2))
         {:roll, mode} = Conditions.save_mode(c, :con)
 
         {r, close} =
@@ -797,10 +804,11 @@ defmodule Dragonex.Actions do
     end
   end
 
-  defp simulate_damage(%Character{} = c, amount) do
+  defp simulate_damage(%Character{} = c, amount, type) do
+    incoming = Character.incoming_damage(c, amount, type)
     temp = c.temp_hp || 0
-    absorbed = min(temp, amount)
-    rest = amount - absorbed
+    absorbed = min(temp, incoming)
+    rest = incoming - absorbed
     %{c | temp_hp: temp - absorbed, hp: max(0, (c.hp || 0) - rest)}
   end
 

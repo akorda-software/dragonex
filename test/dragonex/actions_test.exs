@@ -6,7 +6,7 @@ defmodule Dragonex.ActionsTest do
 
   use ExUnit.Case, async: true
 
-  alias Dragonex.{Actions, Archetypes, Character, World}
+  alias Dragonex.{Actions, Archetypes, Character, Monsters, World}
 
   defp always(n), do: fn _sides -> n end
 
@@ -438,6 +438,81 @@ defmodule Dragonex.ActionsTest do
     test "errors on an unknown character" do
       assert {:error, "no existe el personaje: ghost"} =
                Actions.check(World.new(), "ghost", :str, 10, false, always(10))
+    end
+  end
+
+  describe "damage types (D38)" do
+    test "longsword slashing vs skeleton vulnerability doubles" do
+      f = Archetypes.fighter()
+
+      skel =
+        Character.new(
+          name: "skeleton",
+          class: "monster",
+          hp: 30,
+          max_hp: 30,
+          ac: 12,
+          side: "enemy",
+          damage_vulnerabilities: ["slashing"]
+        )
+
+      w =
+        World.new()
+        |> then_apply(World.add_character(f))
+        |> then_apply(World.add_character(skel))
+
+      # d20=10 → 15 vs CA 12 hit; d8=4 + str 3 = 7 slashing → 14
+      assert {:ok, _msg, change} =
+               Actions.attack(w, "Thane", "skeleton", "longsword", seq([10, 4]))
+
+      {:ok, w2} = change.(w)
+      assert w2.characters["skeleton"].hp == 30 - 14
+    end
+
+    test "bludgeoning vs SRD skeleton doubles; poison is immune" do
+      wiz = Archetypes.wizard()
+      skel = %{Monsters.skeleton(name: "skeleton") | hp: 30, max_hp: 30, ac: 12}
+
+      w =
+        World.new()
+        |> then_apply(World.add_character(wiz))
+        |> then_apply(World.add_character(skel))
+
+      # quarterstaff: str 8 (−1) + prof 2 = +1. d20=15 → 16 vs CA 12 hit; d6=4 −1 = 3 → 6
+      assert {:ok, _msg, change} =
+               Actions.attack(w, "Lyra", "skeleton", "quarterstaff", seq([15, 4]))
+
+      {:ok, w2} = change.(w)
+      assert w2.characters["skeleton"].hp == 30 - 6
+
+      w3 = then_apply(w2, World.apply_damage("skeleton", 10, "poison"))
+      assert w3.characters["skeleton"].hp == 24
+    end
+
+    test "firebolt vs tiefling hellish_resistance is halved" do
+      wiz = Archetypes.wizard()
+
+      tiefling =
+        Character.new(
+          name: "Lilith",
+          race: "tiefling",
+          class: "warlock",
+          hp: 20,
+          max_hp: 20,
+          ac: 12,
+          side: "enemy",
+          racial_traits: ["hellish_resistance"]
+        )
+
+      w =
+        World.new()
+        |> then_apply(World.add_character(wiz))
+        |> then_apply(World.add_character(tiefling))
+
+      # firebolt: +5, d20=10 → 15 vs CA 12 hit; d10=6 fire → 3
+      assert {:ok, _msg, change} = Actions.spell(w, "Lyra", "firebolt", "Lilith", seq([10, 6]))
+      {:ok, w2} = change.(w)
+      assert w2.characters["Lilith"].hp == 20 - 3
     end
   end
 

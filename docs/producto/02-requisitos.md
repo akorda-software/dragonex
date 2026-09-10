@@ -260,10 +260,12 @@ humanos **siempre** desde su ficha (la tool los rechaza con mensaje directivo).
 ### R28 — Declarado fuera de v1 (no bugs)
 `temp_hp` entra (**D36**). Concentración entra (**D37**): estado + rotura
 (CON save / 0 hp / incapacitated-class); sin reloj ni efecto de Bless.
-Siguen fuera: resistencias/vulnerabilidades, reacciones como mecánica
-formal (TurnMaster da interrupciones narrativas, no la mecánica 5e),
-multiclase. Cada una requiere ADR propio para entrar. Iniciativa
-individual por monstruo → **D34 / F6.4**.
+Resistencias/vulnerabilidades/inmunidades entran (**D38**): tres listas
+en `Character`, `apply_damage/3` por tipo, skeleton SRD, hellish
+resistance del tiefling. Sin magic vs mundane. Siguen fuera: reacciones
+como mecánica formal (TurnMaster da interrupciones narrativas, no la
+mecánica 5e), multiclase. Cada una requiere ADR propio para entrar.
+Iniciativa individual por monstruo → **D34 / F6.4**.
 
 ---
 

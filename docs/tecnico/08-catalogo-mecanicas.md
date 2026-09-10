@@ -183,8 +183,9 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 - **Tests**: `world_test.exs` + transversales.
 
 ### M23 — Puntos de golpe temporales (`temp_hp`, D36)
-- **Dónde**: `World.apply_damage/2` absorbe `temp_hp` primero (nunca
-  negativo), resto a `hp` (floor 0). `World.apply_temp_hp/2` otorga sin
+- **Dónde**: `World.apply_damage/2` (y `/3` tras D38) absorbe `temp_hp`
+  primero sobre el amount ya modificado (nunca negativo), resto a `hp`
+  (floor 0). `World.apply_temp_hp/2` otorga sin
   apilar (`max(actual, nuevo)`); amount ≤ 0 → error. Tool `grant_temp_hp`
   (DM cualquiera; PC sólo sí mismo). `heal` no escribe el campo. Death
   saves / `down?` miran `hp`. Sin reloj de duración; `long_rest` no wipe.
@@ -202,16 +203,29 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   el buff.
 - **Tests**: `concentration_test.exs`, `codec_test.exs`, `world_test.exs`.
 
+### M25 — Resistencia, vulnerabilidad e inmunidad (D38)
+- **Dónde**: `Character.damage_resistances` /
+  `damage_vulnerabilities` / `damage_immunities` (Codec, default `[]`).
+  `Character.incoming_damage/3` escala el amount. `World.apply_damage/3`
+  aplica el tipo y **después** absorbe `temp_hp`. Sin tipo = daño plano.
+  Orden: inmunidad → 0; resist+vuln mismo tipo se cancelan; solo resist
+  `div/2`; solo vuln `*2`. `Actions.attack`/`spell` pasan
+  `weapon.damage_type` / `spell.damage_type`. Skeleton SRD: vuln
+  bludgeoning, immune poison. Tiefling `hellish_resistance` = fire.
+  Concentración usa el daño post-resist. Sin magic vs mundane.
+- **Tests**: `world_test.exs`, `actions_test.exs`, `codec_test.exs`,
+  `healing_and_bestiary_test.exs`, `concentration_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
 
-resistencias/vulnerabilidades ·
 reacciones como mecánica formal (TurnMaster da interrupciones narrativas) ·
 multiclase · feats · Pact Magic. Iniciativa individual por monstruo: **D34**.
-`temp_hp`: **D36 / M23**. Concentración: **D37 / M24**.
+`temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
+**D38 / M25**.
 
-Para que una de estas entre: ADR nuevo + mecánica `M25+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M26+` en este catálogo +
 tests.
 
 ## Dados

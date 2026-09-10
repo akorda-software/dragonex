@@ -102,6 +102,49 @@ defmodule Dragonex.CodecTest do
       assert Codec.decode(Codec.encode(w)).characters["hero"].concentrating == "bless"
     end
 
+    test "damage resistances/vulnerabilities/immunities survive" do
+      c =
+        Character.new(
+          name: "hero",
+          class: "fighter",
+          hp: 10,
+          max_hp: 10,
+          side: "pc",
+          damage_resistances: ["fire"],
+          damage_vulnerabilities: ["bludgeoning"],
+          damage_immunities: ["poison"]
+        )
+
+      w = add(World.new(), World.add_character(c))
+      again = Codec.decode(Codec.encode(w)).characters["hero"]
+      assert again.damage_resistances == ["fire"]
+      assert again.damage_vulnerabilities == ["bludgeoning"]
+      assert again.damage_immunities == ["poison"]
+    end
+
+    test "damage lists absent in old jsonb are []" do
+      c = Character.new(name: "hero", class: "fighter", hp: 10, max_hp: 10, side: "pc")
+
+      encoded =
+        c
+        |> Codec.encode_character()
+        |> Map.drop([
+          "damage_resistances",
+          "damage_vulnerabilities",
+          "damage_immunities"
+        ])
+
+      refute Map.has_key?(encoded, "damage_resistances")
+
+      {:ok, json} = Jason.encode(encoded)
+      {:ok, decoded_map} = Jason.decode(json)
+
+      decoded = Codec.decode_character(decoded_map)
+      assert decoded.damage_resistances == []
+      assert decoded.damage_vulnerabilities == []
+      assert decoded.damage_immunities == []
+    end
+
     test "concentrating absent in old jsonb is nil" do
       c = Character.new(name: "hero", class: "fighter", hp: 10, max_hp: 10, side: "pc")
       encoded = c |> Codec.encode_character() |> Map.delete("concentrating")

@@ -275,6 +275,24 @@ defmodule Dragonex.ConcentrationTest do
       assert w2.characters["goblin"].hp == 0
       assert w2.characters["goblin"].concentrating == nil
     end
+
+    test "immunity (incoming 0) does not force a CON save (D38)" do
+      w =
+        World.new()
+        |> then_apply(World.add_character(fighter()))
+        |> then_apply(
+          World.add_character(goblin(concentrating: "bless", damage_immunities: ["slashing"]))
+        )
+
+      assert {:ok, msg, change} =
+               Actions.attack(w, "Thane", "goblin", "longsword", seq([10, 2, 99]))
+
+      refute msg =~ "concentración"
+      assert Process.get(:seq) == [99]
+      {:ok, w2} = change.(w)
+      assert w2.characters["goblin"].hp == 30
+      assert w2.characters["goblin"].concentrating == "bless"
+    end
   end
 
   describe "Extra Attack (two hits, two saves)" do

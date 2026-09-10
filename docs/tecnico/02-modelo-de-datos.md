@@ -79,6 +79,8 @@ Dragonex.Character (character.ex)  — Ecto embedded schema
 ├─ identidad: name, race, class, sex, side, level, xp
 ├─ vitales:   hp, max_hp, temp_hp, ac, speed
 ├─ concentrating: String | nil     hechizo de concentración (D37)
+├─ damage_resistances / damage_vulnerabilities / damage_immunities
+│                 [String]         tipos 5e; default [] (D38)
 ├─ atributos: str/dex/con/int/wis/cha
 ├─ backstory
 ├─ weapons:   [Dragonex.Weapon]   almacenados como {:array, :map}

@@ -713,6 +713,9 @@ defmodule Dragonex.Heroes do
       max_hp: hp,
       temp_hp: 0,
       concentrating: nil,
+      damage_resistances: racial_damage_resistances(race.traits),
+      damage_vulnerabilities: [],
+      damage_immunities: [],
       ac: ac,
       speed: race.speed,
       str: scores[:str],
@@ -735,6 +738,12 @@ defmodule Dragonex.Heroes do
       background_feature: bg.feature
     }
   end
+
+  defp racial_damage_resistances(traits) when is_list(traits) do
+    if "hellish_resistance" in traits, do: ["fire"], else: []
+  end
+
+  defp racial_damage_resistances(_), do: []
 
   defp race_display(%{name: name}, _choices), do: String.downcase(name)
 

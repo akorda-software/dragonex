@@ -226,7 +226,17 @@ defmodule Dragonex.HealingAndBestiaryTest do
         assert m.ac >= 10
         assert length(m.weapons) >= 1
         assert String.capitalize(key) =~ ~r/^[A-Z]/
+        assert is_list(m.damage_resistances)
+        assert is_list(m.damage_vulnerabilities)
+        assert is_list(m.damage_immunities)
       end
+    end
+
+    test "skeleton is vulnerable to bludgeoning and immune to poison (D38)" do
+      s = Monsters.skeleton()
+      assert "bludgeoning" in s.damage_vulnerabilities
+      assert "poison" in s.damage_immunities
+      refute "slashing" in s.damage_vulnerabilities
     end
 
     test "practice targets are inert objects with HP and no weapons" do

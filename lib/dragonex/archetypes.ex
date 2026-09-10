@@ -33,6 +33,9 @@ defmodule Dragonex.Archetypes do
       max_hp: 12,
       temp_hp: 0,
       concentrating: nil,
+      damage_resistances: [],
+      damage_vulnerabilities: [],
+      damage_immunities: [],
       ac: 16,
       speed: 30,
       backstory:
@@ -71,6 +74,9 @@ defmodule Dragonex.Archetypes do
       max_hp: 7,
       temp_hp: 0,
       concentrating: nil,
+      damage_resistances: [],
+      damage_vulnerabilities: [],
+      damage_immunities: [],
       ac: 12,
       speed: 30,
       backstory:
@@ -108,6 +114,9 @@ defmodule Dragonex.Archetypes do
       max_hp: 10,
       temp_hp: 0,
       concentrating: nil,
+      damage_resistances: [],
+      damage_vulnerabilities: [],
+      damage_immunities: [],
       ac: 14,
       speed: 30,
       backstory:

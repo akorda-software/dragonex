@@ -109,7 +109,9 @@ defmodule Dragonex.Monsters do
       cha: 5,
       weapons: [shortbow()],
       inventory: [],
-      saves: ["con"]
+      saves: ["con"],
+      damage_vulnerabilities: ["bludgeoning"],
+      damage_immunities: ["poison"]
     )
   end
 
@@ -182,7 +184,10 @@ defmodule Dragonex.Monsters do
   defp base(opts, race, default_name, backstory, hp, ac, speed, stats) do
     {weapons, rest} = Keyword.pop(stats, :weapons, [])
     {inventory, rest} = Keyword.pop(rest, :inventory, [])
-    {saves, _} = Keyword.pop(rest, :saves, [])
+    {saves, rest} = Keyword.pop(rest, :saves, [])
+    {resist, rest} = Keyword.pop(rest, :damage_resistances, [])
+    {vuln, rest} = Keyword.pop(rest, :damage_vulnerabilities, [])
+    {immune, _} = Keyword.pop(rest, :damage_immunities, [])
 
     %Character{
       name: Keyword.get(opts, :name, default_name),
@@ -200,6 +205,9 @@ defmodule Dragonex.Monsters do
       max_hp: hp,
       temp_hp: 0,
       concentrating: nil,
+      damage_resistances: resist,
+      damage_vulnerabilities: vuln,
+      damage_immunities: immune,
       ac: ac,
       speed: speed,
       backstory: Keyword.get(opts, :backstory, backstory),

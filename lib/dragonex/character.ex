@@ -33,6 +33,9 @@ defmodule Dragonex.Character do
     field(:max_hp, :integer, default: 0)
     field(:temp_hp, :integer, default: 0)
     field(:concentrating, :string)
+    field(:damage_resistances, {:array, :string}, default: [])
+    field(:damage_vulnerabilities, {:array, :string}, default: [])
+    field(:damage_immunities, {:array, :string}, default: [])
     field(:ac, :integer, default: 10)
     field(:speed, :integer, default: 30)
 
@@ -81,6 +84,9 @@ defmodule Dragonex.Character do
         :max_hp,
         :temp_hp,
         :concentrating,
+        :damage_resistances,
+        :damage_vulnerabilities,
+        :damage_immunities,
         :ac,
         :speed,
         :str,
@@ -144,6 +150,9 @@ defmodule Dragonex.Character do
       max_hp: 0,
       temp_hp: 0,
       concentrating: nil,
+      damage_resistances: [],
+      damage_vulnerabilities: [],
+      damage_immunities: [],
       ac: 10,
       speed: 30,
       str: 10,
@@ -199,4 +208,57 @@ defmodule Dragonex.Character do
   def condition_name(%{"condition" => c}) when is_binary(c), do: c
   def condition_name(c) when is_binary(c), do: c
   def condition_name(_), do: nil
+
+  @doc """
+  Scale raw damage by immunity / resistance / vulnerability (D38).
+
+  `type` nil or empty → amount unchanged (flat damage). Immunity → 0.
+  Resistance and vulnerability to the same type cancel. Resistance alone
+  halves (`div/2`); vulnerability alone doubles. Floor 0.
+  Tiefling `hellish_resistance` counts as fire resistance without duplicating
+  the type in `damage_resistances`.
+  """
+  @spec incoming_damage(t(), integer(), String.t() | nil) :: integer()
+  def incoming_damage(%__MODULE__{} = c, amount, type) when is_integer(amount) do
+    case normalize_damage_type(type) do
+      nil ->
+        amount
+
+      t ->
+        amount = max(0, amount)
+
+        cond do
+          immune_to?(c, t) -> 0
+          resistant_to?(c, t) and vulnerable_to?(c, t) -> amount
+          resistant_to?(c, t) -> div(amount, 2)
+          vulnerable_to?(c, t) -> amount * 2
+          true -> amount
+        end
+    end
+  end
+
+  defp immune_to?(%__MODULE__{} = c, type), do: type in list(c.damage_immunities)
+
+  defp vulnerable_to?(%__MODULE__{} = c, type), do: type in list(c.damage_vulnerabilities)
+
+  defp resistant_to?(%__MODULE__{} = c, type) do
+    type in list(c.damage_resistances) or
+      (type == "fire" and "hellish_resistance" in list(c.racial_traits))
+  end
+
+  defp list(nil), do: []
+  defp list(xs) when is_list(xs), do: xs
+  defp list(_), do: []
+
+  defp normalize_damage_type(nil), do: nil
+  defp normalize_damage_type(""), do: nil
+
+  defp normalize_damage_type(type) when is_binary(type) do
+    case String.downcase(String.trim(type)) do
+      "" -> nil
+      t -> t
+    end
+  end
+
+  defp normalize_damage_type(_), do: nil
 end
