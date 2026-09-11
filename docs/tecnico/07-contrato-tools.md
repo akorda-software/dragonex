@@ -65,10 +65,11 @@ Fuente canónica del código: `lib/dragonex/tools.ex` (S5), sets por agente en
 | `divine_smite` | `(who, slot_level)` | DM cualquiera; PC sólo sí mismo | Castigo divino (paladín): arma `smite_slot` 1..5; no gasta casilla aún (M30 / D46) |
 | `end_smite` | `(who)` | DM cualquiera; PC sólo sí mismo | Retira Castigo divino pendiente; no gasta casilla (M30 / D46) |
 | `lay_on_hands` | `(who, target, amount)` | DM cualquiera; PC sólo `who` sí mismo (target puede ser aliado) | Manos impositoras (paladín): gasta pool, cura al target (M33 / D49) |
+| `divine_sense` | `(who)` | DM cualquiera; PC sólo sí mismo | Sentido divino (paladín): gasta 1 uso y reporta celestial/fiend/undead (M36 / D52) |
 | `bardic_inspiration` | `(who, target)` | DM cualquiera; PC sólo `who` sí mismo (target puede ser aliado) | Inspiración bárdica (bardo): gasta 1 uso, marca target inspired; el motor aplica 1d6 al primer roll (M34 / D50) |
 | `arcane_recovery` | `(who)` | DM cualquiera; PC sólo sí mismo | Recuperación arcana (mago): restaura huecos gastados greedy, 1/long rest, fuera de combate (M35 / D51) |
-| `short_rest` | `(target)` | — | Hit die, fuera de combate; recarga Second Wind y Action Surge; no recarga Lay on Hands, Bardic Inspiration ni Arcane Recovery (M16 / D45 / D47 / D49 / D50 / D51) |
-| `long_rest` | `(target)` | — | PG completos + slots restaurados; recarga Second Wind, Action Surge, Lay on Hands, Bardic Inspiration y Arcane Recovery; quita `inspired` (M17 / D45 / D47 / D49 / D50 / D51) |
+| `short_rest` | `(target)` | — | Hit die, fuera de combate; recarga Second Wind y Action Surge; no recarga Lay on Hands, Divine Sense, Bardic Inspiration ni Arcane Recovery (M16 / D45 / D47 / D49 / D50 / D51 / D52) |
+| `long_rest` | `(target)` | — | PG completos + slots restaurados; recarga Second Wind, Action Surge, Lay on Hands, Divine Sense, Bardic Inspiration y Arcane Recovery; quita `inspired` (M17 / D45 / D47 / D49 / D50 / D51 / D52) |
 | `roll_dice` | `(count, sides)` | — | Tirada libre NdM para el modelo |
 | `end_combat` | `()` | — | Vuelve a `:exploration`; apaga raging, reckless y smite_slot en todos (D42 / D44 / D46) |
 
@@ -94,7 +95,7 @@ los usa en producción. Se mantienen para los tests de capacidades de exAgent
 | Agente | Tools | Extras |
 |---|---|---|
 | **DM** | TODAS las de `Tools.tools()` | `make_attack`, `cast_spell`, `ability_check`, `make_death_save`, `heal`, `roll_initiative` con `max_retries: 3` (margen para autocorrección tras error directivo) |
-| **PCAgent** | `make_attack`, `cast_spell`, `ability_check`, `make_death_save`, `short_rest`, `long_rest`, `drop_concentration`, `start_rage`, `end_rage`, `start_reckless`, `end_reckless`, `second_wind`, `action_surge`, `divine_smite`, `end_smite`, `lay_on_hands`, `bardic_inspiration`, `arcane_recovery` | `make_attack`/`cast_spell` con `max_retries: 3`. **Nunca**: escenas, monstruos, condiciones, nivel, XP, iniciativa, end_combat |
+| **PCAgent** | `make_attack`, `cast_spell`, `ability_check`, `make_death_save`, `short_rest`, `long_rest`, `drop_concentration`, `start_rage`, `end_rage`, `start_reckless`, `end_reckless`, `second_wind`, `action_surge`, `divine_smite`, `end_smite`, `lay_on_hands`, `divine_sense`, `bardic_inspiration`, `arcane_recovery` | `make_attack`/`cast_spell` con `max_retries: 3`. **Nunca**: escenas, monstruos, condiciones, nivel, XP, iniciativa, end_combat |
 | **TurnMaster** | `{give_turn_to, cut_in, react, pass_to_dm, end_scene}` (propias, `turn_master/tools.ex`) | **Ninguna muta el world**: registran una `Decision`; el `Game` la aplica (`Session.handoff/2`/`update_state/3`). `end_scene` propone cambio de escena vía el Game, no directo |
 
 ### Semántica de las tools del TurnMaster

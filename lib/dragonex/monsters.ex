@@ -215,6 +215,7 @@ defmodule Dragonex.Monsters do
       bardic_inspiration_uses: 0,
       inspired: false,
       arcane_recovery_used: false,
+      divine_sense_uses: 0,
       damage_resistances: resist,
       damage_vulnerabilities: vuln,
       damage_immunities: immune,

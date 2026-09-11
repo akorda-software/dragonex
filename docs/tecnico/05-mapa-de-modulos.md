@@ -47,7 +47,7 @@ GitHub `kukapu/exagent` branch `main`.)
 | `Dragonex.Rules.Ability` | Matemática pura: modificadores y competencia por nivel |
 | `Dragonex.Rules.Combat` | Resolución pura de combate (roller inyectado) |
 | `Dragonex.Rules.Conditions` | Condición → ventaja/desventaja/auto-fallo en ataque, salva y chequeo (M06) |
-| `Dragonex.Actions` | Puente intent→world: `attack`, `spell`, `initiative`, `death_save`, `heal`, `second_wind`, `action_surge`, `lay_on_hands`, `bardic_inspiration`, `arcane_recovery`, `short_rest`, `long_rest`, `check`, `roll` (Divine Smite D46 / Bardic Inspiration D50 en `attack`) |
+| `Dragonex.Actions` | Puente intent→world: `attack`, `spell`, `initiative`, `death_save`, `heal`, `second_wind`, `action_surge`, `lay_on_hands`, `divine_sense`, `bardic_inspiration`, `arcane_recovery`, `short_rest`, `long_rest`, `check`, `roll` (Divine Smite D46 / Bardic Inspiration D50 en `attack`) |
 | `Dragonex.World` | Estado + máquina de combate + mutadores (change fns) + spell slots + facts |
 
 ## S5 · Tools (API del LLM) — `lib/dragonex/tools.ex`
@@ -58,7 +58,7 @@ GitHub `kukapu/exagent` branch `main`.)
 
 Tools reales: `set_scene`, `establish_fact`, `roll_dice`, `roll_initiative`,
 `make_attack`, `cast_spell`, `make_death_save`, `end_combat`, `short_rest`,
-`long_rest`, `spawn_monster`, `heal`, `grant_temp_hp`, `grant_xp`, `drop_concentration`, `start_rage`, `end_rage`, `start_reckless`, `end_reckless`, `second_wind`, `action_surge`, `divine_smite`, `end_smite`, `lay_on_hands`, `bardic_inspiration`, `arcane_recovery`, `ability_check`, `apply_condition`,
+`long_rest`, `spawn_monster`, `heal`, `grant_temp_hp`, `grant_xp`, `drop_concentration`, `start_rage`, `end_rage`, `start_reckless`, `end_reckless`, `second_wind`, `action_surge`, `divine_smite`, `end_smite`, `lay_on_hands`, `divine_sense`, `bardic_inspiration`, `arcane_recovery`, `ability_check`, `apply_condition`,
 `remove_condition`, `level_up`.
 Stubs legacy (sólo para tests del framework exAgent): `attack/2`, `roll/1`,
 `spawn_character/2`, `next_round/0`.

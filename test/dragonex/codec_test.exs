@@ -346,6 +346,33 @@ defmodule Dragonex.CodecTest do
       assert decoded.lay_on_hands_pool == 0
     end
 
+    test "divine_sense_uses survives" do
+      c =
+        Character.new(
+          name: "hero",
+          class: "paladin",
+          hp: 18,
+          max_hp: 18,
+          side: "pc",
+          divine_sense_uses: 3
+        )
+
+      w = add(World.new(), World.add_character(c))
+      assert Codec.decode(Codec.encode(w)).characters["hero"].divine_sense_uses == 3
+    end
+
+    test "divine_sense_uses absent in old jsonb is 0" do
+      c = Character.new(name: "hero", class: "paladin", hp: 18, max_hp: 18, side: "pc")
+      encoded = c |> Codec.encode_character() |> Map.delete("divine_sense_uses")
+      refute Map.has_key?(encoded, "divine_sense_uses")
+
+      {:ok, json} = Jason.encode(encoded)
+      {:ok, decoded_map} = Jason.decode(json)
+
+      decoded = Codec.decode_character(decoded_map)
+      assert decoded.divine_sense_uses == 0
+    end
+
     test "death_saves tracker survives" do
       c =
         Character.new(

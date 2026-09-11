@@ -43,6 +43,7 @@ defmodule Dragonex.Character do
     field(:bardic_inspiration_uses, :integer, default: 0)
     field(:inspired, :boolean, default: false)
     field(:arcane_recovery_used, :boolean, default: false)
+    field(:divine_sense_uses, :integer, default: 0)
     field(:damage_resistances, {:array, :string}, default: [])
     field(:damage_vulnerabilities, {:array, :string}, default: [])
     field(:damage_immunities, {:array, :string}, default: [])
@@ -104,6 +105,7 @@ defmodule Dragonex.Character do
         :bardic_inspiration_uses,
         :inspired,
         :arcane_recovery_used,
+        :divine_sense_uses,
         :damage_resistances,
         :damage_vulnerabilities,
         :damage_immunities,
@@ -143,6 +145,7 @@ defmodule Dragonex.Character do
     )
     |> Ecto.Changeset.validate_number(:lay_on_hands_pool, greater_than_or_equal_to: 0)
     |> Ecto.Changeset.validate_number(:bardic_inspiration_uses, greater_than_or_equal_to: 0)
+    |> Ecto.Changeset.validate_number(:divine_sense_uses, greater_than_or_equal_to: 0)
     |> validate_abilities()
   end
 
@@ -186,6 +189,7 @@ defmodule Dragonex.Character do
       bardic_inspiration_uses: 0,
       inspired: false,
       arcane_recovery_used: false,
+      divine_sense_uses: 0,
       damage_resistances: [],
       damage_vulnerabilities: [],
       damage_immunities: [],

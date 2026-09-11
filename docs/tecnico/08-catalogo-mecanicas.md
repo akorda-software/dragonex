@@ -159,17 +159,19 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 ### M16 — Short rest
 - **Dónde**: `Actions.short_rest/4` — gasta hit die; fuera de combate.
   Recarga Second Wind (`second_wind_used = false`, D45) y Action Surge
-  (`action_surge_used = false`, D47). No recarga Lay on Hands (D49).
+  (`action_surge_used = false`, D47). No recarga Lay on Hands (D49) ni
+  Divine Sense (D52).
 - **Tests**: `test/dragonex/rest_test.exs`, `second_wind_test.exs`,
-  `action_surge_test.exs`, `lay_on_hands_test.exs`.
+  `action_surge_test.exs`, `lay_on_hands_test.exs`, `divine_sense_test.exs`.
 
 ### M17 — Long rest
 - **Dónde**: `Actions.long_rest/2` — PG completos + `restore_slots`.
   Recarga Second Wind (`second_wind_used = false`, D45) y Action Surge
   (`action_surge_used = false`, D47). Recarga Lay on Hands del paladín
-  a `5 * level` (D49); no lo hace `compose_rest/3` a ciegas.
+  a `5 * level` (D49) y Divine Sense a `max(1, 1 + cha_mod)` (D52); no
+  lo hace `compose_rest/3` a ciegas.
 - **Tests**: `rest_test.exs`, `second_wind_test.exs`, `action_surge_test.exs`,
-  `lay_on_hands_test.exs`.
+  `lay_on_hands_test.exs`, `divine_sense_test.exs`.
 
 ## Mundo y meta
 
@@ -377,6 +379,23 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   tool, feats, multiclase.
 - **Tests**: `arcane_recovery_test.exs`.
 
+### M36 — Divine Sense (`divine_sense_uses`, D52)
+- **Dónde**: `Character.divine_sense_uses` (integer restantes, Codec,
+  default 0; jsonb viejo → 0). Máximo `max(1, 1 + cha_mod)`.
+  `Heroes.build` paladín → ese máximo (CHA 16 → 4). Solo
+  `class == "paladin"`. `Actions.divine_sense/2` +
+  `World.spend_divine_sense/1`: gasta 1 uso y reporta. Escanea todos
+  los demás personajes (incluidos hp ≤ 0) cuya `race` downcase esté
+  en `celestial` / `fiend` / `undead`. No incluye a `who`. Combate
+  permitido. Gasta aunque el scan esté vacío. Errores no gastan:
+  missing, no paladín, 0 usos. Tool `divine_sense(who)` (DM
+  cualquiera; PC sólo sí mismo). `long_rest` recarga al máximo;
+  `short_rest` no. Level-up no resetea remaining. Mensaje ES:
+  celestial → “celestial”, fiend → “infernal”, undead → “no-muerto”.
+  Sin Channel Divinity, Turn the Unholy, Improved Divine Sense,
+  60 ft, cobertura, lugares consagrados/desecrados, feats, multiclase.
+- **Tests**: `divine_sense_test.exs`, `codec_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -386,15 +405,17 @@ multiclase · feats. Pact Magic: **D40**. Sneak Attack: **D41**. Rage: **D42**.
 Reckless Attack: **D44 / M28**. Second Wind: **D45 / M29**. Divine Smite:
 **D46 / M30**. Action Surge: **D47 / M31**. Fighting Style: **D48 / M32**.
 Lay on Hands: **D49 / M33**. Bardic Inspiration: **D50 / M34**.
-Arcane Recovery: **D51 / M35**.
+Arcane Recovery: **D51 / M35**. Divine Sense: **D52 / M36**.
 XP en partida: **D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
 **D38 / M25**. Cupo de Rage/día y segundo uso de Action Surge a L17
 siguen fuera. Protection / TWF / GWF siguen fuera. Curar
 enfermedad/veneno con Lay on Hands (gastar 5) sigue fuera.
+Channel Divinity / Turn the Unholy / Improved Divine Sense siguen
+fuera.
 
-Para que una de estas entre: ADR nuevo + mecánica `M36+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M37+` en este catálogo +
 tests.
 
 ## Dados

@@ -111,7 +111,8 @@ hechizos nuevos respetando `max_spell_level`, half-casters desde nivel 2.
   rogue (D41), Rage del bárbaro (D42), Reckless Attack (D44), Second Wind
   (D45), Divine Smite del paladín (D46), Action Surge del fighter a L2
   (D47), Fighting Style del fighter (D48), Lay on Hands del paladín (D49),
-  Bardic Inspiration del bardo (D50), Arcane Recovery del mago (D51)
+  Bardic Inspiration del bardo (D50), Arcane Recovery del mago (D51),
+  Divine Sense del paladín (D52)
   y spellcasting de paladín/ranger a L2; el resto sigue fuera.
 - Empate de iniciativa por DEX score y luego nombre; sin roll-off extra (D39).
 
@@ -282,6 +283,8 @@ primer roll del inspirado; long rest recarga; siempre d6; sin Font of
 Inspiration ni colleges.
 Arcane Recovery entra (**D51**): mago, huecos gastados greedy
 `div(level+1, 2)` (máx 5º); fuera de combate; 1/long rest.
+Divine Sense entra (**D52**): paladín, `max(1, 1+cha_mod)` usos;
+reporta celestial/fiend/undead; long rest recarga; sin 60 ft.
 Divine Smite entra (**D46**): paladín, casilla 1..5 pendiente, primer
 hit melee radiante; sin Improved Divine Smite.
 `temp_hp` entra (**D36**). Concentración entra (**D37**): estado + rotura

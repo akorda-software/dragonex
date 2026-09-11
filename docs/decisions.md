@@ -883,6 +883,46 @@ D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50,
 Arcane Recovery D51 y spellcasting paladín/ranger L2; el resto de
 features por nivel sigue 🟡.
 
+### D52 — Divine Sense 5e
+Estado: **Aceptada** — 2026-09-11.
+
+RAW acotado del paladín. El LLM no calcula ni lista tipos (D1): llama
+`divine_sense`; el motor gasta 1 uso y reporta. Economía de acciones
+simplificada: la tool ES el uso. Combate permitido. No exige short rest
+previo. Sin reloj “hasta el final de tu próximo turno”, sin 60 ft, sin
+cobertura (no hay grid). Sin Channel Divinity, Turn the Unholy,
+Improved Divine Sense, lugares consagrados/desecrados, feats ni
+multiclase.
+
+- Solo `class == "paladin"`.
+- Campo `Character.divine_sense_uses` integer = usos RESTANTES.
+  Default 0. Codec integer; jsonb viejo/ausente → 0 (D4/D8).
+- Usos máximos: `max(1, 1 + Character.modifier(c, :cha))`. Paladín en
+  `Heroes.build` inicializa a ese máximo (CHA 16 → 4). Otras clases 0.
+- Tool `divine_sense(who)`. DM cualquiera; PC sólo sí mismo.
+- 0 usos → error, no escanea. No paladín → error. Who no existe →
+  error.
+- Gasta 1 uso SIEMPRE que el scan se ejecute, incluso si no hay
+  objetivos.
+- Escanea TODOS los demás personajes del World (incluidos hp ≤ 0)
+  cuya `race` downcase esté en `["celestial", "fiend", "undead"]`.
+  No incluye a `who`. Reusa el truco de `race` de D46/D49.
+- Mensaje ES con nombre + tipo: celestial → “celestial”, fiend →
+  “infernal”, undead → “no-muerto”. Vacío: no percibe celestiales,
+  infernales ni no-muertos.
+- Long rest: paladín → refill al máximo; otras clases no-op. En
+  `compose_long_rest`, NO en short rest.
+- Level-up / merge / transitorios: no resetear usos restantes.
+- D46 Divine Smite y D49 Lay on Hands intactos.
+
+No cambia `Weapon`/`Spell`/`Item`. D51 intacto.
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
+Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
+D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50,
+Arcane Recovery D51, Divine Sense D52 y spellcasting paladín/ranger
+L2; el resto de features por nivel sigue 🟡.
+
 ---
 
 ## Pendientes de decisión (abiertas)

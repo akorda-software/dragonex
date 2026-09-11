@@ -463,6 +463,19 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
+  Divine Sense (5e, D52). Paladin only. Spends 1 use and the engine
+  reports celestials, fiends and undead in the world. The DM may use it
+  for any paladin; a PC may only use it as themselves.
+  """
+  deftool divine_sense(ctx, who :: String.t()) do
+    with :ok <- assert_divine_sense_self(ctx, who),
+         {:ok, msg, change} <- Dragonex.Actions.divine_sense(world(ctx), who),
+         {:ok, _} <- propose(ctx, change) do
+      {:ok, msg}
+    end
+  end
+
+  @doc """
   Bardic Inspiration (5e, D50). Bard only. Spends 1 use to grant `target`
   a pending d6. The DM may use it for any bard; a PC may only use it as
   themselves (`who` is self; `target` may be an ally).
@@ -672,6 +685,16 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error, "RECHAZADO — solo puedes usar Manos impositoras como #{proposer}, no como #{who}."}
+    end
+  end
+
+  defp assert_divine_sense_self(ctx, who) do
+    proposer = ctx.deps.state.participant_id
+
+    if proposer == "dm" or proposer == who do
+      :ok
+    else
+      {:error, "RECHAZADO — solo puedes usar Sentido divino como #{proposer}, no como #{who}."}
     end
   end
 

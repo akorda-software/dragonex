@@ -405,6 +405,73 @@ defmodule Dragonex.Actions do
 
   defp lay_on_hands_blocked_race?(_), do: false
 
+  @divine_sense_races ~w(celestial fiend undead)
+  @divine_sense_labels %{
+    "celestial" => "celestial",
+    "fiend" => "infernal",
+    "undead" => "no-muerto"
+  }
+
+  @doc """
+  Divine Sense (5e, D52): a paladin spends 1 use and the engine reports
+  every other character whose `race` is celestial, fiend or undead.
+  Allowed in combat. Spends even if the scan is empty. The LLM does not
+  list types.
+  """
+  @spec divine_sense(World.t(), String.t()) :: result()
+  def divine_sense(world, who) do
+    case World.character(world, who) do
+      nil ->
+        {:error, "no existe el personaje: #{who}"}
+
+      %Character{class: class} when class != "paladin" ->
+        {:error, "#{who} no es paladín y no puede usar Sentido divino"}
+
+      %Character{divine_sense_uses: uses} ->
+        uses = uses || 0
+
+        if uses < 1 do
+          {:error, "#{who} no tiene usos de Sentido divino"}
+        else
+          remaining = uses - 1
+          detected = divine_sense_targets(world, who)
+
+          {:ok, divine_sense_message(who, detected, remaining), World.spend_divine_sense(who)}
+        end
+    end
+  end
+
+  defp divine_sense_targets(%World{characters: chars}, who) do
+    chars
+    |> Enum.reject(fn {name, _} -> name == who end)
+    |> Enum.map(fn {_name, c} -> c end)
+    |> Enum.filter(&divine_sense_race?(&1.race))
+    |> Enum.sort_by(& &1.name)
+  end
+
+  defp divine_sense_race?(race) when is_binary(race) do
+    String.downcase(race) in @divine_sense_races
+  end
+
+  defp divine_sense_race?(_), do: false
+
+  defp divine_sense_label(race) when is_binary(race) do
+    Map.get(@divine_sense_labels, String.downcase(race), String.downcase(race))
+  end
+
+  defp divine_sense_message(who, [], remaining) do
+    "#{who} usa Sentido divino y no percibe celestiales, infernales ni no-muertos (usos restantes #{remaining})."
+  end
+
+  defp divine_sense_message(who, detected, remaining) do
+    listed =
+      detected
+      |> Enum.map(fn c -> "#{c.name} (#{divine_sense_label(c.race)})" end)
+      |> Enum.join(", ")
+
+    "#{who} usa Sentido divino y percibe: #{listed} (usos restantes #{remaining})."
+  end
+
   @doc """
   Bardic Inspiration (5e, D50): a bard spends 1 use to grant `target` a
   pending d6 (`inspired = true`). The die is applied by the engine on the
@@ -1450,6 +1517,7 @@ defmodule Dragonex.Actions do
     fn w ->
       with {:ok, w} <- compose_rest(name, heal_amount, true).(w),
            {:ok, w} <- World.restore_lay_on_hands(name).(w),
+           {:ok, w} <- World.restore_divine_sense(name).(w),
            {:ok, w} <- World.restore_bardic_inspiration(name).(w),
            {:ok, w} <- World.set_inspired(name, false).(w),
            {:ok, w} <- World.set_arcane_recovery_used(name, false).(w) do

@@ -723,6 +723,7 @@ defmodule Dragonex.Heroes do
       bardic_inspiration_uses: bardic_uses_for(class.key, scores[:cha]),
       inspired: false,
       arcane_recovery_used: false,
+      divine_sense_uses: divine_sense_uses_for(class.key, scores[:cha]),
       damage_resistances: racial_damage_resistances(race.traits),
       damage_vulnerabilities: [],
       damage_immunities: [],
@@ -855,6 +856,12 @@ defmodule Dragonex.Heroes do
   defp bardic_uses_for("bard", cha) when is_integer(cha), do: max(1, Ability.modifier(cha))
   defp bardic_uses_for("bard", _), do: 1
   defp bardic_uses_for(_, _), do: 0
+
+  defp divine_sense_uses_for("paladin", cha) when is_integer(cha),
+    do: max(1, 1 + Ability.modifier(cha))
+
+  defp divine_sense_uses_for("paladin", _), do: 1
+  defp divine_sense_uses_for(_, _), do: 0
 
   defp fetch(_module, nil, field), do: {:error, "#{field} is required"}
 

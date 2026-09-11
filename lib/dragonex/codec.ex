@@ -122,6 +122,7 @@ defmodule Dragonex.Codec do
       "bardic_inspiration_uses" => c.bardic_inspiration_uses || 0,
       "inspired" => c.inspired == true,
       "arcane_recovery_used" => c.arcane_recovery_used == true,
+      "divine_sense_uses" => c.divine_sense_uses || 0,
       "damage_resistances" => c.damage_resistances || [],
       "damage_vulnerabilities" => c.damage_vulnerabilities || [],
       "damage_immunities" => c.damage_immunities || [],
@@ -173,6 +174,7 @@ defmodule Dragonex.Codec do
       bardic_inspiration_uses: decode_bardic_inspiration_uses(c["bardic_inspiration_uses"]),
       inspired: c["inspired"] == true,
       arcane_recovery_used: c["arcane_recovery_used"] == true,
+      divine_sense_uses: decode_divine_sense_uses(c["divine_sense_uses"]),
       damage_resistances: c["damage_resistances"] || [],
       damage_vulnerabilities: c["damage_vulnerabilities"] || [],
       damage_immunities: c["damage_immunities"] || [],
@@ -282,6 +284,9 @@ defmodule Dragonex.Codec do
 
   defp decode_bardic_inspiration_uses(n) when is_integer(n) and n >= 0, do: n
   defp decode_bardic_inspiration_uses(_), do: 0
+
+  defp decode_divine_sense_uses(n) when is_integer(n) and n >= 0, do: n
+  defp decode_divine_sense_uses(_), do: 0
 
   defp encode_saves(%{successes: s, fails: f}), do: %{"successes" => s, "fails" => f}
   defp decode_saves(nil), do: %{successes: 0, fails: 0}

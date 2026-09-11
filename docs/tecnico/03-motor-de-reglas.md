@@ -70,9 +70,10 @@ cada tirada para el dado modal (`RollLog`).
 | `second_wind/4` | fighter: 1d10+level, 1/rest (D45); recarga en short/long rest |
 | `action_surge/7` | fighter L2+: 1 Acción de Ataque extra (D47, Extra Attack D35); 1/rest |
 | `lay_on_hands/4` | paladín: gasta pool `5*level`, cura target (D49); recarga solo en long rest |
+| `divine_sense/2` | paladín: gasta 1 uso y reporta celestial/fiend/undead (D52); recarga solo en long rest |
 | `bardic_inspiration/3` | bardo: gasta 1 uso, marca target inspired (D50); el d6 se aplica en el primer roll |
 | `arcane_recovery/2` | mago: restaura huecos gastados greedy, 1/long rest, fuera de combate (D51) |
-| `short_rest/4` / `long_rest/2` | descanso; `long_rest` restaura slots, Lay on Hands, Bardic Inspiration (y quita inspired) y Arcane Recovery; ambos recargan Second Wind y Action Surge |
+| `short_rest/4` / `long_rest/2` | descanso; `long_rest` restaura slots, Lay on Hands, Divine Sense, Bardic Inspiration (y quita inspired) y Arcane Recovery; ambos recargan Second Wind y Action Surge |
 | `check/8` | chequeo de aptitud vs DC; modo por `Rules.Conditions.check_mode/3`; Bardic Inspiration D50 |
 | `roll/5` | tirada libre NdM |
 
@@ -120,6 +121,7 @@ El mismo principio cubre ataques, salvaciones y chequeos.
   `start_reckless/1`, `end_reckless/1`, `set_reckless/2`,
   `second_wind/2`, `set_second_wind_used/2`, `set_action_surge_used/2`,
   `lay_on_hands/3`, `set_lay_on_hands_pool/2`, `restore_lay_on_hands/1`,
+  `spend_divine_sense/1`, `set_divine_sense_uses/2`, `restore_divine_sense/1`,
   `spend_bardic/2`, `set_inspired/2`, `restore_bardic_inspiration/1`,
   `set_arcane_recovery_used/2`, `arcane_recovery_plan/2`,
   `apply_arcane_recovery/2`,

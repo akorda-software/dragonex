@@ -25,7 +25,7 @@ existe" sino por "se verifica".**
 | F4 — Héroes | Forjar y crecer | Builder 5 pasos + catálogos SRD ES + custom (D22) + level-up (D10–D13) |
 | F5 — TurnMaster | La partida fluye | Orquestador de turnos (D25) con fallback WorldDriven |
 
-Verde de referencia hoy: **971 tests passed**, compile sin warnings.
+Verde de referencia hoy: **1041 tests passed**, compile sin warnings.
 
 ---
 
@@ -84,7 +84,7 @@ Dragonex (warlock Pact Magic D40; paladín/ranger spellcasting a L2 R09).
 Sin bugs de derivados; las simplificaciones (feats, features
 por nivel salvo Extra Attack D35, Pact Magic D40, Sneak Attack D41,
 Rage D42, Reckless Attack D44, Second Wind D45, Divine Smite D46,
-Action Surge D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50, Arcane Recovery D51 y spellcasting paladín/ranger L2,
+Action Surge D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52 y spellcasting paladín/ranger L2,
 `spells_known`) quedan en 🟡.
 
 ---
@@ -152,6 +152,12 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
   restaura huecos gastados greedy (`div(level+1, 2)`, ningún hueco >
   5º); fuera de combate; long rest recarga, short rest no. Sin
   Signature Spells, Spell Mastery, ritual_casting como tool.
+- **Divine Sense del paladín** (D52): **entregado.**
+  `Character.divine_sense_uses` + Codec; usos `max(1, 1 + cha_mod)`;
+  tool `divine_sense(who)` gasta 1 uso y reporta celestial/fiend/undead
+  por `race`; combate permitido; long rest recarga, short rest no. Sin
+  Channel Divinity, Turn the Unholy, Improved Divine Sense, 60 ft,
+  cobertura.
 - **Divine Smite del paladín** (D46): **entregado.** `Character.smite_slot`
   + Codec; `divine_smite(who, slot_level)` arma pendiente sin gastar
   casilla; primer hit melee de `Actions.attack` consume el hueco y tira
