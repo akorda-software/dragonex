@@ -25,7 +25,7 @@ existe" sino por "se verifica".**
 | F4 — Héroes | Forjar y crecer | Builder 5 pasos + catálogos SRD ES + custom (D22) + level-up (D10–D13) |
 | F5 — TurnMaster | La partida fluye | Orquestador de turnos (D25) con fallback WorldDriven |
 
-Verde de referencia hoy: **904 tests passed**, compile sin warnings.
+Verde de referencia hoy: **907 tests passed**, compile sin warnings.
 
 ---
 
@@ -138,6 +138,7 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
   Tool `grant_xp` → `World.grant_xp/2`; amount > 0; no auto-level-up;
   no toca hp/slots. Subida explícita (ficha / `level_up`). Sin
   calculadora CR/encuentro. `Accounts.grant_xp/3` intacto.
+  Leftover UI ficha (`Por hitos` / callout `level < 20`) cerrado.
 
 ---
 
@@ -149,7 +150,7 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
 3. Implementa con tests (ver [`../tecnico/09-estrategia-pruebas.md`](../tecnico/09-estrategia-pruebas.md)
    para qué capa de test exige cada cambio).
 4. Verifica: `mix compile` (0 warnings) → `mix format` → `MIX_ENV=test mix test`
-   (904 verde). Si toca prompts/agentes: smoke con TestModel incluido.
+   (907 verde). Si toca prompts/agentes: smoke con TestModel incluido.
 5. Actualiza `../progress.md` (mueve el ítem) y este doc (marca el ítem). Si
    tomaste una decisión no trivial: ADR en `../decisions.md`.
 6. Commit estilizado (`feat(motor): …`, `fix(hero): …`).

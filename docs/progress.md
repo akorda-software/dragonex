@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **904 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **907 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -107,7 +107,8 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   `Game.sync_hero_level_up` (GenServer single-writer, D6) +
   `merge_character_level_up` (preserva hp dañado/conditions/slots/AC).
 - UI: `HeroLive.LevelUp` (`/heroes/:id/level-up`) con ASI stepper + spell
-  picker; `HeroLive.Show` muestra callout "Subir de nivel" si `level < 20`.
+  picker; `HeroLive.Show` callout si `Progression.can_level_up?/2` (tabla
+  PHB; leftover UI D43 cerrado).
 
 ### Web / producto
 - **Auth** — registro/login/logout (bcrypt, session cookies) vía

@@ -6,7 +6,7 @@ defmodule DragonexWeb.HeroLive.Show do
 
   use Phoenix.LiveView, layout: {DragonexWeb.Layouts, :app}
 
-  alias Dragonex.{Accounts, Character, Heroes.Catalog, Heroes.Translations}
+  alias Dragonex.{Accounts, Character, Heroes.Catalog, Heroes.Progression, Heroes.Translations}
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -34,8 +34,9 @@ defmodule DragonexWeb.HeroLive.Show do
         assign(socket,
           level: level,
           xp: xp,
-          can_level_up: level < 20,
-          target_level: min(level + 1, 20)
+          can_level_up: Progression.can_level_up?(level, xp),
+          target_level: min(level + 1, 20),
+          next_threshold: Progression.xp_threshold(level + 1)
         )
     end
   end
@@ -152,11 +153,15 @@ defmodule DragonexWeb.HeroLive.Show do
               <div class="hero-sheet-stats">
                 <div class="hero-sheet-stat">
                   <span>Progresión</span>
-                  <strong>Por hitos</strong>
+                  <strong>Tabla PHB</strong>
                 </div>
                 <div class="hero-sheet-stat">
                   <span>Experiencia</span>
                   <strong>{@xp} XP</strong>
+                </div>
+                <div class="hero-sheet-stat" :if={@next_threshold}>
+                  <span>Umbral nivel {@target_level}</span>
+                  <strong>{@next_threshold} XP</strong>
                 </div>
               </div>
               <div :if={@can_level_up} class="level-up-callout">

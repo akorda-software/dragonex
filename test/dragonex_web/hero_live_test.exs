@@ -285,6 +285,62 @@ defmodule DragonexWeb.HeroLiveTest do
       assert html =~ "Editar héroe"
       assert html =~ "Actualizar héroe"
     end
+
+    test "L1 con 0 XP no muestra hitos ni callout de subir", %{conn: conn, user: user} do
+      {:ok, hero} =
+        Dragonex.Heroes.build(%{
+          name: "Novato",
+          race: "human",
+          class: "fighter",
+          background: "soldier"
+        })
+        |> then(fn {:ok, c} -> Accounts.save_hero(user, c) end)
+
+      {:ok, _view, html} = live(conn, "/heroes/#{hero.id}")
+      refute html =~ "Por hitos"
+      refute html =~ "hitos"
+      refute html =~ "¡Puede subir"
+      refute html =~ "/heroes/#{hero.id}/level-up"
+      assert html =~ "0 XP"
+      assert html =~ "Tabla PHB"
+      assert html =~ "300 XP"
+    end
+
+    test "L1 con 300 XP muestra callout y link a level-up", %{conn: conn, user: user} do
+      {:ok, hero} =
+        Dragonex.Heroes.build(%{
+          name: "Listo",
+          race: "human",
+          class: "fighter",
+          background: "soldier"
+        })
+        |> then(fn {:ok, c} -> Accounts.save_hero(user, c) end)
+
+      {:ok, _} = Accounts.grant_xp(user, hero.id, 300)
+
+      {:ok, _view, html} = live(conn, "/heroes/#{hero.id}")
+      assert html =~ "¡Puede subir a nivel 2!"
+      assert html =~ "/heroes/#{hero.id}/level-up"
+      refute html =~ "hitos"
+    end
+
+    test "L20 no muestra callout aunque tenga XP alto", %{conn: conn, user: user} do
+      {:ok, char} =
+        Dragonex.Heroes.build(%{
+          name: "Veterano",
+          race: "human",
+          class: "fighter",
+          background: "soldier"
+        })
+
+      {:ok, hero} = Accounts.save_hero(user, %{char | level: 20, xp: 400_000})
+
+      {:ok, _view, html} = live(conn, "/heroes/#{hero.id}")
+      refute html =~ "¡Puede subir"
+      refute html =~ "/heroes/#{hero.id}/level-up"
+      refute html =~ "hitos"
+      refute html =~ "Umbral nivel"
+    end
   end
 
   defp navigate_to_details(view, class_key) do
