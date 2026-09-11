@@ -211,6 +211,33 @@ defmodule Dragonex.CodecTest do
       assert decoded.reckless == false
     end
 
+    test "second_wind_used survives" do
+      c =
+        Character.new(
+          name: "hero",
+          class: "fighter",
+          hp: 12,
+          max_hp: 12,
+          side: "pc",
+          second_wind_used: true
+        )
+
+      w = add(World.new(), World.add_character(c))
+      assert Codec.decode(Codec.encode(w)).characters["hero"].second_wind_used == true
+    end
+
+    test "second_wind_used absent in old jsonb is false" do
+      c = Character.new(name: "hero", class: "fighter", hp: 10, max_hp: 10, side: "pc")
+      encoded = c |> Codec.encode_character() |> Map.delete("second_wind_used")
+      refute Map.has_key?(encoded, "second_wind_used")
+
+      {:ok, json} = Jason.encode(encoded)
+      {:ok, decoded_map} = Jason.decode(json)
+
+      decoded = Codec.decode_character(decoded_map)
+      assert decoded.second_wind_used == false
+    end
+
     test "death_saves tracker survives" do
       c =
         Character.new(

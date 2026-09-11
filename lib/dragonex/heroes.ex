@@ -715,6 +715,7 @@ defmodule Dragonex.Heroes do
       concentrating: nil,
       raging: false,
       reckless: false,
+      second_wind_used: false,
       damage_resistances: racial_damage_resistances(race.traits),
       damage_vulnerabilities: [],
       damage_immunities: [],

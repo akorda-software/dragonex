@@ -364,7 +364,7 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
-  End Reckless Attack (5e, D44). The DM may end anyone; a PC may only end
+  End Reckless Attack (D44). The DM may end anyone; a PC may only end
   themselves.
   """
   deftool end_reckless(ctx, who :: String.t()) do
@@ -375,7 +375,25 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
-  Resolve a non-combat ability check: the DM sets the `dc` (5/10/15/20 by 5e
+  Second Wind (5e, D45). Fighter only. Heals 1d10+level, once per rest.
+  The DM may use it for anyone; a PC may only use it on themselves.
+  """
+  deftool second_wind(ctx, who :: String.t()) do
+    with :ok <- assert_second_wind_self(ctx, who),
+         {:ok, msg, change} <-
+           Dragonex.Actions.second_wind(
+             world(ctx),
+             who,
+             ctx.deps.roller,
+             ctx.deps[:roll_log]
+           ),
+         {:ok, _} <- propose(ctx, change) do
+      {:ok, msg}
+    end
+  end
+
+  @doc """
+  Resolve a non-combat ability check: the DM sets the `dc` (5/10/15/20 by 5e)
   difficulty), the engine rolls d20 + the ability modifier for `who`.
   Skill proficiency is not applied in v1 (the sheet stores it; resolution does
   not). Pass mode "advantage"/"disadvantage" when it applies.
@@ -514,6 +532,17 @@ defmodule Dragonex.Tools do
     else
       {:error,
        "RECHAZADO — solo puedes controlar tu propio ataque temerario (#{proposer}), no el de #{who}."}
+    end
+  end
+
+  defp assert_second_wind_self(ctx, who) do
+    proposer = ctx.deps.state.participant_id
+
+    if proposer == "dm" or proposer == who do
+      :ok
+    else
+      {:error,
+       "RECHAZADO — solo puedes usar Segundo aliento en ti mismo (#{proposer}), no en #{who}."}
     end
   end
 

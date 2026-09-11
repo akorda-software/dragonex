@@ -67,7 +67,8 @@ contrato de 11 reglas (más cortas que las del DM).
 ### Tools del PCAgent (`pc_agent.tools/0`)
 
 **Restringidas**: `make_attack`, `cast_spell`, `ability_check`, `make_death_save`,
-`short_rest`, `long_rest`. **No** tiene `spawn_monster`, `roll_initiative`,
+`short_rest`, `long_rest`, `drop_concentration`, `start_rage`, `end_rage`,
+`start_reckless`, `end_reckless`, `second_wind`. **No** tiene `spawn_monster`, `roll_initiative`,
 `end_combat`, `set_scene`, `establish_fact`, `level_up` — un PC **actúa**, no
 **arbitra**. `make_attack`/`cast_spell` llevan `max_retries: 3`.
 

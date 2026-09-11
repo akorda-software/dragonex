@@ -60,8 +60,9 @@ Fuente canónica del código: `lib/dragonex/tools.ex` (S5), sets por agente en
 | `end_rage` | `(who)` | DM cualquiera; PC sólo sí mismo | Sale de furia (M26 / D42) |
 | `start_reckless` | `(who)` | DM cualquiera; PC sólo sí mismo | Reckless Attack (bárbaro). El motor aplica ventaja (M28 / D44) |
 | `end_reckless` | `(who)` | DM cualquiera; PC sólo sí mismo | Sale de Reckless Attack (M28 / D44) |
-| `short_rest` | `(target)` | — | Hit die, fuera de combate (M16) |
-| `long_rest` | `(target)` | — | PG completos + slots restaurados (M17) |
+| `second_wind` | `(who)` | DM cualquiera; PC sólo sí mismo | Segundo aliento (fighter): 1d10+level, 1/rest (M29 / D45) |
+| `short_rest` | `(target)` | — | Hit die, fuera de combate; recarga Second Wind (M16 / D45) |
+| `long_rest` | `(target)` | — | PG completos + slots restaurados; recarga Second Wind (M17 / D45) |
 | `roll_dice` | `(count, sides)` | — | Tirada libre NdM para el modelo |
 | `end_combat` | `()` | — | Vuelve a `:exploration`; apaga raging y reckless en todos (D42 / D44) |
 
@@ -87,7 +88,7 @@ los usa en producción. Se mantienen para los tests de capacidades de exAgent
 | Agente | Tools | Extras |
 |---|---|---|
 | **DM** | TODAS las de `Tools.tools()` | `make_attack`, `cast_spell`, `ability_check`, `make_death_save`, `heal`, `roll_initiative` con `max_retries: 3` (margen para autocorrección tras error directivo) |
-| **PCAgent** | `make_attack`, `cast_spell`, `ability_check`, `make_death_save`, `short_rest`, `long_rest`, `drop_concentration`, `start_rage`, `end_rage`, `start_reckless`, `end_reckless` | `make_attack`/`cast_spell` con `max_retries: 3`. **Nunca**: escenas, monstruos, condiciones, nivel, XP, iniciativa, end_combat |
+| **PCAgent** | `make_attack`, `cast_spell`, `ability_check`, `make_death_save`, `short_rest`, `long_rest`, `drop_concentration`, `start_rage`, `end_rage`, `start_reckless`, `end_reckless`, `second_wind` | `make_attack`/`cast_spell` con `max_retries: 3`. **Nunca**: escenas, monstruos, condiciones, nivel, XP, iniciativa, end_combat |
 | **TurnMaster** | `{give_turn_to, cut_in, react, pass_to_dm, end_scene}` (propias, `turn_master/tools.ex`) | **Ninguna muta el world**: registran una `Decision`; el `Game` la aplica (`Session.handoff/2`/`update_state/3`). `end_scene` propone cambio de escena vía el Game, no directo |
 
 ### Semántica de las tools del TurnMaster

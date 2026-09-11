@@ -282,6 +282,42 @@ defmodule Dragonex.Actions do
   end
 
   @doc """
+  Second Wind (5e, D45): a fighter heals 1d10 + level, once until a rest.
+
+  Capped at max_hp; same heal path (clears death saves if hp > 0). Does not
+  touch temp_hp.
+  """
+  @spec second_wind(World.t(), String.t(), roller(), RollLog.t() | nil) :: result()
+  def second_wind(world, who, roller, roll_log \\ nil) do
+    case World.character(world, who) do
+      nil ->
+        {:error, "no existe el personaje: #{who}"}
+
+      %Character{class: class} when class != "fighter" ->
+        {:error, "#{who} no es guerrero y no puede usar Segundo aliento"}
+
+      %Character{second_wind_used: true} ->
+        {:error, "#{who} ya ha usado Segundo aliento (se recarga con un descanso)"}
+
+      %Character{hp: hp, max_hp: max_hp, level: level} ->
+        hp = hp || 0
+        max_hp = max_hp || 0
+        level = level || 1
+
+        {r, close} =
+          RollLog.open(roll_log, roller, who, :heal, "Segundo aliento (1d10+#{level})")
+
+        rolled = r.(10) + level
+        RollLog.close(close, total: rolled, against: nil, outcome: nil)
+        applied = min(rolled, max(0, max_hp - hp))
+
+        {:ok,
+         "#{who} usa Segundo aliento y se cura #{applied} pg (1d10+#{level} = #{rolled}, ahora #{hp + applied}/#{max_hp}).",
+         World.second_wind(who, rolled)}
+    end
+  end
+
+  @doc """
   A short rest: the character spends hit dice to recover HP.
 
   At level 1, a character has 1 hit die. The heal is `roll(hit_die) + con_mod`.
@@ -313,20 +349,14 @@ defmodule Dragonex.Actions do
           msg =
             "#{name} hace un descanso corto y recupera #{applied} pg (1d#{hit_die}#{signed(con_mod)} = #{rolled}, ahora #{hp + applied}/#{max_hp})."
 
-          {msg, change} =
+          {msg, restore?} =
             if SpellSlots.pact_caster?(c.class) do
-              composed = fn w ->
-                {:ok, w2} = World.heal(name, applied).(w)
-                {:ok, w3} = World.restore_slots(name).(w2)
-                {:ok, w3}
-              end
-
-              {msg <> " Casillas de pacto recuperadas.", composed}
+              {msg <> " Casillas de pacto recuperadas.", true}
             else
-              {msg, World.heal(name, applied)}
+              {msg, false}
             end
 
-          {:ok, msg, change}
+          {:ok, msg, compose_rest(name, applied, restore?)}
         end
     end
   end
@@ -352,15 +382,9 @@ defmodule Dragonex.Actions do
         else
           healed = max_hp - hp
 
-          change = fn w ->
-            {:ok, w2} = World.heal(name, healed).(w)
-            {:ok, w3} = World.restore_slots(name).(w2)
-            {:ok, w3}
-          end
-
           {:ok,
            "#{name} hace un descanso largo y recupera #{healed} pg (#{hp} → #{max_hp}, recuperación completa). Casillas de hechizo recuperadas.",
-           change}
+           compose_rest(name, healed, true)}
         end
     end
   end
@@ -945,6 +969,19 @@ defmodule Dragonex.Actions do
         String.contains?(iname, n) or String.contains?(n, iname)
       end)
   end
+
+  defp compose_rest(name, heal_amount, restore_slots?) do
+    fn w ->
+      with {:ok, w} <- World.heal(name, heal_amount).(w),
+           {:ok, w} <- maybe_restore_slots(w, name, restore_slots?),
+           {:ok, w} <- World.set_second_wind_used(name, false).(w) do
+        {:ok, w}
+      end
+    end
+  end
+
+  defp maybe_restore_slots(w, name, true), do: World.restore_slots(name).(w)
+  defp maybe_restore_slots(w, _name, false), do: {:ok, w}
 
   defp noop, do: fn w -> {:ok, w} end
 

@@ -207,6 +207,7 @@ defmodule Dragonex.Monsters do
       concentrating: nil,
       raging: false,
       reckless: false,
+      second_wind_used: false,
       damage_resistances: resist,
       damage_vulnerabilities: vuln,
       damage_immunities: immune,

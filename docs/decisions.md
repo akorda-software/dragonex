@@ -634,6 +634,32 @@ R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
 Reckless Attack D44 y spellcasting paladín/ranger L2; el resto de
 features por nivel sigue 🟡.
 
+### D45 — Second Wind 5e
+Estado: **Aceptada** — 2026-09-10.
+
+RAW acotado del fighter. Extra Attack (D35) intacto. El LLM no calcula
+la curación (D1): llama `second_wind`; el motor tira y aplica. Sin
+economía de acciones (bonus action simplificada a una tool 1/descanso).
+Sin feats.
+
+- Solo `class == "fighter"`. Tool `second_wind(who)` (DM cualquiera;
+  PC sólo sí mismo, mismo patrón que Rage).
+- Cura `1d10 + level` PG, capped `max_hp`, mismo path que `heal`
+  (death saves si hp>0). No toca `temp_hp`.
+- 1 uso hasta `short_rest` o `long_rest`. `Character.second_wind_used`
+  boolean, default `false`. Codec encode/decode (`== true`); jsonb
+  viejo sin clave → `false` (D4/D8).
+- Si already used → error. No fighter → error.
+- `short_rest` y `long_rest` ponen `second_wind_used = false` en el
+  personaje que descansa (aunque no gasten hit die / aunque long rest).
+
+No Action Surge. No Indomitable. No Fighting Style. No cambia
+`Weapon`/`Spell`/`Item`. D35 intacto.
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
+Reckless Attack D44, Second Wind D45 y spellcasting paladín/ranger L2;
+el resto de features por nivel sigue 🟡.
+
 ---
 
 ## Pendientes de decisión (abiertas)

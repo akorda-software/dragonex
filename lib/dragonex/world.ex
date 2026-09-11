@@ -22,6 +22,8 @@ defmodule Dragonex.World do
     * Reckless Attack (D44) ends on the barbarian's next turn start
       (`set_current_combatant/1`), `end_reckless`, 0 hp, unconscious, or
       `end_combat`,
+    * Second Wind (D45) is 1/rest for fighters; `short_rest`/`long_rest` clear
+      `second_wind_used`,
     * `grant_xp` adds to `Character.xp` and never levels up (D43).
 
   Characters are stored as full `Dragonex.Character` structs, so the engine can
@@ -414,6 +416,49 @@ defmodule Dragonex.World do
   @doc "End Reckless Attack (D44). Idempotent if already false."
   @spec end_reckless(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
   def end_reckless(name), do: set_reckless(name, false)
+
+  @doc """
+  Set `who`'s Second Wind used flag (5e, D45). Does not heal — `second_wind/2`
+  does. Idempotent.
+  """
+  @spec set_second_wind_used(String.t(), boolean()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def set_second_wind_used(name, used) when is_boolean(used) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          {:ok, put_char(w, name, %{c | second_wind_used: used})}
+      end
+    end
+  end
+
+  @doc """
+  Second Wind (5e, D45). Fighter only. Applies already-rolled heal `amount`
+  (capped at max_hp, same path as `heal/2`) and marks `second_wind_used`.
+  Does not touch temp_hp. Errors if already used or not a fighter.
+  """
+  @spec second_wind(String.t(), non_neg_integer()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def second_wind(name, amount) when is_integer(amount) and amount >= 0 do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{class: class} when class != "fighter" ->
+          {:error, "#{name} no es guerrero y no puede usar Segundo aliento"}
+
+        %Character{second_wind_used: true} ->
+          {:error, "#{name} ya ha usado Segundo aliento (se recarga con un descanso)"}
+
+        %Character{} ->
+          with {:ok, w2} <- heal(name, amount).(w) do
+            set_second_wind_used(name, true).(w2)
+          end
+      end
+    end
+  end
 
   @doc """
   Grant XP (5e, D43). Adds `amount` to `Character.xp`. Does not level up

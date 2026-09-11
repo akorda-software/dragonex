@@ -1,4 +1,4 @@
-# Catálogo de mecánicas 5e (M1–M28)
+# Catálogo de mecánicas 5e (M1–M29)
 
 > **Técnico.** Cada mecánica implementada, con identificador estable `Mxx`,
 > dónde vive (módulo:función), qué regla 5e aplica, sus simplificaciones (ADR)
@@ -154,11 +154,13 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 
 ### M16 — Short rest
 - **Dónde**: `Actions.short_rest/4` — gasta hit die; fuera de combate.
-- **Tests**: `test/dragonex/rest_test.exs`.
+  Recarga Second Wind (`second_wind_used = false`, D45).
+- **Tests**: `test/dragonex/rest_test.exs`, `second_wind_test.exs`.
 
 ### M17 — Long rest
 - **Dónde**: `Actions.long_rest/2` — PG completos + `restore_slots`.
-- **Tests**: `rest_test.exs`.
+  Recarga Second Wind (`second_wind_used = false`, D45).
+- **Tests**: `rest_test.exs`, `second_wind_test.exs`.
 
 ## Mundo y meta
 
@@ -269,18 +271,29 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   `effective_mode` en todos los swings. Sin cupo/día.
 - **Tests**: `reckless_attack_test.exs`, `codec_test.exs`.
 
+### M29 — Second Wind (`second_wind_used`, D45)
+- **Dónde**: `Character.second_wind_used` (Codec, default false).
+  `Actions.second_wind/4` tira 1d10+level; `World.second_wind/2` aplica
+  el amount (mismo path que `heal/2`: cap max_hp, death saves si hp>0)
+  y marca used. Solo `class == "fighter"`. Already used → error.
+  No toca `temp_hp`. Tool `second_wind` (DM cualquiera; PC sólo sí
+  mismo). `short_rest`/`long_rest` ponen used=false en quien descansa.
+  Sin economía de acciones (bonus action = la tool, 1/descanso).
+- **Tests**: `second_wind_test.exs`, `codec_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
 
 reacciones como mecánica formal (TurnMaster da interrupciones narrativas) ·
 multiclase · feats. Pact Magic: **D40**. Sneak Attack: **D41**. Rage: **D42**.
-Reckless Attack: **D44 / M28**. XP en partida: **D43 / M27**.
+Reckless Attack: **D44 / M28**. Second Wind: **D45 / M29**. XP en partida:
+**D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
-**D38 / M25**. Cupo de Rage/día sigue fuera.
+**D38 / M25**. Cupo de Rage/día y Action Surge siguen fuera.
 
-Para que una de estas entre: ADR nuevo + mecánica `M29+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M30+` en este catálogo +
 tests.
 
 ## Dados

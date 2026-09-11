@@ -67,7 +67,8 @@ cada tirada para el dado modal (`RollLog`).
 | `initiative/3` | tira iniciativa para todos los conscientes, ordena desc con tiebreak DEX luego nombre (`D39`) |
 | `death_save/4` | rechaza muertos (3 fails), estables (3 éxitos) y no-caídos |
 | `heal/5` | parsea la expresión (p.ej. `1d8+3`), tope max_hp; resetea death_saves |
-| `short_rest/4` / `long_rest/2` | descanso; `long_rest` restaura slots |
+| `second_wind/4` | fighter: 1d10+level, 1/rest (D45); recarga en short/long rest |
+| `short_rest/4` / `long_rest/2` | descanso; `long_rest` restaura slots; ambos recargan Second Wind |
 | `check/8` | chequeo de aptitud vs DC; modo por `Rules.Conditions.check_mode/3` |
 | `roll/5` | tirada libre NdM |
 
@@ -112,7 +113,8 @@ El mismo principio cubre ataques, salvaciones y chequeos.
   y `apply_damage/3` (inmunidad/resist/vuln D38, overlay Rage B/P/S D42,
   luego absorbe `temp_hp` D36), `heal/2` (no toca `temp_hp`), `apply_temp_hp/2`,
   `start_rage/1`, `end_rage/1`, `set_raging/2`,
-  `start_reckless/1`, `end_reckless/1`, `set_reckless/2`.
+  `start_reckless/1`, `end_reckless/1`, `set_reckless/2`,
+  `second_wind/2`, `set_second_wind_used/2`.
 - **Combate**: `begin_combat/1` (pide orden de iniciativa), `end_combat/0` (apaga raging y reckless),
   `set_current_combatant/1` (apaga reckless de ese name, D44),
   `join_initiative/1`, `apply_death_save/2`, `apply_condition/2`, `remove_condition/2`.
