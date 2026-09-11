@@ -660,6 +660,38 @@ R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
 Reckless Attack D44, Second Wind D45 y spellcasting paladín/ranger L2;
 el resto de features por nivel sigue 🟡.
 
+### D46 — Divine Smite 5e
+Estado: **Aceptada** — 2026-09-11.
+
+RAW acotado del paladín. Extra Attack (D35) intacto. El LLM no calcula
+dados ni gasta la casilla (D1): llama `divine_smite`; el motor aplica el
+smite en el primer impacto melee. Sin Improved Divine Smite. Sin feats.
+Sin Great Weapon Fighting. No cambia `Weapon`/`Spell`/`Item`.
+
+- Solo `class == "paladin"`. Tool `divine_smite(who, slot_level)`: deja
+  pendiente `Character.smite_slot = slot_level` (1..5). **No** consume el
+  hueco todavía. Error si no paladín, `slot_level` fuera de 1..5, o
+  `has_slot?` falso. Paladín L1 no tiene slots → error al armar (slots
+  desde L2, R09).
+- El motor aplica el smite en el **primer impacto melee** siguiente de
+  `Actions.attack` (arma `ranged != true`). Extra Attack D35: el primer
+  swing que acierte (o crítico) gasta el pendiente; los demás no.
+- Fallo: el pendiente **sigue**. Ranged / hechizo: no aplica, pendiente
+  sigue.
+- Al impactar: `World.consume_slot(who, slot_level)` + daño radiante extra
+  `2d8 + (slot_level-1)d8` (tope slot 5 → 5d8). Si `target.race` es
+  `"undead"` o `"fiend"`, +1d8 (máx 6d8). Pasa por `apply_damage` tipo
+  `"radiant"` (D38). Limpia `smite_slot`.
+- Expira sin gastar: `end_smite`; `set_current_combatant(who)` (inicio de
+  su turno); `end_combat`; hp 0; unconscious.
+- DM cualquiera; PC sólo sí mismo. PCAgent paladín SÍ sobre sí.
+- Campo: `Character.smite_slot` `nil | 1..5`. Codec: integer o null;
+  jsonb viejo → nil (D4/D8).
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
+Reckless Attack D44, Second Wind D45, Divine Smite D46 y spellcasting
+paladín/ranger L2; el resto de features por nivel sigue 🟡.
+
 ---
 
 ## Pendientes de decisión (abiertas)

@@ -238,6 +238,33 @@ defmodule Dragonex.CodecTest do
       assert decoded.second_wind_used == false
     end
 
+    test "smite_slot survives" do
+      c =
+        Character.new(
+          name: "hero",
+          class: "paladin",
+          hp: 18,
+          max_hp: 18,
+          side: "pc",
+          smite_slot: 2
+        )
+
+      w = add(World.new(), World.add_character(c))
+      assert Codec.decode(Codec.encode(w)).characters["hero"].smite_slot == 2
+    end
+
+    test "smite_slot absent in old jsonb is nil" do
+      c = Character.new(name: "hero", class: "paladin", hp: 18, max_hp: 18, side: "pc")
+      encoded = c |> Codec.encode_character() |> Map.delete("smite_slot")
+      refute Map.has_key?(encoded, "smite_slot")
+
+      {:ok, json} = Jason.encode(encoded)
+      {:ok, decoded_map} = Jason.decode(json)
+
+      decoded = Codec.decode_character(decoded_map)
+      assert decoded.smite_slot == nil
+    end
+
     test "death_saves tracker survives" do
       c =
         Character.new(

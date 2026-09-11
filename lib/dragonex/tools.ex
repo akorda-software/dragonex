@@ -393,6 +393,29 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
+  Arm Divine Smite (5e, D46). Paladin only. Leaves a pending smite_slot;
+  the spell slot is consumed on the next melee hit, not now. The DM may
+  arm anyone; a PC may only arm themselves.
+  """
+  deftool divine_smite(ctx, who :: String.t(), slot_level :: integer()) do
+    with :ok <- assert_smite_self(ctx, who),
+         {:ok, _} <- propose(ctx, Dragonex.World.start_smite(who, slot_level)) do
+      {:ok, "#{who} arma Castigo divino (casilla de nivel #{slot_level})."}
+    end
+  end
+
+  @doc """
+  Clear pending Divine Smite (D46) without consuming a slot. The DM may
+  end anyone; a PC may only end themselves.
+  """
+  deftool end_smite(ctx, who :: String.t()) do
+    with :ok <- assert_smite_self(ctx, who),
+         {:ok, _} <- propose(ctx, Dragonex.World.end_smite(who)) do
+      {:ok, "#{who} retira el Castigo divino."}
+    end
+  end
+
+  @doc """
   Resolve a non-combat ability check: the DM sets the `dc` (5/10/15/20 by 5e)
   difficulty), the engine rolls d20 + the ability modifier for `who`.
   Skill proficiency is not applied in v1 (the sheet stores it; resolution does
@@ -543,6 +566,17 @@ defmodule Dragonex.Tools do
     else
       {:error,
        "RECHAZADO — solo puedes usar Segundo aliento en ti mismo (#{proposer}), no en #{who}."}
+    end
+  end
+
+  defp assert_smite_self(ctx, who) do
+    proposer = ctx.deps.state.participant_id
+
+    if proposer == "dm" or proposer == who do
+      :ok
+    else
+      {:error,
+       "RECHAZADO — solo puedes controlar tu propio Castigo divino (#{proposer}), no el de #{who}."}
     end
   end
 

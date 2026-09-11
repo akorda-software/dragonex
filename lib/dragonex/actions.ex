@@ -72,7 +72,10 @@ defmodule Dragonex.Actions do
   wield the named weapon. Sneak Attack (D41) adds N d6 to the first hit
   of this call when the rogue qualifies. Rage (D42) adds
   `Progression.rage_damage/1` to every melee hit (`weapon.ranged != true`)
-  while the attacker is raging.
+  while the attacker is raging. Divine Smite (D46) spends a pending
+  `smite_slot` on the first melee hit (or crit) of this call: extra
+  radiant dice through `apply_damage/3`, then `consume_slot`. Miss,
+  ranged, and spells leave the pending slot.
   """
   @spec attack(
           World.t(),
@@ -115,6 +118,7 @@ defmodule Dragonex.Actions do
 
             n = Progression.attack_count(a.class, a.level)
             sneak = sneak_opts(world, a, attacker, target, weapon, effective_mode)
+            smite = smite_opts(a, weapon)
 
             swings =
               resolve_swings(
@@ -127,11 +131,14 @@ defmodule Dragonex.Actions do
                 roll_log,
                 effective_mode,
                 n,
-                sneak
+                sneak,
+                smite
               )
 
             {notes, change} =
-              pipe_damage(target, swing_amounts(swings), roller, roll_log, t, weapon.damage_type)
+              pipe_attack_damage(target, swings, roller, roll_log, t, weapon.damage_type)
+
+            change = compose_smite_spend(attacker, a.smite_slot, swings, change)
 
             {:ok,
              append_notes(
@@ -678,26 +685,42 @@ defmodule Dragonex.Actions do
 
   # ----------------------------------------------------------------- helpers
 
-  defp resolve_swings(a, t, attacker, target, weapon, roller, roll_log, mode, n, sneak) do
-    {swings, _hp, _sneak} =
-      Enum.reduce_while(1..n, {[], t.hp, sneak}, fn _i, {acc, hp, sneak_left} ->
+  defp resolve_swings(a, t, attacker, target, weapon, roller, roll_log, mode, n, sneak, smite) do
+    {swings, _hp, _sneak, _smite} =
+      Enum.reduce_while(1..n, {[], t.hp, sneak, smite}, fn _i,
+                                                           {acc, hp, sneak_left, smite_left} ->
         if hp <= 0 do
-          {:halt, {acc, hp, sneak_left}}
+          {:halt, {acc, hp, sneak_left, smite_left}}
         else
           swing =
-            resolve_one_swing(a, t, attacker, target, weapon, roller, roll_log, mode, sneak_left)
+            resolve_one_swing(
+              a,
+              t,
+              attacker,
+              target,
+              weapon,
+              roller,
+              roll_log,
+              mode,
+              sneak_left,
+              smite_left
+            )
 
-          incoming = Character.incoming_damage(t, swing.dmg, weapon.damage_type)
+          incoming =
+            Character.incoming_damage(t, swing.dmg, weapon.damage_type) +
+              Character.incoming_damage(t, swing.smite, "radiant")
+
           new_hp = if incoming > 0, do: max(0, hp - incoming), else: hp
           sneak_left = if swing.sneak > 0, do: nil, else: sneak_left
-          {:cont, {acc ++ [swing], new_hp, sneak_left}}
+          smite_left = if swing.smite > 0, do: nil, else: smite_left
+          {:cont, {acc ++ [swing], new_hp, sneak_left, smite_left}}
         end
       end)
 
     swings
   end
 
-  defp resolve_one_swing(a, t, attacker, target, weapon, roller, roll_log, mode, sneak) do
+  defp resolve_one_swing(a, t, attacker, target, weapon, roller, roll_log, mode, sneak, smite) do
     {r, close_atk} =
       RollLog.open(
         roll_log,
@@ -712,7 +735,7 @@ defmodule Dragonex.Actions do
 
     case kind do
       :miss ->
-        %{kind: :miss, d20: d20, total: total, dmg: 0, sneak: 0, rage: 0}
+        %{kind: :miss, d20: d20, total: total, dmg: 0, sneak: 0, rage: 0, smite: 0, smite_dice: 0}
 
       k ->
         {r2, close_dmg} =
@@ -735,7 +758,18 @@ defmodule Dragonex.Actions do
           outcome: if(k == :crit, do: :crit, else: nil)
         )
 
-        %{kind: k, d20: d20, total: total, dmg: total_dmg, sneak: sneak_dmg, rage: rage_dmg}
+        {smite_dmg, smite_dice} = smite_roll(smite, t, attacker, target, roller, roll_log)
+
+        %{
+          kind: k,
+          d20: d20,
+          total: total,
+          dmg: total_dmg,
+          sneak: sneak_dmg,
+          rage: rage_dmg,
+          smite: smite_dmg,
+          smite_dice: smite_dice
+        }
     end
   end
 
@@ -746,7 +780,7 @@ defmodule Dragonex.Actions do
   defp format_attack_message(attacker, target, weapon, ac, mode, [s]) do
     verb = if s.kind == :crit, do: "CRÍTICO", else: "acierta"
 
-    "#{attacker} #{verb} a #{target} (d20 #{s.d20}: #{s.total} vs CA #{ac}) por #{s.dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{rage_tag(s)}#{mode_tag(mode)}."
+    "#{attacker} #{verb} a #{target} (d20 #{s.d20}: #{s.total} vs CA #{ac}) por #{s.dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{rage_tag(s)}#{smite_tag(s)}#{mode_tag(mode)}."
   end
 
   defp format_attack_message(attacker, target, weapon, ac, mode, swings) do
@@ -761,10 +795,43 @@ defmodule Dragonex.Actions do
   defp describe_swing(%{kind: k, d20: d20, total: total, dmg: dmg} = s, weapon, ac) do
     verb = if k == :crit, do: "CRÍTICO", else: "acierta"
 
-    "#{verb} (d20 #{d20}: #{total} vs CA #{ac}) por #{dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{rage_tag(s)}"
+    "#{verb} (d20 #{d20}: #{total} vs CA #{ac}) por #{dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{rage_tag(s)}#{smite_tag(s)}"
   end
 
   defp swing_amounts(swings), do: for(%{dmg: dmg} <- swings, dmg > 0, do: dmg)
+
+  defp smite_amounts(swings), do: for(%{smite: n} <- swings, n > 0, do: n)
+
+  defp pipe_attack_damage(target, swings, roller, roll_log, char, weapon_type) do
+    {weapon_notes, weapon_change} =
+      pipe_damage(target, swing_amounts(swings), roller, roll_log, char, weapon_type)
+
+    char_after = Enum.reduce(swing_amounts(swings), char, &simulate_damage(&2, &1, weapon_type))
+
+    {smite_notes, smite_change} =
+      pipe_damage(target, smite_amounts(swings), roller, roll_log, char_after, "radiant")
+
+    change = fn w ->
+      with {:ok, w} <- weapon_change.(w) do
+        smite_change.(w)
+      end
+    end
+
+    {weapon_notes ++ smite_notes, change}
+  end
+
+  defp compose_smite_spend(attacker, slot, swings, change) do
+    if is_integer(slot) and slot in 1..5 and Enum.any?(swings, &(&1.smite > 0)) do
+      fn w ->
+        with {:ok, w} <- change.(w),
+             {:ok, w} <- World.consume_slot(attacker, slot).(w) do
+          World.set_smite_slot(attacker, nil).(w)
+        end
+      end
+    else
+      change
+    end
+  end
 
   defp compose_concentration({:ok, msg, change}, caster, spell) do
     if Spells.concentration?(spell.name) do
@@ -941,6 +1008,49 @@ defmodule Dragonex.Actions do
 
   defp rage_tag(%{rage: n}) when is_integer(n) and n > 0, do: " (+#{n} furia)"
   defp rage_tag(_), do: ""
+
+  defp smite_opts(%Character{class: "paladin", smite_slot: slot}, weapon)
+       when is_integer(slot) and slot in 1..5 and weapon.ranged != true,
+       do: slot
+
+  defp smite_opts(_, _), do: nil
+
+  defp smite_roll(nil, _target, _attacker, _tname, _roller, _roll_log), do: {0, 0}
+
+  defp smite_roll(slot, target, attacker, tname, roller, roll_log) when is_integer(slot) do
+    n = smite_dice(slot, target)
+
+    {r, close} =
+      RollLog.open(
+        roll_log,
+        roller,
+        attacker,
+        :damage,
+        "Castigo divino (radiante) a #{tname}"
+      )
+
+    amount = Enum.sum(for _ <- 1..n, do: r.(8))
+    RollLog.close(close, total: amount, against: nil, outcome: nil)
+    {amount, n}
+  end
+
+  defp smite_dice(slot, %Character{race: race}) do
+    base = min(slot + 1, 5)
+    extra = if smite_foe?(race), do: 1, else: 0
+    min(base + extra, 6)
+  end
+
+  defp smite_foe?(race) when is_binary(race) do
+    String.downcase(race) in ["undead", "fiend"]
+  end
+
+  defp smite_foe?(_), do: false
+
+  defp smite_tag(%{smite: n, smite_dice: d}) when is_integer(n) and n > 0 do
+    " (+#{n} smite #{d}d8 radiante)"
+  end
+
+  defp smite_tag(_), do: ""
 
   defp find_weapon(%Character{weapons: weapons}, name), do: match_named(weapons, name)
 

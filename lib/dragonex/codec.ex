@@ -115,6 +115,7 @@ defmodule Dragonex.Codec do
       "raging" => c.raging == true,
       "reckless" => c.reckless == true,
       "second_wind_used" => c.second_wind_used == true,
+      "smite_slot" => encode_smite_slot(c.smite_slot),
       "damage_resistances" => c.damage_resistances || [],
       "damage_vulnerabilities" => c.damage_vulnerabilities || [],
       "damage_immunities" => c.damage_immunities || [],
@@ -159,6 +160,7 @@ defmodule Dragonex.Codec do
       raging: c["raging"] == true,
       reckless: c["reckless"] == true,
       second_wind_used: c["second_wind_used"] == true,
+      smite_slot: decode_smite_slot(c["smite_slot"]),
       damage_resistances: c["damage_resistances"] || [],
       damage_vulnerabilities: c["damage_vulnerabilities"] || [],
       damage_immunities: c["damage_immunities"] || [],
@@ -248,6 +250,12 @@ defmodule Dragonex.Codec do
   end
 
   # -------------------------------------------------------------- helpers
+
+  defp encode_smite_slot(n) when is_integer(n) and n in 1..5, do: n
+  defp encode_smite_slot(_), do: nil
+
+  defp decode_smite_slot(n) when is_integer(n) and n in 1..5, do: n
+  defp decode_smite_slot(_), do: nil
 
   defp encode_saves(%{successes: s, fails: f}), do: %{"successes" => s, "fails" => f}
   defp decode_saves(nil), do: %{successes: 0, fails: 0}

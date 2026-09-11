@@ -22,6 +22,10 @@ defmodule Dragonex.World do
     * Reckless Attack (D44) ends on the barbarian's next turn start
       (`set_current_combatant/1`), `end_reckless`, 0 hp, unconscious, or
       `end_combat`,
+    * Divine Smite (D46) pending `smite_slot` expires on `end_smite`,
+      `set_current_combatant/1` (start of that combatant's turn), 0 hp,
+      unconscious, or `end_combat`. The slot is consumed on the first
+      melee hit, not when arming,
     * Second Wind (D45) is 1/rest for fighters; `short_rest`/`long_rest` clear
       `second_wind_used`,
     * `grant_xp` adds to `Character.xp` and never levels up (D43).
@@ -277,7 +281,9 @@ defmodule Dragonex.World do
           updated = %{c | hp: new_hp, temp_hp: new_temp}
 
           updated =
-            if new_hp == 0, do: %{updated | raging: false, reckless: false}, else: updated
+            if new_hp == 0,
+              do: %{updated | raging: false, reckless: false, smite_slot: nil},
+              else: updated
 
           {:ok, put_char(w, target, updated)}
       end
@@ -461,6 +467,64 @@ defmodule Dragonex.World do
   end
 
   @doc """
+  Set `who`'s pending Divine Smite slot (5e, D46). `nil` clears. Does not
+  check class or slots — `start_smite/2` does. Does not consume the slot.
+  """
+  @spec set_smite_slot(String.t(), pos_integer() | nil) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def set_smite_slot(name, slot) when is_nil(slot) or (is_integer(slot) and slot in 1..5) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          {:ok, put_char(w, name, %{c | smite_slot: slot})}
+      end
+    end
+  end
+
+  @doc """
+  Arm Divine Smite (D46). Paladin only. Leaves `smite_slot` pending; does
+  **not** consume the spell slot. Errors if not a paladin, `slot_level`
+  outside 1..5, or `has_slot?/3` is false.
+  """
+  @spec start_smite(String.t(), integer()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def start_smite(_name, slot_level) when not is_integer(slot_level) or slot_level not in 1..5 do
+    fn _w -> {:error, "el nivel de casilla del Castigo divino debe estar entre 1 y 5"} end
+  end
+
+  def start_smite(name, slot_level) when is_integer(slot_level) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{class: class} when class != "paladin" ->
+          {:error, "#{name} no es paladín y no puede usar Castigo divino"}
+
+        %Character{class: class, level: level} ->
+          table = Dragonex.SpellSlots.for_class(class, level || 1)
+
+          cond do
+            Map.get(table, slot_level, 0) < 1 ->
+              {:error, "a #{name} no le quedan casillas de hechizo de nivel #{slot_level}"}
+
+            not has_slot?(w, name, slot_level) ->
+              {:error, "a #{name} no le quedan casillas de hechizo de nivel #{slot_level}"}
+
+            true ->
+              set_smite_slot(name, slot_level).(w)
+          end
+      end
+    end
+  end
+
+  @doc "Clear pending Divine Smite (D46). Idempotent. Does not consume a slot."
+  @spec end_smite(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def end_smite(name), do: set_smite_slot(name, nil)
+
+  @doc """
   Grant XP (5e, D43). Adds `amount` to `Character.xp`. Does not level up
   and does not touch hp or spell slots. Amount must be positive.
   """
@@ -537,8 +601,11 @@ defmodule Dragonex.World do
     fn w ->
       characters =
         Map.new(w.characters, fn
-          {name, %Character{} = c} -> {name, %{c | raging: false, reckless: false}}
-          other -> other
+          {name, %Character{} = c} ->
+            {name, %{c | raging: false, reckless: false, smite_slot: nil}}
+
+          other ->
+            other
         end)
 
       {:ok,
@@ -627,7 +694,8 @@ defmodule Dragonex.World do
 
   @doc """
   Record whose initiative slot the current beat is (D34). Nil outside combat.
-  Starting a combatant's turn ends their Reckless Attack (D44).
+  Starting a combatant's turn ends their Reckless Attack (D44) and any
+  pending Divine Smite (D46).
   """
   @spec set_current_combatant(String.t() | nil) :: (t() -> {:ok, t()} | {:error, String.t()})
   def set_current_combatant(name) when is_binary(name) or is_nil(name) do
@@ -642,7 +710,7 @@ defmodule Dragonex.World do
         Map.has_key?(w.characters, name) ->
           characters =
             Map.update!(w.characters, name, fn
-              %Character{} = c -> %{c | reckless: false}
+              %Character{} = c -> %{c | reckless: false, smite_slot: nil}
               other -> other
             end)
 
@@ -850,7 +918,7 @@ defmodule Dragonex.World do
 
           updated =
             if condition == "unconscious",
-              do: %{updated | raging: false, reckless: false},
+              do: %{updated | raging: false, reckless: false, smite_slot: nil},
               else: updated
 
           {:ok, put_char(w, target, updated)}

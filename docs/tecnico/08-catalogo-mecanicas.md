@@ -281,19 +281,34 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   Sin economía de acciones (bonus action = la tool, 1/descanso).
 - **Tests**: `second_wind_test.exs`, `codec_test.exs`.
 
+### M30 — Divine Smite (`smite_slot`, D46)
+- **Dónde**: `Character.smite_slot` (`nil | 1..5`, Codec, jsonb viejo → nil).
+  `World.start_smite/2` (sólo `class == "paladin"`, slot 1..5, `has_slot?`);
+  no consume casilla. `World.end_smite/1` idempotente.
+  `Actions.attack`: primer hit melee (`weapon.ranged != true`) gasta el
+  pendiente; `consume_slot` + `apply_damage` tipo `"radiant"`:
+  `2d8+(slot-1)d8` (tope 5d8); `target.race` `"undead"`/`"fiend"` +1d8
+  (máx 6d8). Extra Attack: solo el primer swing que acierte. Miss /
+  ranged / hechizo: pendiente sigue. Expira: `end_smite`;
+  `set_current_combatant(who)`; `end_combat`; hp 0; unconscious.
+  Tools `divine_smite`/`end_smite` (DM cualquiera; PC sólo sí mismo).
+  Sin Improved Divine Smite. Sin Great Weapon Fighting.
+- **Tests**: `divine_smite_test.exs`, `codec_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
 
 reacciones como mecánica formal (TurnMaster da interrupciones narrativas) ·
 multiclase · feats. Pact Magic: **D40**. Sneak Attack: **D41**. Rage: **D42**.
-Reckless Attack: **D44 / M28**. Second Wind: **D45 / M29**. XP en partida:
+Reckless Attack: **D44 / M28**. Second Wind: **D45 / M29**. Divine Smite:
+**D46 / M30**. XP en partida:
 **D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
 **D38 / M25**. Cupo de Rage/día y Action Surge siguen fuera.
 
-Para que una de estas entre: ADR nuevo + mecánica `M30+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M31+` en este catálogo +
 tests.
 
 ## Dados

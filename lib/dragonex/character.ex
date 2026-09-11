@@ -36,6 +36,7 @@ defmodule Dragonex.Character do
     field(:raging, :boolean, default: false)
     field(:reckless, :boolean, default: false)
     field(:second_wind_used, :boolean, default: false)
+    field(:smite_slot, :integer)
     field(:damage_resistances, {:array, :string}, default: [])
     field(:damage_vulnerabilities, {:array, :string}, default: [])
     field(:damage_immunities, {:array, :string}, default: [])
@@ -90,6 +91,7 @@ defmodule Dragonex.Character do
         :raging,
         :reckless,
         :second_wind_used,
+        :smite_slot,
         :damage_resistances,
         :damage_vulnerabilities,
         :damage_immunities,
@@ -123,6 +125,10 @@ defmodule Dragonex.Character do
     |> Ecto.Changeset.validate_number(:hp, greater_than_or_equal_to: 0)
     |> Ecto.Changeset.validate_number(:max_hp, greater_than_or_equal_to: 0)
     |> Ecto.Changeset.validate_number(:ac, greater_than_or_equal_to: 0)
+    |> Ecto.Changeset.validate_number(:smite_slot,
+      greater_than_or_equal_to: 1,
+      less_than_or_equal_to: 5
+    )
     |> validate_abilities()
   end
 
@@ -159,6 +165,7 @@ defmodule Dragonex.Character do
       raging: false,
       reckless: false,
       second_wind_used: false,
+      smite_slot: nil,
       damage_resistances: [],
       damage_vulnerabilities: [],
       damage_immunities: [],

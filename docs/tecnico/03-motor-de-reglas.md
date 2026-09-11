@@ -62,7 +62,7 @@ cada tirada para el dado modal (`RollLog`).
 
 | Acción | Notas |
 |---|---|
-| `attack/7` | arma vs objetivo; ajusta modo por `Rules.Conditions.attack_mode/3` |
+| `attack/7` | arma vs objetivo; ajusta modo por `Rules.Conditions.attack_mode/3`; Divine Smite D46 en el primer hit melee |
 | `spell/6` | rama por `spell.kind`: `:automatic` (magic missile), `:attack` (fire bolt, crit dobla dados, modo por condiciones, se trata como ranged), `:save` (mitad en éxito; DEX restrained = desventaja; STR/DEX auto-fallo si paralizado/aturdido/inconsciente/petrificado). Consume slot si `level > 0`. |
 | `initiative/3` | tira iniciativa para todos los conscientes, ordena desc con tiebreak DEX luego nombre (`D39`) |
 | `death_save/4` | rechaza muertos (3 fails), estables (3 éxitos) y no-caídos |
@@ -114,9 +114,10 @@ El mismo principio cubre ataques, salvaciones y chequeos.
   luego absorbe `temp_hp` D36), `heal/2` (no toca `temp_hp`), `apply_temp_hp/2`,
   `start_rage/1`, `end_rage/1`, `set_raging/2`,
   `start_reckless/1`, `end_reckless/1`, `set_reckless/2`,
-  `second_wind/2`, `set_second_wind_used/2`.
-- **Combate**: `begin_combat/1` (pide orden de iniciativa), `end_combat/0` (apaga raging y reckless),
-  `set_current_combatant/1` (apaga reckless de ese name, D44),
+  `second_wind/2`, `set_second_wind_used/2`,
+  `start_smite/2`, `end_smite/1`, `set_smite_slot/2`.
+- **Combate**: `begin_combat/1` (pide orden de iniciativa), `end_combat/0` (apaga raging, reckless y smite_slot),
+  `set_current_combatant/1` (apaga reckless y smite_slot de ese name, D44 / D46),
   `join_initiative/1`, `apply_death_save/2`, `apply_condition/2`, `remove_condition/2`.
 - **Nivel**: `level_up/2`.
 - **Spell slots**: `has_slot?/3`, `consume_slot/2`, `restore_slots/1`.

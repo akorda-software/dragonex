@@ -28,7 +28,7 @@ defmodule Dragonex.Heroes.SrdGoldenTest do
 
   * Feats (D13) — ASI es +2, nunca dote.
   * `spells_known` / cantrips por nivel (D14) — sin cap estricto.
-  * Features por nivel salvo Extra Attack D35 y spellcasting paladín/ranger L2.
+  * Features por nivel salvo Extra Attack D35, Divine Smite D46 y spellcasting paladín/ranger L2.
   """
 
   use ExUnit.Case, async: true

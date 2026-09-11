@@ -292,6 +292,8 @@ defmodule Dragonex.PCAgentTest do
       assert "start_reckless" in tool_names
       assert "end_reckless" in tool_names
       assert "second_wind" in tool_names
+      assert "divine_smite" in tool_names
+      assert "end_smite" in tool_names
 
       # PC CANNOT use these (DM-only)
       refute "set_scene" in tool_names
