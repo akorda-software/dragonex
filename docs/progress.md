@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **907 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **925 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -30,9 +30,9 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 - `Actions` — puente intent→world (`attack` con Extra Attack 5e / D35,
   Sneak Attack D41, Rage D42 y Divine Smite D46, `spell` automatic/attack/save + consumo de slot, False Life → temp_hp D36,
   concentración D37, resist/vuln/immune D38, `initiative`, `death_save`, `heal`,
-  `second_wind`, `short_rest`, `long_rest`, `check`). Con `RollLog` para dados estructurados.
+   `second_wind`, `action_surge`, `short_rest`, `long_rest`, `check`). Con `RollLog` para dados estructurados.
 - `Tools` — `deftool`s que el LLM invoca: `make_attack`, `cast_spell`,
-   `roll_initiative`, `make_death_save`, `heal`, `grant_temp_hp`, `grant_xp`, `drop_concentration`, `start_rage`, `end_rage`, `start_reckless`, `end_reckless`, `second_wind`, `divine_smite`, `end_smite`, `ability_check`, `end_combat`,
+   `roll_initiative`, `make_death_save`, `heal`, `grant_temp_hp`, `grant_xp`, `drop_concentration`, `start_rage`, `end_rage`, `start_reckless`, `end_reckless`, `second_wind`, `action_surge`, `divine_smite`, `end_smite`, `ability_check`, `end_combat`,
   `short_rest`, `long_rest`, `spawn_monster`, `apply_condition`,
   `remove_condition`, `set_scene`, `establish_fact`, `level_up`, `roll_dice`.
 - `TurnPolicy.WorldDriven` — turno leído del World; un beat por monstruo
@@ -168,7 +168,11 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   `end_reckless` / 0 hp / unconscious / `end_combat`. Sin cupo/día.
 - ✅ Second Wind del fighter (D45): `Character.second_wind_used` + Codec;
   `1d10+level` 1/rest; tool `second_wind`; `short_rest`/`long_rest`
-  recargan. Sin Action Surge.
+  recargan.
+- ✅ Action Surge del fighter (D47): `Character.action_surge_used` + Codec;
+  tool `action_surge` = 1 Acción de Ataque extra (Extra Attack D35
+  incluido) 1/rest desde L2; hit o miss gasta el uso; rest recarga.
+  Sin L17 (2 usos). Sin Fighting Style. Sin Indomitable.
 - ✅ Divine Smite del paladín (D46): `Character.smite_slot` + Codec;
   tool `divine_smite` arma pendiente (no gasta casilla); primer hit
   melee de `Actions.attack` consume el hueco y tira radiante
@@ -186,7 +190,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 |---|---|---|
 | Dotes | Fuera; ASI = +2 fijo | D13 |
 | `spells_known` | `nil` (sin cap estricto por clase) | D14 |
-| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46 |
+| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47 |
 | Empate iniciativa | DEX score desc, luego nombre; sin roll-off extra | D39 |
 | Banner level-up in-game | Eliminado (D33); subida desde la ficha | D33 |
 | Stub legado en `Tools` | `attack`/`roll`/`spawn_character`/`next_round` mantenidos para tests del framework exAgent | `tools.ex:31-72` |

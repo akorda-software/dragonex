@@ -36,6 +36,7 @@ defmodule Dragonex.Character do
     field(:raging, :boolean, default: false)
     field(:reckless, :boolean, default: false)
     field(:second_wind_used, :boolean, default: false)
+    field(:action_surge_used, :boolean, default: false)
     field(:smite_slot, :integer)
     field(:damage_resistances, {:array, :string}, default: [])
     field(:damage_vulnerabilities, {:array, :string}, default: [])
@@ -91,6 +92,7 @@ defmodule Dragonex.Character do
         :raging,
         :reckless,
         :second_wind_used,
+        :action_surge_used,
         :smite_slot,
         :damage_resistances,
         :damage_vulnerabilities,
@@ -165,6 +167,7 @@ defmodule Dragonex.Character do
       raging: false,
       reckless: false,
       second_wind_used: false,
+      action_surge_used: false,
       smite_slot: nil,
       damage_resistances: [],
       damage_vulnerabilities: [],

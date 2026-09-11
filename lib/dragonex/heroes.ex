@@ -716,6 +716,7 @@ defmodule Dragonex.Heroes do
       raging: false,
       reckless: false,
       second_wind_used: false,
+      action_surge_used: false,
       smite_slot: nil,
       damage_resistances: racial_damage_resistances(race.traits),
       damage_vulnerabilities: [],

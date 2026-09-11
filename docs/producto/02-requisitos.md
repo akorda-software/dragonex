@@ -109,8 +109,8 @@ hechizos nuevos respetando `max_spell_level`, half-casters desde nivel 2.
 - `spells_known` sin tope modelado (D14).
 - Features de clase por nivel: Extra Attack a L5 (D35), Sneak Attack del
   rogue (D41), Rage del bárbaro (D42), Reckless Attack (D44), Second Wind
-  (D45), Divine Smite del paladín (D46) y spellcasting de paladín/ranger
-  a L2; el resto sigue fuera.
+  (D45), Divine Smite del paladín (D46), Action Surge del fighter a L2
+  (D47) y spellcasting de paladín/ranger a L2; el resto sigue fuera.
 - Empate de iniciativa por DEX score y luego nombre; sin roll-off extra (D39).
 
 > **No son bugs.** Cambiar cualquiera exige un ADR que reemplace al vigente.
@@ -268,7 +268,9 @@ varias llamadas `make_attack`. Rage del bárbaro entra (**D42**): estado
 `raging`, bonus melee, overlay B/P/S, no spells; sin usos/día, sin
 reloj de 1 minuto. Reckless Attack entra (**D44**): melee STR ventaja y
 ventaja vs el bárbaro; expira al inicio de su turno; sin cupo/día.
-Second Wind entra (**D45**): `1d10+level` 1/rest; sin Action Surge.
+Second Wind entra (**D45**): `1d10+level` 1/rest.
+Action Surge entra (**D47**): 1 Acción de Ataque extra 1/rest desde L2;
+sin L17 (2 usos); sin Fighting Style.
 Divine Smite entra (**D46**): paladín, casilla 1..5 pendiente, primer
 hit melee radiante; sin Improved Divine Smite.
 `temp_hp` entra (**D36**). Concentración entra (**D37**): estado + rotura

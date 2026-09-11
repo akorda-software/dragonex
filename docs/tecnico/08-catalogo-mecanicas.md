@@ -154,13 +154,16 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 
 ### M16 — Short rest
 - **Dónde**: `Actions.short_rest/4` — gasta hit die; fuera de combate.
-  Recarga Second Wind (`second_wind_used = false`, D45).
-- **Tests**: `test/dragonex/rest_test.exs`, `second_wind_test.exs`.
+  Recarga Second Wind (`second_wind_used = false`, D45) y Action Surge
+  (`action_surge_used = false`, D47).
+- **Tests**: `test/dragonex/rest_test.exs`, `second_wind_test.exs`,
+  `action_surge_test.exs`.
 
 ### M17 — Long rest
 - **Dónde**: `Actions.long_rest/2` — PG completos + `restore_slots`.
-  Recarga Second Wind (`second_wind_used = false`, D45).
-- **Tests**: `rest_test.exs`, `second_wind_test.exs`.
+  Recarga Second Wind (`second_wind_used = false`, D45) y Action Surge
+  (`action_surge_used = false`, D47).
+- **Tests**: `rest_test.exs`, `second_wind_test.exs`, `action_surge_test.exs`.
 
 ## Mundo y meta
 
@@ -295,6 +298,17 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   Sin Improved Divine Smite. Sin Great Weapon Fighting.
 - **Tests**: `divine_smite_test.exs`, `codec_test.exs`.
 
+### M31 — Action Surge (`action_surge_used`, D47)
+- **Dónde**: `Character.action_surge_used` (Codec, default false).
+  `Actions.action_surge/7` resuelve UNA Acción de Ataque extra vía
+  `Actions.attack` (N swings Extra Attack D35). Solo `class == "fighter"`
+  y nivel ≥ 2. Hit o miss marca used; error (no existe, 0 hp, sin arma,
+  no fighter, L1, ya usado) no marca. Tool `action_surge(who, target,
+  weapon, mode)` (DM cualquiera; PC sólo sí mismo). `short_rest`/
+  `long_rest` ponen used=false. Sin L17 (2 usos). Sin Fighting Style.
+  Sin Indomitable. Sin Dash/Dodge/cast vía surge.
+- **Tests**: `action_surge_test.exs`, `codec_test.exs`, `progression_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -302,11 +316,12 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 reacciones como mecánica formal (TurnMaster da interrupciones narrativas) ·
 multiclase · feats. Pact Magic: **D40**. Sneak Attack: **D41**. Rage: **D42**.
 Reckless Attack: **D44 / M28**. Second Wind: **D45 / M29**. Divine Smite:
-**D46 / M30**. XP en partida:
+**D46 / M30**. Action Surge: **D47 / M31**. XP en partida:
 **D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
-**D38 / M25**. Cupo de Rage/día y Action Surge siguen fuera.
+**D38 / M25**. Cupo de Rage/día y segundo uso de Action Surge a L17
+siguen fuera.
 
 Para que una de estas entre: ADR nuevo + mecánica `M31+` en este catálogo +
 tests.

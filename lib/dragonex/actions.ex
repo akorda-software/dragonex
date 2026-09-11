@@ -325,6 +325,48 @@ defmodule Dragonex.Actions do
   end
 
   @doc """
+  Action Surge (5e, D47): a fighter of level 2+ takes one extra Attack
+  action (N swings via Extra Attack D35), once until a rest.
+
+  The tool IS the extra action (simplified action economy). Hit or miss
+  marks the use; errors (missing, 0 hp, no weapon, not fighter, L1,
+  already used) do not.
+  """
+  @spec action_surge(
+          World.t(),
+          String.t(),
+          String.t(),
+          String.t(),
+          roller(),
+          :normal | :advantage | :disadvantage,
+          RollLog.t() | nil
+        ) :: result()
+  def action_surge(world, who, target, weapon_name, roller, mode \\ :normal, roll_log \\ nil) do
+    case World.character(world, who) do
+      nil ->
+        {:error, "no existe el personaje: #{who}"}
+
+      %Character{class: class} when class != "fighter" ->
+        {:error, "#{who} no es guerrero y no puede usar Oleada de acción"}
+
+      %Character{level: level} when not is_integer(level) or level < 2 ->
+        {:error, "#{who} no tiene Oleada de acción (nivel 2)"}
+
+      %Character{action_surge_used: true} ->
+        {:error, "#{who} ya ha usado Oleada de acción (se recarga con un descanso)"}
+
+      %Character{} ->
+        case attack(world, who, target, weapon_name, roller, mode, roll_log) do
+          {:ok, msg, change} ->
+            {:ok, "#{who} usa Oleada de acción. #{msg}", compose_mark_action_surge(who, change)}
+
+          {:error, _} = err ->
+            err
+        end
+    end
+  end
+
+  @doc """
   A short rest: the character spends hit dice to recover HP.
 
   At level 1, a character has 1 hit die. The heal is `roll(hit_die) + con_mod`.
@@ -1084,8 +1126,17 @@ defmodule Dragonex.Actions do
     fn w ->
       with {:ok, w} <- World.heal(name, heal_amount).(w),
            {:ok, w} <- maybe_restore_slots(w, name, restore_slots?),
-           {:ok, w} <- World.set_second_wind_used(name, false).(w) do
+           {:ok, w} <- World.set_second_wind_used(name, false).(w),
+           {:ok, w} <- World.set_action_surge_used(name, false).(w) do
         {:ok, w}
+      end
+    end
+  end
+
+  defp compose_mark_action_surge(who, change) do
+    fn w ->
+      with {:ok, w} <- change.(w) do
+        World.set_action_surge_used(who, true).(w)
       end
     end
   end

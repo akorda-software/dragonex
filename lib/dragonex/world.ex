@@ -28,6 +28,8 @@ defmodule Dragonex.World do
       melee hit, not when arming,
     * Second Wind (D45) is 1/rest for fighters; `short_rest`/`long_rest` clear
       `second_wind_used`,
+    * Action Surge (D47) is 1/rest for fighters L2+; `short_rest`/`long_rest`
+      clear `action_surge_used`,
     * `grant_xp` adds to `Character.xp` and never levels up (D43).
 
   Characters are stored as full `Dragonex.Character` structs, so the engine can
@@ -436,6 +438,23 @@ defmodule Dragonex.World do
 
         %Character{} = c ->
           {:ok, put_char(w, name, %{c | second_wind_used: used})}
+      end
+    end
+  end
+
+  @doc """
+  Set `who`'s Action Surge used flag (5e, D47). Does not attack —
+  `Actions.action_surge` does. Idempotent.
+  """
+  @spec set_action_surge_used(String.t(), boolean()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def set_action_surge_used(name, used) when is_boolean(used) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          {:ok, put_char(w, name, %{c | action_surge_used: used})}
       end
     end
   end

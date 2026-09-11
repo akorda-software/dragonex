@@ -22,10 +22,11 @@ defmodule Dragonex.Heroes.Progression do
       devuelve `nil` cuando no hay cap estricto (el jugador ajusta libremente).
     * **Dotes**: fuera de la v1; el ASI a 4/8/12/16/19 reparte +2 puntos.
     * **Features**: se modelan las que afectan a la ficha de forma
-      mecánica inmediata (conjuración paladín/explorador a L2; Extra Attack
-      a L5 en clases marciales, D35; Sneak Attack del rogue, D41). El resto
-       de features por nivel sigue fuera de v1. Rage del bárbaro (D42) usa
-       `rage_damage/1`, no el string `"rage"`.
+        mecánica inmediata (conjuración paladín/explorador a L2; Extra Attack
+        a L5 en clases marciales, D35; Sneak Attack del rogue, D41; Action
+        Surge del fighter a L2, D47). El resto de features por nivel sigue
+        fuera de v1. Rage del bárbaro (D42) usa `rage_damage/1`, no el
+        string `"rage"`.
   """
 
   # XP total necesario para ALCANZAR cada nivel (tabla de avances 5e).
@@ -162,13 +163,18 @@ defmodule Dragonex.Heroes.Progression do
   Features de clase que se desbloquean al ALCANZAR `level`.
 
   v1 modela las que afectan mecánicamente a la ficha: conjuración de
-  paladín/explorador a L2 (`spellcasting`) y Extra Attack a L5 en las
-  cinco clases marciales (`extra_attack`, D35). El N de golpes lo da
+  paladín/explorador a L2 (`spellcasting`), Action Surge del fighter a
+  L2 (`action_surge`, D47) y Extra Attack a L5 en las cinco clases
+  marciales (`extra_attack`, D35). El N de golpes lo da
   `attack_count/2` (no el string): fighter L11/L20 no añade otro feature.
   """
   @spec features_at(String.t() | atom(), pos_integer()) :: [String.t()]
   def features_at(class, 2) do
-    if class_name(class) in @half_casters, do: ["spellcasting"], else: []
+    cond do
+      class_name(class) in @half_casters -> ["spellcasting"]
+      class_name(class) == :fighter -> ["action_surge"]
+      true -> []
+    end
   end
 
   def features_at(class, 5) do

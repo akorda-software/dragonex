@@ -692,6 +692,44 @@ R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
 Reckless Attack D44, Second Wind D45, Divine Smite D46 y spellcasting
 paladín/ranger L2; el resto de features por nivel sigue 🟡.
 
+### D47 — Action Surge 5e
+Estado: **Aceptada** — 2026-09-11.
+
+RAW acotado del fighter. El LLM no resuelve el ataque extra (D1): llama
+`action_surge`; el motor ejecuta UNA Acción de Ataque extra
+(`Actions.attack`, Extra Attack D35 incluido) y marca el uso. Economía
+de acciones simplificada: la tool ES la acción extra (como D45
+simplificó el bonus action). Sin Dash/Dodge/cast vía surge. Sin feats.
+
+- Solo `class == "fighter"`. Desde **nivel 2** (RAW). L1 → error.
+- Tool `action_surge(who, target, weapon, mode)`: misma firma útil que
+  `make_attack` (mode "normal"/"advantage"/"disadvantage"). DM cualquiera;
+  PC sólo sí mismo.
+- Resuelve `Actions.attack` (N swings D35, sneak/rage/smite si aplicaran
+  — un fighter no tiene sneak). Si el ataque se resuelve (hit o miss),
+  marca `action_surge_used = true`. Si error (no existe, 0 hp, sin arma,
+  no fighter, L1, ya usado) NO marca.
+- 1 uso hasta `short_rest` o `long_rest`. `Character.action_surge_used`
+  boolean, default `false`. Codec `== true`; jsonb viejo → false (D4/D8).
+- `compose_rest` también pone `action_surge_used = false` (junto a
+  second_wind_used).
+- Ya usado → error. No fighter → error. L1 → error.
+- `Progression.features_at("fighter", 2)` → `["action_surge"]`.
+  Traducción en Catalog/Translations. L1 catalog sigue
+  `fighting_style second_wind`.
+- PCAgent: tool permitida; prompt fighter puede usarla EN EL MISMO
+  turno tras `make_attack`.
+- No L17 (2 usos). No Indomitable. No Fighting Style. No cambia
+  `Weapon`/`Spell`/`Item`.
+
+Campo: `Character.action_surge_used`. Defaults en Heroes/archetypes/
+monsters. Codec. level_up no toca el flag (lista transitorios).
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
+Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
+D47 y spellcasting paladín/ranger L2; el resto de features por nivel
+sigue 🟡.
+
 ---
 
 ## Pendientes de decisión (abiertas)

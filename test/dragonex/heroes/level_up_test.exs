@@ -86,12 +86,23 @@ defmodule Dragonex.Heroes.LevelUpTest do
       assert "spellcasting" in c2.class_features
     end
 
+    test "fighter L1→L2 gana action_surge" do
+      {:ok, c} =
+        Heroes.build(%{name: "X", race: "human", class: "fighter", background: "soldier"})
+
+      refute "action_surge" in c.class_features
+      {:ok, c2} = Heroes.apply_level_up(c, %{})
+      assert c2.level == 2
+      assert "action_surge" in c2.class_features
+    end
+
     test "fighter L1→L5 (ASI L4 +2 primario) incluye extra_attack; L3 no" do
       {:ok, c} =
         Heroes.build(%{name: "X", race: "human", class: "fighter", background: "soldier"})
 
       {:ok, c2} = Heroes.apply_level_up(c, %{})
       {:ok, c3} = Heroes.apply_level_up(c2, %{})
+      assert "action_surge" in c3.class_features
       refute "extra_attack" in c3.class_features
 
       {:ok, c4} = Heroes.apply_level_up(c3, %{asi: %{str: 2}})

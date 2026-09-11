@@ -82,8 +82,8 @@ defmodule Dragonex.Heroes.ProgressionTest do
       assert "spellcasting" in Progression.features_at("paladin", 2)
     end
 
-    test "fighter no gana features modeladas a L2" do
-      assert Progression.features_at("fighter", 2) == []
+    test "fighter gana action_surge a L2" do
+      assert Progression.features_at("fighter", 2) == ["action_surge"]
     end
 
     test "L5 marciales ganan extra_attack" do

@@ -518,6 +518,7 @@ defmodule Dragonex.Heroes.Translations do
     "extra_attack" => %{es: "Ataque extra", en: "Extra Attack"},
     "fighting_style" => %{es: "Estilo de combate", en: "Fighting Style"},
     "second_wind" => %{es: "Segundo aliento", en: "Second Wind"},
+    "action_surge" => %{es: "Oleada de acción", en: "Action Surge"},
     "martial_arts" => %{es: "Artes marciales", en: "Martial Arts"},
     "divine_sense" => %{es: "Sentido divino", en: "Divine Sense"},
     "lay_on_hands" => %{es: "Manos impositoras", en: "Lay on Hands"},

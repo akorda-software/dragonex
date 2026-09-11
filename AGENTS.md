@@ -25,7 +25,7 @@ cuando el commit existe.
 
 ```sh
 docker compose -f compose.dev.yml up -d   # Postgres + app en http://localhost:4035
-MIX_ENV=test mix test                     # suite (907 passed). SIEMPRE con MIX_ENV=test
+MIX_ENV=test mix test                     # suite (925 passed). SIEMPRE con MIX_ENV=test
 mix format                                # obligatorio antes de commit
 mix compile                               # sin warnings
 docker logs -f dragonex-app               # logs

@@ -285,6 +285,7 @@ defmodule Dragonex.Heroes.SrdGoldenTest do
   defp expected_features(class, level, l1) do
     l1
     |> maybe_spellcasting(class, level)
+    |> maybe_action_surge(class, level)
     |> maybe_extra_attack(class, level)
   end
 
@@ -293,6 +294,11 @@ defmodule Dragonex.Heroes.SrdGoldenTest do
        do: features ++ ["spellcasting"]
 
   defp maybe_spellcasting(features, _class, _level), do: features
+
+  defp maybe_action_surge(features, "fighter", level) when level >= 2,
+    do: features ++ ["action_surge"]
+
+  defp maybe_action_surge(features, _class, _level), do: features
 
   defp maybe_extra_attack(features, class, level)
        when class in @extra_attack_classes and level >= 5,

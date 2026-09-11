@@ -238,6 +238,33 @@ defmodule Dragonex.CodecTest do
       assert decoded.second_wind_used == false
     end
 
+    test "action_surge_used survives" do
+      c =
+        Character.new(
+          name: "hero",
+          class: "fighter",
+          hp: 12,
+          max_hp: 12,
+          side: "pc",
+          action_surge_used: true
+        )
+
+      w = add(World.new(), World.add_character(c))
+      assert Codec.decode(Codec.encode(w)).characters["hero"].action_surge_used == true
+    end
+
+    test "action_surge_used absent in old jsonb is false" do
+      c = Character.new(name: "hero", class: "fighter", hp: 10, max_hp: 10, side: "pc")
+      encoded = c |> Codec.encode_character() |> Map.delete("action_surge_used")
+      refute Map.has_key?(encoded, "action_surge_used")
+
+      {:ok, json} = Jason.encode(encoded)
+      {:ok, decoded_map} = Jason.decode(json)
+
+      decoded = Codec.decode_character(decoded_map)
+      assert decoded.action_surge_used == false
+    end
+
     test "smite_slot survives" do
       c =
         Character.new(

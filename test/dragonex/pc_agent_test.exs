@@ -292,6 +292,7 @@ defmodule Dragonex.PCAgentTest do
       assert "start_reckless" in tool_names
       assert "end_reckless" in tool_names
       assert "second_wind" in tool_names
+      assert "action_surge" in tool_names
       assert "divine_smite" in tool_names
       assert "end_smite" in tool_names
 

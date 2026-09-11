@@ -25,7 +25,7 @@ existe" sino por "se verifica".**
 | F4 — Héroes | Forjar y crecer | Builder 5 pasos + catálogos SRD ES + custom (D22) + level-up (D10–D13) |
 | F5 — TurnMaster | La partida fluye | Orquestador de turnos (D25) con fallback WorldDriven |
 
-Verde de referencia hoy: **907 tests passed**, compile sin warnings.
+Verde de referencia hoy: **925 tests passed**, compile sin warnings.
 
 ---
 
@@ -83,7 +83,8 @@ primario en L4). HP/AC/saves/slots/DC coinciden con SRD 5.1 y el modelo
 Dragonex (warlock Pact Magic D40; paladín/ranger spellcasting a L2 R09).
 Sin bugs de derivados; las simplificaciones (feats, features
 por nivel salvo Extra Attack D35, Pact Magic D40, Sneak Attack D41,
-Rage D42, Reckless Attack D44, Second Wind D45, Divine Smite D46 y spellcasting paladín/ranger L2, `spells_known`) quedan en 🟡.
+Rage D42, Reckless Attack D44, Second Wind D45, Divine Smite D46,
+Action Surge D47 y spellcasting paladín/ranger L2, `spells_known`) quedan en 🟡.
 
 ---
 
@@ -122,7 +123,12 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
   end_reckless / 0 hp / unconscious / end_combat. Sin cupo/día.
 - **Second Wind del fighter** (D45): **entregado.** `Character.second_wind_used`
   + Codec; cura `1d10+level` 1/rest; tool `second_wind` (DM cualquiera,
-  PC sólo sí mismo); `short_rest`/`long_rest` recargan. Sin Action Surge.
+  PC sólo sí mismo); `short_rest`/`long_rest` recargan.
+- **Action Surge del fighter** (D47): **entregado.** `Character.action_surge_used`
+  + Codec; tool `action_surge(who, target, weapon, mode)` = 1 Acción de
+  Ataque extra (`Actions.attack`, Extra Attack D35 incluido) 1/rest
+  desde L2; hit o miss gasta; rest recarga. Sin L17 (2 usos). Sin
+  Fighting Style. Sin Indomitable.
 - **Divine Smite del paladín** (D46): **entregado.** `Character.smite_slot`
   + Codec; `divine_smite(who, slot_level)` arma pendiente sin gastar
   casilla; primer hit melee de `Actions.attack` consume el hueco y tira
