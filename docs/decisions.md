@@ -843,6 +843,46 @@ Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
 D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50 y
 spellcasting paladín/ranger L2; el resto de features por nivel sigue 🟡.
 
+### D51 — Arcane Recovery 5e
+Estado: **Aceptada** — 2026-09-11.
+
+RAW acotado del mago. El LLM no elige ni calcula huecos (D1): llama
+`arcane_recovery`; el motor restaura. Economía de acciones
+simplificada: la tool ES el uso, fuera de combate. No exige haber
+hecho short rest justo antes. Sin Signature Spells, Spell Mastery,
+ritual_casting como tool, feats ni multiclase.
+
+- Solo `class == "wizard"`.
+- Campo `Character.arcane_recovery_used` boolean, default false.
+  Codec `== true`; jsonb viejo → false (D4/D8).
+- Tool `arcane_recovery(who)`. DM cualquiera; PC sólo sí mismo.
+- Fuera de combate (`phase != :combat`). En combate → error, no marca
+  used.
+- Ya used → error. No mago → error. Who no existe → error.
+- Presupuesto: `div(level + 1, 2)` (ceil(level/2)). Ningún hueco de
+  nivel > 5.
+- Restaura huecos GASTADOS (`current < max` de
+  `SpellSlots.for_class(class, level)`), greedy de nivel más alto a
+  más bajo. Restaurar un hueco de nivel N consume N del presupuesto.
+  Para cuando el presupuesto restante < N.
+- Si no hay ningún hueco gastado restaurable → error, no marca used.
+- Si restaura al menos 1 hueco → marca `arcane_recovery_used = true`.
+- Mensaje ES: qué niveles restauró y cuántos (ej. “recupera 1 hueco
+  de nivel 2 y 1 de nivel 1”).
+- Long rest: `arcane_recovery_used = false` (en `compose_long_rest`,
+  NO en `compose_rest`/short rest). Short rest NO recarga el flag ni
+  llama Arcane Recovery solo.
+- Level-up / merge / transitorios: no resetear el flag.
+- Warlock Pact Magic (D40) intacto. No toca bardos/clérigos/paladines.
+
+No cambia `Weapon`/`Spell`/`Item`. D50 intacto.
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
+Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
+D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50,
+Arcane Recovery D51 y spellcasting paladín/ranger L2; el resto de
+features por nivel sigue 🟡.
+
 ---
 
 ## Pendientes de decisión (abiertas)

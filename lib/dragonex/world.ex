@@ -32,10 +32,12 @@ defmodule Dragonex.World do
       clear `action_surge_used`,
     * Lay on Hands (D49) is a paladin pool (`5 * level`); `long_rest` refills
       it, `short_rest` does not,
-    * Bardic Inspiration (D50): bard spends uses to set `inspired` on a
-      target; `long_rest` refills bard uses and clears `inspired` on the
-      rester; `short_rest` does not,
-    * `grant_xp` adds to `Character.xp` and never levels up (D43).
+     * Bardic Inspiration (D50): bard spends uses to set `inspired` on a
+       target; `long_rest` refills bard uses and clears `inspired` on the
+       rester; `short_rest` does not,
+     * Arcane Recovery (D51) is 1/long rest for wizards; `long_rest` clears
+       `arcane_recovery_used`, `short_rest` does not,
+     * `grant_xp` adds to `Character.xp` and never levels up (D43).
 
   Characters are stored as full `Dragonex.Character` structs, so the engine can
   read any stat (AC, abilities, weapons ...) straight from the world.
@@ -535,6 +537,91 @@ defmodule Dragonex.World do
           {:ok, put_char(w, name, %{c | bardic_inspiration_uses: uses})}
       end
     end
+  end
+
+  @doc """
+  Set `who`'s Arcane Recovery used flag (5e, D51). Does not restore slots —
+  `apply_arcane_recovery/2` does. Idempotent. `long_rest` clears it.
+  """
+  @spec set_arcane_recovery_used(String.t(), boolean()) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def set_arcane_recovery_used(name, used) when is_boolean(used) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          {:ok, put_char(w, name, %{c | arcane_recovery_used: used})}
+      end
+    end
+  end
+
+  @doc """
+  Greedy Arcane Recovery plan (D51). Budget `div(level + 1, 2)`. Restores
+  expended slots (`current < max` from `SpellSlots.for_class`), highest
+  level first, never above 5th. Restoring a slot of level N costs N.
+  Untracked casters are treated as full (nothing expended).
+  """
+  @spec arcane_recovery_plan(t(), String.t()) ::
+          {:ok, %{pos_integer() => non_neg_integer()}, %{pos_integer() => pos_integer()}}
+          | {:error, String.t()}
+  def arcane_recovery_plan(%__MODULE__{} = w, name) do
+    case character(w, name) do
+      nil ->
+        {:error, "no such character: #{name}"}
+
+      %Character{class: class, level: level} ->
+        level = level || 1
+        max_slots = Dragonex.SpellSlots.for_class(class, level)
+        current = Map.get(w.spell_slots, name, max_slots)
+        budget = div(level + 1, 2)
+        {new_slots, restored} = greedy_arcane_restore(current, max_slots, budget)
+
+        if restored == %{} do
+          {:error, "#{name} no tiene huecos gastados que Recuperación arcana pueda restaurar"}
+        else
+          {:ok, new_slots, restored}
+        end
+    end
+  end
+
+  @doc """
+  Apply an Arcane Recovery plan (D51): write restored slots and mark used.
+  """
+  @spec apply_arcane_recovery(String.t(), %{pos_integer() => non_neg_integer()}) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def apply_arcane_recovery(name, new_slots) when is_map(new_slots) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          w = %{w | spell_slots: Map.put(w.spell_slots, name, new_slots)}
+          {:ok, put_char(w, name, %{c | arcane_recovery_used: true})}
+      end
+    end
+  end
+
+  defp greedy_arcane_restore(current, max_slots, budget) do
+    Enum.reduce(5..1//-1, {current, %{}, budget}, fn level, {slots, restored, remaining} ->
+      max_n = Map.get(max_slots, level, 0)
+      cur_n = Map.get(slots, level, 0)
+      expended = max(0, max_n - cur_n)
+      n = min(expended, div(remaining, level))
+
+      if n > 0 do
+        {
+          Map.put(slots, level, cur_n + n),
+          Map.put(restored, level, n),
+          remaining - n * level
+        }
+      else
+        {slots, restored, remaining}
+      end
+    end)
+    |> then(fn {slots, restored, _} -> {slots, restored} end)
   end
 
   @doc """

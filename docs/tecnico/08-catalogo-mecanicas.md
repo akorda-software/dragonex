@@ -361,6 +361,22 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   colleges, Cutting Words.
 - **Tests**: `bardic_inspiration_test.exs`, `codec_test.exs`.
 
+### M35 — Arcane Recovery (`arcane_recovery_used`, D51)
+- **Dónde**: `Character.arcane_recovery_used` (boolean, Codec,
+  default false; jsonb viejo → false). Solo `class == "wizard"`.
+  `Actions.arcane_recovery/2` + `World.arcane_recovery_plan/2` +
+  `World.apply_arcane_recovery/2`. Presupuesto `div(level + 1, 2)`.
+  Restaura huecos GASTADOS (`current < max` de
+  `SpellSlots.for_class`), greedy de más alto a más bajo; ningún
+  hueco de nivel > 5. Restaurar un hueco de nivel N consume N.
+  Errores no marcan used: missing, no mago, combate, already used,
+  ningún hueco gastado restaurable. Tool `arcane_recovery(who)` (DM
+  cualquiera; PC sólo sí mismo). `long_rest` pone
+  `arcane_recovery_used = false`; `short_rest` no. Level-up no
+  resetea. Sin Signature Spells, Spell Mastery, ritual_casting como
+  tool, feats, multiclase.
+- **Tests**: `arcane_recovery_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -370,6 +386,7 @@ multiclase · feats. Pact Magic: **D40**. Sneak Attack: **D41**. Rage: **D42**.
 Reckless Attack: **D44 / M28**. Second Wind: **D45 / M29**. Divine Smite:
 **D46 / M30**. Action Surge: **D47 / M31**. Fighting Style: **D48 / M32**.
 Lay on Hands: **D49 / M33**. Bardic Inspiration: **D50 / M34**.
+Arcane Recovery: **D51 / M35**.
 XP en partida: **D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
@@ -377,7 +394,7 @@ Iniciativa individual por monstruo: **D34**.
 siguen fuera. Protection / TWF / GWF siguen fuera. Curar
 enfermedad/veneno con Lay on Hands (gastar 5) sigue fuera.
 
-Para que una de estas entre: ADR nuevo + mecánica `M34+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M36+` en este catálogo +
 tests.
 
 ## Dados

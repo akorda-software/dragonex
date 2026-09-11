@@ -71,7 +71,8 @@ cada tirada para el dado modal (`RollLog`).
 | `action_surge/7` | fighter L2+: 1 Acción de Ataque extra (D47, Extra Attack D35); 1/rest |
 | `lay_on_hands/4` | paladín: gasta pool `5*level`, cura target (D49); recarga solo en long rest |
 | `bardic_inspiration/3` | bardo: gasta 1 uso, marca target inspired (D50); el d6 se aplica en el primer roll |
-| `short_rest/4` / `long_rest/2` | descanso; `long_rest` restaura slots, Lay on Hands y Bardic Inspiration (y quita inspired); ambos recargan Second Wind y Action Surge |
+| `arcane_recovery/2` | mago: restaura huecos gastados greedy, 1/long rest, fuera de combate (D51) |
+| `short_rest/4` / `long_rest/2` | descanso; `long_rest` restaura slots, Lay on Hands, Bardic Inspiration (y quita inspired) y Arcane Recovery; ambos recargan Second Wind y Action Surge |
 | `check/8` | chequeo de aptitud vs DC; modo por `Rules.Conditions.check_mode/3`; Bardic Inspiration D50 |
 | `roll/5` | tirada libre NdM |
 
@@ -120,12 +121,15 @@ El mismo principio cubre ataques, salvaciones y chequeos.
   `second_wind/2`, `set_second_wind_used/2`, `set_action_surge_used/2`,
   `lay_on_hands/3`, `set_lay_on_hands_pool/2`, `restore_lay_on_hands/1`,
   `spend_bardic/2`, `set_inspired/2`, `restore_bardic_inspiration/1`,
+  `set_arcane_recovery_used/2`, `arcane_recovery_plan/2`,
+  `apply_arcane_recovery/2`,
   `start_smite/2`, `end_smite/1`, `set_smite_slot/2`.
 - **Combate**: `begin_combat/1` (pide orden de iniciativa), `end_combat/0` (apaga raging, reckless y smite_slot),
   `set_current_combatant/1` (apaga reckless y smite_slot de ese name, D44 / D46),
   `join_initiative/1`, `apply_death_save/2`, `apply_condition/2`, `remove_condition/2`.
 - **Nivel**: `level_up/2`.
-- **Spell slots**: `has_slot?/3`, `consume_slot/2`, `restore_slots/1`.
+- **Spell slots**: `has_slot?/3`, `consume_slot/2`, `restore_slots/1`,
+  Arcane Recovery parcial (D51).
   - Backward-compat: un caster **no trackeado** (no en `spell_slots`) → los
     hechizos **siempre funcionan**. Así el sistema es compatible con partidas
     viejas o bestiario sin slots.

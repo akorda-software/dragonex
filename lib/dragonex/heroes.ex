@@ -722,6 +722,7 @@ defmodule Dragonex.Heroes do
       lay_on_hands_pool: lay_on_hands_pool_for(class.key, choices[:level] || 1),
       bardic_inspiration_uses: bardic_uses_for(class.key, scores[:cha]),
       inspired: false,
+      arcane_recovery_used: false,
       damage_resistances: racial_damage_resistances(race.traits),
       damage_vulnerabilities: [],
       damage_immunities: [],

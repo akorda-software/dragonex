@@ -297,6 +297,7 @@ defmodule Dragonex.PCAgentTest do
       assert "end_smite" in tool_names
       assert "lay_on_hands" in tool_names
       assert "bardic_inspiration" in tool_names
+      assert "arcane_recovery" in tool_names
 
       # PC CANNOT use these (DM-only)
       refute "set_scene" in tool_names

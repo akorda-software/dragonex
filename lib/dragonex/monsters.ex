@@ -214,6 +214,7 @@ defmodule Dragonex.Monsters do
       lay_on_hands_pool: 0,
       bardic_inspiration_uses: 0,
       inspired: false,
+      arcane_recovery_used: false,
       damage_resistances: resist,
       damage_vulnerabilities: vuln,
       damage_immunities: immune,

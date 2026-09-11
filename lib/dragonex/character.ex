@@ -42,6 +42,7 @@ defmodule Dragonex.Character do
     field(:lay_on_hands_pool, :integer, default: 0)
     field(:bardic_inspiration_uses, :integer, default: 0)
     field(:inspired, :boolean, default: false)
+    field(:arcane_recovery_used, :boolean, default: false)
     field(:damage_resistances, {:array, :string}, default: [])
     field(:damage_vulnerabilities, {:array, :string}, default: [])
     field(:damage_immunities, {:array, :string}, default: [])
@@ -102,6 +103,7 @@ defmodule Dragonex.Character do
         :lay_on_hands_pool,
         :bardic_inspiration_uses,
         :inspired,
+        :arcane_recovery_used,
         :damage_resistances,
         :damage_vulnerabilities,
         :damage_immunities,
@@ -183,6 +185,7 @@ defmodule Dragonex.Character do
       lay_on_hands_pool: 0,
       bardic_inspiration_uses: 0,
       inspired: false,
+      arcane_recovery_used: false,
       damage_resistances: [],
       damage_vulnerabilities: [],
       damage_immunities: [],

@@ -444,6 +444,69 @@ defmodule Dragonex.Actions do
   end
 
   @doc """
+  Arcane Recovery (5e, D51): a wizard restores expended spell slots
+  outside combat, once until a long rest. Budget `div(level + 1, 2)`.
+  No slot above 5th. Greedy highest-to-lowest. The LLM does not pick slots.
+  """
+  @spec arcane_recovery(World.t(), String.t()) :: result()
+  def arcane_recovery(world, who) do
+    case World.character(world, who) do
+      nil ->
+        {:error, "no existe el personaje: #{who}"}
+
+      %Character{} when world.phase == :combat ->
+        {:error, "no se puede usar Recuperación arcana en combate"}
+
+      %Character{class: class} when class != "wizard" ->
+        {:error, "#{who} no es mago y no puede usar Recuperación arcana"}
+
+      %Character{arcane_recovery_used: true} ->
+        {:error, "#{who} ya ha usado Recuperación arcana (se recarga con un descanso largo)"}
+
+      %Character{} ->
+        case World.arcane_recovery_plan(world, who) do
+          {:error, reason} ->
+            {:error, reason}
+
+          {:ok, new_slots, restored} ->
+            {:ok, arcane_recovery_message(who, restored),
+             World.apply_arcane_recovery(who, new_slots)}
+        end
+    end
+  end
+
+  defp arcane_recovery_message(who, restored) do
+    "#{who} usa Recuperación arcana y recupera #{format_restored_slots(restored)}."
+  end
+
+  defp format_restored_slots(restored) do
+    items =
+      restored
+      |> Enum.sort_by(fn {level, _} -> -level end)
+      |> Enum.with_index()
+      |> Enum.map(fn {{level, n}, i} -> slot_fragment(n, level, i == 0) end)
+
+    case items do
+      [only] ->
+        only
+
+      [first, last] ->
+        "#{first} y #{last}"
+
+      [first | rest] ->
+        {last, mids} = List.pop_at(rest, -1)
+        "#{first}, #{Enum.join(mids, ", ")} y #{last}"
+    end
+  end
+
+  defp slot_fragment(n, level, true) do
+    noun = if n == 1, do: "hueco", else: "huecos"
+    "#{n} #{noun} de nivel #{level}"
+  end
+
+  defp slot_fragment(n, level, false), do: "#{n} de nivel #{level}"
+
+  @doc """
   Action Surge (5e, D47): a fighter of level 2+ takes one extra Attack
   action (N swings via Extra Attack D35), once until a rest.
 
@@ -1388,7 +1451,8 @@ defmodule Dragonex.Actions do
       with {:ok, w} <- compose_rest(name, heal_amount, true).(w),
            {:ok, w} <- World.restore_lay_on_hands(name).(w),
            {:ok, w} <- World.restore_bardic_inspiration(name).(w),
-           {:ok, w} <- World.set_inspired(name, false).(w) do
+           {:ok, w} <- World.set_inspired(name, false).(w),
+           {:ok, w} <- World.set_arcane_recovery_used(name, false).(w) do
         {:ok, w}
       end
     end

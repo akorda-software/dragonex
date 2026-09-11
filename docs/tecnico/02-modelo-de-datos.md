@@ -88,6 +88,7 @@ Dragonex.Character (character.ex)  — Ecto embedded schema
 ├─ lay_on_hands_pool: integer      Manos impositoras restantes; default 0 (D49)
 ├─ bardic_inspiration_uses: integer usos de Inspiración bárdica; default 0 (D50)
 ├─ inspired:      boolean          d6 de inspiración pendiente; default false (D50)
+├─ arcane_recovery_used: boolean   Recuperación arcana gastada; default false (D51)
 ├─ damage_resistances / damage_vulnerabilities / damage_immunities
 │                 [String]         tipos 5e; default [] (D38)
 ├─ atributos: str/dex/con/int/wis/cha

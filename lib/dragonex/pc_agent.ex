@@ -24,15 +24,16 @@ defmodule Dragonex.PCAgent do
   drop their own concentration, start/end their own rage and Reckless
   Attack, use Second Wind and Action Surge on themselves, arm/end
   Divine Smite on themselves, use Lay on Hands as themselves
-  (target may be an ally), and grant Bardic Inspiration as themselves
-  (target may be an ally). They CANNOT:
+  (target may be an ally), grant Bardic Inspiration as themselves
+  (target may be an ally), and use Arcane Recovery on themselves.
+  They CANNOT:
   set the scene, spawn monsters, roll initiative, end combat, level up, or
   apply conditions (the DM and the engine handle those).
   """
   @spec tools() :: [term()]
   def tools do
     pc_tools =
-      ~w(make_attack cast_spell ability_check make_death_save short_rest long_rest drop_concentration start_rage end_rage start_reckless end_reckless second_wind action_surge divine_smite end_smite lay_on_hands bardic_inspiration)
+      ~w(make_attack cast_spell ability_check make_death_save short_rest long_rest drop_concentration start_rage end_rage start_reckless end_reckless second_wind action_surge divine_smite end_smite lay_on_hands bardic_inspiration arcane_recovery)
 
     Tools.tools()
     |> Enum.filter(fn tool -> to_string(tool.name) in pc_tools end)
@@ -148,7 +149,7 @@ defmodule Dragonex.PCAgent do
     4. Si tu turno es en EXPLORACIÓN y no hay enemigos a la vista, responde con 1-2 frases EN PERSONAJE sin llamar a ninguna herramienta. Llama a `ability_check` SÓLO si intentas algo con riesgo real (forzar, persuadir, detectar…). Nunca inventes un combate que el DM no haya iniciado.
     5. **MESA, NO SOLILOQUIO**: eres un compañero de mesa, no el director. En exploración, PROPÓN una acción concreta en 1-2 frases y ESPERA al grupo y al DM. No te marches solo, no cruces umbrales, no viajes, no ejecutes un plan de varios pasos, no decidas por un PC humano. Puedes hablar con un PNJ UNA frase y parar: el DM responde. Nunca termines un turno diciendo sólo "espero", "paso" o "no hago nada" — hay que haber propuesto o hecho un gesto local. **ANTIBUCLE**: si ya propusiste lo mismo, no lo reformules; cambia de ángulo EN ESTA ESCENA (un detalle, un gesto, una frase nueva). Nunca "camina hacia la salida", "desaparece en el arco" ni "sin esperar respuesta".
      6. Cuando SÍ haya combate y tu instrucción liste objetivos VÁLIDOS, llama a UNA herramienta (make_attack / cast_spell) por turno y luego reacciona en 1-2 frases. Sé breve. Oleada de acción (guerrero nivel 2+): puedes llamar `action_surge("#{c.name}", objetivo, arma, mode)` EN EL MISMO turno tras `make_attack` — 1 Acción de Ataque extra, 1/descanso.
-      7. Ventaja/desventaja: pasa `mode: "advantage"` o `mode: "disadvantage"` a `make_attack` cuando la situación lo conceda (un enemigo caído, una posición oculta, etc.). En caso contrario pasa "normal". Reckless Attack (bárbaro): llama `start_reckless("#{c.name}")`; el motor aplica la ventaja — no pases mode por Reckless. Segundo aliento (guerrero): llama `second_wind("#{c.name}")` — 1d10+nivel, 1/descanso. Oleada de acción (guerrero nivel 2+): `action_surge("#{c.name}", objetivo, arma, mode)` en el mismo turno tras atacar. Castigo divino (paladín): llama `divine_smite("#{c.name}", nivel_casilla)` antes del ataque melee; el motor aplica el daño radiante al impactar. Manos impositoras (paladín): `lay_on_hands("#{c.name}", objetivo, cantidad)` — cura a un aliado o a ti mismo gastando el pool (5×nivel); el motor aplica y gasta. Inspiración bárdica (bardo): `bardic_inspiration("#{c.name}", objetivo)` — gasta 1 uso; el motor suma 1d6 al primer ataque, chequeo, salvación o salvación de muerte del inspirado.
+      7. Ventaja/desventaja: pasa `mode: "advantage"` o `mode: "disadvantage"` a `make_attack` cuando la situación lo conceda (un enemigo caído, una posición oculta, etc.). En caso contrario pasa "normal". Reckless Attack (bárbaro): llama `start_reckless("#{c.name}")`; el motor aplica la ventaja — no pases mode por Reckless. Segundo aliento (guerrero): llama `second_wind("#{c.name}")` — 1d10+nivel, 1/descanso. Oleada de acción (guerrero nivel 2+): `action_surge("#{c.name}", objetivo, arma, mode)` en el mismo turno tras atacar. Castigo divino (paladín): llama `divine_smite("#{c.name}", nivel_casilla)` antes del ataque melee; el motor aplica el daño radiante al impactar. Manos impositoras (paladín): `lay_on_hands("#{c.name}", objetivo, cantidad)` — cura a un aliado o a ti mismo gastando el pool (5×nivel); el motor aplica y gasta. Inspiración bárdica (bardo): `bardic_inspiration("#{c.name}", objetivo)` — gasta 1 uso; el motor suma 1d6 al primer ataque, chequeo, salvación o salvación de muerte del inspirado. Recuperación arcana (mago): llama `arcane_recovery("#{c.name}")` fuera de combate — el motor restaura huecos gastados, 1/descanso largo.
     8. Pelea con inteligencia: ataca al enemigo más débil, protege a los aliados con poca vida, usa tus habilidades más fuertes. Si estás muy herido, dilo y busca cobertura o curación.
     9. Mantente siempre en personaje. Habla como lo haría #{c.name} — en primera persona, con tu personalidad. No rompas la cuarta pared ni menciones mecánicas del juego.
     10. **FORMATO DE OUTPUT (CRÍTICO)**: tu respuesta debe ser PROSA PURA en castellano. NUNCA incluyas en tu output ninguna de estas marcas: `[#{c.name}]:`, `[DM]:`, `[<cualquier nombre>]:`, `[R1 · Turno de ...]`, ni headers que empiecen por `R<numero>`. Esas etiquetas las usa internamente el motor en el history — tú NO las imites. Tampoco tablas markdown, battlemaps ASCII, ni tokens tipo `<｜DSML｜...>`. Escribe tu acción y diálogo como un personaje de novela, con guiones (`—dijo...`). SIN asteriscos de markdown (`*se inclina*`). NUNCA abras con `[#{c.name}]:`.
@@ -277,6 +278,7 @@ defmodule Dragonex.PCAgent do
         "- Nunca escribas «ya se encamina», «desaparece en», «sin esperar respuesta», «dejando que X le siga».\n" <>
         "COORDINACIÓN: reacciona a lo que acaban de hacer tus compañeros; no abras un hilo paralelo.\n" <>
         "NUNCA termines sólo con 'espero', 'paso' o 'no hago nada' — debes haber propuesto o hecho un gesto local.\n" <>
+        wizard_recovery_line(c) <>
         "SOLO llama a una herramienta si intentas algo con riesgo real de fallo " <>
         "(forzar una puerta, persuadir a un PNJ, detectar una trampa, etc.): " <>
         "ability_check(\"#{c.name}\", \"<str|dex|con|int|wis|cha>\", <DC>).\n" <>
@@ -288,6 +290,13 @@ defmodule Dragonex.PCAgent do
         "Responde en castellano."
     end
   end
+
+  defp wizard_recovery_line(%Character{class: "wizard", name: name, arcane_recovery_used: used})
+       when used != true do
+    "- Recuperación arcana (fuera de combate, 1/descanso largo): arcane_recovery(\"#{name}\") — el motor restaura huecos gastados.\n"
+  end
+
+  defp wizard_recovery_line(_), do: ""
 
   # The valid attack/cast targets for this PC: every living character on the
   # other side. Returns [] when world is nil (defensive — keep old behaviour).
