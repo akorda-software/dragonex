@@ -158,20 +158,23 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 
 ### M16 — Short rest
 - **Dónde**: `Actions.short_rest/4` — gasta hit die; fuera de combate.
-  Recarga Second Wind (`second_wind_used = false`, D45) y Action Surge
-  (`action_surge_used = false`, D47). No recarga Lay on Hands (D49) ni
-  Divine Sense (D52).
+  Recarga Second Wind (`second_wind_used = false`, D45), Action Surge
+  (`action_surge_used = false`, D47) y Channel Divinity
+  (`channel_divinity_used = false`, D53). No recarga Lay on Hands (D49)
+  ni Divine Sense (D52).
 - **Tests**: `test/dragonex/rest_test.exs`, `second_wind_test.exs`,
-  `action_surge_test.exs`, `lay_on_hands_test.exs`, `divine_sense_test.exs`.
+  `action_surge_test.exs`, `lay_on_hands_test.exs`, `divine_sense_test.exs`,
+  `turn_undead_test.exs`.
 
 ### M17 — Long rest
 - **Dónde**: `Actions.long_rest/2` — PG completos + `restore_slots`.
-  Recarga Second Wind (`second_wind_used = false`, D45) y Action Surge
-  (`action_surge_used = false`, D47). Recarga Lay on Hands del paladín
+  Recarga Second Wind (`second_wind_used = false`, D45), Action Surge
+  (`action_surge_used = false`, D47) y Channel Divinity
+  (`channel_divinity_used = false`, D53). Recarga Lay on Hands del paladín
   a `5 * level` (D49) y Divine Sense a `max(1, 1 + cha_mod)` (D52); no
   lo hace `compose_rest/3` a ciegas.
 - **Tests**: `rest_test.exs`, `second_wind_test.exs`, `action_surge_test.exs`,
-  `lay_on_hands_test.exs`, `divine_sense_test.exs`.
+  `lay_on_hands_test.exs`, `divine_sense_test.exs`, `turn_undead_test.exs`.
 
 ## Mundo y meta
 
@@ -396,6 +399,22 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   60 ft, cobertura, lugares consagrados/desecrados, feats, multiclase.
 - **Tests**: `divine_sense_test.exs`, `codec_test.exs`.
 
+### M37 — Turn Undead (`channel_divinity_used`, D53)
+- **Dónde**: `Character.channel_divinity_used` (boolean, Codec,
+  default false; jsonb viejo → false). Solo `class == "cleric"` y
+  `level >= 2`. `Actions.turn_undead/3` +
+  `World.set_channel_divinity_used/2`: gasta 1 uso. Objetivos: demás
+  personajes con `race` downcase `"undead"` y hp > 0. Cada uno tira
+  salvación de Sabiduría vs DC `8 + prof + wis`. Fallo →
+  `apply_condition("frightened")` (Turned ≈ frightened, M06). Combate
+  permitido; también fuera. Gasta aunque no haya no-muertos. Errores
+  no gastan: missing, no clérigo, L1, already used. Tool
+  `turn_undead(who)` (DM cualquiera; PC sólo sí mismo).
+  `short_rest` y `long_rest` recargan (`compose_rest`). Level-up no
+  resetea. Sin Destroy Undead, Channel de dominio, Turn the Unholy,
+  30 ft, cobertura, reloj 1 minuto, feats, multiclase.
+- **Tests**: `turn_undead_test.exs`, `codec_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -406,7 +425,7 @@ Reckless Attack: **D44 / M28**. Second Wind: **D45 / M29**. Divine Smite:
 **D46 / M30**. Action Surge: **D47 / M31**. Fighting Style: **D48 / M32**.
 Lay on Hands: **D49 / M33**. Bardic Inspiration: **D50 / M34**.
 Arcane Recovery: **D51 / M35**. Divine Sense: **D52 / M36**.
-XP en partida: **D43 / M27**.
+Turn Undead: **D53 / M37**. XP en partida: **D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
 **D38 / M25**. Cupo de Rage/día y segundo uso de Action Surge a L17

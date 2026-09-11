@@ -297,6 +297,7 @@ defmodule Dragonex.PCAgentTest do
       assert "end_smite" in tool_names
       assert "lay_on_hands" in tool_names
       assert "divine_sense" in tool_names
+      assert "turn_undead" in tool_names
       assert "bardic_inspiration" in tool_names
       assert "arcane_recovery" in tool_names
 

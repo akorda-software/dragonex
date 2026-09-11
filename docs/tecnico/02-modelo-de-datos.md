@@ -90,6 +90,7 @@ Dragonex.Character (character.ex)  — Ecto embedded schema
 ├─ inspired:      boolean          d6 de inspiración pendiente; default false (D50)
 ├─ arcane_recovery_used: boolean   Recuperación arcana gastada; default false (D51)
 ├─ divine_sense_uses: integer      Sentido divino restantes; default 0 (D52)
+├─ channel_divinity_used: boolean  Canalizar divinidad gastada; default false (D53)
 ├─ damage_resistances / damage_vulnerabilities / damage_immunities
 │                 [String]         tipos 5e; default [] (D38)
 ├─ atributos: str/dex/con/int/wis/cha

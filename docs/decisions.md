@@ -923,6 +923,43 @@ D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50,
 Arcane Recovery D51, Divine Sense D52 y spellcasting paladín/ranger
 L2; el resto de features por nivel sigue 🟡.
 
+### D53 — Turn Undead 5e
+Estado: **Aceptada** — 2026-09-11.
+
+RAW acotado del clérigo. El LLM no tira salvaciones ni elige no-muertos
+(D1): llama `turn_undead`; el motor gasta el uso y aplica. Economía de
+acciones simplificada: la tool ES el uso. Combate permitido; también
+fuera de combate. Sin 30 ft / cover (no hay grid). Sin Dash obligatorio,
+sin “no puede acercarse”, sin Destroy Undead L5, sin Channel de dominio,
+sin Turn the Unholy, sin reloj de 1 minuto, sin feats ni multiclase.
+
+- Solo `class == "cleric"` y `level >= 2`.
+- Campo `Character.channel_divinity_used` boolean, default false.
+  Codec `== true`; jsonb viejo/ausente → false (D4/D8).
+- 1 uso hasta un rest (v1: no 2 usos a L6). Recarga en `compose_rest`
+  (short Y long), como Second Wind.
+- Tool `turn_undead(who)`. DM cualquiera; PC sólo sí mismo.
+- Error, no gasta: who no existe; no clérigo; level < 2; already used.
+- Gasta SIEMPRE si se ejecuta, incluso sin no-muertos.
+- Objetivos: demás personajes con `race` downcase `"undead"` y hp > 0.
+  Cada uno tira salvación de Sabiduría vs DC
+  `8 + Rules.Ability.proficiency(level) + Character.modifier(cleric, :wis)`.
+  Roller inyectado (`turn_undead(world, who, roller)`).
+- Fallo: `World.apply_condition(name, "frightened")` (idempotente).
+  Éxito: nada. Turned ≈ frightened (M06 ya da desventaja).
+- Mensaje ES: lista quién falla (asustado) y quién supera, DC, usos.
+  Vacío: “no hay no-muertos que Expulsar no-muertos pueda afectar”.
+- Level-up / merge / transitorios: no resetear el flag.
+- Reusa `race == "undead"` (D46/D49/D52). D52 Divine Sense y D49 intactos.
+
+No cambia `Weapon`/`Spell`/`Item`. D52 intacto.
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
+Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
+D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50,
+Arcane Recovery D51, Divine Sense D52, Turn Undead D53 y
+spellcasting paladín/ranger L2; el resto de features por nivel sigue 🟡.
+
 ---
 
 ## Pendientes de decisión (abiertas)

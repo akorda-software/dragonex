@@ -521,6 +521,8 @@ defmodule Dragonex.Heroes.Translations do
     "action_surge" => %{es: "Oleada de acción", en: "Action Surge"},
     "martial_arts" => %{es: "Artes marciales", en: "Martial Arts"},
     "divine_sense" => %{es: "Sentido divino", en: "Divine Sense"},
+    "channel_divinity" => %{es: "Canalizar divinidad", en: "Channel Divinity"},
+    "turn_undead" => %{es: "Expulsar no-muertos", en: "Turn Undead"},
     "lay_on_hands" => %{es: "Manos impositoras", en: "Lay on Hands"},
     "favored_enemy" => %{es: "Enemigo predilecto", en: "Favored Enemy"},
     "natural_explorer" => %{es: "Explorador natural", en: "Natural Explorer"},

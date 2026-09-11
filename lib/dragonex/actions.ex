@@ -473,6 +473,123 @@ defmodule Dragonex.Actions do
   end
 
   @doc """
+  Turn Undead (5e, D53): a cleric level 2+ spends Channel Divinity.
+
+  Other living undead (`race` downcase `"undead"`, hp > 0) roll a Wisdom
+  save vs DC `8 + proficiency + cleric Wisdom modifier`. Failure applies
+  frightened (M06). Spends even if there are no targets. Combat allowed.
+  """
+  @spec turn_undead(World.t(), String.t(), roller(), RollLog.t() | nil) :: result()
+  def turn_undead(world, who, roller, roll_log \\ nil) do
+    case World.character(world, who) do
+      nil ->
+        {:error, "no existe el personaje: #{who}"}
+
+      %Character{class: class} when class != "cleric" ->
+        {:error, "#{who} no es clérigo y no puede usar Expulsar no-muertos"}
+
+      %Character{level: level} when not is_integer(level) or level < 2 ->
+        {:error, "#{who} no tiene Expulsar no-muertos (nivel 2)"}
+
+      %Character{channel_divinity_used: true} ->
+        {:error, "#{who} ya ha usado Canalizar divinidad (se recarga con un descanso)"}
+
+      %Character{} = cleric ->
+        dc = 8 + Ability.proficiency(cleric.level) + Character.modifier(cleric, :wis)
+        {failed, saved} = turn_undead_resolutions(world, who, dc, roller, roll_log)
+
+        {:ok, turn_undead_message(who, dc, failed, saved), compose_turn_undead(who, failed)}
+    end
+  end
+
+  defp turn_undead_resolutions(world, who, dc, roller, roll_log) do
+    world
+    |> turn_undead_targets(who)
+    |> Enum.reduce({[], []}, fn target, {failed, saved} ->
+      if turn_undead_save_success?(target, dc, roller, roll_log) do
+        {failed, saved ++ [target.name]}
+      else
+        {failed ++ [target.name], saved}
+      end
+    end)
+  end
+
+  defp turn_undead_targets(%World{characters: chars}, who) do
+    chars
+    |> Enum.reject(fn {name, _} -> name == who end)
+    |> Enum.map(fn {_name, c} -> c end)
+    |> Enum.filter(&turn_undead_target?/1)
+    |> Enum.sort_by(& &1.name)
+  end
+
+  defp turn_undead_target?(%Character{hp: hp, race: race})
+       when is_integer(hp) and hp > 0 and is_binary(race) do
+    String.downcase(race) == "undead"
+  end
+
+  defp turn_undead_target?(_), do: false
+
+  defp turn_undead_save_success?(target, dc, roller, roll_log) do
+    case Conditions.save_mode(target, :wis) do
+      :auto_fail ->
+        false
+
+      {:roll, save_mode} ->
+        {r, close} =
+          RollLog.open(
+            roll_log,
+            roller,
+            target.name,
+            :save,
+            "salvación de Sabiduría contra Expulsar no-muertos"
+          )
+
+        {_d20, total, success?} = Combat.saving_throw(target, :wis, dc, r, save_mode)
+
+        RollLog.close(close,
+          total: total,
+          against: {:dc, dc},
+          outcome: if(success?, do: :success, else: :failure)
+        )
+
+        success?
+    end
+  end
+
+  defp turn_undead_message(who, dc, [], []) do
+    "#{who} usa Expulsar no-muertos (CD #{dc}) y no hay no-muertos que Expulsar no-muertos pueda afectar (usos restantes 0)."
+  end
+
+  defp turn_undead_message(who, dc, failed, saved) do
+    bits =
+      [frightened_clause(failed), saved_clause(saved)]
+      |> Enum.reject(&is_nil/1)
+
+    "#{who} usa Expulsar no-muertos (CD #{dc}): #{Enum.join(bits, "; ")} (usos restantes 0)."
+  end
+
+  defp frightened_clause([]), do: nil
+  defp frightened_clause([name]), do: "#{name} queda asustado"
+  defp frightened_clause(names), do: "#{Enum.join(names, ", ")} quedan asustados"
+
+  defp saved_clause([]), do: nil
+  defp saved_clause([name]), do: "#{name} supera la salvación"
+  defp saved_clause(names), do: "#{Enum.join(names, ", ")} superan la salvación"
+
+  defp compose_turn_undead(who, failed) do
+    fn w ->
+      with {:ok, w} <- World.set_channel_divinity_used(who, true).(w) do
+        Enum.reduce_while(failed, {:ok, w}, fn name, {:ok, acc} ->
+          case World.apply_condition(name, "frightened").(acc) do
+            {:ok, w2} -> {:cont, {:ok, w2}}
+            err -> {:halt, err}
+          end
+        end)
+      end
+    end
+  end
+
+  @doc """
   Bardic Inspiration (5e, D50): a bard spends 1 use to grant `target` a
   pending d6 (`inspired = true`). The die is applied by the engine on the
   target's next attack/check/save/death save. Target may be another
@@ -1507,7 +1624,8 @@ defmodule Dragonex.Actions do
       with {:ok, w} <- World.heal(name, heal_amount).(w),
            {:ok, w} <- maybe_restore_slots(w, name, restore_slots?),
            {:ok, w} <- World.set_second_wind_used(name, false).(w),
-           {:ok, w} <- World.set_action_surge_used(name, false).(w) do
+           {:ok, w} <- World.set_action_surge_used(name, false).(w),
+           {:ok, w} <- World.set_channel_divinity_used(name, false).(w) do
         {:ok, w}
       end
     end

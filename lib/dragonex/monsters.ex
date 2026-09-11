@@ -216,6 +216,7 @@ defmodule Dragonex.Monsters do
       inspired: false,
       arcane_recovery_used: false,
       divine_sense_uses: 0,
+      channel_divinity_used: false,
       damage_resistances: resist,
       damage_vulnerabilities: vuln,
       damage_immunities: immune,

@@ -373,6 +373,33 @@ defmodule Dragonex.CodecTest do
       assert decoded.divine_sense_uses == 0
     end
 
+    test "channel_divinity_used survives" do
+      c =
+        Character.new(
+          name: "hero",
+          class: "cleric",
+          hp: 16,
+          max_hp: 16,
+          side: "pc",
+          channel_divinity_used: true
+        )
+
+      w = add(World.new(), World.add_character(c))
+      assert Codec.decode(Codec.encode(w)).characters["hero"].channel_divinity_used == true
+    end
+
+    test "channel_divinity_used absent in old jsonb is false" do
+      c = Character.new(name: "hero", class: "cleric", hp: 16, max_hp: 16, side: "pc")
+      encoded = c |> Codec.encode_character() |> Map.delete("channel_divinity_used")
+      refute Map.has_key?(encoded, "channel_divinity_used")
+
+      {:ok, json} = Jason.encode(encoded)
+      {:ok, decoded_map} = Jason.decode(json)
+
+      decoded = Codec.decode_character(decoded_map)
+      assert decoded.channel_divinity_used == false
+    end
+
     test "death_saves tracker survives" do
       c =
         Character.new(

@@ -476,6 +476,25 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
+  Turn Undead (5e, D53). Cleric level 2+. Spends Channel Divinity; living
+  undead roll a Wisdom save and fail into frightened. The DM may use it
+  for any cleric; a PC may only use it as themselves.
+  """
+  deftool turn_undead(ctx, who :: String.t()) do
+    with :ok <- assert_turn_undead_self(ctx, who),
+         {:ok, msg, change} <-
+           Dragonex.Actions.turn_undead(
+             world(ctx),
+             who,
+             ctx.deps.roller,
+             ctx.deps[:roll_log]
+           ),
+         {:ok, _} <- propose(ctx, change) do
+      {:ok, msg}
+    end
+  end
+
+  @doc """
   Bardic Inspiration (5e, D50). Bard only. Spends 1 use to grant `target`
   a pending d6. The DM may use it for any bard; a PC may only use it as
   themselves (`who` is self; `target` may be an ally).
@@ -695,6 +714,17 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error, "RECHAZADO — solo puedes usar Sentido divino como #{proposer}, no como #{who}."}
+    end
+  end
+
+  defp assert_turn_undead_self(ctx, who) do
+    proposer = ctx.deps.state.participant_id
+
+    if proposer == "dm" or proposer == who do
+      :ok
+    else
+      {:error,
+       "RECHAZADO — solo puedes usar Expulsar no-muertos como #{proposer}, no como #{who}."}
     end
   end
 

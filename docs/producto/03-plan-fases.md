@@ -83,8 +83,8 @@ primario en L4). HP/AC/saves/slots/DC coinciden con SRD 5.1 y el modelo
 Dragonex (warlock Pact Magic D40; paladín/ranger spellcasting a L2 R09).
 Sin bugs de derivados; las simplificaciones (feats, features
 por nivel salvo Extra Attack D35, Pact Magic D40, Sneak Attack D41,
-Rage D42, Reckless Attack D44, Second Wind D45, Divine Smite D46,
-Action Surge D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52 y spellcasting paladín/ranger L2,
+    Rage D42, Reckless Attack D44, Second Wind D45, Divine Smite D46,
+    Action Surge D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Turn Undead D53 y spellcasting paladín/ranger L2,
 `spells_known`) quedan en 🟡.
 
 ---
@@ -158,6 +158,12 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
   por `race`; combate permitido; long rest recarga, short rest no. Sin
   Channel Divinity, Turn the Unholy, Improved Divine Sense, 60 ft,
   cobertura.
+- **Turn Undead del clérigo** (D53): **entregado.**
+  `Character.channel_divinity_used` + Codec; clérigo L2+ 1/rest; tool
+  `turn_undead(who)` gasta y aplica frightened a no-muertos (`race`)
+  que fallen Sabiduría vs DC `8+prof+wis`; combate y exploración;
+  short y long rest recargan. Sin Destroy Undead, sin Channel de
+  dominio, sin Turn the Unholy, sin 30 ft.
 - **Divine Smite del paladín** (D46): **entregado.** `Character.smite_slot`
   + Codec; `divine_smite(who, slot_level)` arma pendiente sin gastar
   casilla; primer hit melee de `Actions.attack` consume el hueco y tira

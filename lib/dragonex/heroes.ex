@@ -724,6 +724,7 @@ defmodule Dragonex.Heroes do
       inspired: false,
       arcane_recovery_used: false,
       divine_sense_uses: divine_sense_uses_for(class.key, scores[:cha]),
+      channel_divinity_used: false,
       damage_resistances: racial_damage_resistances(race.traits),
       damage_vulnerabilities: [],
       damage_immunities: [],
