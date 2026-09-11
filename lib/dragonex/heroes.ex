@@ -720,6 +720,8 @@ defmodule Dragonex.Heroes do
       fighting_style: fighting_style_for(class.key, choices[:fighting_style]),
       smite_slot: nil,
       lay_on_hands_pool: lay_on_hands_pool_for(class.key, choices[:level] || 1),
+      bardic_inspiration_uses: bardic_uses_for(class.key, scores[:cha]),
+      inspired: false,
       damage_resistances: racial_damage_resistances(race.traits),
       damage_vulnerabilities: [],
       damage_immunities: [],
@@ -848,6 +850,10 @@ defmodule Dragonex.Heroes do
 
   defp lay_on_hands_pool_for("paladin", _), do: 5
   defp lay_on_hands_pool_for(_, _), do: 0
+
+  defp bardic_uses_for("bard", cha) when is_integer(cha), do: max(1, Ability.modifier(cha))
+  defp bardic_uses_for("bard", _), do: 1
+  defp bardic_uses_for(_, _), do: 0
 
   defp fetch(_module, nil, field), do: {:error, "#{field} is required"}
 

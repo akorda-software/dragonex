@@ -463,6 +463,20 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
+  Bardic Inspiration (5e, D50). Bard only. Spends 1 use to grant `target`
+  a pending d6. The DM may use it for any bard; a PC may only use it as
+  themselves (`who` is self; `target` may be an ally).
+  """
+  deftool bardic_inspiration(ctx, who :: String.t(), target :: String.t()) do
+    with :ok <- assert_bardic_self(ctx, who),
+         {:ok, msg, change} <-
+           Dragonex.Actions.bardic_inspiration(world(ctx), who, target),
+         {:ok, _} <- propose(ctx, change) do
+      {:ok, msg}
+    end
+  end
+
+  @doc """
   Resolve a non-combat ability check: the DM sets the `dc` (5/10/15/20 by 5e)
   difficulty), the engine rolls d20 + the ability modifier for `who`.
   Skill proficiency is not applied in v1 (the sheet stores it; resolution does
@@ -645,6 +659,17 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error, "RECHAZADO — solo puedes usar Manos impositoras como #{proposer}, no como #{who}."}
+    end
+  end
+
+  defp assert_bardic_self(ctx, who) do
+    proposer = ctx.deps.state.participant_id
+
+    if proposer == "dm" or proposer == who do
+      :ok
+    else
+      {:error,
+       "RECHAZADO — solo puedes usar Inspiración bárdica como #{proposer}, no como #{who}."}
     end
   end
 

@@ -32,6 +32,9 @@ defmodule Dragonex.World do
       clear `action_surge_used`,
     * Lay on Hands (D49) is a paladin pool (`5 * level`); `long_rest` refills
       it, `short_rest` does not,
+    * Bardic Inspiration (D50): bard spends uses to set `inspired` on a
+      target; `long_rest` refills bard uses and clears `inspired` on the
+      rester; `short_rest` does not,
     * `grant_xp` adds to `Character.xp` and never levels up (D43).
 
   Characters are stored as full `Dragonex.Character` structs, so the engine can
@@ -495,6 +498,104 @@ defmodule Dragonex.World do
 
         %Character{} ->
           {:ok, w}
+      end
+    end
+  end
+
+  @doc """
+  Set `who`'s Bardic Inspiration pending die (5e, D50). Any class may be
+  inspired. Idempotent.
+  """
+  @spec set_inspired(String.t(), boolean()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def set_inspired(name, inspired) when is_boolean(inspired) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          {:ok, put_char(w, name, %{c | inspired: inspired})}
+      end
+    end
+  end
+
+  @doc """
+  Set remaining Bardic Inspiration uses (5e, D50). Does not grant the die —
+  `spend_bardic/2` does. Idempotent.
+  """
+  @spec set_bardic_inspiration_uses(String.t(), non_neg_integer()) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def set_bardic_inspiration_uses(name, uses) when is_integer(uses) and uses >= 0 do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          {:ok, put_char(w, name, %{c | bardic_inspiration_uses: uses})}
+      end
+    end
+  end
+
+  @doc """
+  Long rest refill (D50). Bard uses → `max(1, cha_mod)`. No-op for other classes.
+  """
+  @spec restore_bardic_inspiration(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def restore_bardic_inspiration(name) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{class: "bard"} = c ->
+          uses = max(1, Character.modifier(c, :cha))
+          {:ok, put_char(w, name, %{c | bardic_inspiration_uses: uses})}
+
+        %Character{} ->
+          {:ok, w}
+      end
+    end
+  end
+
+  @doc """
+  Spend one Bardic Inspiration use (5e, D50). Bard only. Marks `target`
+  inspired. Errors (no spend): missing who/target, not a bard, 0 uses,
+  target already inspired.
+  """
+  @spec spend_bardic(String.t(), String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def spend_bardic(who, target) do
+    fn w ->
+      case character(w, who) do
+        nil ->
+          {:error, "no such character: #{who}"}
+
+        %Character{class: class} when class != "bard" ->
+          {:error, "#{who} no es bardo y no puede usar Inspiración bárdica"}
+
+        %Character{bardic_inspiration_uses: uses} = bard ->
+          uses = uses || 0
+
+          case character(w, target) do
+            nil ->
+              {:error, "no such character: #{target}"}
+
+            %Character{inspired: true} ->
+              {:error, "#{target} ya está inspirado"}
+
+            %Character{} when uses < 1 ->
+              {:error, "#{who} no tiene usos de Inspiración bárdica"}
+
+            %Character{} = tgt ->
+              remaining = uses - 1
+
+              if who == target do
+                {:ok,
+                 put_char(w, who, %{bard | bardic_inspiration_uses: remaining, inspired: true})}
+              else
+                w = put_char(w, who, %{bard | bardic_inspiration_uses: remaining})
+                {:ok, put_char(w, target, %{tgt | inspired: true})}
+              end
+          end
       end
     end
   end

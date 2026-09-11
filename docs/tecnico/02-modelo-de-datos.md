@@ -86,6 +86,8 @@ Dragonex.Character (character.ex)  — Ecto embedded schema
 ├─ fighting_style: String | nil    archery | defense | dueling (D48)
 ├─ smite_slot:    integer | nil    Castigo divino pendiente 1..5 (D46)
 ├─ lay_on_hands_pool: integer      Manos impositoras restantes; default 0 (D49)
+├─ bardic_inspiration_uses: integer usos de Inspiración bárdica; default 0 (D50)
+├─ inspired:      boolean          d6 de inspiración pendiente; default false (D50)
 ├─ damage_resistances / damage_vulnerabilities / damage_immunities
 │                 [String]         tipos 5e; default [] (D38)
 ├─ atributos: str/dex/con/int/wis/cha

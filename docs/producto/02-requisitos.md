@@ -110,7 +110,8 @@ hechizos nuevos respetando `max_spell_level`, half-casters desde nivel 2.
 - Features de clase por nivel: Extra Attack a L5 (D35), Sneak Attack del
   rogue (D41), Rage del bárbaro (D42), Reckless Attack (D44), Second Wind
   (D45), Divine Smite del paladín (D46), Action Surge del fighter a L2
-  (D47), Fighting Style del fighter (D48), Lay on Hands del paladín (D49)
+  (D47), Fighting Style del fighter (D48), Lay on Hands del paladín (D49),
+  Bardic Inspiration del bardo (D50)
   y spellcasting de paladín/ranger a L2; el resto sigue fuera.
 - Empate de iniciativa por DEX score y luego nombre; sin roll-off extra (D39).
 
@@ -276,6 +277,9 @@ Fighting Style entra (**D48**): archery / defense / dueling; sin
 Protection, TWF, GWF; sin picker.
 Lay on Hands entra (**D49**): pool `5*level`; cura self o aliado; long
 rest recarga; undead/construct no; sin enfermedad/veneno.
+Bardic Inspiration entra (**D50**): usos `max(1, cha_mod)`; d6 al
+primer roll del inspirado; long rest recarga; siempre d6; sin Font of
+Inspiration ni colleges.
 Divine Smite entra (**D46**): paladín, casilla 1..5 pendiente, primer
 hit melee radiante; sin Improved Divine Smite.
 `temp_hp` entra (**D36**). Concentración entra (**D37**): estado + rotura

@@ -84,7 +84,7 @@ Dragonex (warlock Pact Magic D40; paladín/ranger spellcasting a L2 R09).
 Sin bugs de derivados; las simplificaciones (feats, features
 por nivel salvo Extra Attack D35, Pact Magic D40, Sneak Attack D41,
 Rage D42, Reckless Attack D44, Second Wind D45, Divine Smite D46,
-Action Surge D47, Fighting Style D48, Lay on Hands D49 y spellcasting paladín/ranger L2,
+Action Surge D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50 y spellcasting paladín/ranger L2,
 `spells_known`) quedan en 🟡.
 
 ---
@@ -140,6 +140,13 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
   gasta `applied` (cap max_hp) y cura a self o aliado; long rest
   recarga, short rest no; undead/construct bloqueados. Sin
   enfermedad/veneno. Sin Divine Sense.
+- **Bardic Inspiration del bardo** (D50): **entregado.**
+  `Character.bardic_inspiration_uses` + `inspired` + Codec; usos
+  `max(1, cha_mod)`; tool `bardic_inspiration(who, target)` gasta 1
+  uso y marca inspired; motor aplica 1d6 al primer
+  attack/check/save/death save (primer swing, hit o miss); long rest
+  recarga usos y quita inspired. Siempre d6. Sin Font of Inspiration,
+  colleges, Cutting Words.
 - **Divine Smite del paladín** (D46): **entregado.** `Character.smite_slot`
   + Codec; `divine_smite(who, slot_level)` arma pendiente sin gastar
   casilla; primer hit melee de `Actions.attack` consume el hueco y tira

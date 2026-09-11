@@ -77,7 +77,8 @@ defmodule Dragonex.Actions do
   radiant dice through `apply_damage/3`, then `consume_slot`. Miss,
   ranged, and spells leave the pending slot. Fighting Style (D48):
   archery/dueling in `Combat`; defense raises this target's effective AC
-  by 1 without mutating `Character.ac`.
+  by 1 without mutating `Character.ac`. Bardic Inspiration (D50) adds 1d6
+  to the first swing's attack total (hit or miss consumes; not damage).
   """
   @spec attack(
           World.t(),
@@ -121,6 +122,7 @@ defmodule Dragonex.Actions do
             n = Progression.attack_count(a.class, a.level)
             sneak = sneak_opts(world, a, attacker, target, weapon, effective_mode)
             smite = smite_opts(a, weapon)
+            inspired? = a.inspired == true
 
             swings =
               resolve_swings(
@@ -134,7 +136,8 @@ defmodule Dragonex.Actions do
                 effective_mode,
                 n,
                 sneak,
-                smite
+                smite,
+                inspired?
               )
 
             ac = target_ac(t)
@@ -143,6 +146,7 @@ defmodule Dragonex.Actions do
               pipe_attack_damage(target, swings, roller, roll_log, t, weapon.damage_type)
 
             change = compose_smite_spend(attacker, a.smite_slot, swings, change)
+            change = compose_inspired_clear(attacker, inspired?, change)
 
             {:ok,
              append_notes(
@@ -263,11 +267,14 @@ defmodule Dragonex.Actions do
         {:error,
          "#{name} ya está estable (3 salvaciones de muerte) — no necesita tirar más salvaciones"}
 
-      %Character{} ->
+      %Character{} = c ->
+        inspired? = c.inspired == true
         {r, close} = RollLog.open(roll_log, roller, name, :death_save, "salvación de muerte")
         result = Combat.death_save(r)
+        {result, bardic} = apply_inspired_death(c, result, r)
         RollLog.close(close, total: elem(result, 1), against: {:dc, 10}, outcome: elem(result, 0))
-        {:ok, describe_death_save(name, result), World.apply_death_save(name, result)}
+        change = compose_inspired_clear(name, inspired?, World.apply_death_save(name, result))
+        {:ok, describe_death_save(name, result, bardic), change}
     end
   end
 
@@ -397,6 +404,44 @@ defmodule Dragonex.Actions do
   end
 
   defp lay_on_hands_blocked_race?(_), do: false
+
+  @doc """
+  Bardic Inspiration (5e, D50): a bard spends 1 use to grant `target` a
+  pending d6 (`inspired = true`). The die is applied by the engine on the
+  target's next attack/check/save/death save. Target may be another
+  character or the bard. Does not stack or refresh.
+  """
+  @spec bardic_inspiration(World.t(), String.t(), String.t()) :: result()
+  def bardic_inspiration(world, who, target) do
+    case World.character(world, who) do
+      nil ->
+        {:error, "no existe el personaje: #{who}"}
+
+      %Character{class: class} when class != "bard" ->
+        {:error, "#{who} no es bardo y no puede usar Inspiración bárdica"}
+
+      %Character{bardic_inspiration_uses: uses} ->
+        uses = uses || 0
+
+        case World.character(world, target) do
+          nil ->
+            {:error, "no existe el personaje: #{target}"}
+
+          %Character{inspired: true} ->
+            {:error, "#{target} ya está inspirado"}
+
+          %Character{} when uses < 1 ->
+            {:error, "#{who} no tiene usos de Inspiración bárdica"}
+
+          %Character{} ->
+            remaining = uses - 1
+
+            {:ok,
+             "#{who} inspira a #{target} (Inspiración bárdica d6, usos restantes #{remaining}).",
+             World.spend_bardic(who, target)}
+        end
+    end
+  end
 
   @doc """
   Action Surge (5e, D47): a fighter of level 2+ takes one extra Attack
@@ -543,8 +588,11 @@ defmodule Dragonex.Actions do
         {r, close} =
           RollLog.open(roll_log, roller, who, :check, "chequeo de #{ability_es(ability)}")
 
-        {d20, total, success?} =
+        {d20, total, _success?} =
           Combat.ability_check(c, ability, dc, r, proficient, effective_mode)
+
+        inspired? = c.inspired == true
+        {total, success?, bardic} = apply_inspired_vs_dc(c, total, dc, r)
 
         RollLog.close(close,
           total: total,
@@ -560,10 +608,11 @@ defmodule Dragonex.Actions do
           ["d20 #{d20}"]
           |> then(fn p -> if mod != 0, do: p ++ ["#{signed(mod)} (#{ability})"], else: p end)
           |> then(fn p -> if prof != 0, do: p ++ ["#{prof} (competencia)"], else: p end)
+          |> then(fn p -> if bardic != 0, do: p ++ ["#{bardic} (inspiración)"], else: p end)
 
         {:ok,
          "#{who} hace un chequeo de #{ability_es(ability)}#{mode_tag(effective_mode)}: #{Enum.join(parts, " + ")} = #{total} vs CD #{dc} — #{verdict}.",
-         noop()}
+         compose_inspired_clear(who, inspired?, noop())}
     end
   end
 
@@ -734,7 +783,9 @@ defmodule Dragonex.Actions do
             "salvación de #{ability_es(spell.save_ability)} contra #{spell.name}"
           )
 
-        {d20, stotal, success?} = Combat.saving_throw(t, spell.save_ability, dc, r, save_mode)
+        inspired? = t.inspired == true
+        {d20, stotal, _success?} = Combat.saving_throw(t, spell.save_ability, dc, r, save_mode)
+        {stotal, success?, bardic} = apply_inspired_vs_dc(t, stotal, dc, r)
 
         RollLog.close(close_save,
           total: stotal,
@@ -755,22 +806,27 @@ defmodule Dragonex.Actions do
         RollLog.close(close_dmg, total: full, against: nil, outcome: nil)
 
         dmg = if success?, do: div(full, 2), else: full
+        bardic_bit = if bardic != 0, do: " +#{bardic} inspiración", else: ""
 
         verdict =
           if success?,
             do:
-              "supera la salvación (d20 #{d20}: #{stotal} vs CD #{dc})#{mode_tag(save_mode)}, mitad de daño",
-            else: "falla la salvación (d20 #{d20}: #{stotal} vs CD #{dc})#{mode_tag(save_mode)}"
+              "supera la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{bardic_bit})#{mode_tag(save_mode)}, mitad de daño",
+            else:
+              "falla la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{bardic_bit})#{mode_tag(save_mode)}"
 
-        with_conc_damage(
-          "#{caster_name} conjura #{spell.name}; #{target_name} #{verdict} — #{dmg} de daño #{spell.damage_type}.",
-          target_name,
-          dmg,
-          roller,
-          roll_log,
-          t,
-          spell.damage_type
-        )
+        {:ok, msg, change} =
+          with_conc_damage(
+            "#{caster_name} conjura #{spell.name}; #{target_name} #{verdict} — #{dmg} de daño #{spell.damage_type}.",
+            target_name,
+            dmg,
+            roller,
+            roll_log,
+            t,
+            spell.damage_type
+          )
+
+        {:ok, msg, compose_inspired_clear(target_name, inspired?, change)}
     end
   end
 
@@ -787,26 +843,44 @@ defmodule Dragonex.Actions do
   defp spell_damage_verb(%{name: "magic missile"}, _dmg), do: " (3 dardos de fuerza)"
   defp spell_damage_verb(_spell, _dmg), do: ""
 
-  defp describe_death_save(name, {:revive, _d20, _, _}),
-    do: "#{name} saca un 20 natural — ¡revive con 1 pg!"
+  defp describe_death_save(name, {:revive, _d20, _, _}, bardic),
+    do: "#{name} saca un 20 natural#{bardic_death_bit(bardic)} — ¡revive con 1 pg!"
 
-  defp describe_death_save(name, {:crit_fail, 1, _, _}),
-    do: "#{name} saca un 1 natural — ¡dos fallos de salvación de muerte!"
+  defp describe_death_save(name, {:crit_fail, 1, _, _}, bardic),
+    do:
+      "#{name} saca un 1 natural#{bardic_death_bit(bardic)} — ¡dos fallos de salvación de muerte!"
 
-  defp describe_death_save(name, {:fail, d20, _, _}),
-    do: "#{name} saca #{d20} — un fallo de salvación de muerte."
+  defp describe_death_save(name, {:fail, d20, _, _}, bardic),
+    do: "#{name} saca #{d20}#{bardic_death_bit(bardic)} — un fallo de salvación de muerte."
 
-  defp describe_death_save(name, {:success, d20, _, _}),
-    do: "#{name} saca #{d20} — un éxito de salvación de muerte."
+  defp describe_death_save(name, {:success, d20, _, _}, bardic),
+    do: "#{name} saca #{d20}#{bardic_death_bit(bardic)} — un éxito de salvación de muerte."
+
+  defp bardic_death_bit(n) when is_integer(n) and n > 0, do: " (+#{n} inspiración)"
+  defp bardic_death_bit(_), do: ""
 
   # ----------------------------------------------------------------- helpers
 
-  defp resolve_swings(a, t, attacker, target, weapon, roller, roll_log, mode, n, sneak, smite) do
-    {swings, _hp, _sneak, _smite} =
-      Enum.reduce_while(1..n, {[], t.hp, sneak, smite}, fn _i,
-                                                           {acc, hp, sneak_left, smite_left} ->
+  defp resolve_swings(
+         a,
+         t,
+         attacker,
+         target,
+         weapon,
+         roller,
+         roll_log,
+         mode,
+         n,
+         sneak,
+         smite,
+         inspired?
+       ) do
+    {swings, _hp, _sneak, _smite, _inspired} =
+      Enum.reduce_while(1..n, {[], t.hp, sneak, smite, inspired?}, fn _i,
+                                                                      {acc, hp, sneak_left,
+                                                                       smite_left, inspired_left} ->
         if hp <= 0 do
-          {:halt, {acc, hp, sneak_left, smite_left}}
+          {:halt, {acc, hp, sneak_left, smite_left, inspired_left}}
         else
           swing =
             resolve_one_swing(
@@ -819,7 +893,8 @@ defmodule Dragonex.Actions do
               roll_log,
               mode,
               sneak_left,
-              smite_left
+              smite_left,
+              inspired_left
             )
 
           incoming =
@@ -829,7 +904,7 @@ defmodule Dragonex.Actions do
           new_hp = if incoming > 0, do: max(0, hp - incoming), else: hp
           sneak_left = if swing.sneak > 0, do: nil, else: sneak_left
           smite_left = if swing.smite > 0, do: nil, else: smite_left
-          {:cont, {acc ++ [swing], new_hp, sneak_left, smite_left}}
+          {:cont, {acc ++ [swing], new_hp, sneak_left, smite_left, false}}
         end
       end)
 
@@ -839,7 +914,19 @@ defmodule Dragonex.Actions do
   defp target_ac(%Character{fighting_style: "defense", ac: ac}), do: ac + 1
   defp target_ac(%Character{ac: ac}), do: ac
 
-  defp resolve_one_swing(a, t, attacker, target, weapon, roller, roll_log, mode, sneak, smite) do
+  defp resolve_one_swing(
+         a,
+         t,
+         attacker,
+         target,
+         weapon,
+         roller,
+         roll_log,
+         mode,
+         sneak,
+         smite,
+         inspired?
+       ) do
     {r, close_atk} =
       RollLog.open(
         roll_log,
@@ -851,11 +938,22 @@ defmodule Dragonex.Actions do
 
     ac = target_ac(t)
     {kind, d20, total} = Combat.attack_roll(a, weapon, ac, r, mode)
+    {kind, total, bardic} = apply_inspired_attack(inspired?, kind, d20, total, ac, r)
     RollLog.close(close_atk, total: total, against: {:ac, ac}, outcome: kind)
 
     case kind do
       :miss ->
-        %{kind: :miss, d20: d20, total: total, dmg: 0, sneak: 0, rage: 0, smite: 0, smite_dice: 0}
+        %{
+          kind: :miss,
+          d20: d20,
+          total: total,
+          dmg: 0,
+          sneak: 0,
+          rage: 0,
+          smite: 0,
+          smite_dice: 0,
+          bardic: bardic
+        }
 
       k ->
         {r2, close_dmg} =
@@ -888,19 +986,20 @@ defmodule Dragonex.Actions do
           sneak: sneak_dmg,
           rage: rage_dmg,
           smite: smite_dmg,
-          smite_dice: smite_dice
+          smite_dice: smite_dice,
+          bardic: bardic
         }
     end
   end
 
   defp format_attack_message(attacker, target, _weapon, ac, mode, [%{kind: :miss} = s]) do
-    "#{attacker} lanza un golpe a #{target} — fallo (d20 #{s.d20}: #{s.total} vs CA #{ac})#{mode_tag(mode)}."
+    "#{attacker} lanza un golpe a #{target} — fallo (d20 #{s.d20}: #{s.total} vs CA #{ac})#{bardic_tag(s)}#{mode_tag(mode)}."
   end
 
   defp format_attack_message(attacker, target, weapon, ac, mode, [s]) do
     verb = if s.kind == :crit, do: "CRÍTICO", else: "acierta"
 
-    "#{attacker} #{verb} a #{target} (d20 #{s.d20}: #{s.total} vs CA #{ac}) por #{s.dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{rage_tag(s)}#{smite_tag(s)}#{mode_tag(mode)}."
+    "#{attacker} #{verb} a #{target} (d20 #{s.d20}: #{s.total} vs CA #{ac}) por #{s.dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{rage_tag(s)}#{smite_tag(s)}#{bardic_tag(s)}#{mode_tag(mode)}."
   end
 
   defp format_attack_message(attacker, target, weapon, ac, mode, swings) do
@@ -908,14 +1007,14 @@ defmodule Dragonex.Actions do
     "#{attacker} ataca a #{target} (#{length(swings)} golpes)#{mode_tag(mode)}: #{parts}."
   end
 
-  defp describe_swing(%{kind: :miss, d20: d20, total: total}, _weapon, ac) do
-    "fallo (d20 #{d20}: #{total} vs CA #{ac})"
+  defp describe_swing(%{kind: :miss, d20: d20, total: total} = s, _weapon, ac) do
+    "fallo (d20 #{d20}: #{total} vs CA #{ac})#{bardic_tag(s)}"
   end
 
   defp describe_swing(%{kind: k, d20: d20, total: total, dmg: dmg} = s, weapon, ac) do
     verb = if k == :crit, do: "CRÍTICO", else: "acierta"
 
-    "#{verb} (d20 #{d20}: #{total} vs CA #{ac}) por #{dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{rage_tag(s)}#{smite_tag(s)}"
+    "#{verb} (d20 #{d20}: #{total} vs CA #{ac}) por #{dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{rage_tag(s)}#{smite_tag(s)}#{bardic_tag(s)}"
   end
 
   defp swing_amounts(swings), do: for(%{dmg: dmg} <- swings, dmg > 0, do: dmg)
@@ -982,15 +1081,18 @@ defmodule Dragonex.Actions do
 
     {pairs, _char} =
       Enum.map_reduce(amounts, char, fn amount, c ->
-        {note, break?, c2} = one_hit_concentration(c, amount, roller, roll_log, type)
-        {{note, break?}, c2}
+        {note, break?, c2, clear_inspired?} =
+          one_hit_concentration(c, amount, roller, roll_log, type)
+
+        {{note, break?, clear_inspired?}, c2}
       end)
 
     notes = pairs |> Enum.map(&elem(&1, 0)) |> Enum.reject(&is_nil/1)
-    flags = Enum.map(pairs, &elem(&1, 1))
+    flags = Enum.map(pairs, fn {_, break?, clear_inspired?} -> {break?, clear_inspired?} end)
 
     change = fn w ->
-      Enum.reduce_while(Enum.zip(amounts, flags), {:ok, w}, fn {amount, break?}, {:ok, acc} ->
+      Enum.reduce_while(Enum.zip(amounts, flags), {:ok, w}, fn {amount, {break?, clear_inspired?}},
+                                                               {:ok, acc} ->
         case World.character(acc, target) do
           %Character{hp: hp} when hp <= 0 ->
             {:halt, {:ok, acc}}
@@ -1001,6 +1103,16 @@ defmodule Dragonex.Actions do
                 next =
                   if break? do
                     case World.clear_concentration(target).(next) do
+                      {:ok, cleared} -> cleared
+                      _ -> next
+                    end
+                  else
+                    next
+                  end
+
+                next =
+                  if clear_inspired? do
+                    case World.set_inspired(target, false).(next) do
                       {:ok, cleared} -> cleared
                       _ -> next
                     end
@@ -1024,7 +1136,7 @@ defmodule Dragonex.Actions do
   end
 
   defp one_hit_concentration(%Character{concentrating: nil} = c, amount, _roller, _roll_log, type) do
-    {nil, false, simulate_damage(c, amount, type)}
+    {nil, false, simulate_damage(c, amount, type), false}
   end
 
   defp one_hit_concentration(%Character{} = c, amount, roller, roll_log, type) do
@@ -1034,11 +1146,12 @@ defmodule Dragonex.Actions do
     cond do
       c2.hp <= 0 ->
         {"#{c.name} cae a 0 pg y pierde la concentración en #{c.concentrating}.", true,
-         %{c2 | concentrating: nil}}
+         %{c2 | concentrating: nil}, false}
 
       incoming > 0 ->
         dc = max(10, div(incoming, 2))
         {:roll, mode} = Conditions.save_mode(c, :con)
+        inspired? = c.inspired == true
 
         {r, close} =
           RollLog.open(
@@ -1049,7 +1162,8 @@ defmodule Dragonex.Actions do
             "salvación de Constitución (concentración)"
           )
 
-        {d20, total, success?} = Combat.saving_throw(c, :con, dc, r, mode)
+        {d20, total, _success?} = Combat.saving_throw(c, :con, dc, r, mode)
+        {total, success?, bardic} = apply_inspired_vs_dc(c, total, dc, r)
 
         RollLog.close(close,
           total: total,
@@ -1057,16 +1171,19 @@ defmodule Dragonex.Actions do
           outcome: if(success?, do: :success, else: :failure)
         )
 
+        bardic_bit = if bardic != 0, do: " +#{bardic} inspiración", else: ""
+        c2 = if inspired?, do: %{c2 | inspired: false}, else: c2
+
         if success? do
-          {"#{c.name} mantiene la concentración en #{c.concentrating} (d20 #{d20}: #{total} vs CD #{dc}).",
-           false, c2}
+          {"#{c.name} mantiene la concentración en #{c.concentrating} (d20 #{d20}: #{total} vs CD #{dc}#{bardic_bit}).",
+           false, c2, inspired?}
         else
-          {"#{c.name} pierde la concentración en #{c.concentrating} (d20 #{d20}: #{total} vs CD #{dc}).",
-           true, %{c2 | concentrating: nil}}
+          {"#{c.name} pierde la concentración en #{c.concentrating} (d20 #{d20}: #{total} vs CD #{dc}#{bardic_bit}).",
+           true, %{c2 | concentrating: nil}, inspired?}
         end
 
       true ->
-        {nil, false, c2}
+        {nil, false, c2, false}
     end
   end
 
@@ -1172,6 +1289,61 @@ defmodule Dragonex.Actions do
 
   defp smite_tag(_), do: ""
 
+  defp bardic_tag(%{bardic: n}) when is_integer(n) and n > 0, do: " (+#{n} inspiración)"
+  defp bardic_tag(_), do: ""
+
+  defp apply_inspired_attack(true, _kind, d20, total, ac, roller) do
+    bonus = roller.(6)
+    new_total = total + bonus
+
+    new_kind =
+      cond do
+        d20 == 20 -> :crit
+        d20 == 1 -> :miss
+        new_total >= ac -> :hit
+        true -> :miss
+      end
+
+    {new_kind, new_total, bonus}
+  end
+
+  defp apply_inspired_attack(_, kind, _d20, total, _ac, _roller), do: {kind, total, 0}
+
+  defp apply_inspired_vs_dc(%Character{inspired: true}, total, dc, roller) do
+    bonus = roller.(6)
+    new_total = total + bonus
+    {new_total, new_total >= dc, bonus}
+  end
+
+  defp apply_inspired_vs_dc(_, total, dc, _), do: {total, total >= dc, 0}
+
+  defp apply_inspired_death(%Character{inspired: true}, result, roller) do
+    d20 = elem(result, 1)
+    bonus = roller.(6)
+
+    new_result =
+      case result do
+        {:revive, _, _, _} -> result
+        {:crit_fail, _, _, _} -> result
+        _ when d20 + bonus >= 10 -> {:success, d20, 0, 1}
+        _ -> {:fail, d20, 1, 0}
+      end
+
+    {new_result, bonus}
+  end
+
+  defp apply_inspired_death(_, result, _), do: {result, 0}
+
+  defp compose_inspired_clear(_name, false, change), do: change
+
+  defp compose_inspired_clear(name, true, change) do
+    fn w ->
+      with {:ok, w} <- change.(w) do
+        World.set_inspired(name, false).(w)
+      end
+    end
+  end
+
   defp find_weapon(%Character{weapons: weapons}, name), do: match_named(weapons, name)
 
   defp find_spell(%Character{spells: spells}, name), do: match_named(spells, name)
@@ -1214,7 +1386,9 @@ defmodule Dragonex.Actions do
   defp compose_long_rest(name, heal_amount) do
     fn w ->
       with {:ok, w} <- compose_rest(name, heal_amount, true).(w),
-           {:ok, w} <- World.restore_lay_on_hands(name).(w) do
+           {:ok, w} <- World.restore_lay_on_hands(name).(w),
+           {:ok, w} <- World.restore_bardic_inspiration(name).(w),
+           {:ok, w} <- World.set_inspired(name, false).(w) do
         {:ok, w}
       end
     end

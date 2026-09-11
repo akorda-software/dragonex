@@ -796,6 +796,53 @@ Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
 D47, Fighting Style D48, Lay on Hands D49 y spellcasting paladín/ranger
 L2; el resto de features por nivel sigue 🟡.
 
+### D50 — Bardic Inspiration 5e
+Estado: **Aceptada** — 2026-09-11.
+
+RAW acotado del bardo. El LLM no tira el d6 ni elige cuándo (D1): llama
+`bardic_inspiration`; el motor gasta el uso, marca `inspired` y aplica
+el d6 en el primer roll del inspirado. Economía de acciones
+simplificada: la tool ES el bonus action. Siempre d6 (sin escala
+L5/10/15). Sin Font of Inspiration (short rest). Sin colleges, Cutting
+Words, feats ni multiclase.
+
+- Solo `class == "bard"` puede GASTAR usos. El buff puede ir a cualquier
+  personaje (aliado o el propio bardo).
+- Campos:
+  - `Character.bardic_inspiration_uses` integer = usos RESTANTES.
+    Default 0. Bardo en `Heroes.build` → `max(1, Character.modifier(c, :cha))`
+    (CHA 8 → 1; CHA 16 → 3).
+  - `Character.inspired` boolean = tiene un d6 pendiente. Default false.
+    Cualquier clase puede estar inspired.
+- Tool `bardic_inspiration(who, target)`: who es el bardo, target recibe
+  `inspired=true`, who gasta 1 uso. DM cualquiera; PC sólo si `who` es
+  sí mismo. Target puede ser otro.
+- Errores (no gastan): who no existe; target no existe; who no bardo;
+  uses == 0; target ya `inspired` (no stack, no refresh).
+- El motor aplica y consume el d6 en el PRIMER de estos rolls del
+  personaje inspired:
+  1. `Actions.attack` — 1d6 al total del attack roll del PRIMER swing
+     (Extra Attack: solo el primero). Hit o miss consume. No se suma al
+     daño.
+  2. `Actions.check` — 1d6 al total del chequeo.
+  3. Salvación (`Combat.saving_throw` vía `Actions.spell` u otro path) —
+     1d6 al total.
+  4. `make_death_save` / death save — 1d6 al d20.
+- Tras aplicar: `inspired = false`. El LLM no elige cuándo.
+- Long rest del bardo: `bardic_inspiration_uses = max(1, cha_mod)`. No
+  recarga en short rest. `inspired` de quien descansa (long rest) se
+  pone false.
+- Level-up / merge / transitorios: no resetear uses ni inspired.
+- Codec: integer uses + boolean inspired (`== true`); jsonb viejo → 0 /
+  false (D4/D8).
+
+No cambia `Weapon`/`Spell`/`Item`. D49 intacto.
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
+Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
+D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50 y
+spellcasting paladín/ranger L2; el resto de features por nivel sigue 🟡.
+
 ---
 
 ## Pendientes de decisión (abiertas)

@@ -40,6 +40,8 @@ defmodule Dragonex.Character do
     field(:fighting_style, :string)
     field(:smite_slot, :integer)
     field(:lay_on_hands_pool, :integer, default: 0)
+    field(:bardic_inspiration_uses, :integer, default: 0)
+    field(:inspired, :boolean, default: false)
     field(:damage_resistances, {:array, :string}, default: [])
     field(:damage_vulnerabilities, {:array, :string}, default: [])
     field(:damage_immunities, {:array, :string}, default: [])
@@ -98,6 +100,8 @@ defmodule Dragonex.Character do
         :fighting_style,
         :smite_slot,
         :lay_on_hands_pool,
+        :bardic_inspiration_uses,
+        :inspired,
         :damage_resistances,
         :damage_vulnerabilities,
         :damage_immunities,
@@ -136,6 +140,7 @@ defmodule Dragonex.Character do
       less_than_or_equal_to: 5
     )
     |> Ecto.Changeset.validate_number(:lay_on_hands_pool, greater_than_or_equal_to: 0)
+    |> Ecto.Changeset.validate_number(:bardic_inspiration_uses, greater_than_or_equal_to: 0)
     |> validate_abilities()
   end
 
@@ -176,6 +181,8 @@ defmodule Dragonex.Character do
       fighting_style: nil,
       smite_slot: nil,
       lay_on_hands_pool: 0,
+      bardic_inspiration_uses: 0,
+      inspired: false,
       damage_resistances: [],
       damage_vulnerabilities: [],
       damage_immunities: [],

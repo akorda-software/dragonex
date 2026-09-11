@@ -62,7 +62,7 @@ cada tirada para el dado modal (`RollLog`).
 
 | Acción | Notas |
 |---|---|
-| `attack/7` | arma vs objetivo; ajusta modo por `Rules.Conditions.attack_mode/3`; Divine Smite D46 en el primer hit melee; defense D48 +1 CA efectiva del objetivo |
+| `attack/7` | arma vs objetivo; ajusta modo por `Rules.Conditions.attack_mode/3`; Divine Smite D46 en el primer hit melee; defense D48 +1 CA efectiva del objetivo; Bardic Inspiration D50 en el primer swing |
 | `spell/6` | rama por `spell.kind`: `:automatic` (magic missile), `:attack` (fire bolt, crit dobla dados, modo por condiciones, se trata como ranged), `:save` (mitad en éxito; DEX restrained = desventaja; STR/DEX auto-fallo si paralizado/aturdido/inconsciente/petrificado). Consume slot si `level > 0`. |
 | `initiative/3` | tira iniciativa para todos los conscientes, ordena desc con tiebreak DEX luego nombre (`D39`) |
 | `death_save/4` | rechaza muertos (3 fails), estables (3 éxitos) y no-caídos |
@@ -70,8 +70,9 @@ cada tirada para el dado modal (`RollLog`).
 | `second_wind/4` | fighter: 1d10+level, 1/rest (D45); recarga en short/long rest |
 | `action_surge/7` | fighter L2+: 1 Acción de Ataque extra (D47, Extra Attack D35); 1/rest |
 | `lay_on_hands/4` | paladín: gasta pool `5*level`, cura target (D49); recarga solo en long rest |
-| `short_rest/4` / `long_rest/2` | descanso; `long_rest` restaura slots y Lay on Hands; ambos recargan Second Wind y Action Surge |
-| `check/8` | chequeo de aptitud vs DC; modo por `Rules.Conditions.check_mode/3` |
+| `bardic_inspiration/3` | bardo: gasta 1 uso, marca target inspired (D50); el d6 se aplica en el primer roll |
+| `short_rest/4` / `long_rest/2` | descanso; `long_rest` restaura slots, Lay on Hands y Bardic Inspiration (y quita inspired); ambos recargan Second Wind y Action Surge |
+| `check/8` | chequeo de aptitud vs DC; modo por `Rules.Conditions.check_mode/3`; Bardic Inspiration D50 |
 | `roll/5` | tirada libre NdM |
 
 ### Guards de consciencia
@@ -118,6 +119,7 @@ El mismo principio cubre ataques, salvaciones y chequeos.
   `start_reckless/1`, `end_reckless/1`, `set_reckless/2`,
   `second_wind/2`, `set_second_wind_used/2`, `set_action_surge_used/2`,
   `lay_on_hands/3`, `set_lay_on_hands_pool/2`, `restore_lay_on_hands/1`,
+  `spend_bardic/2`, `set_inspired/2`, `restore_bardic_inspiration/1`,
   `start_smite/2`, `end_smite/1`, `set_smite_slot/2`.
 - **Combate**: `begin_combat/1` (pide orden de iniciativa), `end_combat/0` (apaga raging, reckless y smite_slot),
   `set_current_combatant/1` (apaga reckless y smite_slot de ese name, D44 / D46),

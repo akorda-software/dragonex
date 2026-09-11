@@ -344,6 +344,23 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   Sin enfermedad/veneno, Divine Sense, feats, multiclase.
 - **Tests**: `lay_on_hands_test.exs`, `codec_test.exs`.
 
+### M34 — Bardic Inspiration (`bardic_inspiration_uses`, `inspired`, D50)
+- **Dónde**: `Character.bardic_inspiration_uses` (integer restantes,
+  Codec, default 0; jsonb viejo → 0) y `Character.inspired` (boolean,
+  default false; jsonb viejo → false). `Heroes.build` bardo →
+  `max(1, cha_mod)`. Solo `class == "bard"` gasta usos; cualquier
+  personaje puede estar `inspired`. `Actions.bardic_inspiration/3` +
+  `World.spend_bardic/2`: gasta 1 uso, marca target inspired. Errores
+  no gastan: missing, no bardo, 0 uses, ya inspired (no stack). El
+  motor aplica 1d6 (siempre d6) al primer roll: attack (primer swing,
+  hit o miss, no daño), check, saving throw, death save; luego
+  `inspired = false`. Tool `bardic_inspiration(who, target)` (DM
+  cualquiera; PC sólo `who` sí mismo). `long_rest` recarga usos del
+  bardo y pone `inspired = false` en quien descansa; `short_rest` no.
+  Level-up no resetea. Sin escala L5/10/15, Font of Inspiration,
+  colleges, Cutting Words.
+- **Tests**: `bardic_inspiration_test.exs`, `codec_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -352,7 +369,7 @@ reacciones como mecánica formal (TurnMaster da interrupciones narrativas) ·
 multiclase · feats. Pact Magic: **D40**. Sneak Attack: **D41**. Rage: **D42**.
 Reckless Attack: **D44 / M28**. Second Wind: **D45 / M29**. Divine Smite:
 **D46 / M30**. Action Surge: **D47 / M31**. Fighting Style: **D48 / M32**.
-Lay on Hands: **D49 / M33**.
+Lay on Hands: **D49 / M33**. Bardic Inspiration: **D50 / M34**.
 XP en partida: **D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
@@ -360,7 +377,7 @@ Iniciativa individual por monstruo: **D34**.
 siguen fuera. Protection / TWF / GWF siguen fuera. Curar
 enfermedad/veneno con Lay on Hands (gastar 5) sigue fuera.
 
-Para que una de estas entre: ADR nuevo + mecánica `M33+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M34+` en este catálogo +
 tests.
 
 ## Dados
