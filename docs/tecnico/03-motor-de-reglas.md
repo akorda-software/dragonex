@@ -42,8 +42,8 @@ romperías el determinismo.
 | Función | Resuelve |
 |---|---|
 | `roll_initiative/2` | d20 + dex, por combatiente |
-| `attack_roll/5` | d20 (con ventaja/desventaja) + prof + mod vs AC → `:crit/:hit/:miss` |
-| `damage_roll/4` | dados del arma × multiplicador de crítico + mod de aptitud |
+| `attack_roll/5` | d20 (con ventaja/desventaja) + prof + mod vs AC → `:crit/:hit/:miss`; archery D48 +2 si ranged |
+| `damage_roll/4` | dados del arma × multiplicador de crítico + mod de aptitud; dueling D48 +2 si melee |
 | `spell_save_dc/2` | 8 + prof + mod de aptitud de conjuración |
 | `spell_attack_bonus/2` | prof + mod de aptitud de conjuración |
 | `saving_throw/5` | d20 + mod + prof (si la salva) vs DC |
@@ -62,7 +62,7 @@ cada tirada para el dado modal (`RollLog`).
 
 | Acción | Notas |
 |---|---|
-| `attack/7` | arma vs objetivo; ajusta modo por `Rules.Conditions.attack_mode/3`; Divine Smite D46 en el primer hit melee |
+| `attack/7` | arma vs objetivo; ajusta modo por `Rules.Conditions.attack_mode/3`; Divine Smite D46 en el primer hit melee; defense D48 +1 CA efectiva del objetivo |
 | `spell/6` | rama por `spell.kind`: `:automatic` (magic missile), `:attack` (fire bolt, crit dobla dados, modo por condiciones, se trata como ranged), `:save` (mitad en éxito; DEX restrained = desventaja; STR/DEX auto-fallo si paralizado/aturdido/inconsciente/petrificado). Consume slot si `level > 0`. |
 | `initiative/3` | tira iniciativa para todos los conscientes, ordena desc con tiebreak DEX luego nombre (`D39`) |
 | `death_save/4` | rechaza muertos (3 fails), estables (3 éxitos) y no-caídos |

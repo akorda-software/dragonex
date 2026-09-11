@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **925 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **941 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -86,7 +86,8 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   de HP/AC/slots/saves vs SRD. Pact Magic (D40) y Sneak Attack (D41) en ✅.
   Feats / features por nivel (salvo Extra Attack D35, Pact Magic D40,
   Sneak Attack D41, Rage D42, Reckless Attack D44, Second Wind D45,
-  Divine Smite D46 y spellcasting paladín/ranger L2) siguen en 🟡.
+  Divine Smite D46, Action Surge D47, Fighting Style D48 y spellcasting
+  paladín/ranger L2) siguen en 🟡.
 
 ### Contenido custom por usuario
 - CRUD `custom_contents` (weapon/spell/item, unique por usuario) con
@@ -172,7 +173,10 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 - ✅ Action Surge del fighter (D47): `Character.action_surge_used` + Codec;
   tool `action_surge` = 1 Acción de Ataque extra (Extra Attack D35
   incluido) 1/rest desde L2; hit o miss gasta el uso; rest recarga.
-  Sin L17 (2 usos). Sin Fighting Style. Sin Indomitable.
+  Sin L17 (2 usos). Sin Indomitable.
+- ✅ Fighting Style del fighter (D48): `Character.fighting_style` + Codec
+  (`archery` / `defense` / `dueling`); motor suma el bonus (D1); builder
+  default `"defense"` sin picker. Sin Protection, TWF, GWF.
 - ✅ Divine Smite del paladín (D46): `Character.smite_slot` + Codec;
   tool `divine_smite` arma pendiente (no gasta casilla); primer hit
   melee de `Actions.attack` consume el hueco y tira radiante
@@ -190,7 +194,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 |---|---|---|
 | Dotes | Fuera; ASI = +2 fijo | D13 |
 | `spells_known` | `nil` (sin cap estricto por clase) | D14 |
-| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47 |
+| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + Fighting Style D48 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47, D48 |
 | Empate iniciativa | DEX score desc, luego nombre; sin roll-off extra | D39 |
 | Banner level-up in-game | Eliminado (D33); subida desde la ficha | D33 |
 | Stub legado en `Tools` | `attack`/`roll`/`spawn_character`/`next_round` mantenidos para tests del framework exAgent | `tools.ex:31-72` |

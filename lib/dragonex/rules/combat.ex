@@ -29,6 +29,9 @@ defmodule Dragonex.Rules.Combat do
     * nat 20 — critical hit (auto-hit).
     * nat 1  — automatic miss.
     * else   — hit when the total meets the AC.
+
+  Archery (D48): +2 to the total when `attacker.fighting_style == "archery"`
+  and `weapon.ranged == true`.
   """
   @spec attack_roll(
           Character.t(),
@@ -39,7 +42,10 @@ defmodule Dragonex.Rules.Combat do
         ) :: attack_outcome()
   def attack_roll(%Character{} = attacker, %Weapon{} = weapon, target_ac, roller, mode \\ :normal) do
     d20 = roll_d20(roller, mode)
-    total = d20 + Ability.proficiency(attacker.level) + ability_for_weapon(attacker, weapon)
+
+    total =
+      d20 + Ability.proficiency(attacker.level) + ability_for_weapon(attacker, weapon) +
+        fighting_style_attack_bonus(attacker, weapon)
 
     cond do
       d20 == 20 -> {:crit, d20, total}
@@ -54,13 +60,14 @@ defmodule Dragonex.Rules.Combat do
 
   A normal hit rolls the weapon dice once + the ability modifier; a crit rolls
   the weapon dice twice + the ability modifier (5e doubles the dice, not the
-  flat modifier).
+  flat modifier). Dueling (D48): +2 when `attacker.fighting_style == "dueling"`
+  and `weapon.ranged != true`.
   """
   @spec damage_roll(Character.t(), Weapon.t(), :hit | :crit, roller()) :: integer()
   def damage_roll(%Character{} = attacker, %Weapon{} = weapon, outcome, roller) do
     multiplier = if outcome == :crit, do: 2, else: 1
     dice = sum_weapon_dice(weapon.dice, multiplier, roller)
-    dice + ability_for_weapon(attacker, weapon)
+    dice + ability_for_weapon(attacker, weapon) + fighting_style_damage_bonus(attacker, weapon)
   end
 
   @doc "Spell save DC: 8 + proficiency + casting ability modifier."
@@ -166,6 +173,17 @@ defmodule Dragonex.Rules.Combat do
   defp roll_d20(roller, _), do: roller.(20)
 
   # Ability modifier applied to hit and damage for a given weapon.
+  defp fighting_style_attack_bonus(%Character{fighting_style: "archery"}, %Weapon{ranged: true}),
+    do: 2
+
+  defp fighting_style_attack_bonus(_, _), do: 0
+
+  defp fighting_style_damage_bonus(%Character{fighting_style: "dueling"}, %Weapon{ranged: ranged})
+       when ranged != true,
+       do: 2
+
+  defp fighting_style_damage_bonus(_, _), do: 0
+
   defp ability_for_weapon(%Character{} = c, %Weapon{finesse: true}) do
     max(Character.modifier(c, :str), Character.modifier(c, :dex))
   end

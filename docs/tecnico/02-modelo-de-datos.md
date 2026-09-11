@@ -83,6 +83,7 @@ Dragonex.Character (character.ex)  — Ecto embedded schema
 ├─ reckless:      boolean          Reckless Attack; default false (D44)
 ├─ second_wind_used: boolean       Segundo aliento gastado; default false (D45)
 ├─ action_surge_used: boolean      Oleada de acción gastada; default false (D47)
+├─ fighting_style: String | nil    archery | defense | dueling (D48)
 ├─ smite_slot:    integer | nil    Castigo divino pendiente 1..5 (D46)
 ├─ damage_resistances / damage_vulnerabilities / damage_immunities
 │                 [String]         tipos 5e; default [] (D38)

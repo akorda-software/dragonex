@@ -717,6 +717,7 @@ defmodule Dragonex.Heroes do
       reckless: false,
       second_wind_used: false,
       action_surge_used: false,
+      fighting_style: fighting_style_for(class.key, choices[:fighting_style]),
       smite_slot: nil,
       damage_resistances: racial_damage_resistances(race.traits),
       damage_vulnerabilities: [],
@@ -834,6 +835,12 @@ defmodule Dragonex.Heroes do
     end)
     |> Map.new()
   end
+
+  @fighting_styles ~w(archery defense dueling)
+
+  defp fighting_style_for("fighter", style) when style in @fighting_styles, do: style
+  defp fighting_style_for("fighter", _), do: "defense"
+  defp fighting_style_for(_, _), do: nil
 
   defp fetch(_module, nil, field), do: {:error, "#{field} is required"}
 

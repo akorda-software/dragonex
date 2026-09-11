@@ -730,6 +730,36 @@ Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
 D47 y spellcasting paladín/ranger L2; el resto de features por nivel
 sigue 🟡.
 
+### D48 — Fighting Style 5e
+Estado: **Aceptada** — 2026-09-11.
+
+RAW acotado del fighter L1+. El LLM no aplica el bonus (D1): el motor
+lo suma en `Combat.attack_roll` / daño / CA. No cambia
+`Weapon`/`Spell`/`Item` (D4). Paladín/ranger L2 fuera. Sin picker de
+builder: default `"defense"` al forjar fighter.
+
+Campo: `Character.fighting_style` `nil | "archery" | "defense" | "dueling"`.
+Codec: string de esos tres o null; jsonb viejo → nil (D4/D8). Defaults
+nil en monsters/archetypes; `Heroes.build` fighter → `"defense"` si no
+viene.
+
+Efectos (motor):
+- `"archery"`: +2 al total de `Combat.attack_roll` si `weapon.ranged == true`.
+- `"defense"`: +1 CA efectiva cuando ESTE personaje es el objetivo de
+  `Actions.attack` (usa `t.ac + 1`). No muta `Character.ac`.
+- `"dueling"`: +2 al daño de arma de `Combat.damage_roll` si
+  `weapon.ranged != true`. Acotado: no comprobamos mano vacía ni
+  two-handed (no hay flag en Weapon).
+- `nil` u otro valor: sin bonus.
+
+Fuera: Protection, Two-Weapon Fighting, Great Weapon Fighting,
+Superior Technique, Blind Fighting. No Action Surge redo. Sin feats.
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
+Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
+D47, Fighting Style D48 y spellcasting paladín/ranger L2; el resto de
+features por nivel sigue 🟡.
+
 ---
 
 ## Pendientes de decisión (abiertas)

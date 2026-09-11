@@ -209,6 +209,7 @@ defmodule Dragonex.Monsters do
       reckless: false,
       second_wind_used: false,
       action_surge_used: false,
+      fighting_style: nil,
       smite_slot: nil,
       damage_resistances: resist,
       damage_vulnerabilities: vuln,

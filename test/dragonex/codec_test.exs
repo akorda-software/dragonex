@@ -265,6 +265,33 @@ defmodule Dragonex.CodecTest do
       assert decoded.action_surge_used == false
     end
 
+    test "fighting_style survives" do
+      c =
+        Character.new(
+          name: "hero",
+          class: "fighter",
+          hp: 12,
+          max_hp: 12,
+          side: "pc",
+          fighting_style: "archery"
+        )
+
+      w = add(World.new(), World.add_character(c))
+      assert Codec.decode(Codec.encode(w)).characters["hero"].fighting_style == "archery"
+    end
+
+    test "fighting_style absent in old jsonb is nil" do
+      c = Character.new(name: "hero", class: "fighter", hp: 10, max_hp: 10, side: "pc")
+      encoded = c |> Codec.encode_character() |> Map.delete("fighting_style")
+      refute Map.has_key?(encoded, "fighting_style")
+
+      {:ok, json} = Jason.encode(encoded)
+      {:ok, decoded_map} = Jason.decode(json)
+
+      decoded = Codec.decode_character(decoded_map)
+      assert decoded.fighting_style == nil
+    end
+
     test "smite_slot survives" do
       c =
         Character.new(

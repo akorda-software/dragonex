@@ -50,14 +50,18 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   `incoming_damage/3`. Ver M26.
 - **Reckless Attack (D44)**: `attacker.reckless` + melee STR → ventaja;
   `target.reckless` → ventaja en cualquier ataque. Ver M28.
+- **Fighting Style (D48)**: archery +2 al total si `weapon.ranged`;
+  defense +1 CA efectiva del objetivo de `Actions.attack` (no muta
+  `Character.ac`); dueling +2 al daño si melee. Ver M32.
 - **Tests**: `test/dragonex/rules/combat_test.exs`, `actions_test.exs`,
-  `sneak_attack_test.exs`, `rage_test.exs`, `reckless_attack_test.exs`.
+  `sneak_attack_test.exs`, `rage_test.exs`, `reckless_attack_test.exs`,
+  `fighting_style_test.exs`.
 
 ### M04 — Daño y críticos
 - **Dónde**: `Rules.Combat.damage_roll/4`.
 - **5e**: dados del arma + mod de aptitud; crítico **dobla los dados** (no el
-  mod). El daño floor-0 en el world (M22).
-- **Tests**: `rules/combat_test.exs`, `actions_test.exs`.
+  mod). El daño floor-0 en el world (M22). Dueling (D48): +2 si melee.
+- **Tests**: `rules/combat_test.exs`, `actions_test.exs`, `fighting_style_test.exs`.
 
 ### M05 — Ventaja/desventaja (cancelación 5e)
 - **Dónde**: `Rules.Conditions.combine/2` (fuentes: condiciones + `mode`
@@ -304,10 +308,24 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   `Actions.attack` (N swings Extra Attack D35). Solo `class == "fighter"`
   y nivel ≥ 2. Hit o miss marca used; error (no existe, 0 hp, sin arma,
   no fighter, L1, ya usado) no marca. Tool `action_surge(who, target,
-  weapon, mode)` (DM cualquiera; PC sólo sí mismo). `short_rest`/
-  `long_rest` ponen used=false. Sin L17 (2 usos). Sin Fighting Style.
-  Sin Indomitable. Sin Dash/Dodge/cast vía surge.
+   weapon, mode)` (DM cualquiera; PC sólo sí mismo). `short_rest`/
+   `long_rest` ponen used=false. Sin L17 (2 usos). Sin Indomitable.
+   Sin Dash/Dodge/cast vía surge.
 - **Tests**: `action_surge_test.exs`, `codec_test.exs`, `progression_test.exs`.
+
+### M32 — Fighting Style (`fighting_style`, D48)
+- **Dónde**: `Character.fighting_style` (`nil | "archery" | "defense" |
+  "dueling"`). Codec string de esos tres o null; jsonb viejo → nil.
+  Defaults nil en monsters/archetypes. `Heroes.build` fighter →
+  `"defense"` si no viene (sin picker de UI).
+  `"archery"`: +2 al total de `Combat.attack_roll` si `weapon.ranged`.
+  `"defense"`: +1 CA efectiva cuando este personaje es el objetivo de
+  `Actions.attack` (`t.ac + 1`); no muta `Character.ac`.
+  `"dueling"`: +2 al daño de `Combat.damage_roll` si melee (`ranged !=
+  true`); no comprueba mano vacía ni two-handed.
+  `nil` u otro valor: sin bonus. Paladín/ranger fuera. Sin Protection,
+  TWF, GWF, Superior Technique, Blind Fighting.
+- **Tests**: `fighting_style_test.exs`, `codec_test.exs`.
 
 ---
 
@@ -316,14 +334,14 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 reacciones como mecánica formal (TurnMaster da interrupciones narrativas) ·
 multiclase · feats. Pact Magic: **D40**. Sneak Attack: **D41**. Rage: **D42**.
 Reckless Attack: **D44 / M28**. Second Wind: **D45 / M29**. Divine Smite:
-**D46 / M30**. Action Surge: **D47 / M31**. XP en partida:
-**D43 / M27**.
+**D46 / M30**. Action Surge: **D47 / M31**. Fighting Style: **D48 / M32**.
+XP en partida: **D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
 **D38 / M25**. Cupo de Rage/día y segundo uso de Action Surge a L17
-siguen fuera.
+siguen fuera. Protection / TWF / GWF siguen fuera.
 
-Para que una de estas entre: ADR nuevo + mecánica `M31+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M32+` en este catálogo +
 tests.
 
 ## Dados

@@ -116,6 +116,7 @@ defmodule Dragonex.Codec do
       "reckless" => c.reckless == true,
       "second_wind_used" => c.second_wind_used == true,
       "action_surge_used" => c.action_surge_used == true,
+      "fighting_style" => encode_fighting_style(c.fighting_style),
       "smite_slot" => encode_smite_slot(c.smite_slot),
       "damage_resistances" => c.damage_resistances || [],
       "damage_vulnerabilities" => c.damage_vulnerabilities || [],
@@ -162,6 +163,7 @@ defmodule Dragonex.Codec do
       reckless: c["reckless"] == true,
       second_wind_used: c["second_wind_used"] == true,
       action_surge_used: c["action_surge_used"] == true,
+      fighting_style: decode_fighting_style(c["fighting_style"]),
       smite_slot: decode_smite_slot(c["smite_slot"]),
       damage_resistances: c["damage_resistances"] || [],
       damage_vulnerabilities: c["damage_vulnerabilities"] || [],
@@ -252,6 +254,14 @@ defmodule Dragonex.Codec do
   end
 
   # -------------------------------------------------------------- helpers
+
+  @fighting_styles ~w(archery defense dueling)
+
+  defp encode_fighting_style(s) when s in @fighting_styles, do: s
+  defp encode_fighting_style(_), do: nil
+
+  defp decode_fighting_style(s) when s in @fighting_styles, do: s
+  defp decode_fighting_style(_), do: nil
 
   defp encode_smite_slot(n) when is_integer(n) and n in 1..5, do: n
   defp encode_smite_slot(_), do: nil

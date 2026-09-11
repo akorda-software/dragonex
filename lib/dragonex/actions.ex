@@ -70,12 +70,14 @@ defmodule Dragonex.Actions do
   (hp ≤ 0) mid-action, remaining swings are skipped (no retarget). The
   attacker and target must already be in the world, and the attacker must
   wield the named weapon. Sneak Attack (D41) adds N d6 to the first hit
-  of this call when the rogue qualifies. Rage (D42) adds
+  of this call when the rogue qualifies.   Rage (D42) adds
   `Progression.rage_damage/1` to every melee hit (`weapon.ranged != true`)
   while the attacker is raging. Divine Smite (D46) spends a pending
   `smite_slot` on the first melee hit (or crit) of this call: extra
   radiant dice through `apply_damage/3`, then `consume_slot`. Miss,
-  ranged, and spells leave the pending slot.
+  ranged, and spells leave the pending slot. Fighting Style (D48):
+  archery/dueling in `Combat`; defense raises this target's effective AC
+  by 1 without mutating `Character.ac`.
   """
   @spec attack(
           World.t(),
@@ -135,6 +137,8 @@ defmodule Dragonex.Actions do
                 smite
               )
 
+            ac = target_ac(t)
+
             {notes, change} =
               pipe_attack_damage(target, swings, roller, roll_log, t, weapon.damage_type)
 
@@ -142,7 +146,7 @@ defmodule Dragonex.Actions do
 
             {:ok,
              append_notes(
-               format_attack_message(attacker, target, weapon, t.ac, effective_mode, swings),
+               format_attack_message(attacker, target, weapon, ac, effective_mode, swings),
                notes
              ), change}
         end
@@ -762,6 +766,9 @@ defmodule Dragonex.Actions do
     swings
   end
 
+  defp target_ac(%Character{fighting_style: "defense", ac: ac}), do: ac + 1
+  defp target_ac(%Character{ac: ac}), do: ac
+
   defp resolve_one_swing(a, t, attacker, target, weapon, roller, roll_log, mode, sneak, smite) do
     {r, close_atk} =
       RollLog.open(
@@ -772,8 +779,9 @@ defmodule Dragonex.Actions do
         "ataque a #{target} con #{weapon.name}"
       )
 
-    {kind, d20, total} = Combat.attack_roll(a, weapon, t.ac, r, mode)
-    RollLog.close(close_atk, total: total, against: {:ac, t.ac}, outcome: kind)
+    ac = target_ac(t)
+    {kind, d20, total} = Combat.attack_roll(a, weapon, ac, r, mode)
+    RollLog.close(close_atk, total: total, against: {:ac, ac}, outcome: kind)
 
     case kind do
       :miss ->

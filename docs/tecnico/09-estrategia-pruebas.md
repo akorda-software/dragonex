@@ -5,7 +5,7 @@
 > declarar "hecho". Regla fundacional: **verificabilidad antes que
 > afirmaciones** — nada está "funcionando" sin un test verde que lo pruebe.
 
-Verde de referencia: **925 passed, 3 excluded** (`MIX_ENV=test mix test`),
+Verde de referencia: **941 passed, 3 excluded** (`MIX_ENV=test mix test`),
 100% offline, sin API key (los beats usan `TestModel`). `mix compile` sin
 warnings; `mix format` limpio.
 
@@ -73,7 +73,7 @@ rompiendo alguno de estos **no está terminado**.
 ```sh
 mix compile --warnings-as-errors   # 0 warnings
 mix format --check-formatted       # formato limpio
-MIX_ENV=test mix test              # 925+ passed, 0 failed
+MIX_ENV=test mix test              # 941+ passed, 0 failed
 ```
 
 Y según la tabla anterior: tests nuevos de la capa que toca, docs actualizados
