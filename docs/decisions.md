@@ -760,6 +760,42 @@ Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
 D47, Fighting Style D48 y spellcasting paladín/ranger L2; el resto de
 features por nivel sigue 🟡.
 
+### D49 — Lay on Hands 5e
+Estado: **Aceptada** — 2026-09-11.
+
+RAW acotado del paladín. El LLM no calcula la curación ni el pool (D1):
+llama `lay_on_hands`; el motor aplica y gasta. Economía de acciones
+simplificada: la tool ES la acción. Sin curar enfermedad/veneno (gastar
+5). Sin Divine Sense. Sin feats. Sin multiclase.
+
+- Solo `class == "paladin"`. Pool máximo = `5 * level`. Campo
+  `Character.lay_on_hands_pool` integer = puntos RESTANTES. Default 0.
+  Paladín L1 en `Heroes.build` → 5 (o `5 * level` si `choices.level`).
+- Tool `lay_on_hands(who, target, amount)` con `amount` integer. DM
+  cualquiera; PC sólo si `who` es sí mismo. El target PUEDE ser otro
+  personaje (a diferencia de Second Wind).
+- Gasta `applied` del pool, no el amount pedido si hay cap:
+  `applied = min(amount, remaining_pool, max(0, target.max_hp - target.hp))`.
+  Cura por el path de `World.heal/2` (cap max_hp, limpia death saves si
+  hp>0). No toca `temp_hp`.
+- Errores (no gastan pool): who no existe; target no existe; who no
+  paladín; amount no entero ≥ 1; pool 0 o amount > pool; applied == 0
+  (objetivo a tope); `target.race` (downcase) `"undead"` o `"construct"`.
+- Long rest: paladín que descansa → `lay_on_hands_pool = 5 * level`.
+  Short rest NO recarga el pool. `compose_rest/3` lo usan short y long;
+  recarga LoH solo en long rest.
+- Level-up / merge / transitorios: no resetear el pool (como
+  `smite_slot` / `second_wind_used`). El máximo crece al subir de nivel;
+  el remaining se conserva.
+- Codec encode/decode integer; jsonb viejo sin clave → 0 (D4/D8).
+
+No cambia `Weapon`/`Spell`/`Item`. D46 intacto.
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
+Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
+D47, Fighting Style D48, Lay on Hands D49 y spellcasting paladín/ranger
+L2; el resto de features por nivel sigue 🟡.
+
 ---
 
 ## Pendientes de decisión (abiertas)

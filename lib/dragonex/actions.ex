@@ -329,6 +329,76 @@ defmodule Dragonex.Actions do
   end
 
   @doc """
+  Lay on Hands (5e, D49): a paladin spends pool points to heal `target`.
+
+  `applied = min(amount, remaining_pool, max(0, target.max_hp - target.hp))`.
+  Spends `applied`, not the requested amount. Capped at max_hp; same heal
+  path (clears death saves if hp > 0). Does not touch temp_hp.
+  """
+  @spec lay_on_hands(World.t(), String.t(), String.t(), term()) :: result()
+  def lay_on_hands(world, who, target, amount) do
+    case World.character(world, who) do
+      nil ->
+        {:error, "no existe el personaje: #{who}"}
+
+      %Character{} ->
+        case World.character(world, target) do
+          nil ->
+            {:error, "no existe el personaje: #{target}"}
+
+          %Character{} = tgt ->
+            lay_on_hands_apply(world, who, target, amount, tgt)
+        end
+    end
+  end
+
+  defp lay_on_hands_apply(world, who, target, amount, tgt) do
+    case World.character(world, who) do
+      %Character{class: class} when class != "paladin" ->
+        {:error, "#{who} no es paladín y no puede usar Manos impositoras"}
+
+      %Character{lay_on_hands_pool: pool} ->
+        pool = pool || 0
+
+        cond do
+          not is_integer(amount) or amount < 1 ->
+            {:error, "la cantidad de Manos impositoras debe ser un entero ≥ 1"}
+
+          pool == 0 ->
+            {:error, "#{who} no tiene puntos de Manos impositoras"}
+
+          amount > pool ->
+            {:error,
+             "#{who} no tiene suficientes puntos de Manos impositoras (pide #{amount}, quedan #{pool})"}
+
+          lay_on_hands_blocked_race?(tgt.race) ->
+            {:error, "#{target} no puede recibir Manos impositoras (no-muerto o constructo)"}
+
+          true ->
+            hp = tgt.hp || 0
+            max_hp = tgt.max_hp || 0
+            applied = min(amount, min(pool, max(0, max_hp - hp)))
+
+            if applied == 0 do
+              {:error, "#{target} ya está a tope de puntos de golpe"}
+            else
+              remaining = pool - applied
+
+              {:ok,
+               "#{who} usa Manos impositoras en #{target} y cura #{applied} pg (ahora #{hp + applied}/#{max_hp}, pool #{remaining}).",
+               World.lay_on_hands(who, target, applied)}
+            end
+        end
+    end
+  end
+
+  defp lay_on_hands_blocked_race?(race) when is_binary(race) do
+    String.downcase(race) in ["undead", "construct"]
+  end
+
+  defp lay_on_hands_blocked_race?(_), do: false
+
+  @doc """
   Action Surge (5e, D47): a fighter of level 2+ takes one extra Attack
   action (N swings via Extra Attack D35), once until a rest.
 
@@ -437,7 +507,7 @@ defmodule Dragonex.Actions do
 
           {:ok,
            "#{name} hace un descanso largo y recupera #{healed} pg (#{hp} → #{max_hp}, recuperación completa). Casillas de hechizo recuperadas.",
-           compose_rest(name, healed, true)}
+           compose_long_rest(name, healed)}
         end
     end
   end
@@ -1136,6 +1206,15 @@ defmodule Dragonex.Actions do
            {:ok, w} <- maybe_restore_slots(w, name, restore_slots?),
            {:ok, w} <- World.set_second_wind_used(name, false).(w),
            {:ok, w} <- World.set_action_surge_used(name, false).(w) do
+        {:ok, w}
+      end
+    end
+  end
+
+  defp compose_long_rest(name, heal_amount) do
+    fn w ->
+      with {:ok, w} <- compose_rest(name, heal_amount, true).(w),
+           {:ok, w} <- World.restore_lay_on_hands(name).(w) do
         {:ok, w}
       end
     end

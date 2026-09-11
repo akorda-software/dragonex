@@ -69,7 +69,8 @@ cada tirada para el dado modal (`RollLog`).
 | `heal/5` | parsea la expresión (p.ej. `1d8+3`), tope max_hp; resetea death_saves |
 | `second_wind/4` | fighter: 1d10+level, 1/rest (D45); recarga en short/long rest |
 | `action_surge/7` | fighter L2+: 1 Acción de Ataque extra (D47, Extra Attack D35); 1/rest |
-| `short_rest/4` / `long_rest/2` | descanso; `long_rest` restaura slots; ambos recargan Second Wind y Action Surge |
+| `lay_on_hands/4` | paladín: gasta pool `5*level`, cura target (D49); recarga solo en long rest |
+| `short_rest/4` / `long_rest/2` | descanso; `long_rest` restaura slots y Lay on Hands; ambos recargan Second Wind y Action Surge |
 | `check/8` | chequeo de aptitud vs DC; modo por `Rules.Conditions.check_mode/3` |
 | `roll/5` | tirada libre NdM |
 
@@ -116,6 +117,7 @@ El mismo principio cubre ataques, salvaciones y chequeos.
   `start_rage/1`, `end_rage/1`, `set_raging/2`,
   `start_reckless/1`, `end_reckless/1`, `set_reckless/2`,
   `second_wind/2`, `set_second_wind_used/2`, `set_action_surge_used/2`,
+  `lay_on_hands/3`, `set_lay_on_hands_pool/2`, `restore_lay_on_hands/1`,
   `start_smite/2`, `end_smite/1`, `set_smite_slot/2`.
 - **Combate**: `begin_combat/1` (pide orden de iniciativa), `end_combat/0` (apaga raging, reckless y smite_slot),
   `set_current_combatant/1` (apaga reckless y smite_slot de ese name, D44 / D46),

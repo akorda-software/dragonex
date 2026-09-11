@@ -30,6 +30,8 @@ defmodule Dragonex.World do
       `second_wind_used`,
     * Action Surge (D47) is 1/rest for fighters L2+; `short_rest`/`long_rest`
       clear `action_surge_used`,
+    * Lay on Hands (D49) is a paladin pool (`5 * level`); `long_rest` refills
+      it, `short_rest` does not,
     * `grant_xp` adds to `Character.xp` and never levels up (D43).
 
   Characters are stored as full `Dragonex.Character` structs, so the engine can
@@ -455,6 +457,77 @@ defmodule Dragonex.World do
 
         %Character{} = c ->
           {:ok, put_char(w, name, %{c | action_surge_used: used})}
+      end
+    end
+  end
+
+  @doc """
+  Set `who`'s remaining Lay on Hands pool (5e, D49). Does not heal —
+  `lay_on_hands/3` does. Idempotent.
+  """
+  @spec set_lay_on_hands_pool(String.t(), non_neg_integer()) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def set_lay_on_hands_pool(name, pool) when is_integer(pool) and pool >= 0 do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          {:ok, put_char(w, name, %{c | lay_on_hands_pool: pool})}
+      end
+    end
+  end
+
+  @doc """
+  Long rest refill (D49). Paladin pool → `5 * level`. No-op for other classes.
+  """
+  @spec restore_lay_on_hands(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def restore_lay_on_hands(name) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{class: "paladin", level: level} = c ->
+          max_pool = 5 * max(level || 1, 1)
+          {:ok, put_char(w, name, %{c | lay_on_hands_pool: max_pool})}
+
+        %Character{} ->
+          {:ok, w}
+      end
+    end
+  end
+
+  @doc """
+  Lay on Hands (5e, D49). Paladin only. Spends already-computed `applied`
+  from the pool and heals `target` (capped at max_hp, same path as `heal/2`).
+  Does not touch temp_hp. `who` and `target` may differ.
+  """
+  @spec lay_on_hands(String.t(), String.t(), non_neg_integer()) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def lay_on_hands(who, target, applied) when is_integer(applied) and applied >= 0 do
+    fn w ->
+      case character(w, who) do
+        nil ->
+          {:error, "no such character: #{who}"}
+
+        %Character{class: class} when class != "paladin" ->
+          {:error, "#{who} no es paladín y no puede usar Manos impositoras"}
+
+        %Character{lay_on_hands_pool: pool} ->
+          pool = pool || 0
+
+          case character(w, target) do
+            nil ->
+              {:error, "no such character: #{target}"}
+
+            %Character{} ->
+              with {:ok, w2} <- heal(target, applied).(w) do
+                c = character(w2, who)
+                {:ok, put_char(w2, who, %{c | lay_on_hands_pool: max(0, pool - applied)})}
+              end
+          end
       end
     end
   end

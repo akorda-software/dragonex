@@ -211,6 +211,7 @@ defmodule Dragonex.Monsters do
       action_surge_used: false,
       fighting_style: nil,
       smite_slot: nil,
+      lay_on_hands_pool: 0,
       damage_resistances: resist,
       damage_vulnerabilities: vuln,
       damage_immunities: immune,

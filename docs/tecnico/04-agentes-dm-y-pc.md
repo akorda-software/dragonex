@@ -68,7 +68,7 @@ contrato de 11 reglas (más cortas que las del DM).
 
 **Restringidas**: `make_attack`, `cast_spell`, `ability_check`, `make_death_save`,
 `short_rest`, `long_rest`, `drop_concentration`, `start_rage`, `end_rage`,
-`start_reckless`, `end_reckless`, `second_wind`, `action_surge`, `divine_smite`, `end_smite`. **No** tiene `spawn_monster`, `roll_initiative`,
+`start_reckless`, `end_reckless`, `second_wind`, `action_surge`, `divine_smite`, `end_smite`, `lay_on_hands`. **No** tiene `spawn_monster`, `roll_initiative`,
 `end_combat`, `set_scene`, `establish_fact`, `level_up` — un PC **actúa**, no
 **arbitra**. `make_attack`/`cast_spell` llevan `max_retries: 3`.
 

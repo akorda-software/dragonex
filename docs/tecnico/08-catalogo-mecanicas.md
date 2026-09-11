@@ -159,15 +159,17 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 ### M16 — Short rest
 - **Dónde**: `Actions.short_rest/4` — gasta hit die; fuera de combate.
   Recarga Second Wind (`second_wind_used = false`, D45) y Action Surge
-  (`action_surge_used = false`, D47).
+  (`action_surge_used = false`, D47). No recarga Lay on Hands (D49).
 - **Tests**: `test/dragonex/rest_test.exs`, `second_wind_test.exs`,
-  `action_surge_test.exs`.
+  `action_surge_test.exs`, `lay_on_hands_test.exs`.
 
 ### M17 — Long rest
 - **Dónde**: `Actions.long_rest/2` — PG completos + `restore_slots`.
   Recarga Second Wind (`second_wind_used = false`, D45) y Action Surge
-  (`action_surge_used = false`, D47).
-- **Tests**: `rest_test.exs`, `second_wind_test.exs`, `action_surge_test.exs`.
+  (`action_surge_used = false`, D47). Recarga Lay on Hands del paladín
+  a `5 * level` (D49); no lo hace `compose_rest/3` a ciegas.
+- **Tests**: `rest_test.exs`, `second_wind_test.exs`, `action_surge_test.exs`,
+  `lay_on_hands_test.exs`.
 
 ## Mundo y meta
 
@@ -327,6 +329,21 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   TWF, GWF, Superior Technique, Blind Fighting.
 - **Tests**: `fighting_style_test.exs`, `codec_test.exs`.
 
+### M33 — Lay on Hands (`lay_on_hands_pool`, D49)
+- **Dónde**: `Character.lay_on_hands_pool` (integer restantes, Codec,
+  default 0; jsonb viejo → 0). Máximo `5 * level`. `Heroes.build`
+  paladín → `5 * level`. `Actions.lay_on_hands/4` calcula
+  `applied = min(amount, pool, max(0, max_hp - hp))` y gasta `applied`.
+  `World.lay_on_hands/3` resta pool + `heal/2` al target (cap max_hp,
+  death saves si hp>0). Solo `class == "paladin"`. Target puede ser
+  otro personaje. No toca `temp_hp`. Errores no gastan: missing,
+  no paladín, amount < 1, pool 0 / amount > pool, applied 0, race
+  `"undead"`/`"construct"`. Tool `lay_on_hands(who, target, amount)`
+  (DM cualquiera; PC sólo `who` sí mismo). `long_rest` recarga a
+  `5 * level`; `short_rest` no. Level-up no resetea remaining.
+  Sin enfermedad/veneno, Divine Sense, feats, multiclase.
+- **Tests**: `lay_on_hands_test.exs`, `codec_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -335,13 +352,15 @@ reacciones como mecánica formal (TurnMaster da interrupciones narrativas) ·
 multiclase · feats. Pact Magic: **D40**. Sneak Attack: **D41**. Rage: **D42**.
 Reckless Attack: **D44 / M28**. Second Wind: **D45 / M29**. Divine Smite:
 **D46 / M30**. Action Surge: **D47 / M31**. Fighting Style: **D48 / M32**.
+Lay on Hands: **D49 / M33**.
 XP en partida: **D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
 **D38 / M25**. Cupo de Rage/día y segundo uso de Action Surge a L17
-siguen fuera. Protection / TWF / GWF siguen fuera.
+siguen fuera. Protection / TWF / GWF siguen fuera. Curar
+enfermedad/veneno con Lay on Hands (gastar 5) sigue fuera.
 
-Para que una de estas entre: ADR nuevo + mecánica `M32+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M33+` en este catálogo +
 tests.
 
 ## Dados

@@ -39,6 +39,7 @@ defmodule Dragonex.Character do
     field(:action_surge_used, :boolean, default: false)
     field(:fighting_style, :string)
     field(:smite_slot, :integer)
+    field(:lay_on_hands_pool, :integer, default: 0)
     field(:damage_resistances, {:array, :string}, default: [])
     field(:damage_vulnerabilities, {:array, :string}, default: [])
     field(:damage_immunities, {:array, :string}, default: [])
@@ -96,6 +97,7 @@ defmodule Dragonex.Character do
         :action_surge_used,
         :fighting_style,
         :smite_slot,
+        :lay_on_hands_pool,
         :damage_resistances,
         :damage_vulnerabilities,
         :damage_immunities,
@@ -133,6 +135,7 @@ defmodule Dragonex.Character do
       greater_than_or_equal_to: 1,
       less_than_or_equal_to: 5
     )
+    |> Ecto.Changeset.validate_number(:lay_on_hands_pool, greater_than_or_equal_to: 0)
     |> validate_abilities()
   end
 
@@ -172,6 +175,7 @@ defmodule Dragonex.Character do
       action_surge_used: false,
       fighting_style: nil,
       smite_slot: nil,
+      lay_on_hands_pool: 0,
       damage_resistances: [],
       damage_vulnerabilities: [],
       damage_immunities: [],

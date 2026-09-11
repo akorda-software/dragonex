@@ -25,7 +25,7 @@ existe" sino por "se verifica".**
 | F4 — Héroes | Forjar y crecer | Builder 5 pasos + catálogos SRD ES + custom (D22) + level-up (D10–D13) |
 | F5 — TurnMaster | La partida fluye | Orquestador de turnos (D25) con fallback WorldDriven |
 
-Verde de referencia hoy: **941 tests passed**, compile sin warnings.
+Verde de referencia hoy: **971 tests passed**, compile sin warnings.
 
 ---
 
@@ -84,7 +84,7 @@ Dragonex (warlock Pact Magic D40; paladín/ranger spellcasting a L2 R09).
 Sin bugs de derivados; las simplificaciones (feats, features
 por nivel salvo Extra Attack D35, Pact Magic D40, Sneak Attack D41,
 Rage D42, Reckless Attack D44, Second Wind D45, Divine Smite D46,
-Action Surge D47, Fighting Style D48 y spellcasting paladín/ranger L2,
+Action Surge D47, Fighting Style D48, Lay on Hands D49 y spellcasting paladín/ranger L2,
 `spells_known`) quedan en 🟡.
 
 ---
@@ -135,6 +135,11 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
   Codec; motor aplica el bonus (ataque / CA efectiva / daño). Builder
   default `"defense"` sin picker. Sin Protection, TWF, GWF. Paladín/
   ranger fuera.
+- **Lay on Hands del paladín** (D49): **entregado.** `Character.lay_on_hands_pool`
+  + Codec; pool `5 * level`; tool `lay_on_hands(who, target, amount)`
+  gasta `applied` (cap max_hp) y cura a self o aliado; long rest
+  recarga, short rest no; undead/construct bloqueados. Sin
+  enfermedad/veneno. Sin Divine Sense.
 - **Divine Smite del paladín** (D46): **entregado.** `Character.smite_slot`
   + Codec; `divine_smite(who, slot_level)` arma pendiente sin gastar
   casilla; primer hit melee de `Actions.attack` consume el hueco y tira

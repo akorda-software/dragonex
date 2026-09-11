@@ -719,6 +719,7 @@ defmodule Dragonex.Heroes do
       action_surge_used: false,
       fighting_style: fighting_style_for(class.key, choices[:fighting_style]),
       smite_slot: nil,
+      lay_on_hands_pool: lay_on_hands_pool_for(class.key, choices[:level] || 1),
       damage_resistances: racial_damage_resistances(race.traits),
       damage_vulnerabilities: [],
       damage_immunities: [],
@@ -841,6 +842,12 @@ defmodule Dragonex.Heroes do
   defp fighting_style_for("fighter", style) when style in @fighting_styles, do: style
   defp fighting_style_for("fighter", _), do: "defense"
   defp fighting_style_for(_, _), do: nil
+
+  defp lay_on_hands_pool_for("paladin", level) when is_integer(level) and level >= 1,
+    do: 5 * level
+
+  defp lay_on_hands_pool_for("paladin", _), do: 5
+  defp lay_on_hands_pool_for(_, _), do: 0
 
   defp fetch(_module, nil, field), do: {:error, "#{field} is required"}
 

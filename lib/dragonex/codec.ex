@@ -118,6 +118,7 @@ defmodule Dragonex.Codec do
       "action_surge_used" => c.action_surge_used == true,
       "fighting_style" => encode_fighting_style(c.fighting_style),
       "smite_slot" => encode_smite_slot(c.smite_slot),
+      "lay_on_hands_pool" => c.lay_on_hands_pool || 0,
       "damage_resistances" => c.damage_resistances || [],
       "damage_vulnerabilities" => c.damage_vulnerabilities || [],
       "damage_immunities" => c.damage_immunities || [],
@@ -165,6 +166,7 @@ defmodule Dragonex.Codec do
       action_surge_used: c["action_surge_used"] == true,
       fighting_style: decode_fighting_style(c["fighting_style"]),
       smite_slot: decode_smite_slot(c["smite_slot"]),
+      lay_on_hands_pool: decode_lay_on_hands_pool(c["lay_on_hands_pool"]),
       damage_resistances: c["damage_resistances"] || [],
       damage_vulnerabilities: c["damage_vulnerabilities"] || [],
       damage_immunities: c["damage_immunities"] || [],
@@ -268,6 +270,9 @@ defmodule Dragonex.Codec do
 
   defp decode_smite_slot(n) when is_integer(n) and n in 1..5, do: n
   defp decode_smite_slot(_), do: nil
+
+  defp decode_lay_on_hands_pool(n) when is_integer(n) and n >= 0, do: n
+  defp decode_lay_on_hands_pool(_), do: 0
 
   defp encode_saves(%{successes: s, fails: f}), do: %{"successes" => s, "fails" => f}
   defp decode_saves(nil), do: %{successes: 0, fails: 0}

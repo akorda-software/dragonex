@@ -319,6 +319,33 @@ defmodule Dragonex.CodecTest do
       assert decoded.smite_slot == nil
     end
 
+    test "lay_on_hands_pool survives" do
+      c =
+        Character.new(
+          name: "hero",
+          class: "paladin",
+          hp: 18,
+          max_hp: 18,
+          side: "pc",
+          lay_on_hands_pool: 9
+        )
+
+      w = add(World.new(), World.add_character(c))
+      assert Codec.decode(Codec.encode(w)).characters["hero"].lay_on_hands_pool == 9
+    end
+
+    test "lay_on_hands_pool absent in old jsonb is 0" do
+      c = Character.new(name: "hero", class: "paladin", hp: 18, max_hp: 18, side: "pc")
+      encoded = c |> Codec.encode_character() |> Map.delete("lay_on_hands_pool")
+      refute Map.has_key?(encoded, "lay_on_hands_pool")
+
+      {:ok, json} = Jason.encode(encoded)
+      {:ok, decoded_map} = Jason.decode(json)
+
+      decoded = Codec.decode_character(decoded_map)
+      assert decoded.lay_on_hands_pool == 0
+    end
+
     test "death_saves tracker survives" do
       c =
         Character.new(
