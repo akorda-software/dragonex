@@ -1,4 +1,4 @@
-# Catálogo de mecánicas 5e (M1–M38)
+# Catálogo de mecánicas 5e (M1–M39)
 
 > **Técnico.** Cada mecánica implementada, con identificador estable `Mxx`,
 > dónde vive (módulo:función), qué regla 5e aplica, sus simplificaciones (ADR)
@@ -436,6 +436,29 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   Movement, feats, multiclase.
 - **Tests**: `flurry_of_blows_test.exs`.
 
+### M39 — Hunter's Mark (`concentrating`, D55)
+- **Dónde**: reusa `Character.concentrating` (string, D37) con la clave
+  `"hunter's mark:<presa>"` y `World.spell_slots` de nivel 1 (D46);
+  sin campos nuevos ni cambios de Codec. Solo `class == "ranger"` y
+  `level >= 2`. `Actions.hunters_mark/5`: valida who/target existen,
+  who no caído (hp > 0), ranger L2+, target vivo (hp > 0),
+  `has_slot?(who, 1)` y `concentrating == nil`; entonces
+  `consume_slot(who, 1)` + `set_concentration(who,
+  "hunter's mark:<target>")`. Errores no gastan ni tocan
+  concentración. Tool `hunters_mark(who, target)` (DM cualquiera; PC
+  sólo `who` sí mismo). Daño: en `Actions.attack`, si el atacante
+  concentra la marca y el objetivo es la presa (match exacto
+  case-insensitive, sin fuzzy) → +1d6 por impacto, tipo de daño = el
+  del arma (como Sneak D41); crítico dobla los d6; roller
+  determinista dentro de la entrada de daño del RollLog. NO aplica en
+  spells ni en Flurry. Fin de la marca: sólo las rutas existentes de
+  concentración (drop_concentration, condiciones
+  `@breaks_concentration`, rage, 0 hp). Rests: nada nuevo (las
+  casillas ya se recargan; la concentración persiste — RAW). Sin bonus
+  action economy, ventajas de tracking, múltiples presas, transferir,
+  Branding Smite, feats, multiclase.
+- **Tests**: `hunters_mark_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -447,6 +470,7 @@ Reckless Attack: **D44 / M28**. Second Wind: **D45 / M29**. Divine Smite:
 Lay on Hands: **D49 / M33**. Bardic Inspiration: **D50 / M34**.
 Arcane Recovery: **D51 / M35**. Divine Sense: **D52 / M36**.
 Turn Undead: **D53 / M37**. Ki + Flurry of Blows: **D54 / M38**.
+Hunter's Mark: **D55 / M39**.
 XP en partida: **D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
@@ -456,7 +480,7 @@ enfermedad/veneno con Lay on Hands (gastar 5) sigue fuera.
 Channel Divinity / Turn the Unholy / Improved Divine Sense siguen
 fuera.
 
-Para que una de estas entre: ADR nuevo + mecánica `M38+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M39+` en este catálogo +
 tests.
 
 ## Dados

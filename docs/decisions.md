@@ -1005,6 +1005,54 @@ Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of
 Blows D54 y spellcasting paladín/ranger L2; el resto de features por
 nivel sigue 🟡.
 
+### D55 — Hunter's Mark 5e
+Estado: **Aceptada** — 2026-09-13.
+
+RAW acotado del explorador. El LLM no tira dados (D1): llama
+`hunters_mark`; el motor gasta 1 casilla de nivel 1, fija concentración
+y aplica +1d6 en los impactos del marcador contra la presa. Sin economía
+de acción bonus (la tool ES la marca), ventajas de tracking/perception,
+múltiples presas, transferir marca entre objetivos, Branding Smite,
+otros hechizos de concentración nuevos, feats ni multiclase.
+
+- Solo `class == "ranger"` y `level >= 2` (half-caster: casillas desde
+  L2).
+- NO cambia `Character`/`Weapon`/`Spell`/`Item`: la marca vive en
+  `concentrating` (string, D37) como `"hunter's mark:<presa>"` y gasta
+  `spell_slots` de nivel 1 (`consume_slot`, como Divine Smite D46).
+  Codec no cambia.
+- Tool `hunters_mark(who, target)`. DM cualquiera; PC sólo sí mismo.
+- Éxito (en este orden): who/target existen; who no caído (hp > 0);
+  ranger L2+; target vivo (hp > 0); `has_slot?(who, 1)`; no concentra
+  ya (si concentra —incluida otra marca— error: debe soltar antes con
+  `drop_concentration`). Entonces gasta 1 casilla nivel 1 y
+  `set_concentration(who, "hunter's mark:<target>")`.
+- Errores NO gastan casilla ni tocan concentración.
+- Daño: en la resolución de `make_attack` (swings de arma), si el
+  atacante concentra `"hunter's mark:X"` y el objetivo es X → +1d6 por
+  impacto, tipo de daño = el del arma (como Sneak Attack D41). Crítico
+  dobla los d6 de la marca. NO aplica en spells ni en Flurry, ni a
+  objetivos distintos de X: match exacto case-insensitive del nombre,
+  sin fuzzy.
+- El +1d6 se tira con el roller determinista dentro de la entrada de
+  daño del RollLog (patrón sneak D41).
+- Fin de la marca: `drop_concentration` existente, condiciones en
+  `@breaks_concentration`, rage, unconscious — todo ya lo limpia
+  (D37/D42); nada nuevo. Rests: nada nuevo (las casillas ya se
+  recargan; la concentración persiste en descanso — RAW, así se queda).
+- Mensaje ES: "X marca a Y como presa (Hunter's Mark, concentración,
+  casilla nivel 1 gastada)." y en el golpe el desglose habitual con el
+  d6 extra etiquetado "(+N presa marcada)" (formato sneak).
+
+No cambia `Character`/`Weapon`/`Spell`/`Item`. D37/D41/D46 intactos.
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
+Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
+D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50,
+Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of
+Blows D54, Hunter's Mark D55 y spellcasting paladín/ranger L2; el resto
+de features por nivel sigue 🟡.
+
 ---
 
 ## Pendientes de decisión (abiertas)

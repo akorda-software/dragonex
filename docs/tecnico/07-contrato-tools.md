@@ -63,6 +63,7 @@ Fuente canónica del código: `lib/dragonex/tools.ex` (S5), sets por agente en
 | `second_wind` | `(who)` | DM cualquiera; PC sólo sí mismo | Segundo aliento (fighter): 1d10+level, 1/rest (M29 / D45) |
 | `action_surge` | `(who, target, weapon, mode)` | DM cualquiera; PC sólo sí mismo | Oleada de acción (fighter L2+): 1 Acción de Ataque extra, Extra Attack D35 incluido, 1/rest (M31 / D47) |
 | `flurry_of_blows` | `(who, target, mode)` | DM cualquiera; PC sólo sí mismo | Ráfaga de golpes (monje L2+): gasta 1 ki; el motor resuelve 2 golpes sin armas con el dado de artes marciales (M38 / D54) |
+| `hunters_mark` | `(who, target)` | DM cualquiera; PC sólo sí mismo | Marca del cazador (explorador L2+): gasta 1 casilla de nivel 1 y concentra; el motor suma +1d6 por impacto de arma contra la presa, crit dobla (M39 / D55) |
 | `divine_smite` | `(who, slot_level)` | DM cualquiera; PC sólo sí mismo | Castigo divino (paladín): arma `smite_slot` 1..5; no gasta casilla aún (M30 / D46) |
 | `end_smite` | `(who)` | DM cualquiera; PC sólo sí mismo | Retira Castigo divino pendiente; no gasta casilla (M30 / D46) |
 | `lay_on_hands` | `(who, target, amount)` | DM cualquiera; PC sólo `who` sí mismo (target puede ser aliado) | Manos impositoras (paladín): gasta pool, cura al target (M33 / D49) |
@@ -97,7 +98,7 @@ los usa en producción. Se mantienen para los tests de capacidades de exAgent
 | Agente | Tools | Extras |
 |---|---|---|
 | **DM** | TODAS las de `Tools.tools()` | `make_attack`, `cast_spell`, `ability_check`, `make_death_save`, `heal`, `roll_initiative` con `max_retries: 3` (margen para autocorrección tras error directivo) |
-| **PCAgent** | `make_attack`, `cast_spell`, `ability_check`, `make_death_save`, `short_rest`, `long_rest`, `drop_concentration`, `start_rage`, `end_rage`, `start_reckless`, `end_reckless`, `second_wind`, `action_surge`, `flurry_of_blows`, `divine_smite`, `end_smite`, `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`, `arcane_recovery` | `make_attack`/`cast_spell` con `max_retries: 3`. **Nunca**: escenas, monstruos, condiciones, nivel, XP, iniciativa, end_combat |
+| **PCAgent** | `make_attack`, `cast_spell`, `ability_check`, `make_death_save`, `short_rest`, `long_rest`, `drop_concentration`, `start_rage`, `end_rage`, `start_reckless`, `end_reckless`, `second_wind`, `action_surge`, `flurry_of_blows`, `hunters_mark`, `divine_smite`, `end_smite`, `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`, `arcane_recovery` | `make_attack`/`cast_spell` con `max_retries: 3`. **Nunca**: escenas, monstruos, condiciones, nivel, XP, iniciativa, end_combat |
 | **TurnMaster** | `{give_turn_to, cut_in, react, pass_to_dm, end_scene}` (propias, `turn_master/tools.ex`) | **Ninguna muta el world**: registran una `Decision`; el `Game` la aplica (`Session.handoff/2`/`update_state/3`). `end_scene` propone cambio de escena vía el Game, no directo |
 
 ### Semántica de las tools del TurnMaster

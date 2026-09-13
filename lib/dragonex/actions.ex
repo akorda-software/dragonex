@@ -77,9 +77,13 @@ defmodule Dragonex.Actions do
   `smite_slot` on the first melee hit (or crit) of this call: extra
   radiant dice through `apply_damage/3`, then `consume_slot`. Miss,
   ranged, and spells leave the pending slot. Fighting Style (D48):
-  archery/dueling in `Combat`; defense raises this target's effective AC
+  archery/dueling in `Combat`;   defense raises this target's effective AC
   by 1 without mutating `Character.ac`. Bardic Inspiration (D50) adds 1d6
   to the first swing's attack total (hit or miss consumes; not damage).
+  Hunter's Mark (D55) adds 1d6 to every hit against the marked prey while
+  the attacker concentrates `"hunter's mark:prey"` (crit doubles the mark
+  dice; damage type is the weapon's, like Sneak Attack). Spells and
+  Flurry never benefit from the mark.
   """
   @spec attack(
           World.t(),
@@ -124,6 +128,7 @@ defmodule Dragonex.Actions do
             sneak = sneak_opts(world, a, attacker, target, weapon, effective_mode)
             smite = smite_opts(a, weapon)
             inspired? = a.inspired == true
+            mark? = mark_target?(a, target)
 
             swings =
               resolve_swings(
@@ -138,7 +143,8 @@ defmodule Dragonex.Actions do
                 n,
                 sneak,
                 smite,
-                inspired?
+                inspired?,
+                mark?
               )
 
             ac = target_ac(t)
@@ -787,7 +793,7 @@ defmodule Dragonex.Actions do
             finesse: true
           )
 
-        # N=2 fijo (D54): sin sneak, sin smite, sin Extra Attack.
+        # N=2 fijo (D54): sin sneak, sin smite, sin Extra Attack, sin marca (D55).
         swings =
           resolve_swings(
             monk,
@@ -801,7 +807,8 @@ defmodule Dragonex.Actions do
             2,
             nil,
             nil,
-            inspired?
+            inspired?,
+            false
           )
 
         ac = target_ac(t)
@@ -829,6 +836,61 @@ defmodule Dragonex.Actions do
       finesse: true,
       ranged: false
     }
+  end
+
+  @doc """
+  Hunter's Mark (5e, D55): a ranger of level 2+ spends a level-1 spell
+  slot and marks `target` as prey, concentrating on the mark.
+
+  While the concentration holds, `attack/6` adds +1d6 per weapon hit
+  against that prey (crit doubles the mark dice; damage type is the
+  weapon's). Spells and Flurry never benefit. The mark ends only through
+  the existing concentration paths (`drop_concentration`, breaking
+  conditions, rage, 0 hp) — nothing new. Errors spend no slot and never
+  touch concentration.
+  """
+  @spec hunters_mark(World.t(), String.t(), String.t(), roller(), RollLog.t() | nil) ::
+          result()
+  def hunters_mark(world, who, target, _roller, _roll_log \\ nil) do
+    hunter = World.character(world, who)
+
+    cond do
+      is_nil(hunter) ->
+        {:error, "no existe el personaje: #{who}"}
+
+      is_nil(World.character(world, target)) ->
+        {:error, "no existe el objetivo: #{target}"}
+
+      (hunter.hp || 0) <= 0 ->
+        {:error, "#{who} está caído (0 pg) y no puede marcar presa"}
+
+      hunter.class != "ranger" ->
+        {:error, "#{who} no es explorador y no puede usar Marca del cazador"}
+
+      not is_integer(hunter.level) or hunter.level < 2 ->
+        {:error, "#{who} no tiene Marca del cazador (nivel 2)"}
+
+      (World.character(world, target).hp || 0) <= 0 ->
+        {:error, "#{target} está caído (0 pg) y no puede ser presa"}
+
+      not World.has_slot?(world, who, 1) ->
+        {:error,
+         "a #{who} no le quedan casillas de hechizo de nivel 1 " <>
+           "(debe descansar para recuperarlas)."}
+
+      not is_nil(hunter.concentrating) ->
+        {:error,
+         "#{who} ya concentra en #{hunter.concentrating} — debe soltar la concentración antes (drop_concentration)"}
+
+      true ->
+        {:ok,
+         "#{who} marca a #{target} como presa (Hunter's Mark, concentración, casilla nivel 1 gastada).",
+         fn w ->
+           with {:ok, w} <- World.consume_slot(who, 1).(w) do
+             World.set_concentration(who, "hunter's mark:#{target}").(w)
+           end
+         end}
+    end
   end
 
   @doc """
@@ -1219,7 +1281,8 @@ defmodule Dragonex.Actions do
          n,
          sneak,
          smite,
-         inspired?
+         inspired?,
+         mark?
        ) do
     {swings, _hp, _sneak, _smite, _inspired} =
       Enum.reduce_while(1..n, {[], t.hp, sneak, smite, inspired?}, fn _i,
@@ -1240,7 +1303,8 @@ defmodule Dragonex.Actions do
               mode,
               sneak_left,
               smite_left,
-              inspired_left
+              inspired_left,
+              mark?
             )
 
           incoming =
@@ -1271,7 +1335,8 @@ defmodule Dragonex.Actions do
          mode,
          sneak,
          smite,
-         inspired?
+         inspired?,
+         mark?
        ) do
     {r, close_atk} =
       RollLog.open(
@@ -1298,6 +1363,7 @@ defmodule Dragonex.Actions do
           rage: 0,
           smite: 0,
           smite_dice: 0,
+          mark: 0,
           bardic: bardic
         }
 
@@ -1314,7 +1380,8 @@ defmodule Dragonex.Actions do
         dmg = Combat.damage_roll(a, weapon, k, r2)
         sneak_dmg = sneak_damage(sneak, k, r2)
         rage_dmg = rage_bonus(a, weapon)
-        total_dmg = dmg + sneak_dmg + rage_dmg
+        mark_dmg = mark_damage(mark?, k, r2)
+        total_dmg = dmg + sneak_dmg + rage_dmg + mark_dmg
 
         RollLog.close(close_dmg,
           total: total_dmg,
@@ -1333,6 +1400,7 @@ defmodule Dragonex.Actions do
           rage: rage_dmg,
           smite: smite_dmg,
           smite_dice: smite_dice,
+          mark: mark_dmg,
           bardic: bardic
         }
     end
@@ -1345,7 +1413,7 @@ defmodule Dragonex.Actions do
   defp format_attack_message(attacker, target, weapon, ac, mode, [s]) do
     verb = if s.kind == :crit, do: "CRÍTICO", else: "acierta"
 
-    "#{attacker} #{verb} a #{target} (d20 #{s.d20}: #{s.total} vs CA #{ac}) por #{s.dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{rage_tag(s)}#{smite_tag(s)}#{bardic_tag(s)}#{mode_tag(mode)}."
+    "#{attacker} #{verb} a #{target} (d20 #{s.d20}: #{s.total} vs CA #{ac}) por #{s.dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{rage_tag(s)}#{mark_tag(s)}#{smite_tag(s)}#{bardic_tag(s)}#{mode_tag(mode)}."
   end
 
   defp format_attack_message(attacker, target, weapon, ac, mode, swings) do
@@ -1360,7 +1428,7 @@ defmodule Dragonex.Actions do
   defp describe_swing(%{kind: k, d20: d20, total: total, dmg: dmg} = s, weapon, ac) do
     verb = if k == :crit, do: "CRÍTICO", else: "acierta"
 
-    "#{verb} (d20 #{d20}: #{total} vs CA #{ac}) por #{dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{rage_tag(s)}#{smite_tag(s)}#{bardic_tag(s)}"
+    "#{verb} (d20 #{d20}: #{total} vs CA #{ac}) por #{dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{rage_tag(s)}#{mark_tag(s)}#{smite_tag(s)}#{bardic_tag(s)}"
   end
 
   defp swing_amounts(swings), do: for(%{dmg: dmg} <- swings, dmg > 0, do: dmg)
@@ -1582,6 +1650,33 @@ defmodule Dragonex.Actions do
 
   defp sneak_tag(%{sneak: n}) when is_integer(n) and n > 0, do: " (+#{n} sneak)"
   defp sneak_tag(_), do: ""
+
+  @mark_prefix "hunter's mark:"
+
+  # D55: the attacker concentrates on "hunter's mark:<prey>" — exact
+  # case-insensitive name match, never fuzzy (a similar name doesn't count).
+  defp mark_target?(%Character{concentrating: conc}, target)
+       when is_binary(conc) and is_binary(target) do
+    conc = String.downcase(conc)
+
+    if String.starts_with?(conc, @mark_prefix) do
+      String.replace_prefix(conc, @mark_prefix, "") == String.downcase(target)
+    else
+      false
+    end
+  end
+
+  defp mark_target?(_, _), do: false
+
+  defp mark_damage(false, _kind, _roller), do: 0
+
+  defp mark_damage(true, kind, roller) do
+    count = if kind == :crit, do: 2, else: 1
+    Enum.sum(for _ <- 1..count, do: roller.(6))
+  end
+
+  defp mark_tag(%{mark: n}) when is_integer(n) and n > 0, do: " (+#{n} presa marcada)"
+  defp mark_tag(_), do: ""
 
   defp rage_bonus(%Character{raging: true, level: level}, weapon) when weapon.ranged != true do
     Progression.rage_damage(level)

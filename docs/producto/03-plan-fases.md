@@ -84,7 +84,7 @@ Dragonex (warlock Pact Magic D40; paladín/ranger spellcasting a L2 R09).
 Sin bugs de derivados; las simplificaciones (feats, features
 por nivel salvo Extra Attack D35, Pact Magic D40, Sneak Attack D41,
     Rage D42, Reckless Attack D44, Second Wind D45, Divine Smite D46,
-    Action Surge D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of Blows D54 y spellcasting paladín/ranger L2,
+    Action Surge D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of Blows D54, Hunter's Mark D55 y spellcasting paladín/ranger L2,
 `spells_known`) quedan en 🟡.
 
 ---
@@ -182,6 +182,18 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
   Extra Attack: solo el primer swing que acierte. Expira en `end_smite`
   / inicio de su turno / `end_combat` / 0 hp / unconscious. Sin Improved
   Divine Smite. Sin Great Weapon Fighting.
+- **Hunter's Mark del explorador** (D55): **entregado.** Sin campos
+  nuevos (la marca vive en `concentrating` como
+  `"hunter's mark:<presa>"`, D37, y gasta `spell_slots` nivel 1, D46);
+  tool `hunters_mark(who, target)` (ranger L2+; DM cualquiera, PC sólo
+  sí mismo) valida who/target, caídos, ranger L2+, casilla y
+  no-concentración antes de gastar; errores no gastan; el motor suma
+  +1d6 por impacto de `make_attack` contra la presa (crit dobla los
+  d6, tipo de daño del arma, RollLog patrón sneak; spells y Flurry
+  nunca; match exacto case-insensitive sin fuzzy); fin sólo por las
+  rutas existentes de concentración (drop, condiciones, rage, 0 hp);
+  rests sin cambios. Sin bonus action economy, ventajas de tracking,
+  múltiples presas, transferir ni Branding Smite.
 - **Multiclase**: fuera del builder actual por diseño; implicaría rehacer
   progression.
 - **Marketplace de contenido custom** (D22): compartir entre usuarios.
