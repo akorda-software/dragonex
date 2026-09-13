@@ -435,7 +435,7 @@ defmodule Dragonex.Text do
   # Both are noise the player should never see. The real tool call (if any) was
   # emitted separately and resolved by the engine; this is the model narrating
   # the invocation as text.
-  @narrated_tool_calls ~r/\b(?:establish_fact|spawn_monster|set_scene|make_attack|cast_spell|roll_initiative|ability_check|end_combat|level_up|apply_condition|remove_condition|heal|grant_temp_hp|grant_xp|drop_concentration|start_rage|end_rage|start_reckless|end_reckless|second_wind|action_surge|flurry_of_blows|hunters_mark|cunning_action_hide|create_spell_slot|convert_to_sorcery_points|divine_smite|end_smite|lay_on_hands|divine_sense|turn_undead|bardic_inspiration|arcane_recovery|make_death_save|short_rest|long_rest)\s*\([^)]*\)/i
+  @narrated_tool_calls ~r/\b(?:establish_fact|spawn_monster|set_scene|make_attack|cast_spell|roll_initiative|ability_check|end_combat|level_up|apply_condition|remove_condition|heal|grant_temp_hp|grant_xp|drop_concentration|start_rage|end_rage|start_reckless|end_reckless|second_wind|action_surge|flurry_of_blows|hunters_mark|cunning_action_hide|create_spell_slot|convert_to_sorcery_points|divine_smite|end_smite|lay_on_hands|divine_sense|turn_undead|bardic_inspiration|arcane_recovery|wild_shape|end_wild_shape|make_death_save|short_rest|long_rest)\s*\([^)]*\)/i
   @narrated_tool_brackets ~r/\[(?:establecer )?(?:hecho|spawn|invocaci[oó]n|narraci[oó]n|acci[oó]n)\s*[:=][^\]]*\]/i
 
   defp drop_narrated_tool_invocations(text) do

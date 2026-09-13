@@ -5,9 +5,13 @@ defmodule Dragonex.Monsters do
   monsters when their slot in the initiative order comes up).
 
   Each monster is CR-rated so the DM can gauge encounter difficulty:
+    * CR 0:   cat
     * CR 1/4: goblin, kobold, bandit, skeleton, wolf
-    * CR 1/2: orc, hobgoblin
+    * CR 1/2: orc, hobgoblin, black bear
     * CR 1:   ogre
+
+  The beast keys with CR ≤ 1/2 are also the Wild Shape catalogue (D63):
+  see `wild_shape_beasts/0`.
   """
 
   alias Dragonex.{Character, Item, Weapon}
@@ -25,6 +29,8 @@ defmodule Dragonex.Monsters do
       "bandit" => &bandit/1,
       "skeleton" => &skeleton/1,
       "wolf" => &wolf/1,
+      "cat" => &cat/1,
+      "black_bear" => &black_bear/1,
       "orc" => &orc/1,
       "hobgoblin" => &hobgoblin/1,
       "ogre" => &ogre/1,
@@ -127,6 +133,49 @@ defmodule Dragonex.Monsters do
       weapons: [bite()],
       inventory: [],
       saves: ["dex"]
+    )
+  end
+
+  # ------------------------------------------------------------- beasts (D63)
+
+  @doc """
+  All beast forms available to Wild Shape (D63) as `%{key => cr}` (cr float).
+
+  Gate: druid L2–3 → max 0.25 (cat, wolf); L4+ → max 0.5 (all). No flying
+  or swimming speed forms (out of scope by design).
+  """
+  @spec wild_shape_beasts() :: %{String.t() => float()}
+  def wild_shape_beasts, do: %{"cat" => 0.0, "wolf" => 0.25, "black_bear" => 0.5}
+
+  @doc "Cat (CR 0, D63 Wild Shape form): tiny, fast, harmless."
+  @spec cat(opts()) :: Character.t()
+  def cat(opts \\ []) do
+    base(opts, "beast", "cat", "A tiny tabby cat with sharp senses.", 4, 12, 40,
+      str: 3,
+      dex: 15,
+      con: 10,
+      int: 3,
+      wis: 12,
+      cha: 7,
+      weapons: [cat_bite()],
+      inventory: [],
+      saves: []
+    )
+  end
+
+  @doc "Black bear (CR 1/2, D63 Wild Shape form): a stocky, powerful omnivore."
+  @spec black_bear(opts()) :: Character.t()
+  def black_bear(opts \\ []) do
+    base(opts, "beast", "black bear", "A powerfully built black-furred bear.", 19, 11, 40,
+      str: 15,
+      dex: 14,
+      con: 14,
+      int: 2,
+      wis: 12,
+      cha: 7,
+      weapons: [bear_bite()],
+      inventory: [],
+      saves: []
     )
   end
 
@@ -283,6 +332,18 @@ defmodule Dragonex.Monsters do
 
   defp bite,
     do: %Weapon{name: "bite", dice: "1d6", damage_type: "piercing", attack_ability: :str}
+
+  defp cat_bite,
+    do: %Weapon{
+      name: "bite",
+      dice: "1d4",
+      damage_type: "piercing",
+      attack_ability: :str,
+      finesse: true
+    }
+
+  defp bear_bite,
+    do: %Weapon{name: "bite", dice: "1d8+3", damage_type: "piercing", attack_ability: :str}
 
   defp greataxe,
     do: %Weapon{name: "greataxe", dice: "1d12", damage_type: "slashing", attack_ability: :str}

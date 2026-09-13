@@ -299,6 +299,25 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
   clérigo propio — aceptable, documentado). Misma simplificación
   sin-grid que D61. Sin radio, inmunidad a charm (Aura of Devotion,
   futuro), feats, multiclase.
+- **Wild Shape del druida** (D63): **entregado.** Dos campos nuevos
+  (`wild_shape_uses` + `wild_shape` con Codec tolerante a jsonb
+  viejo), catálogo fijo `Monsters.wild_shape_beasts/0` (cat ND 0 y
+  black_bear ND 1/2 nuevos, wolf existente; los tres también
+  spawnables), tools `wild_shape(who, beast)` / `end_wild_shape(who)`
+  (druida L2+, DM cualquiera, PC sólo sí mismo, errores no mutan);
+  transformar gasta 1 uso SIEMPRE (2/rest, builder druida L2+ → 2),
+  guarda la forma original (str/dex/con/hp/max_hp/ac/weapons) y
+  aplica la de la bestia conservando mental/identidad/profs/
+  condiciones/concentración; inventario intacto siempre; gate de CR
+  (L2–3 → máx 1/4, L4+ → máx 1/2); `cast_spell` bloqueado en forma
+  (atacar con armas de bestia, checks y descansar funcionan igual);
+  revert manual restaura todo con PG = orig exacto; auto-revert en
+  `World.apply_damage/3` con sólo el exceso de daño al druida
+  (`hp = max(0, orig_hp − exceso)`; temp_hp/resist como siempre; nota
+  en el log para la narración; caído a 0 → death saves normales);
+  short y long rest recargan los 2 usos sin forzar revert; level-up
+  no toca usos ni forma. Sin duración, Circle of the Moon, formas
+  volar/nadar, equipment merge, feats, multiclase.
 - **Multiclase**: fuera del builder actual por diseño; implicaría rehacer
   progression.
 - **Marketplace de contenido custom** (D22): compartir entre usuarios.

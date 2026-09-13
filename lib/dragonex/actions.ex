@@ -194,6 +194,9 @@ defmodule Dragonex.Actions do
       World.character(world, caster_name).raging == true ->
         {:error, "#{caster_name} está en furia y no puede conjurar"}
 
+      World.character(world, caster_name).wild_shape != nil ->
+        {:error, "#{caster_name} no puede conjurar en forma de bestia"}
+
       true ->
         c = World.character(world, caster_name)
         t = World.character(world, target_name)
@@ -731,6 +734,93 @@ defmodule Dragonex.Actions do
   end
 
   defp slot_fragment(n, level, false), do: "#{n} de nivel #{level}"
+
+  @wild_shape_names_es %{"cat" => "gato", "wolf" => "lobo", "black_bear" => "oso negro"}
+
+  @doc """
+  Wild Shape (5e, D63): a druid of level 2+ transforms into a beast from
+  `Monsters.wild_shape_beasts/0`, spending 1 use (2 per rest).
+
+  CR gate: L2–3 → max ND 1/4 (cat, wolf); L4+ → max ND 1/2 (all). The
+  engine saves the druid's original form and applies the beast's
+  str/dex/con/hp/max_hp/ac/weapons — mental scores, identity, proficiencies,
+  conditions and concentration are kept (RAW). Errors (no mutation): missing
+  who, downed, not a druid, L1, already transformed, unknown beast, CR above
+  the level gate, 0 uses.
+  """
+  @spec wild_shape(World.t(), String.t(), String.t()) :: result()
+  def wild_shape(world, who, beast_key) do
+    beasts = Dragonex.Monsters.wild_shape_beasts()
+
+    case World.character(world, who) do
+      nil ->
+        {:error, "no existe el personaje: #{who}"}
+
+      %Character{hp: hp} when hp <= 0 ->
+        {:error, "#{who} está caído (0 pg) y no puede transformarse"}
+
+      %Character{class: class} when class != "druid" ->
+        {:error, "#{who} no es druida y no puede usar Forma salvaje"}
+
+      %Character{level: level} when not is_integer(level) or level < 2 ->
+        {:error, "#{who} no tiene Forma salvaje (nivel 2)"}
+
+      %Character{wild_shape: ws} when ws != nil ->
+        {:error, "#{who} ya está en forma de bestia"}
+
+      %Character{wild_shape_uses: uses} = c ->
+        uses = uses || 0
+        cr = Map.get(beasts, beast_key)
+        max = wild_shape_max_cr(c.level)
+
+        cond do
+          is_nil(cr) ->
+            {:error,
+             "bestia desconocida: #{beast_key} (disponibles: #{Enum.join(Enum.sort(Map.keys(beasts)), ", ")})"}
+
+          cr > max ->
+            {:error,
+             "#{who} no puede adoptar la forma de #{beast_key} (ND #{cr}) a nivel #{c.level} (máximo ND #{max})"}
+
+          uses < 1 ->
+            {:error, "#{who} no tiene usos de Forma salvaje (se recargan con un descanso)"}
+
+          true ->
+            beast = Dragonex.Monsters.get(beast_key).(name: who)
+            name_es = Map.get(@wild_shape_names_es, beast_key, beast_key)
+
+            {:ok,
+             "#{who} adopta la forma de un #{name_es} (usos de forma salvaje restantes: #{uses - 1}).",
+             World.transform_wild_shape(who, beast_key, beast)}
+        end
+    end
+  end
+
+  @doc """
+  End Wild Shape (5e, D63): the transformed druid returns to their original
+  form with the exact hit points they had when transforming. Errors (no
+  mutation): missing who, not transformed. Everything else (attack with the
+  beast weapons, ability checks, rests) works normally while transformed;
+  only `cast_spell` is blocked.
+  """
+  @spec end_wild_shape(World.t(), String.t()) :: result()
+  def end_wild_shape(world, who) do
+    case World.character(world, who) do
+      nil ->
+        {:error, "no existe el personaje: #{who}"}
+
+      %Character{wild_shape: nil} ->
+        {:error, "#{who} no está en forma de bestia"}
+
+      %Character{wild_shape: %{} = ws} ->
+        {:ok, "#{who} vuelve a su forma original (PG #{ws[:orig_hp]}).",
+         World.revert_wild_shape(who)}
+    end
+  end
+
+  # CR gate (D63): L2–3 → máx 1/4; L4+ → máx 1/2.
+  defp wild_shape_max_cr(level) when is_integer(level) and level >= 4, do: 0.5
+  defp wild_shape_max_cr(_), do: 0.25
 
   @doc """
   Action Surge (5e, D47): a fighter of level 2+ takes one extra Attack
@@ -2232,7 +2322,8 @@ defmodule Dragonex.Actions do
            {:ok, w} <- World.set_second_wind_used(name, false).(w),
            {:ok, w} <- World.set_action_surge_used(name, false).(w),
            {:ok, w} <- World.set_channel_divinity_used(name, false).(w),
-           {:ok, w} <- World.restore_ki(name).(w) do
+           {:ok, w} <- World.restore_ki(name).(w),
+           {:ok, w} <- World.restore_wild_shape_uses(name).(w) do
         {:ok, w}
       end
     end

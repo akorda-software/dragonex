@@ -639,6 +639,43 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 - Sin radio, inmunidad a charm (Aura of Devotion), feats, multiclase.
 - **Tests**: `paladin_auras_test.exs`.
 
+### M47 — Wild Shape (`wild_shape` / `end_wild_shape`, D63)
+- **Dónde**: `Character.wild_shape_uses` + `Character.wild_shape`
+  (mapa guardado, claves átomo; Codec strings, jsonb viejo → 0/nil) +
+  `Monsters.cat/1` · `black_bear/1` · `wild_shape_beasts/0` +
+  `World.transform_wild_shape/3` · `revert_wild_shape/1` ·
+  `restore_wild_shape_uses/1` · hook en `apply_damage/3` +
+  `Actions.wild_shape/3` · `end_wild_shape/2` + guard en
+  `Actions.spell` + tools `wild_shape(who, beast)` /
+  `end_wild_shape(who)` (DM cualquiera; PC sólo sí mismo).
+- **Transformar** (druida L2+, 1 uso SIEMPRE, 2/rest): guarda
+  str/dex/con/hp/max_hp/ac/weapons originales y aplica los de la
+  bestia; conserva int/wis/cha, nombre, side, clase, nivel,
+  proficiencies, skill_proficiencies, condiciones y concentración
+  (RAW); el inventario NUNCA cambia (armas de bestia sintéticas).
+  Catálogo fijo: cat (ND 0), wolf (ND 1/4), black_bear (ND 1/2).
+  Gate: L2–3 → máx ND 1/4; L4+ → máx ND 1/2. Errores NO mutan: who
+  inexistente/caído, no druida, L1, ya transformado, bestia
+  desconocida, CR superior, 0 usos. Mensaje: "X adopta la forma de
+  un lobo (usos de forma salvaje restantes: N)."
+- **Revert manual**: restaura TODO con `hp = orig_hp` exacto;
+  "X vuelve a su forma original (PG N)."
+- **Auto-revert** (`apply_damage/3`, cuello único): transformado y hp
+  resultante ≤ 0 → exceso = rest − hp de bestia (tras resist D38 y
+  temp_hp D36 como hoy); revierte con `hp = max(0, orig_hp −
+  exceso)`; daño exacto → sin exceso; si ≤ 0 → caído (death saves
+  como siempre). Nota en el log del world ("la bestia cae y X vuelve
+  a su forma (PG N)") para la narración.
+- **Bloqueo**: `cast_spell` en forma → "X no puede conjurar en forma
+  de bestia"; `make_attack` (armas de bestia), `ability_check` y
+  rests funcionan igual. Short Y long rest recargan usos a 2
+  (`compose_rest`, como ki D54); NO fuerza revert (RAW puedes
+  descansar en forma); level-up no toca usos ni forma.
+- Sin duración (sin reloj), componentes V/S (el bloqueo integral ya
+  lo cubre), Circle of the Moon, formas volar/nadar, multiclase,
+  feats.
+- **Tests**: `wild_shape_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -654,7 +691,7 @@ Hunter's Mark: **D55 / M39**. Font of Magic: **D56 / M40**.
 Cunning Action (Hide): **D57 / M41**. Danger Sense: **D58 / M42**.
 Evasión: **D59 / M43**. Jack of All Trades (y prof de skills en
 checks): **D60 / M44**. Aura of Protection: **D61 / M45**.
-Aura of Courage: **D62 / M46**.
+Aura of Courage: **D62 / M46**. Wild Shape: **D63 / M47**.
 XP en partida: **D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:

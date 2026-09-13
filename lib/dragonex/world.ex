@@ -44,12 +44,18 @@ defmodule Dragonex.World do
       * Ki (D54) is a monk L2+ pool (`level` points); `Actions.flurry_of_blows`
         spends 1 per use; `short_rest`/`long_rest` refill it to `level`
         (no-op for other classes),
-      * Font of Magic (D56) is a sorcerer L2+ pool (`level` points);
-        `Actions.create_spell_slot` spends points into slots and
-        `Actions.convert_to_sorcery_points` drains a slot back into points
-        (capped at `level`); only `long_rest` refills it (no-op for other
-        classes),
-      * `grant_xp` adds to `Character.xp` and never levels up (D43).
+       * Font of Magic (D56) is a sorcerer L2+ pool (`level` points);
+         `Actions.create_spell_slot` spends points into slots and
+         `Actions.convert_to_sorcery_points` drains a slot back into points
+         (capped at `level`); only `long_rest` refills it (no-op for other
+         classes),
+       * Wild Shape (D63) is a druid L2+ transform (2 uses/rest): the beast's
+         str/dex/con/hp/max_hp/ac/weapons replace the druid's while the
+         originals live in `wild_shape`; damage that drops the beast to 0
+         auto-reverts with only the excess carried over; `cast_spell` is
+         blocked while transformed; both rests refill the uses; level-up
+         never touches uses or form,
+       * `grant_xp` adds to `Character.xp` and never levels up (D43).
 
   Characters are stored as full `Dragonex.Character` structs, so the engine can
   read any stat (AC, abilities, weapons ...) straight from the world.
@@ -299,17 +305,37 @@ defmodule Dragonex.World do
           rest = incoming - absorbed
           new_temp = temp - absorbed
           new_hp = max(0, (c.hp || 0) - rest)
-          updated = %{c | hp: new_hp, temp_hp: new_temp}
 
-          updated =
-            if new_hp == 0,
-              do: %{updated | raging: false, reckless: false, smite_slot: nil},
-              else: updated
+          if new_hp <= 0 and c.wild_shape != nil do
+            # D63 auto-revert: the beast drops and the druid returns to their
+            # own form. Only the excess damage (beyond the beast's remaining
+            # hp) carries over to the original hit points.
+            excess = max(0, rest - (c.hp || 0))
+            orig_hp = c.wild_shape[:orig_hp] || 0
+            final_hp = max(0, orig_hp - excess)
+            updated = %{restore_wild_shape_form(c, final_hp) | temp_hp: new_temp}
+            updated = clear_drop_flags(updated, final_hp)
+            # Note in the world change so the narration surfaces it.
+            w = put_char(w, target, updated)
 
-          {:ok, put_char(w, target, updated)}
+            {:ok,
+             %{
+               w
+               | log: log(w, "dm", "la bestia cae y #{target} vuelve a su forma (PG #{final_hp})")
+             }}
+          else
+            updated = %{c | hp: new_hp, temp_hp: new_temp}
+            updated = clear_drop_flags(updated, new_hp)
+            {:ok, put_char(w, target, updated)}
+          end
       end
     end
   end
+
+  defp clear_drop_flags(%Character{} = c, 0),
+    do: %{c | raging: false, reckless: false, smite_slot: nil}
+
+  defp clear_drop_flags(%Character{} = c, _hp), do: c
 
   @doc """
   Grant temporary hit points (5e, D36). Does not stack: the character keeps
@@ -712,6 +738,127 @@ defmodule Dragonex.World do
         %Character{class: "sorcerer"} = c ->
           max = Dragonex.Heroes.Progression.sorcery_points("sorcerer", c.level)
           {:ok, put_char(w, name, %{c | sorcery_points: max})}
+
+        %Character{} ->
+          {:ok, w}
+      end
+    end
+  end
+
+  # ------------------------------------------------------- Wild Shape (D63)
+
+  @doc """
+  Transform `name` into `beast_key` (5e, D63). `beast` is the prebuilt
+  `Character` from `Monsters`; class/level/CR/uses validation lives in
+  `Actions.wild_shape/3` — here we only re-check who exists and isn't
+  already transformed. On success it ALWAYS spends one use and:
+
+    * saves the original form (str/dex/con/hp/max_hp/ac/weapons) in
+      `Character.wild_shape`,
+    * applies the beast's str/dex/con/hp/max_hp/ac/weapons,
+    * keeps int/wis/cha, name, side, class, level, proficiencies,
+      skill_proficiencies, conditions and concentration (RAW: transforming
+      does not break concentration).
+
+  The inventory (`Character.inventory`) is NEVER touched — beast weapons are
+  synthetic and the originals come back on revert.
+  """
+  @spec transform_wild_shape(String.t(), String.t(), Character.t()) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def transform_wild_shape(name, beast_key, %Character{} = beast) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{wild_shape: nil} = c ->
+          saved = %{
+            beast: beast_key,
+            orig_str: c.str,
+            orig_dex: c.dex,
+            orig_con: c.con,
+            orig_hp: c.hp,
+            orig_max_hp: c.max_hp,
+            orig_ac: c.ac,
+            orig_weapons: c.weapons
+          }
+
+          updated =
+            %{c | wild_shape: saved, wild_shape_uses: max(0, (c.wild_shape_uses || 0) - 1)}
+            |> apply_beast_form(beast)
+
+          {:ok, put_char(w, name, updated)}
+
+        %Character{} ->
+          {:error, "#{name} ya está en forma de bestia"}
+      end
+    end
+  end
+
+  @doc """
+  End Wild Shape (D63): restore the saved form — str/dex/con/max_hp/ac/
+  weapons — with `hp` set to the exact `orig_hp` saved at transformation.
+  Errors if `name` is missing or not transformed. (The auto-revert excess
+  path lives in `apply_damage/3`, which computes the carry-over hp.)
+  """
+  @spec revert_wild_shape(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def revert_wild_shape(name) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{wild_shape: nil} ->
+          {:error, "#{name} no está en forma de bestia"}
+
+        %Character{wild_shape: %{} = ws} = c ->
+          {:ok, put_char(w, name, restore_wild_shape_form(c, ws[:orig_hp] || 0))}
+      end
+    end
+  end
+
+  defp apply_beast_form(%Character{} = c, %Character{} = beast) do
+    %{
+      c
+      | str: beast.str,
+        dex: beast.dex,
+        con: beast.con,
+        hp: beast.hp,
+        max_hp: beast.max_hp,
+        ac: beast.ac,
+        weapons: beast.weapons
+    }
+  end
+
+  defp restore_wild_shape_form(%Character{wild_shape: %{} = ws} = c, hp) do
+    %{
+      c
+      | str: ws[:orig_str],
+        dex: ws[:orig_dex],
+        con: ws[:orig_con],
+        hp: hp,
+        max_hp: ws[:orig_max_hp],
+        ac: ws[:orig_ac],
+        weapons: ws[:orig_weapons] || [],
+        wild_shape: nil
+    }
+  end
+
+  @doc """
+  Rest refill (D63). Druid Wild Shape uses → 2 (L2+; a L1 druid stays at 0).
+  No-op for other classes. Both `short_rest` and `long_rest` call this.
+  Does NOT revert the form (RAW: you can rest while transformed).
+  """
+  @spec restore_wild_shape_uses(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def restore_wild_shape_uses(name) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{class: "druid", level: level} = c
+        when is_integer(level) and level >= 2 ->
+          {:ok, put_char(w, name, %{c | wild_shape_uses: 2})}
 
         %Character{} ->
           {:ok, w}

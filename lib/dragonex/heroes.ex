@@ -722,6 +722,8 @@ defmodule Dragonex.Heroes do
       lay_on_hands_pool: lay_on_hands_pool_for(class.key, choices[:level] || 1),
       ki: ki_for(class.key, choices[:level] || 1),
       sorcery_points: sorcery_points_for(class.key, choices[:level] || 1),
+      wild_shape_uses: wild_shape_uses_for(class.key, choices[:level] || 1),
+      wild_shape: nil,
       bardic_inspiration_uses: bardic_uses_for(class.key, scores[:cha]),
       inspired: false,
       arcane_recovery_used: false,
@@ -877,6 +879,11 @@ defmodule Dragonex.Heroes do
   defp sorcery_points_for("sorcerer", level) when is_integer(level) and level >= 2, do: level
   defp sorcery_points_for("sorcerer", _), do: 0
   defp sorcery_points_for(_, _), do: 0
+
+  # Usos de Forma salvaje del druida (D63): 2 desde L2; L1 y otras clases → 0.
+  defp wild_shape_uses_for("druid", level) when is_integer(level) and level >= 2, do: 2
+  defp wild_shape_uses_for("druid", _), do: 0
+  defp wild_shape_uses_for(_, _), do: 0
 
   defp fetch(_module, nil, field), do: {:error, "#{field} is required"}
 

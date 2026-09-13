@@ -614,6 +614,37 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
+  Wild Shape (5e, D63). Druid level 2+. Transforms `who` into a beast from
+  the fixed catalogue — "cat" (ND 0), "wolf" (ND 1/4), "black_bear"
+  (ND 1/2, level 4+ only). The engine spends 1 use (2 per rest), saves the
+  original form and applies the beast's stats and attacks; while
+  transformed `who` CANNOT cast spells (everything else works). If the beast
+  drops to 0 hp the engine reverts automatically with only the excess
+  damage carried over. The DM may transform anyone; a PC may only
+  transform themselves.
+  """
+  deftool wild_shape(ctx, who :: String.t(), beast :: String.t()) do
+    with :ok <- assert_wild_shape_self(ctx, who),
+         {:ok, msg, change} <- Dragonex.Actions.wild_shape(world(ctx), who, beast),
+         {:ok, _} <- propose(ctx, change) do
+      {:ok, msg}
+    end
+  end
+
+  @doc """
+  End Wild Shape (D63). Returns `who` to their original form with the hit
+  points they had when transforming. The DM may end anyone; a PC may only
+  end themselves.
+  """
+  deftool end_wild_shape(ctx, who :: String.t()) do
+    with :ok <- assert_wild_shape_self(ctx, who),
+         {:ok, msg, change} <- Dragonex.Actions.end_wild_shape(world(ctx), who),
+         {:ok, _} <- propose(ctx, change) do
+      {:ok, msg}
+    end
+  end
+
+  @doc """
   Resolve a non-combat ability check: the DM sets the `dc` (5/10/15/20 by 5e
   difficulty), the engine rolls d20 + the ability modifier for `who`.
   Pass a SKILL name when the check maps to one (`"stealth"`,
@@ -886,6 +917,18 @@ defmodule Dragonex.Tools do
     else
       {:error,
        "RECHAZADO — solo puedes usar Recuperación arcana en ti mismo (#{proposer}), no en #{who}."}
+    end
+  end
+
+  # Wild Shape (D63): both tools share the self guard (divine_smite pattern).
+  defp assert_wild_shape_self(ctx, who) do
+    proposer = ctx.deps.state.participant_id
+
+    if proposer == "dm" or proposer == who do
+      :ok
+    else
+      {:error,
+       "RECHAZADO — solo puedes usar Forma salvaje en ti mismo (#{proposer}), no en #{who}."}
     end
   end
 

@@ -47,6 +47,11 @@ defmodule Dragonex.Character do
     field(:channel_divinity_used, :boolean, default: false)
     field(:ki, :integer, default: 0)
     field(:sorcery_points, :integer, default: 0)
+    field(:wild_shape_uses, :integer, default: 0)
+    # D63 Wild Shape: nil = forma normal; transformado =
+    # %{beast: key, orig_str, orig_dex, orig_con, orig_hp, orig_max_hp,
+    #   orig_ac, orig_weapons} (claves átomo en memoria; strings en Codec).
+    field(:wild_shape, :map)
     field(:damage_resistances, {:array, :string}, default: [])
     field(:damage_vulnerabilities, {:array, :string}, default: [])
     field(:damage_immunities, {:array, :string}, default: [])
@@ -112,6 +117,8 @@ defmodule Dragonex.Character do
         :channel_divinity_used,
         :ki,
         :sorcery_points,
+        :wild_shape_uses,
+        :wild_shape,
         :damage_resistances,
         :damage_vulnerabilities,
         :damage_immunities,
@@ -154,6 +161,7 @@ defmodule Dragonex.Character do
     |> Ecto.Changeset.validate_number(:divine_sense_uses, greater_than_or_equal_to: 0)
     |> Ecto.Changeset.validate_number(:ki, greater_than_or_equal_to: 0)
     |> Ecto.Changeset.validate_number(:sorcery_points, greater_than_or_equal_to: 0)
+    |> Ecto.Changeset.validate_number(:wild_shape_uses, greater_than_or_equal_to: 0)
     |> validate_abilities()
   end
 
@@ -201,6 +209,8 @@ defmodule Dragonex.Character do
       channel_divinity_used: false,
       ki: 0,
       sorcery_points: 0,
+      wild_shape_uses: 0,
+      wild_shape: nil,
       damage_resistances: [],
       damage_vulnerabilities: [],
       damage_immunities: [],

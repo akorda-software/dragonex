@@ -126,6 +126,8 @@ defmodule Dragonex.Codec do
       "channel_divinity_used" => c.channel_divinity_used == true,
       "ki" => c.ki || 0,
       "sorcery_points" => c.sorcery_points || 0,
+      "wild_shape_uses" => c.wild_shape_uses || 0,
+      "wild_shape" => encode_wild_shape(c.wild_shape),
       "damage_resistances" => c.damage_resistances || [],
       "damage_vulnerabilities" => c.damage_vulnerabilities || [],
       "damage_immunities" => c.damage_immunities || [],
@@ -181,6 +183,8 @@ defmodule Dragonex.Codec do
       channel_divinity_used: c["channel_divinity_used"] == true,
       ki: decode_ki(c["ki"]),
       sorcery_points: decode_sorcery_points(c["sorcery_points"]),
+      wild_shape_uses: decode_wild_shape_uses(c["wild_shape_uses"]),
+      wild_shape: decode_wild_shape(c["wild_shape"]),
       damage_resistances: c["damage_resistances"] || [],
       damage_vulnerabilities: c["damage_vulnerabilities"] || [],
       damage_immunities: c["damage_immunities"] || [],
@@ -299,6 +303,45 @@ defmodule Dragonex.Codec do
 
   defp decode_sorcery_points(n) when is_integer(n) and n >= 0, do: n
   defp decode_sorcery_points(_), do: 0
+
+  defp decode_wild_shape_uses(n) when is_integer(n) and n >= 0, do: n
+  defp decode_wild_shape_uses(_), do: 0
+
+  # D63 Wild Shape: atom keys in memory, string keys in the stored map.
+  # nil (or anything malformed / absent in an old jsonb) → forma normal.
+  defp encode_wild_shape(nil), do: nil
+
+  defp encode_wild_shape(%{} = ws) do
+    %{
+      "beast" => ws[:beast],
+      "orig_str" => ws[:orig_str],
+      "orig_dex" => ws[:orig_dex],
+      "orig_con" => ws[:orig_con],
+      "orig_hp" => ws[:orig_hp],
+      "orig_max_hp" => ws[:orig_max_hp],
+      "orig_ac" => ws[:orig_ac],
+      "orig_weapons" => Enum.map(ws[:orig_weapons] || [], &encode_weapon/1)
+    }
+  end
+
+  defp encode_wild_shape(_), do: nil
+
+  defp decode_wild_shape(nil), do: nil
+
+  defp decode_wild_shape(%{} = ws) do
+    %{
+      beast: ws["beast"],
+      orig_str: ws["orig_str"],
+      orig_dex: ws["orig_dex"],
+      orig_con: ws["orig_con"],
+      orig_hp: ws["orig_hp"],
+      orig_max_hp: ws["orig_max_hp"],
+      orig_ac: ws["orig_ac"],
+      orig_weapons: Enum.map(ws["orig_weapons"] || [], &decode_weapon/1)
+    }
+  end
+
+  defp decode_wild_shape(_), do: nil
 
   defp encode_saves(%{successes: s, fails: f}), do: %{"successes" => s, "fails" => f}
   defp decode_saves(nil), do: %{successes: 0, fails: 0}

@@ -1382,14 +1382,70 @@ paladín L10+ con `hp > 0`).
 Devotion, L7, futuro), cleansed fear existente (el DM tiene
 `remove_condition`), feats, multiclase. M46 en el catálogo.
 
+### D63 — Wild Shape del druida 5e
+Estado: **Aceptada** — 2026-09-13.
+
+El druida L2+ se transforma en una bestia de un **catálogo fijo** de
+CR ≤ 1/2; el LLM decide CUÁNDO, el motor valida, transforma y revierte
+(D1). Dos campos NUEVOS en `Character`: `wild_shape_uses` (int, default
+0; druida L2+ del builder → 2, L1/otras → 0; jsonb viejo → 0) y
+`wild_shape` (nil = forma normal; transformado =
+`%{beast, orig_str, orig_dex, orig_con, orig_hp, orig_max_hp, orig_ac,
+orig_weapons}` — claves átomo en memoria, strings en Codec, D8).
+
+- **Catálogo**: `Monsters.cat/1` (CR 0: STR 3, DEX 15, CON 10, SAB 12,
+  CAR 7, PG 4, CA 12, bite 1d4 finesse), `black_bear/1` (CR 1/2: STR 15,
+  DEX 14, CON 14, PG 19, CA 11, bite 1d8+3) y el `wolf` existente; los
+  tres también en `Monsters.catalog/0` (spawnables por el DM) y en
+  `Monsters.wild_shape_beasts/0` → `%{"cat" => 0.0, "wolf" => 0.25,
+  "black_bear" => 0.5}` (cr float).
+- **Gate de CR** (en `Actions.wild_shape/3`): druida L2–3 → máx 0.25
+  (cat, wolf); L4+ → máx 0.5 (todas). Sin formas volar/nadar.
+- **Tools** `wild_shape(who, beast)` / `end_wild_shape(who)`: DM
+  cualquiera; PC sólo sí mismo (patrón divine_smite). Errores NO mutan
+  (who inexistente, caído, no druida, L1, ya transformado, bestia
+  desconocida, CR superior, 0 usos / no transformado en el revert).
+- **Éxito transformar**: gasta 1 uso SIEMPRE; guarda
+  str/dex/con/hp/max_hp/ac/weapons originales; aplica los de la bestia;
+  CONSERVA int/wis/cha, nombre, side, clase, nivel, proficiencies,
+  skill_proficiencies, condiciones y concentración (RAW no se rompe).
+  El inventario de items NUNCA cambia (armas de bestia sintéticas; las
+  originales se restauran al revertir). Mensaje ES: "X adopta la forma
+  de un lobo (usos de forma salvaje restantes: N)."
+- **Revert manual**: restaura TODO lo guardado con `hp = orig_hp`
+  exacto; `wild_shape = nil`. Mensaje: "X vuelve a su forma original
+  (PG N)."
+- **Auto-revert** en `World.apply_damage/3` (cuello único de daño): si
+  el objetivo está transformado y el hp resultante ≤ 0, exceso =
+  daño que sobra tras la bestia (rest − hp bestia, tras resist y
+  temp_hp como hoy); revierte y aplica el exceso a los PG originales:
+  `hp = max(0, orig_hp − exceso)`. Daño exacto a 0 → exceso 0 → PG
+  originales intactos. Si queda a 0 → caído (death saves como siempre).
+  Nota en el log del world ("la bestia cae y X vuelve a su forma (PG
+  N)") para que la narración lo muestre. temp_hp se consume antes que
+  hp como hoy.
+- **Bloqueo de hechizos**: mientras `wild_shape != nil`,
+  `Actions.spell` → "X no puede conjurar en forma de bestia". TODO lo
+  demás (`make_attack` con las armas de bestia, `ability_check`,
+  descansar) funciona igual.
+- **Rests**: short Y long recargan `wild_shape_uses` a 2 (druida) en
+  `compose_rest` (como ki D54, RAW permite descansar en forma — no
+  fuerza revert). Level-up no toca usos ni forma.
+
+**Fuera** (simplificaciones asumidas): duración (sin reloj — sin
+límite de horas), componentes verbales/somáticos (el bloqueo integral
+de cast_spell ya lo cubre), Circle of the Moon (CR 2+ / formas de
+combate), formas con velocidad de vuelo/natación, multiclase, feats,
+equipment merge. M47 en el catálogo.
+
 R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
 Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
 D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50,
 Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of
 Blows D54, Hunter's Mark D55, Font of Magic D56, Cunning Action (Hide)
 D57, Danger Sense D58, Evasión D59, Jack of All Trades D60, Aura of
-Protection D61, Aura of Courage D62 y spellcasting paladín/ranger L2;
-el resto de features por nivel sigue 🟡.
+Protection D61, Aura of Courage D62, Wild Shape D63 y spellcasting
+paladín/ranger L2; el resto de features por nivel sigue 🟡.
 
 ---
 

@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **1227 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **1267 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -30,11 +30,11 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
  - `Actions` — puente intent→world (`attack` con Extra Attack 5e / D35,
      Sneak Attack D41, Rage D42 y Divine Smite D46, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57, Danger Sense D58 y Evasión D59 (pasivas del motor en salvaciones), auras de paladín D61/D62 (pasivas: +CHA a salvaciones del side, inmunidad al miedo), `spell` automatic/attack/save + consumo de slot, False Life → temp_hp D36,
     concentración D37, resist/vuln/immune D38, `initiative`, `death_save`, `heal`,
-     `second_wind`, `action_surge`, `flurry_of_blows`, `create_spell_slot`, `convert_to_sorcery_points`, `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`, `arcane_recovery`, `short_rest`, `long_rest`, `check` — acepta skills con prof de ficha + JoaT D60). Con `RollLog` para dados estructurados.
+     `second_wind`, `action_surge`, `flurry_of_blows`, `create_spell_slot`, `convert_to_sorcery_points`, `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`, `arcane_recovery`, `wild_shape`, `end_wild_shape`, `short_rest`, `long_rest`, `check` — acepta skills con prof de ficha + JoaT D60). Con `RollLog` para dados estructurados.
  - `Tools` — `deftool`s que el LLM invoca: `make_attack`, `cast_spell`,
     `roll_initiative`, `make_death_save`, `heal`, `grant_temp_hp`, `grant_xp`, `drop_concentration`, `start_rage`, `end_rage`, `start_reckless`, `end_reckless`,    `second_wind`, `action_surge`, `flurry_of_blows`, `hunters_mark`, `cunning_action_hide`, `create_spell_slot`, `convert_to_sorcery_points`, `divine_smite`, `end_smite`, `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`, `arcane_recovery`, `ability_check`, `end_combat`,
    `short_rest`, `long_rest`, `spawn_monster`, `apply_condition`,
-   `remove_condition`, `set_scene`, `establish_fact`, `level_up`, `roll_dice`.
+   `remove_condition`, `set_scene`, `establish_fact`, `level_up`, `roll_dice`, `wild_shape`, `end_wild_shape`.
 - `TurnPolicy.WorldDriven` — turno leído del World; un beat por monstruo
   (D34); el LLM no puede saltar/reordenar.
 - `Codec` + `Store.Coded` — `World ↔ jsonb` simétrico (D8).
@@ -87,7 +87,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   Feats / features por nivel (salvo Extra Attack D35, Pact Magic D40,
   Sneak Attack D41, Rage D42, Reckless Attack D44, Second Wind D45,
     Divine Smite D46, Action Surge D47, Fighting Style D48, Lay on Hands
-    D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57, Danger Sense D58, Evasión D59, Aura of Protection D61, Aura of Courage D62 y spellcasting paladín/ranger L2) siguen en 🟡.
+    D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57, Danger Sense D58, Evasión D59, Aura of Protection D61, Aura of Courage D62, Wild Shape D63 y spellcasting paladín/ranger L2) siguen en 🟡.
 
 ### Contenido custom por usuario
 - CRUD `custom_contents` (weapon/spell/item, unique por usuario) con
@@ -289,17 +289,35 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
       radio (simplificación sin-grid por side, regla genérica: un
       no-muerto aliado también lo recibe). NO a checks ni attack
       rolls. Sin Aura of Devotion/Hate, Improved Divine Smite.
-   - ✅ Aura of Courage del paladín (D62 / M46): pasiva sin tool ni
-      campos nuevos — `World.apply_condition` NO aplica
-      "frightened" a quien comparte side con un paladín L10+
-      consciente (él incluido): `{:ok, world}` sin mutar
-      (inmunidad ≠ error); `Tools.apply_condition` (DM) devuelve "X
-      es inmune al miedo (Aura de Coraje)" y `turn_undead` particiona
-      sus fallidos en asustados/inmunes con la misma frase (doble
-      hook: defensa en profundidad); regla genérica por side (un
-      no-muerto aliado de un paladín L10+ es inmune, documentado);
-      idempotencia y `remove_condition` intactos. Sin radio, sin
-      inmunidad a charm (Aura of Devotion, futuro).
+    - ✅ Aura of Courage del paladín (D62 / M46): pasiva sin tool ni
+       campos nuevos — `World.apply_condition` NO aplica
+       "frightened" a quien comparte side con un paladín L10+
+       consciente (él incluido): `{:ok, world}` sin mutar
+       (inmunidad ≠ error); `Tools.apply_condition` (DM) devuelve "X
+       es inmune al miedo (Aura de Coraje)" y `turn_undead` particiona
+       sus fallidos en asustados/inmunes con la misma frase (doble
+       hook: defensa en profundidad); regla genérica por side (un
+       no-muerto aliado de un paladín L10+ es inmune, documentado);
+       idempotencia y `remove_condition` intactos. Sin radio, sin
+       inmunidad a charm (Aura of Devotion, futuro).
+    - ✅ Wild Shape del druida (D63 / M47): `Character.wild_shape_uses`
+       + `wild_shape` (mapa de forma guardada) + Codec (jsonb viejo →
+       0/nil); catálogo fijo `Monsters.wild_shape_beasts/0` (cat ND 0,
+       wolf ND 1/4, black_bear ND 1/2 — cat y black_bear nuevos en
+       `Monsters`, también spawnables); tools `wild_shape(who, beast)`
+       / `end_wild_shape(who)` (druida L2+, DM cualquiera, PC sólo sí
+       mismo, errores NO mutan); al transformar gasta 1 uso SIEMPRE
+       (2/rest), guarda str/dex/con/hp/max_hp/ac/weapons y aplica los
+       de la bestia conservando mental/identidad/profs/condiciones/
+       concentración (RAW); inventario intacto siempre; gate de CR
+       L2–3 → 1/4, L4+ → 1/2; `cast_spell` bloqueado en forma (todo lo
+       demás igual); revert manual restaura TODO con PG = orig exacto;
+       auto-revert en `World.apply_damage/3` (cuello único): exceso =
+       daño que sobra tras la bestia → `hp = max(0, orig_hp − exceso)`
+       (temp_hp y resist como siempre) con nota en el log para la
+       narración; short Y long rest recargan usos (como ki D54, sin
+       forzar revert); level-up no toca usos ni forma. Sin duración,
+       Circle of the Moon, formas volar/nadar, equipment merge.
 - ✅ XP 5e en partida (D43): `World.grant_xp/2` + tool `grant_xp` (DM).
   Suma XP; no auto-level-up. Subida explícita (ficha / `level_up`).
   D10 SUPERSEDED. Sin calculadora CR/encuentro.
@@ -312,7 +330,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 |---|---|---|
 | Dotes | Fuera; ASI = +2 fijo | D13 |
 | `spells_known` | `nil` (sin cap estricto por clase) | D14 |
-| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + Fighting Style D48 + Lay on Hands D49 + Bardic Inspiration D50 + Arcane Recovery D51 + Divine Sense D52 + Turn Undead D53 + Ki/Flurry of Blows D54 + Hunter's Mark D55 + Font of Magic D56 + Cunning Action Hide D57 + Danger Sense D58 + Evasión D59 + Jack of All Trades D60 + Aura of Protection D61 + Aura of Courage D62 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47, D48, D49, D50, D51, D52, D53, D54, D55, D56, D57, D58, D59, D60, D61, D62 |
+| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + Fighting Style D48 + Lay on Hands D49 + Bardic Inspiration D50 + Arcane Recovery D51 + Divine Sense D52 + Turn Undead D53 + Ki/Flurry of Blows D54 + Hunter's Mark D55 + Font of Magic D56 + Cunning Action Hide D57 + Danger Sense D58 + Evasión D59 + Jack of All Trades D60 + Aura of Protection D61 + Aura of Courage D62 + Wild Shape D63 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47, D48, D49, D50, D51, D52, D53, D54, D55, D56, D57, D58, D59, D60, D61, D62, D63 |
 | Empate iniciativa | DEX score desc, luego nombre; sin roll-off extra | D39 |
 | Banner level-up in-game | Eliminado (D33); subida desde la ficha | D33 |
 | Stub legado en `Tools` | `attack`/`roll`/`spawn_character`/`next_round` mantenidos para tests del framework exAgent | `tools.ex:31-72` |
