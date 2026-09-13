@@ -614,10 +614,17 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
-  Resolve a non-combat ability check: the DM sets the `dc` (5/10/15/20 by 5e)
+  Resolve a non-combat ability check: the DM sets the `dc` (5/10/15/20 by 5e
   difficulty), the engine rolls d20 + the ability modifier for `who`.
-  Skill proficiency is not applied in v1 (the sheet stores it; resolution does
-  not). Pass mode "advantage"/"disadvantage" when it applies.
+  Pass a SKILL name when the check maps to one (`"stealth"`,
+  `"athletics"`, `"animal_handling"` — case/spaces/hyphens are normalized):
+  the engine picks the governing ability and applies the character's skill
+  proficiency from the sheet, plus Jack of All Trades (bard L2+: half
+  proficiency on untrained skills). Pass a raw ability (`"str"`…`"cha"`)
+  only for generic checks (no proficiency from the sheet). Pass mode
+  "advantage"/"disadvantage" when it applies.
+  Examples: ability_check("Thane", "athletics", 15),
+  ability_check("Vex", "stealth", 15, "advantage"), ability_check("Thane", "str", 10).
   """
   deftool ability_check(
             ctx,
@@ -627,12 +634,11 @@ defmodule Dragonex.Tools do
             mode :: String.t()
           ) do
     with :ok <- assert_controls(ctx, who),
-         {:ok, ability_atom} <- parse_ability(ability),
          {:ok, msg, change} <-
            Dragonex.Actions.check(
              world(ctx),
              who,
-             ability_atom,
+             ability,
              dc,
              false,
              ctx.deps.roller,
@@ -655,16 +661,6 @@ defmodule Dragonex.Tools do
   deftool remove_condition(ctx, target :: String.t(), condition :: String.t()) do
     with {:ok, _} <- propose(ctx, Dragonex.World.remove_condition(target, condition)) do
       {:ok, "#{target} ya no está #{condition}"}
-    end
-  end
-
-  defp parse_ability(s) do
-    case Dragonex.Rules.Ability.parse(s) do
-      {:ok, atom} ->
-        {:ok, atom}
-
-      :error ->
-        {:error, "característica desconocida: #{inspect(s)} (usa str/dex/con/int/wis/cha)"}
     end
   end
 

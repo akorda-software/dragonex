@@ -144,9 +144,12 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 
 ### M13 — Chequeos de aptitud
 - **Dónde**: `Rules.Combat.ability_check/6` + `Actions.check/8` — el DM fija
-  DC (5/10/15/20) y afirma competencia. El modo lo decide
-  `Rules.Conditions.check_mode/3` (M06).
-- **Tests**: `rules/combat_test.exs`, `conditions_test.exs`, `flows/*`.
+  DC (5/10/15/20). El modo lo decide `Rules.Conditions.check_mode/3` (M06).
+  Desde D60/M44 el tercer parámetro acepta un SKILL ("stealth",
+  "Animal Handling"…): el motor mapea la característica y aplica la prof de
+  la ficha (+ JoaT del bardo L2+ en no entrenadas).
+- **Tests**: `rules/combat_test.exs`, `conditions_test.exs`, `flows/*`,
+  `skill_checks_test.exs`.
 
 ### M14 — Death saves
 - **Dónde**: `Rules.Combat.death_save/1`, `Actions.death_save/4`,
@@ -564,6 +567,33 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   Uncanny Dodge, Indomitable, Jack of All Trades, feats, multiclase.
 - **Tests**: `evasion_test.exs`.
 
+### M44 — Proficiency de skills en checks + Jack of All Trades (`ability_check`, D60)
+- **Dónde**: `Rules.Skills` (tabla 18 skills SRD → característica,
+  `normalize/1` espacios/guiones/mayúsculas, `known?/1`, `ability/1`;
+  claves string, sin átomos de input del modelo) + `Rules.Combat.check_proficiency/2`
+  (público: el mensaje muestra el mismo desglose que la tirada) +
+  `Actions.check/8` (detección skill-vs-ability; `Tools.ability_check`
+  pasa el input crudo). Arregla el hueco v1: la tool ignoraba
+  `Character.skill_proficiencies`.
+- **Detección skill-PRIMERO**: "intimidation" es un skill de CAR, no la
+  característica `int` (el parse de ability es por prefijo).
+- **Resolución**: skill entrenado → prof completa; sin entrenar y bardo
+  L2+ → `div(prof, 2)` (JoaT, floor); resto → 0 como v1. Nunca ambos
+  (RAW: JoaT sólo cubre checks sin prof). JoaT también aplica a checks
+  con característica cruda de un bardo L2+ (RAW). Skill pasado por
+  nombre → prof desde la ficha (membresía normalizada) y pisa el flag
+  del caller; ability cruda → flag del caller (compat hacia atrás,
+  mismo arity y mismo nombre de parámetro `ability` en el esquema).
+- **Mensajes**: skill → "X hace un chequeo de Sigilo (DES): 1d20(11) +
+  DES 3 + prof 2 = 16 vs CD 15 — éxito" (JoaT: "+ JoaT 1"); ability
+  cruda → formato v1 sin cambios. Etiquetas ES de
+  `Heroes.Translations`.
+- **Sin campos nuevos ni Codec**. `cunning_action_hide` (M41/D57) no
+  cambia (ya suma prof de stealth; sin multiclase JoaT no le aplica).
+- Sin Expertise (doble prof), prof de tools/instrumentos, checks
+  pasivos distintos de perception, Reliable Talent, feats, multiclase.
+- **Tests**: `skill_checks_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -577,7 +607,8 @@ Arcane Recovery: **D51 / M35**. Divine Sense: **D52 / M36**.
 Turn Undead: **D53 / M37**. Ki + Flurry of Blows: **D54 / M38**.
 Hunter's Mark: **D55 / M39**. Font of Magic: **D56 / M40**.
 Cunning Action (Hide): **D57 / M41**. Danger Sense: **D58 / M42**.
-Evasión: **D59 / M43**.
+Evasión: **D59 / M43**. Jack of All Trades (y prof de skills en
+checks): **D60 / M44**.
 XP en partida: **D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
@@ -586,9 +617,10 @@ siguen fuera. Protection / TWF / GWF siguen fuera. Curar
 enfermedad/veneno con Lay on Hands (gastar 5) sigue fuera.
 Channel Divinity / Turn the Unholy / Improved Divine Sense siguen
 fuera. Dash / Disengage y Uncanny Dodge siguen fuera (sin grid ni
-ataques de oportunidad no tienen efecto mecánico — D57).
+ataques de oportunidad no tienen efecto mecánico — D57). Expertise
+(doble prof de skill) sigue fuera.
 
-Para que una de estas entre: ADR nuevo + mecánica `M43+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M44+` en este catálogo +
 tests.
 
 ## Dados

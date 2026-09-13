@@ -376,7 +376,7 @@ defmodule Dragonex.Game.Guardrails do
       "ESTÁ PROHIBIDO repetir o reformular esa misma intención. " <>
       "ESTE TURNO haz algo DISTINTO y LOCAL, en ESTA escena: un detalle que no hayas mencionado, " <>
       "una frase nueva a un compañero o PNJ, inspeccionar lo que ya está delante, o " <>
-      "ability_check(\"<tu nombre>\", \"<str|dex|int|wis|cha>\", <DC>) si hay riesgo real. " <>
+      "ability_check(\"<tu nombre>\", \"<skill (stealth, persuasion…) o str|dex|int|wis|cha>\", <DC>) si hay riesgo real. " <>
       "PROHIBIDO: marcharte, viajar, cruzar umbrales, abrir lo que el humano pidió no abrir, " <>
       "ejecutar un plan de varios pasos, o narrar que otro PC te sigue. Responde en castellano.\n\n" <>
       base

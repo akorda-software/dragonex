@@ -251,6 +251,27 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
   que D58); saves no-DES y daño sin save (o `:attack`) ignoran
   Evasión. Sin Uncanny Dodge, Indomitable, Jack of All Trades, feats
   ni multiclase.
+- **Proficiency de skills en checks + Jack of All Trades** (D60): **entregado.**
+  Arregla el hueco v1 (la tool `ability_check` ignoraba
+  `skill_proficiencies` de la ficha). Nueva tabla `Rules.Skills` (18
+  skills SRD → característica; `normalize/1` acepta espacios/guiones/
+  mayúsculas; detección skill-PRIMERA — "intimidation" es CAR, no el
+  ability `int`, porque el parse de ability es por prefijo); la tool
+  `ability_check` mantiene arity y nombre de parámetro `ability`
+  (exAgent bindea args por nombre: renombrarlo rompería llamadas
+  viejas); `Combat.check_proficiency/2` público para que el mensaje
+  muestre el mismo desglose que la tirada: skill entrenado → prof
+  completa desde la ficha; sin entrenar y bardo L2+ → `div(prof, 2)`
+  (JoaT, floor; también en ability cruda, RAW); resto → 0 como v1;
+  nunca ambos; ability cruda → flag del caller (compat, formato v1);
+  skill desconocido que tampoco es ability → error directivo con
+  ejemplos; mensaje ES "chequeo de Sigilo (DES): 1d20(11) + DES 3 +
+  prof 2 = 16 vs CD 15 — éxito" ("+ JoaT 1"); prompts PC/DM piden el
+  nombre de skill cuando aplique (sin línea de JoaT: es pasiva). Sin
+  campos nuevos ni Codec; `cunning_action_hide` D57 intacta (ya suma
+  prof de stealth; sin multiclase JoaT no le aplica). Sin Expertise,
+  prof de tools/instrumentos, checks pasivos ≠ perception, Reliable
+  Talent, feats, multiclase.
 - **Multiclase**: fuera del builder actual por diseño; implicaría rehacer
   progression.
 - **Marketplace de contenido custom** (D22): compartir entre usuarios.

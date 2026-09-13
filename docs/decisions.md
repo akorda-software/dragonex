@@ -1251,6 +1251,69 @@ Blows D54, Hunter's Mark D55, Font of Magic D56, Cunning Action (Hide)
 D57, Danger Sense D58, Evasión D59 y spellcasting paladín/ranger L2; el
 resto de features por nivel sigue 🟡.
 
+### D60 — Proficiency de skills en ability_check + Jack of All Trades
+Estado: **Aceptada** — 2026-09-13.
+
+Arregla el hueco v1 documentado en la tool (`ability_check` ignoraba
+`Character.skill_proficiencies`: la ficha las guardaba pero la
+resolución no las aplicaba — los checks eran menos deterministas de lo
+que el motor promete, D1). Con la prof aplicada, Jack of All Trades del
+bardo (L2+: mitad de prof en checks SIN el skill entrenado) sale gratis.
+
+- Nueva tabla skill→característica de los 18 skills SRD en
+  `Rules.Skills` (`ability/1`, `known?/1`, `normalize/1`): pure, claves
+  string snake_case (nunca crea átomos de input del modelo, regla D8
+  aplicada fuera del Codec). La normalización acepta espacios/guiones/
+  mayúsculas ("Animal Handling" → `animal_handling`).
+- La detección es skill-PRIMERO: "intimidation" es un skill de CAR, no
+  la característica `int` (el parse de ability es por prefijo y se lo
+  habría comido).
+- Tool `ability_check(who, ability, dc, mode)` — MISMO arity y MISMO
+  nombre de parámetro `ability` en el esquema (exAgent bindea args por
+  nombre: renombrarlo rompería llamadas viejas del modelo). El @doc
+  explica que acepta skill o característica.
+- Resolución (`Combat.ability_check/6` + `Combat.check_proficiency/2`
+  público para que el mensaje muestre el mismo desglose que la tirada):
+  skill entrenado → prof completa (`Ability.proficiency/1`); sin
+  entrenar y bardo L2+ → `div(prof, 2)` (JoaT, floor); sin entrenar y
+  no bardo / bardo L1 → 0 como v1. Nunca ambos (RAW: JoaT sólo cubre
+  checks que ya no lleven la prof). JoaT también aplica a checks con
+  característica cruda (RAW: cualquier check sin prof).
+- `Actions.check/8`: firma actual; el tercer parámetro acepta skill o
+  ability. Skill pasado por nombre → la prof sale de la ficha
+  (`skill_proficiencies`, membresía normalizada) y pisa el flag
+  `proficient` del caller; ability cruda → flag del caller (compat).
+  Skill desconocido que tampoco es ability → error directivo con
+  ejemplos.
+- Mensaje ES con desglose. Skill: "X hace un chequeo de Sigilo (DES):
+  1d20(11) + DES 3 + prof 2 = 16 vs CD 15 — éxito"; JoaT se etiqueta
+  "+ JoaT 1" (o "+ 1 (JoaT)" en el formato crudo). Ability cruda:
+  formato v1 sin cambios. Etiquetas ES de skill/característica corta
+  reutilizadas de `Heroes.Translations` (cero duplicación).
+- `cunning_action_hide` (D57) NO cambia: ya suma prof de stealth por su
+  cuenta (`skill_trained?/2`, ahora con membresía normalizada); un
+  pícaro nunca es bardo (sin multiclase), JoaT no le aplica.
+- Prompts: línea de `ability_check` del PC (exploración) y del DM
+  actualizadas para pedir el NOMBRE DE SKILL cuando aplique y ability
+  cruda sólo para checks genéricos. SIN línea nueva de JoaT en el prompt
+  del bardo (es pasiva; no necesita anuncio).
+- Sin campos nuevos de Character/Weapon/Spell/Item ni cambios de Codec.
+
+**Fuera**: Expertise (doble prof), prof de tools/instrumentos, checks
+pasivos distintos de perception (ya cubierto en D57), Reliable Talent,
+feats, multiclase.
+
+No cambia `Character`/`Weapon`/`Spell`/`Item` ni Codec. M44 en el
+catálogo; 07-contrato-tools actualiza la fila de `ability_check`.
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
+Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
+D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50,
+Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of
+Blows D54, Hunter's Mark D55, Font of Magic D56, Cunning Action (Hide)
+D57, Danger Sense D58, Evasión D59, Jack of All Trades D60 y
+spellcasting paladín/ranger L2; el resto de features por nivel sigue 🟡.
+
 ---
 
 ## Pendientes de decisión (abiertas)

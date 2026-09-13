@@ -21,12 +21,13 @@ defmodule Dragonex.Actions do
     Rules.Ability,
     Rules.Combat,
     Rules.Conditions,
+    Rules.Skills,
     SpellSlots,
     Weapon,
     World
   }
 
-  alias Dragonex.Heroes.{Progression, Spells}
+  alias Dragonex.Heroes.{Progression, Spells, Translations}
 
   @type roller :: (pos_integer() -> pos_integer())
   @type result ::
@@ -982,8 +983,10 @@ defmodule Dragonex.Actions do
     10 + Character.modifier(c, :wis) + prof
   end
 
+  # Normalized membership (D60): sheets store canonical snake_case keys, but
+  # custom/legacy data may differ in case or separators.
   defp skill_trained?(%Character{skill_proficiencies: profs}, skill) when is_list(profs) do
-    skill in profs
+    Enum.any?(profs, fn p -> is_binary(p) and Skills.normalize(p) == skill end)
   end
 
   defp skill_trained?(_, _), do: false
@@ -1151,18 +1154,35 @@ defmodule Dragonex.Actions do
   Resolve an ability check (non-combat): the DM sets the `dc`, the engine rolls
   `d20 + ability modifier` and reports success/failure. No world side-effect —
   the DM narrates the consequences and may then call other tools.
+
+  `ability_or_skill` (D60): either a raw ability (`"str"`, `:dex`, …) or a
+  skill name (`"stealth"`, `"Animal Handling"`, `"animal-handling"`). A known
+  skill resolves to its governing ability (`Rules.Skills`) and the ENGINE
+  applies proficiency from the sheet (`skill_proficiencies`), plus Jack of All
+  Trades (bard L2+, half proficiency) on untrained checks — the `proficient`
+  argument is ignored in that branch. A raw ability keeps the caller's
+  `proficient` flag (backwards compatible). Unknown input → directive error.
   """
   @spec check(
           World.t(),
           String.t(),
-          atom(),
+          atom() | String.t(),
           integer(),
           boolean(),
           roller(),
           :normal | :advantage | :disadvantage,
           RollLog.t() | nil
         ) :: result()
-  def check(world, who, ability, dc, proficient, roller, mode \\ :normal, roll_log \\ nil) do
+  def check(
+        world,
+        who,
+        ability_or_skill,
+        dc,
+        proficient,
+        roller,
+        mode \\ :normal,
+        roll_log \\ nil
+      ) do
     case World.character(world, who) do
       nil ->
         {:error, "no existe el personaje: #{who}"}
@@ -1173,37 +1193,106 @@ defmodule Dragonex.Actions do
         {:error, "#{who} está caído (0 pg) y no puede hacer chequeos"}
 
       %Character{} = c ->
-        effective_mode = Conditions.check_mode(c, ability, mode)
+        with {:ok, %{ability: ability, proficient?: prof?, skill: skill}} <-
+               resolve_check_input(c, ability_or_skill, proficient) do
+          effective_mode = Conditions.check_mode(c, ability, mode)
 
-        {r, close} =
-          RollLog.open(roll_log, roller, who, :check, "chequeo de #{ability_es(ability)}")
+          label = check_label(ability, skill)
 
-        {d20, total, _success?} =
-          Combat.ability_check(c, ability, dc, r, proficient, effective_mode)
+          {r, close} =
+            RollLog.open(roll_log, roller, who, :check, "chequeo de #{label}")
 
-        inspired? = c.inspired == true
-        {total, success?, bardic} = apply_inspired_vs_dc(c, total, dc, r)
+          {d20, total, _success?} =
+            Combat.ability_check(c, ability, dc, r, prof?, effective_mode)
 
-        RollLog.close(close,
-          total: total,
-          against: {:dc, dc},
-          outcome: if(success?, do: :success, else: :failure)
-        )
+          inspired? = c.inspired == true
+          {total, success?, bardic} = apply_inspired_vs_dc(c, total, dc, r)
 
-        mod = Character.modifier(c, ability)
-        prof = if proficient, do: Ability.proficiency(c.level), else: 0
-        verdict = if success?, do: "éxito", else: "fallo"
+          RollLog.close(close,
+            total: total,
+            against: {:dc, dc},
+            outcome: if(success?, do: :success, else: :failure)
+          )
 
-        parts =
-          ["d20 #{d20}"]
-          |> then(fn p -> if mod != 0, do: p ++ ["#{signed(mod)} (#{ability})"], else: p end)
-          |> then(fn p -> if prof != 0, do: p ++ ["#{prof} (competencia)"], else: p end)
-          |> then(fn p -> if bardic != 0, do: p ++ ["#{bardic} (inspiración)"], else: p end)
+          mod = Character.modifier(c, ability)
+          {prof_bonus, prof_kind} = Combat.check_proficiency(c, prof?)
+          verdict = if success?, do: "éxito", else: "fallo"
 
-        {:ok,
-         "#{who} hace un chequeo de #{ability_es(ability)}#{mode_tag(effective_mode)}: #{Enum.join(parts, " + ")} = #{total} vs CD #{dc} — #{verdict}.",
-         compose_inspired_clear(who, inspired?, noop())}
+          parts = check_parts(d20, mod, ability, prof_bonus, prof_kind, bardic, skill)
+
+          {:ok,
+           "#{who} hace un chequeo de #{label}#{mode_tag(effective_mode)}: #{Enum.join(parts, " + ")} = #{total} vs CD #{dc} — #{verdict}.",
+           compose_inspired_clear(who, inspired?, noop())}
+        end
     end
+  end
+
+  # Skill-vs-ability detection (D60): a known skill wins over ability parsing
+  # ("intimidation" is a CHA skill, not the int ability — the parser matches
+  # prefixes). A skill takes proficiency from the sheet; a raw ability keeps
+  # the caller's flag. Unknown input gets a directive error with examples.
+  defp resolve_check_input(%Character{} = c, input, proficient) do
+    if Skills.known?(input) do
+      skill = Skills.normalize(input)
+
+      {:ok,
+       %{skill: skill, ability: ability_from_skills(skill), proficient?: skill_trained?(c, skill)}}
+    else
+      case Ability.parse(input) do
+        {:ok, ability} -> {:ok, %{skill: nil, ability: ability, proficient?: proficient}}
+        :error -> {:error, unknown_check_input_error(input)}
+      end
+    end
+  end
+
+  # The fetch cannot fail: known?/1 already validated the key.
+  defp ability_from_skills(skill) do
+    {:ok, ability} = Skills.ability(skill)
+    ability
+  end
+
+  defp unknown_check_input_error(input) do
+    "característica o skill desconocidos: #{inspect(input)} — usa un skill " <>
+      "(#{Skills.examples()}, …) o una característica str/dex/con/int/wis/cha"
+  end
+
+  # Roll-log label: "Sigilo (DES)" for a named skill, "Destreza" for a raw
+  # ability (same string is reused in the chat message).
+  defp check_label(ability, nil), do: ability_es(ability)
+
+  defp check_label(ability, skill),
+    do: "#{Translations.skill(skill)} (#{Translations.ability_short(ability)})"
+
+  # Breakdown parts. A named skill gets the D60 format
+  # ("1d20(11) + DES 3 + prof 2" / "+ JoaT 1"); a raw ability keeps the v1
+  # format ("d20 11 + +3 (dex) + 2 (competencia)") for backwards compat.
+  defp check_parts(d20, mod, ability, prof_bonus, prof_kind, bardic, nil) do
+    ["d20 #{d20}"]
+    |> then(fn p -> if mod != 0, do: p ++ ["#{signed(mod)} (#{ability})"], else: p end)
+    |> then(fn p ->
+      case prof_kind do
+        :prof -> p ++ ["#{prof_bonus} (competencia)"]
+        :joat -> p ++ ["#{prof_bonus} (JoaT)"]
+        :none -> p
+      end
+    end)
+    |> then(fn p -> if bardic != 0, do: p ++ ["#{bardic} (inspiración)"], else: p end)
+  end
+
+  defp check_parts(d20, mod, ability, prof_bonus, prof_kind, bardic, skill)
+       when is_binary(skill) do
+    abbr = Translations.ability_short(ability)
+
+    ["1d20(#{d20})"]
+    |> then(fn p -> if mod != 0, do: p ++ ["#{abbr} #{mod}"], else: p end)
+    |> then(fn p ->
+      case prof_kind do
+        :prof -> p ++ ["prof #{prof_bonus}"]
+        :joat -> p ++ ["JoaT #{prof_bonus}"]
+        :none -> p
+      end
+    end)
+    |> then(fn p -> if bardic != 0, do: p ++ ["inspiración #{bardic}"], else: p end)
   end
 
   # ------------------------------------------------------------- spell helpers

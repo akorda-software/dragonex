@@ -303,7 +303,9 @@ defmodule Dragonex.PCAgent do
         turn_undead_line(c) <>
         "SOLO llama a una herramienta si intentas algo con riesgo real de fallo " <>
         "(forzar una puerta, persuadir a un PNJ, detectar una trampa, etc.): " <>
-        "ability_check(\"#{c.name}\", \"<str|dex|con|int|wis|cha>\", <DC>).\n" <>
+        "ability_check(\"#{c.name}\", \"<skill o característica>\", <DC>) — pasa el NOMBRE DE SKILL cuando aplique " <>
+        "(\"stealth\", \"persuasion\", \"athletics\"…: el motor suma tu competencia de la ficha) y " <>
+        "str/dex/con/int/wis/cha sólo para checks genéricos.\n" <>
         "Si introducen o revelan algo duradero (un PNJ llega, un descubrimiento, un encargo), el DM lo registrará " <>
         "con establish_fact; tú NO necesitas llamarlo. " <>
         "NO inventes make_attack contra objetos, PNJ sin hostilidad, o nombres que no estén en el mundo. " <>

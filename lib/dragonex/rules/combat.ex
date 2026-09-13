@@ -109,10 +109,11 @@ defmodule Dragonex.Rules.Combat do
   for this check)`, vs the DC. No natural-1/20 auto outcomes (those only apply
   to attack rolls).
 
-  `proficient` (default false) adds the character's proficiency bonus — use it
-  when the check maps to a skill the character is trained in. Skill
-  proficiencies aren't modelled on the character yet, so the caller (the DM)
-  asserts it for now.
+  `proficient` (default false) adds the character's proficiency bonus —
+  `Actions.check` derives it from the sheet's `skill_proficiencies` when the
+  caller names a skill (D60). When not proficient, a bard of level 2+ adds
+  half proficiency instead (Jack of All Trades, D60) — never both: RAW JoaT
+  only covers checks that don't already include the bonus.
   """
   @spec ability_check(
           Character.t(),
@@ -125,10 +126,36 @@ defmodule Dragonex.Rules.Combat do
           {pos_integer(), integer(), boolean()}
   def ability_check(%Character{} = c, ability, dc, roller, proficient \\ false, mode \\ :normal) do
     d20 = roll_d20(roller, mode)
-    prof = if proficient, do: Ability.proficiency(c.level), else: 0
+    {prof, _kind} = check_proficiency(c, proficient)
     total = d20 + Character.modifier(c, ability) + prof
     {d20, total, total >= dc}
   end
+
+  @doc """
+  Proficiency bonus added to an ability check, with its kind (D60).
+
+    * `{:full, :prof}` — trained (`proficient` true): the whole bonus.
+    * `{:half, :joat}` — untrained but bard L2+ (Jack of All Trades):
+      `div(proficiency, 2)`, floored.
+    * `{:none, 0}` — anything else, as in v1.
+
+  Public so `Actions.check` renders the same breakdown the roll used.
+  """
+  @spec check_proficiency(Character.t(), boolean()) :: {integer(), :prof | :joat | :none}
+  def check_proficiency(%Character{} = c, proficient) do
+    prof = Ability.proficiency(c.level)
+
+    cond do
+      proficient -> {prof, :prof}
+      joat?(c) -> {div(prof, 2), :joat}
+      true -> {0, :none}
+    end
+  end
+
+  # Jack of All Trades (D60): bard L2+ adds half proficiency to ability
+  # checks that don't already include it. Reached only when not proficient.
+  defp joat?(%Character{class: "bard", level: level}), do: is_integer(level) and level >= 2
+  defp joat?(_), do: false
 
   @doc """
   A death saving throw (d20, no modifier).

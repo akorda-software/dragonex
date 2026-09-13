@@ -50,7 +50,7 @@ Fuente canónica del código: `lib/dragonex/tools.ex` (S5), sets por agente en
 | `roll_initiative` | `()` | — | Iniciativa de todos los conscientes + `begin_combat` (M2) |
 | `make_attack` | `(attacker, target, weapon, mode)` | `assert_controls(attacker)` | Acción de Ataque: N golpes vs el mismo objetivo (Extra Attack D35 / M3); d20(+adv/dis) + prof + mod vs AC; crítico dobla dados (M3–M6) |
 | `cast_spell` | `(caster, spell, target)` | `assert_controls(caster)` | Por `kind`: `:automatic` / `:attack` (crit dobla) / `:save` (mitad en éxito); consume slot si nivel > 0 (M7–M11) |
-| `ability_check` | `(who, ability, dc, mode)` | `assert_controls(who)` | d20 + mod (+ prof si el DM la afirma) vs DC del DM (5/10/15/20) |
+| `ability_check` | `(who, ability, dc, mode)` | `assert_controls(who)` | d20 + mod vs DC del DM (5/10/15/20). `ability` acepta un SKILL (`"stealth"`, `"Animal Handling"`… — normalizado): el motor mapea la característica, aplica la prof de la ficha y JoaT del bardo L2+ en no entrenadas (D60 / M44); ability cruda sin prof de ficha (compat) |
 | `make_death_save` | `(character)` | `assert_controls(character)` | Death save: nat20 revive, nat1 doble fallo, 3/3 (M14) |
 | `heal` | `(target, dice)` | — | Curación por expresión (`1d8+3`), cap max_hp, resetea death saves (M15). No toca `temp_hp` |
 | `grant_temp_hp` | `(who, amount)` | DM cualquiera; PC sólo sí mismo | Otorga pg temporales sin apilar (`max` actual vs nuevo) (M23 / D36) |
