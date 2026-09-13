@@ -210,6 +210,23 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
   (`compose_long_rest`, distinto del ki D54); level-up no resetea
   restante. Sin Metamagic, sorcerous restoration, casillas > 5º ni
   gastar puntos en otras cosas.
+- **Cunning Action (Hide) del pícaro** (D57): **entregado.** Sin
+  campos nuevos ("hidden" va en `conditions` vía `apply_condition`;
+  M06 le añade ventaja al atacar junto a invisible); tool
+  `cunning_action_hide(who)` (rogue L2+; DM cualquiera, PC sólo sí
+  mismo) valida who, caído, clase/nivel y no ya oculto antes de
+  tirar; el motor resuelve 1d20 + DES + prof (si "stealth" en
+  `skill_proficiencies`; modo vía `Conditions.check_mode`) contra la
+  máxima percepción pasiva de enemigos conscientes (`10 + SAB + prof`
+  si "perception" entrenada, `Actions.passive_perception/1`; DC 10
+  sin enemigos conscientes); éxito → "hidden" → ventaja en
+  `make_attack` (cancela con desventaja vía `combine`; habilita
+  Sneak Attack D41 sin aliado); el ataque de arma (hit o miss, todos
+  los swings) y el hechizo de ataque revelan y quitan "hidden"
+  (composition en el change_fn); RollLog patrón ability_check;
+  errores no mutan. Sin Dash/Disengage (sin grid ni opportunity
+  attacks), visibilidad/posición, sigilo sostenido, ocultarse de
+  aliados, Uncanny Dodge, feats ni multiclase.
 - **Multiclase**: fuera del builder actual por diseño; implicaría rehacer
   progression.
 - **Marketplace de contenido custom** (D22): compartir entre usuarios.

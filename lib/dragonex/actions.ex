@@ -129,6 +129,7 @@ defmodule Dragonex.Actions do
             smite = smite_opts(a, weapon)
             inspired? = a.inspired == true
             mark? = mark_target?(a, target)
+            hidden? = "hidden" in Character.condition_names(a)
 
             swings =
               resolve_swings(
@@ -154,6 +155,8 @@ defmodule Dragonex.Actions do
 
             change = compose_smite_spend(attacker, a.smite_slot, swings, change)
             change = compose_inspired_clear(attacker, inspired?, change)
+            # D57: attacking (hit or miss, every swing) reveals a hidden attacker.
+            change = compose_hidden_clear(attacker, hidden?, change)
 
             {:ok,
              append_notes(
@@ -894,6 +897,98 @@ defmodule Dragonex.Actions do
   end
 
   @doc """
+  Cunning Action: Hide (5e, D57): a rogue of level 2+ attempts to hide.
+
+  The engine rolls the check — `1d20 + DEX mod (+ proficiency when "stealth"
+  is in `skill_proficiencies`)`, mode from `Conditions.check_mode/3` —
+  against the highest passive perception among conscious enemies
+  (`side != who.side`, hp > 0): `10 + WIS mod (+ proficiency when
+  "perception" is trained)`. With no conscious enemy the DC is 10 (RAW
+  minimum). Success applies the "hidden" condition (advantage on the
+  rogue's attacks — and Sneak Attack, D41); attacking (hit or miss)
+  reveals and removes it. Combat allowed (bonus action RAW; action
+  economy out of scope). Errors do not mutate.
+  """
+  @spec cunning_action_hide(World.t(), String.t(), roller(), RollLog.t() | nil) :: result()
+  def cunning_action_hide(world, who, roller, roll_log \\ nil) do
+    rogue = World.character(world, who)
+
+    cond do
+      is_nil(rogue) ->
+        {:error, "no existe el personaje: #{who}"}
+
+      (rogue.hp || 0) <= 0 ->
+        {:error, "#{who} está caído (0 pg) y no puede esconderse"}
+
+      rogue.class != "rogue" ->
+        {:error, "#{who} no es pícaro y no puede usar Astucia de pícaro"}
+
+      not is_integer(rogue.level) or rogue.level < 2 ->
+        {:error, "#{who} no tiene Astucia de pícaro (nivel 2)"}
+
+      World.has_condition?(world, who, "hidden") ->
+        {:error, "#{who} ya está oculto"}
+
+      true ->
+        hide_check(rogue, world, who, roller, roll_log)
+    end
+  end
+
+  defp hide_check(%Character{} = rogue, world, who, roller, roll_log) do
+    dc = hide_dc(world, rogue)
+    stealth? = skill_trained?(rogue, "stealth")
+    mode = Conditions.check_mode(rogue, :dex, :normal)
+
+    {r, close} =
+      RollLog.open(roll_log, roller, who, :check, "Sigilo para esconderse")
+
+    {d20, total, success?} = Combat.ability_check(rogue, :dex, dc, r, stealth?, mode)
+
+    RollLog.close(close,
+      total: total,
+      against: {:dc, dc},
+      outcome: if(success?, do: :success, else: :failure)
+    )
+
+    dex_mod = Character.modifier(rogue, :dex)
+    prof = if stealth?, do: Ability.proficiency(rogue.level), else: 0
+
+    breakdown =
+      ["1d20(#{d20})"]
+      |> then(fn p -> if dex_mod != 0, do: p ++ ["#{signed(dex_mod)}"], else: p end)
+      |> then(fn p -> if prof != 0, do: p ++ ["+#{prof}"], else: p end)
+      |> Enum.join("")
+
+    verdict = if success?, do: "oculto", else: "falla y sigue a la vista"
+
+    {:ok, "#{who} se esconde: #{breakdown}=#{total} vs #{dc} — #{verdict}",
+     if(success?, do: World.apply_condition(who, "hidden"), else: noop())}
+  end
+
+  # DC: the highest passive perception among conscious enemies; 10 when
+  # there is none (RAW minimum).
+  defp hide_dc(%World{} = world, %Character{} = who) do
+    world.characters
+    |> Map.values()
+    |> Enum.filter(fn c -> c.side != who.side and (c.hp || 0) > 0 end)
+    |> Enum.map(&passive_perception/1)
+    |> Enum.max(fn -> 10 end)
+  end
+
+  @doc "Passive perception: 10 + WIS mod (+ proficiency if trained)."
+  @spec passive_perception(Character.t()) :: integer()
+  def passive_perception(%Character{} = c) do
+    prof = if skill_trained?(c, "perception"), do: Ability.proficiency(c.level), else: 0
+    10 + Character.modifier(c, :wis) + prof
+  end
+
+  defp skill_trained?(%Character{skill_proficiencies: profs}, skill) when is_list(profs) do
+    skill in profs
+  end
+
+  defp skill_trained?(_, _), do: false
+
+  @doc """
   Create a Spell Slot (5e, D56 Font of Magic): a sorcerer of level 2+ spends
   sorcery points (RAW cost 2/3/5/6/7 for slots 1–5) and gains one slot of
   `level`. RAW allows exceeding the daily slot maximum. Combat allowed
@@ -1188,6 +1283,9 @@ defmodule Dragonex.Actions do
       :attack ->
         bonus = Combat.spell_attack_bonus(c, spell)
         effective_mode = Conditions.attack_mode(c, t, requested: :normal, ranged: true)
+        # D57: a hidden caster keeps the advantage for free (attack_mode),
+        # but the spell attack reveals them just like a weapon swing.
+        hidden? = "hidden" in Character.condition_names(c)
 
         {r, close_atk} =
           RollLog.open(roll_log, roller, caster_name, :attack, "ataque con #{spell.name}")
@@ -1230,10 +1328,12 @@ defmodule Dragonex.Actions do
             t,
             spell.damage_type
           )
+          |> clear_hidden_after_attack_spell(caster_name, hidden?)
         else
           {:ok,
            "#{caster_name} conjura #{spell.name}; falla contra #{target_name} (d20 #{d20}: #{total} vs CA #{t.ac})#{mode_tag(effective_mode)}.",
            noop()}
+          |> clear_hidden_after_attack_spell(caster_name, hidden?)
         end
 
       :save ->
@@ -1331,6 +1431,13 @@ defmodule Dragonex.Actions do
   end
 
   defp kept_d20(roller, _), do: roller.(20)
+
+  # D57: reveal a hidden caster once their attack spell resolves.
+  defp clear_hidden_after_attack_spell({:ok, msg, change}, name, true) do
+    {:ok, msg, compose_hidden_clear(name, true, change)}
+  end
+
+  defp clear_hidden_after_attack_spell(result, _name, false), do: result
 
   defp dice_with(%{dice: nil}, _roller), do: 0
   defp dice_with(%{dice: expr}, roller), do: Dice.roll_expr(expr, roller)
@@ -1868,6 +1975,18 @@ defmodule Dragonex.Actions do
     fn w ->
       with {:ok, w} <- change.(w) do
         World.set_inspired(name, false).(w)
+      end
+    end
+  end
+
+  # D57: an attack (or attack spell) reveals a hidden attacker — strip
+  # "hidden" once the change resolves, hit or miss.
+  defp compose_hidden_clear(_name, false, change), do: change
+
+  defp compose_hidden_clear(name, true, change) do
+    fn w ->
+      with {:ok, w} <- change.(w) do
+        World.remove_condition(name, "hidden").(w)
       end
     end
   end

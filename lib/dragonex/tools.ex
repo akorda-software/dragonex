@@ -463,6 +463,27 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
+  Cunning Action: Hide (5e, D57). Rogue level 2+. The engine rolls a DEX
+  (Stealth) check against the highest passive perception among conscious
+  enemies; success applies "hidden" — the rogue's next attack rolls with
+  advantage (and enables Sneak Attack), and that attack reveals them.
+  The DM may use it for any rogue; a PC may only use it as themselves.
+  """
+  deftool cunning_action_hide(ctx, who :: String.t()) do
+    with :ok <- assert_cunning_hide_self(ctx, who),
+         {:ok, msg, change} <-
+           Dragonex.Actions.cunning_action_hide(
+             world(ctx),
+             who,
+             ctx.deps.roller,
+             ctx.deps[:roll_log]
+           ),
+         {:ok, _} <- propose(ctx, change) do
+      {:ok, msg}
+    end
+  end
+
+  @doc """
   Create a Spell Slot (5e, D56 Font of Magic). Sorcerer level 2+. Spends
   sorcery points (2/3/5/6/7 by slot level 1–5) and gains one slot of that
   level. The DM may use it for any sorcerer; a PC may only use it as
@@ -775,6 +796,17 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error, "RECHAZADO — solo puedes usar Marca del cazador como #{proposer}, no como #{who}."}
+    end
+  end
+
+  # Cunning Action: Hide (D57): self guard (divine_smite pattern).
+  defp assert_cunning_hide_self(ctx, who) do
+    proposer = ctx.deps.state.participant_id
+
+    if proposer == "dm" or proposer == who do
+      :ok
+    else
+      {:error, "RECHAZADO — solo puedes esconderte tú mismo (#{proposer}), no a #{who}."}
     end
   end
 

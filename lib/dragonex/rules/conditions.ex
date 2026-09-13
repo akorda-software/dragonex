@@ -20,7 +20,7 @@ defmodule Dragonex.Rules.Conditions do
   @type save_outcome :: :auto_fail | {:roll, mode()}
 
   @attack_self_disadvantage ~w(poisoned frightened blinded restrained prone)
-  @attack_self_advantage ~w(invisible)
+  @attack_self_advantage ~w(invisible hidden)
   @attack_vs_advantage ~w(blinded stunned paralyzed unconscious restrained petrified)
   @attack_vs_disadvantage ~w(invisible)
   @check_disadvantage ~w(poisoned frightened)

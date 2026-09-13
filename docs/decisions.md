@@ -1106,6 +1106,72 @@ Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of
 Blows D54, Hunter's Mark D55, Font of Magic D56 y spellcasting
 paladín/ranger L2; el resto de features por nivel sigue 🟡.
 
+### D57 — Cunning Action: Hide 5e
+Estado: **Aceptada** — 2026-09-13.
+
+RAW acotado del pícaro: sólo el Hide de Cunning Action. El LLM no tira
+dados (D1): llama `cunning_action_hide`; el motor resuelve el chequeo de
+DEX (Sigilo) contra la percepción pasiva más alta de los enemigos
+conscientes. Combate permitido (bonus action RAW; economía de acciones
+fuera, como siempre).
+
+- Solo `class == "rogue"` y `level >= 2`.
+- NO cambia `Character`/`Weapon`/`Spell`/`Item` ni Codec: "hidden" es una
+  condición más (`conditions`, aplicada con `World.apply_condition`).
+- Tool `cunning_action_hide(who)`. DM cualquiera; PC sólo sí mismo.
+- Chequeo (determinista, en el motor): tirada `1d20 + mod DEX + prof` si
+  `"stealth"` está en `skill_proficiencies` (modo vía
+  `Conditions.check_mode(a, :dex, :normal)` — poisoned/frightened aplican
+  desventaja). DC = máxima percepción pasiva entre enemigos conscientes
+  (`side != who.side` y hp > 0): `10 + mod SAB + prof` si `"perception"`
+  entrenada (`Actions.passive_perception/1`). Sin enemigos conscientes →
+  DC 10 (mínimo RAW). Éxito (≥ DC) → `apply_condition(who, "hidden")`;
+  fallo → sin condición y sigue a la vista. Registro en RollLog (patrón
+  ability_check). Mensaje ES con desglose: "X se esconde:
+  1d20(12)+3+2=17 vs 15 — oculto" / "— falla y sigue a la vista".
+- Ventaja: "hidden" entra en `@attack_self_advantage` de
+  `Rules.Conditions` (junto a invisible). Así `make_attack` del oculto
+  sale con ventaja efectiva (cancela con desventaja vía `combine`
+  existente) y `sneak_opts` ve `:advantage` → Sneak Attack (D41) aplica
+  gratis sin aliado.
+- Limpieza de "hidden": tras resolver `make_attack` del oculto (hit o
+  miss, todos los swings del `Actions.attack`) se quita la condición —
+  atacar revela (composition en el change_fn, patrón inspired). Re-
+  esconderse mientras oculto → error "ya está oculto" (no re-tira).
+- **Hechizos de ataque** (`cast_spell` kind `:attack`): su ruta ya pasa
+  por `Conditions.attack_mode`, así que la ventaja del oculto aplica
+  gratis — se deja (documentado). **Decisión**: la limpieza de "hidden"
+  tras el hechizo de ataque SÍ entra — era un cambio pequeño y local
+  (wrap de las dos salidas de la rama `:attack` en `resolve_spell`), y
+  sin él un caster oculto conservaría la ventaja para siempre.
+- Incapacitación: si el oculto cae `unconscious`/condición
+  incapacitante, `apply_condition` existente ya arrastra
+  `concentrating`/`raging`/`reckless` pero NO quita "hidden" — fuera
+  (no es gratis con la maquinaria existente; documentado). No afecta al
+  flujo D57: un caído no puede atacar y el DM tiene
+  `remove_condition`.
+- Errores NO mutan: who no existe; who caído (hp ≤ 0); no pícaro; nivel
+  < 2; ya oculto.
+- **Fuera**: Dash y Disengage (este motor no tiene grid ni ataques de
+  oportunidad — no tendrían efecto mecánico); visibilidad/posición;
+  sigilo sostenido tras varias acciones; ocultarse de aliados; otros
+  usos de Sigilo fuera de combate (para eso está `ability_check`);
+  Uncanny Dodge; feats; multiclase. Flurry of Blows tampoco limpia
+  "hidden" (un monje no llega a oculto por D57 y sin multiclase es
+  inalcanzable; fuera de alcance).
+
+No cambia `Character`/`Weapon`/`Spell`/`Item`. M06 gana la fila
+`hidden` (ventaja al atacar). D41 intacto (hidden es sólo otra fuente
+de ventaja).
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
+Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
+D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50,
+Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of
+Blows D54, Hunter's Mark D55, Font of Magic D56, Cunning Action (Hide)
+D57 y spellcasting paladín/ranger L2; el resto de features por nivel
+sigue 🟡.
+
 ---
 
 ## Pendientes de decisión (abiertas)

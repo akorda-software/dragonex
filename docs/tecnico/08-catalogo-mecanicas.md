@@ -1,4 +1,4 @@
-# Catálogo de mecánicas 5e (M1–M40)
+# Catálogo de mecánicas 5e (M1–M41)
 
 > **Técnico.** Cada mecánica implementada, con identificador estable `Mxx`,
 > dónde vive (módulo:función), qué regla 5e aplica, sus simplificaciones (ADR)
@@ -85,6 +85,7 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   | `prone` | desventaja | melee ventaja / ranged desventaja | — | — |
   | `paralyzed` / `stunned` / `unconscious` / `petrified` | — | ventaja | STR/DEX auto-fallo | — |
   | `invisible` | ventaja | desventaja | — | — |
+  | `hidden` (D57) | ventaja | — | — | — |
 
 - **Auto-fallo**: STR/DEX de paralizado/aturdido/inconsciente/petrificado no
   tira; el hechizo `:save` aplica daño completo.
@@ -488,6 +489,39 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   > 5º, gastar puntos en otras cosas, feats, multiclase.
 - **Tests**: `font_of_magic_test.exs`.
 
+### M41 — Cunning Action: Hide (`conditions: "hidden"`, D57)
+- **Dónde**: reusa `Character.conditions` (M06/M20) con la clave
+  `"hidden"` aplicada por `World.apply_condition/2`; sin campos nuevos
+  ni cambios de Codec. Solo `class == "rogue"` y `level >= 2`.
+  `Actions.cunning_action_hide/4`: valida who existe, who no caído
+  (hp > 0), pícaro L2+ y no ya oculto; entonces tira el chequeo
+  determinista — `1d20 + mod DEX + prof` si `"stealth"` está en
+  `skill_proficiencies`, modo vía `Conditions.check_mode(a, :dex,
+  :normal)` — contra la máxima percepción pasiva de enemigos conscientes
+  (`side != who.side`, hp > 0): `10 + mod SAB + prof` si `"perception"`
+  entrenada (`Actions.passive_perception/1`); sin enemigos conscientes
+  DC 10. Éxito (≥ DC) → `apply_condition(who, "hidden")`; fallo → sin
+  condición. Errores no mutan nada. Registro en RollLog (patrón
+  ability_check). Mensaje ES con desglose: "X se esconde:
+  1d20(12)+3+2=17 vs 15 — oculto" / "— falla y sigue a la vista".
+- **Ventaja**: "hidden" en `@attack_self_advantage` de
+  `Rules.Conditions` (junto a `invisible`) → `make_attack` del oculto
+  con ventaja efectiva (cancelación 5e vía `combine`); `sneak_opts`
+  ve `:advantage` → Sneak Attack D41 gratis sin aliado. Los hechizos de
+  ataque (`cast_spell` kind `:attack`) pasan por `attack_mode`: la
+  ventaja aplica gratis (decisión D57).
+- **Limpieza**: `make_attack` del oculto (hit o miss, todos los swings)
+  y el hechizo de ataque quitan "hidden" (atacar revela; composition en
+  el change_fn, patrón inspired). Re-esconderse oculto → error. Si el
+  oculto cae incapacitado, "hidden" NO se arrastra (fuera D57,
+  documentado; el DM tiene `remove_condition`).
+- Tool `cunning_action_hide(who)` (DM cualquiera; PC sólo sí mismo).
+  Combate permitido (bonus action RAW; economía de acciones fuera).
+  Sin Dash/Disengage (sin grid ni opportunity attacks), visibilidad/
+  posición, sigilo sostenido, ocultarse de aliados, Sigilo fuera de
+  combate (usa `ability_check`), Uncanny Dodge, feats, multiclase.
+- **Tests**: `cunning_action_hide_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -500,6 +534,7 @@ Lay on Hands: **D49 / M33**. Bardic Inspiration: **D50 / M34**.
 Arcane Recovery: **D51 / M35**. Divine Sense: **D52 / M36**.
 Turn Undead: **D53 / M37**. Ki + Flurry of Blows: **D54 / M38**.
 Hunter's Mark: **D55 / M39**. Font of Magic: **D56 / M40**.
+Cunning Action (Hide): **D57 / M41**.
 XP en partida: **D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
@@ -507,9 +542,10 @@ Iniciativa individual por monstruo: **D34**.
 siguen fuera. Protection / TWF / GWF siguen fuera. Curar
 enfermedad/veneno con Lay on Hands (gastar 5) sigue fuera.
 Channel Divinity / Turn the Unholy / Improved Divine Sense siguen
-fuera.
+fuera. Dash / Disengage y Uncanny Dodge siguen fuera (sin grid ni
+ataques de oportunidad no tienen efecto mecánico — D57).
 
-Para que una de estas entre: ADR nuevo + mecánica `M40+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M41+` en este catálogo +
 tests.
 
 ## Dados
