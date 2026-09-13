@@ -594,6 +594,51 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   pasivos distintos de perception, Reliable Talent, feats, multiclase.
 - **Tests**: `skill_checks_test.exs`.
 
+### M45 — Aura of Protection (`saving_throw` + `death_save`, D61)
+- **Dónde**: `Actions.aura_save_bonus/2` (privado) +
+  `World.paladins_conscious/3` (público, compartido con M46) +
+  `Combat.death_save/2` (parámetro `bonus \\ 0`); sin campos nuevos
+  ni cambios de Codec. Solo `class == "paladin"`, `level >= 6`,
+  `hp > 0`. Pasiva: no hay tool ni intervención del LLM.
+- **Bonus**: `modifier(paladín, :cha)` por paladín consciente L6+ del
+  mismo `side` que quien salva (el paladín incluido). Varios
+  paladines apilan (suma). CHA < 10 → negativo sin piso (RAW).
+- **Simplificación sin grid**: sin radio de 10 pies — el aura cubre a
+  TODO el `side` del paladín consciente (mismo criterio que
+  `conscious_ally?` D41). Regla genérica por side: un no-muerto
+  aliado también lo recibe.
+- **Cobertura**: TODAS las salvaciones del motor — `cast_spell` rama
+  `:save`, `turn_undead` (SAB), death saves (`make_death_save`; RAW
+  aplica) y concentración (CON al daño). NO a ability checks ni
+  attack rolls. Se suma al total tras `Combat.saving_throw` y ANTES
+  de la inspiración bárdica (D50 re-deriva el éxito del total, así no
+  se pierde); en death saves desplaza el umbral 10 sin tocar nat 1/20.
+- **Mensaje**: desglose "13 vs CD 13 +3 aura" / "saca 7 (+3 aura)" /
+  "(-1 aura)". `mode_tag` y demás formatos no cambian.
+- Sin radio, Aura of Devotion (charm), Aura of Hate, Improved Divine
+  Smite, feats, multiclase.
+- **Tests**: `paladin_auras_test.exs`.
+
+### M46 — Aura of Courage (`apply_condition` "frightened", D62)
+- **Dónde**: `World.apply_condition/2` (hook +
+  `World.courage_immune?/2`, alias de `paladins_conscious(w, side,
+  10) != []`); sin campos nuevos ni cambios de Codec. Solo `class ==
+  "paladin""`, `level >= 10`, `hp > 0`. Pasiva: no hay tool.
+- **Efecto**: si `condition == "frightened"` y el objetivo comparte
+  `side` con un paladín L10+ consciente (él incluido) → la condición
+  NO se aplica: `{:ok, world}` sin mutar (inmunidad ≠ error). Los
+  callers lo reportan: `Tools.apply_condition` (DM) devuelve "X es
+  inmune al miedo (Aura de Coraje)"; `turn_undead` (D53) particiona
+  sus fallidos en asustados/inmunes con la misma frase. Doble hook
+  (Actions particiona, World no-op) = defensa en profundidad para
+  callers viejos.
+- **Regla genérica por side**: `apply_condition` la usa turn_undead —
+  un no-muerto aliado de un paladín L10+ es inmune al fear del
+  clérigo propio (aceptable, documentado en D62). Idempotencia y
+  `remove_condition` intactos.
+- Sin radio, inmunidad a charm (Aura of Devotion), feats, multiclase.
+- **Tests**: `paladin_auras_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -608,7 +653,8 @@ Turn Undead: **D53 / M37**. Ki + Flurry of Blows: **D54 / M38**.
 Hunter's Mark: **D55 / M39**. Font of Magic: **D56 / M40**.
 Cunning Action (Hide): **D57 / M41**. Danger Sense: **D58 / M42**.
 Evasión: **D59 / M43**. Jack of All Trades (y prof de skills en
-checks): **D60 / M44**.
+checks): **D60 / M44**. Aura of Protection: **D61 / M45**.
+Aura of Courage: **D62 / M46**.
 XP en partida: **D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:

@@ -272,6 +272,33 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
   prof de stealth; sin multiclase JoaT no le aplica). Sin Expertise,
   prof de tools/instrumentos, checks pasivos ≠ perception, Reliable
   Talent, feats, multiclase.
+- **Aura of Protection del paladín** (D61): **entregado.** Pasiva sin
+  tool ni campos nuevos: todo paladín L6+ consciente suma
+  `modifier(cha)` a TODAS las salvaciones de su `side` (él incluido)
+  — rama `:save` de `cast_spell`, `turn_undead` (SAB), death saves
+  (RAW aplica: `Combat.death_save/2` desplaza el umbral 10 sin tocar
+  nat 1/20) y concentración (CON al daño); NO a ability checks ni
+  attack rolls; varios paladines apilan (suma); CHA < 10 → bonus
+  negativo sin piso (RAW); se aplica antes de la inspiración bárdica
+  (D50 re-deriva el éxito del total); desglose "+3 aura" / "(-1
+  aura)" en el mensaje; helper compartido `World.paladins_conscious/3`
+  + `Actions.aura_save_bonus/2` privado. Simplificación sin grid: sin
+  radio de 10 pies — cubre todo el side (regla genérica: un
+  no-muerto aliado también lo recibe). Sin Aura of Devotion (charm),
+  Aura of Hate, Improved Divine Smite, feats, multiclase.
+- **Aura of Courage del paladín** (D62): **entregado.** Pasiva sin
+  tool ni campos nuevos: `World.apply_condition` NO aplica
+  "frightened" a quien comparte side con un paladín L10+ consciente
+  (él incluido) — `{:ok, world}` sin mutar (inmunidad ≠ error;
+  idempotencia y `remove_condition` intactos); los callers lo
+  reportan: `Tools.apply_condition` (DM) devuelve "X es inmune al
+  miedo (Aura de Coraje)" y `turn_undead` (D53) particiona sus
+  fallidos en asustados/inmunes con la misma frase (doble hook =
+  defensa en profundidad para callers viejos); regla genérica por
+  side (un no-muerto aliado de un paladín L10+ es inmune al fear del
+  clérigo propio — aceptable, documentado). Misma simplificación
+  sin-grid que D61. Sin radio, inmunidad a charm (Aura of Devotion,
+  futuro), feats, multiclase.
 - **Multiclase**: fuera del builder actual por diseño; implicaría rehacer
   progression.
 - **Marketplace de contenido custom** (D22): compartir entre usuarios.

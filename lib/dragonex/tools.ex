@@ -652,8 +652,15 @@ defmodule Dragonex.Tools do
 
   @doc "Apply a condition to a character (e.g. prone, poisoned, blinded)."
   deftool apply_condition(ctx, target :: String.t(), condition :: String.t()) do
-    with {:ok, _} <- propose(ctx, Dragonex.World.apply_condition(target, condition)) do
-      {:ok, "#{target} ahora está #{condition}"}
+    # D62 Aura of Courage: same-side ally of a conscious paladin L10+ can't
+    # be frightened. The World hook would no-op anyway; the message tells
+    # the model WHY nothing landed.
+    if condition == "frightened" and Dragonex.World.courage_immune?(world(ctx), target) do
+      {:ok, "#{target} es inmune al miedo (Aura de Coraje)"}
+    else
+      with {:ok, _} <- propose(ctx, Dragonex.World.apply_condition(target, condition)) do
+        {:ok, "#{target} ahora está #{condition}"}
+      end
     end
   end
 

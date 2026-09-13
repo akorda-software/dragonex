@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **1201 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **1227 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -28,7 +28,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 - `Rules.Conditions` — tabla M06: condición → ventaja/desventaja/auto-fallo
   en ataque, salvación y chequeo (cancelación 5e).
  - `Actions` — puente intent→world (`attack` con Extra Attack 5e / D35,
-    Sneak Attack D41, Rage D42 y Divine Smite D46, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57, Danger Sense D58 y Evasión D59 (pasivas del motor en salvaciones), `spell` automatic/attack/save + consumo de slot, False Life → temp_hp D36,
+     Sneak Attack D41, Rage D42 y Divine Smite D46, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57, Danger Sense D58 y Evasión D59 (pasivas del motor en salvaciones), auras de paladín D61/D62 (pasivas: +CHA a salvaciones del side, inmunidad al miedo), `spell` automatic/attack/save + consumo de slot, False Life → temp_hp D36,
     concentración D37, resist/vuln/immune D38, `initiative`, `death_save`, `heal`,
      `second_wind`, `action_surge`, `flurry_of_blows`, `create_spell_slot`, `convert_to_sorcery_points`, `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`, `arcane_recovery`, `short_rest`, `long_rest`, `check` — acepta skills con prof de ficha + JoaT D60). Con `RollLog` para dados estructurados.
  - `Tools` — `deftool`s que el LLM invoca: `make_attack`, `cast_spell`,
@@ -87,7 +87,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   Feats / features por nivel (salvo Extra Attack D35, Pact Magic D40,
   Sneak Attack D41, Rage D42, Reckless Attack D44, Second Wind D45,
     Divine Smite D46, Action Surge D47, Fighting Style D48, Lay on Hands
-    D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57, Danger Sense D58, Evasión D59 y spellcasting paladín/ranger L2) siguen en 🟡.
+    D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57, Danger Sense D58, Evasión D59, Aura of Protection D61, Aura of Courage D62 y spellcasting paladín/ranger L2) siguen en 🟡.
 
 ### Contenido custom por usuario
 - CRUD `custom_contents` (weapon/spell/item, unique por usuario) con
@@ -276,7 +276,30 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
      desglose ("chequeo de Sigilo (DES): 1d20(11) + DES 3 + prof 2…",
      "+ JoaT 1"); error directivo con ejemplos en desconocidos. Sin
      campos nuevos ni Codec; `cunning_action_hide` D57 intacta. Sin
-     Expertise, tools/instrumentos, Reliable Talent, feats, multiclase.
+      Expertise, tools/instrumentos, Reliable Talent, feats, multiclase.
+   - ✅ Aura of Protection del paladín (D61 / M45): pasiva sin tool ni
+      campos nuevos — todo paladín L6+ consciente suma
+      `modifier(cha)` a TODAS las salvaciones de su `side` (él
+      incluido): rama `:save` de `cast_spell`, `turn_undead` (SAB),
+      death saves (RAW aplica; desplaza el umbral 10 sin tocar nat
+      1/20 vía `Combat.death_save/2`) y concentración (CON al daño);
+      varios paladines apilan; CHA < 10 → bonus negativo sin piso;
+      se aplica antes de la inspiración bárdica (D50 re-deriva del
+      total); desglose "+3 aura" / "(-1 aura)" en el mensaje; sin
+      radio (simplificación sin-grid por side, regla genérica: un
+      no-muerto aliado también lo recibe). NO a checks ni attack
+      rolls. Sin Aura of Devotion/Hate, Improved Divine Smite.
+   - ✅ Aura of Courage del paladín (D62 / M46): pasiva sin tool ni
+      campos nuevos — `World.apply_condition` NO aplica
+      "frightened" a quien comparte side con un paladín L10+
+      consciente (él incluido): `{:ok, world}` sin mutar
+      (inmunidad ≠ error); `Tools.apply_condition` (DM) devuelve "X
+      es inmune al miedo (Aura de Coraje)" y `turn_undead` particiona
+      sus fallidos en asustados/inmunes con la misma frase (doble
+      hook: defensa en profundidad); regla genérica por side (un
+      no-muerto aliado de un paladín L10+ es inmune, documentado);
+      idempotencia y `remove_condition` intactos. Sin radio, sin
+      inmunidad a charm (Aura of Devotion, futuro).
 - ✅ XP 5e en partida (D43): `World.grant_xp/2` + tool `grant_xp` (DM).
   Suma XP; no auto-level-up. Subida explícita (ficha / `level_up`).
   D10 SUPERSEDED. Sin calculadora CR/encuentro.
@@ -289,7 +312,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 |---|---|---|
 | Dotes | Fuera; ASI = +2 fijo | D13 |
 | `spells_known` | `nil` (sin cap estricto por clase) | D14 |
-| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + Fighting Style D48 + Lay on Hands D49 + Bardic Inspiration D50 + Arcane Recovery D51 + Divine Sense D52 + Turn Undead D53 + Ki/Flurry of Blows D54 + Hunter's Mark D55 + Font of Magic D56 + Cunning Action Hide D57 + Danger Sense D58 + Evasión D59 + Jack of All Trades D60 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47, D48, D49, D50, D51, D52, D53, D54, D55, D56, D57, D58, D59, D60 |
+| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + Fighting Style D48 + Lay on Hands D49 + Bardic Inspiration D50 + Arcane Recovery D51 + Divine Sense D52 + Turn Undead D53 + Ki/Flurry of Blows D54 + Hunter's Mark D55 + Font of Magic D56 + Cunning Action Hide D57 + Danger Sense D58 + Evasión D59 + Jack of All Trades D60 + Aura of Protection D61 + Aura of Courage D62 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47, D48, D49, D50, D51, D52, D53, D54, D55, D56, D57, D58, D59, D60, D61, D62 |
 | Empate iniciativa | DEX score desc, luego nombre; sin roll-off extra | D39 |
 | Banner level-up in-game | Eliminado (D33); subida desde la ficha | D33 |
 | Stub legado en `Tools` | `attack`/`roll`/`spawn_character`/`next_round` mantenidos para tests del framework exAgent | `tools.ex:31-72` |

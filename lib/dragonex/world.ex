@@ -1412,7 +1412,42 @@ defmodule Dragonex.World do
 
   @breaks_concentration ~w(unconscious incapacitated stunned paralyzed petrified)
 
-  @doc "Apply a condition to a character (idempotent — duplicates are skipped)."
+  @doc """
+  Conscious paladins (hp > 0) of `side` with `level >= min_level` (D61/D62).
+
+  Shared query behind both paladin auras: Aura of Protection (L6+) and Aura
+  of Courage (L10+). No grid, no range — every same-side character is "within"
+  the aura (D61/D62 simplification).
+  """
+  @spec paladins_conscious(t(), String.t() | nil, non_neg_integer()) :: [Character.t()]
+  def paladins_conscious(%__MODULE__{} = w, side, min_level) do
+    w.characters
+    |> Map.values()
+    |> Enum.filter(fn c ->
+      c.class == "paladin" and c.side == side and (c.hp || 0) > 0 and
+        is_integer(c.level) and c.level >= min_level
+    end)
+  end
+
+  @doc """
+  Aura of Courage (D62): `name` can't be frightened while sharing a side with
+  a conscious paladin L10+ (the paladin themself included).
+  """
+  @spec courage_immune?(t(), String.t()) :: boolean()
+  def courage_immune?(%__MODULE__{} = w, name) do
+    case character(w, name) do
+      %Character{side: side} -> paladins_conscious(w, side, 10) != []
+      _ -> false
+    end
+  end
+
+  @doc """
+  Apply a condition to a character (idempotent — duplicates are skipped).
+
+  Aura of Courage (D62): a "frightened" condition never lands on a same-side
+  ally of a conscious paladin L10+ — the change resolves `{:ok, world}`
+  WITHOUT mutating (immunity is not an error); the caller reports it.
+  """
   @spec apply_condition(String.t(), String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
   def apply_condition(target, condition) do
     fn w ->
@@ -1421,24 +1456,28 @@ defmodule Dragonex.World do
           {:error, "no such character: #{target}"}
 
         %Character{conditions: conds} = c ->
-          updated =
-            if has_condition?(w, target, condition) do
-              c
-            else
-              %{c | conditions: conds ++ [%{condition: condition}]}
-            end
+          if condition == "frightened" and courage_immune?(w, target) do
+            {:ok, w}
+          else
+            updated =
+              if has_condition?(w, target, condition) do
+                c
+              else
+                %{c | conditions: conds ++ [%{condition: condition}]}
+              end
 
-          updated =
-            if condition in @breaks_concentration,
-              do: %{updated | concentrating: nil},
-              else: updated
+            updated =
+              if condition in @breaks_concentration,
+                do: %{updated | concentrating: nil},
+                else: updated
 
-          updated =
-            if condition == "unconscious",
-              do: %{updated | raging: false, reckless: false, smite_slot: nil},
-              else: updated
+            updated =
+              if condition == "unconscious",
+                do: %{updated | raging: false, reckless: false, smite_slot: nil},
+                else: updated
 
-          {:ok, put_char(w, target, updated)}
+            {:ok, put_char(w, target, updated)}
+          end
       end
     end
   end

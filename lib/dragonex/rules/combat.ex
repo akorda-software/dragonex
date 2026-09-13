@@ -158,7 +158,7 @@ defmodule Dragonex.Rules.Combat do
   defp joat?(_), do: false
 
   @doc """
-  A death saving throw (d20, no modifier).
+  A death saving throw (d20, no ability modifier).
 
   Returns a tagged tuple with deltas to apply to the death-save tracker:
 
@@ -168,20 +168,24 @@ defmodule Dragonex.Rules.Combat do
     * `{:revive, 20, 0, 0}`   — nat 20: regain 1 hp and become conscious.
 
   Three fails = death; three successes = stable (enforced by the caller).
+
+  `bonus` (default 0) is a flat modifier to the save total — Aura of
+  Protection (D61) applies to death saves (RAW). It shifts the 10 threshold
+  only; nat 1/20 keep their special outcomes (they key off the die).
   """
-  @spec death_save(roller()) ::
+  @spec death_save(roller(), integer()) ::
           {:success, pos_integer(), 0, 1}
           | {:fail, pos_integer(), 1, 0}
           | {:crit_fail, 1, 2, 0}
           | {:revive, 20, 0, 0}
-  def death_save(roller) do
+  def death_save(roller, bonus \\ 0) do
     d20 = roller.(20)
 
     cond do
       d20 == 20 -> {:revive, 20, 0, 0}
       d20 == 1 -> {:crit_fail, 1, 2, 0}
-      d20 < 10 -> {:fail, d20, 1, 0}
-      true -> {:success, d20, 0, 1}
+      d20 + bonus >= 10 -> {:success, d20, 0, 1}
+      true -> {:fail, d20, 1, 0}
     end
   end
 

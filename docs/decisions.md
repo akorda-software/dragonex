@@ -1314,6 +1314,83 @@ Blows D54, Hunter's Mark D55, Font of Magic D56, Cunning Action (Hide)
 D57, Danger Sense D58, Evasión D59, Jack of All Trades D60 y
 spellcasting paladín/ranger L2; el resto de features por nivel sigue 🟡.
 
+### D61 — Aura of Protection del paladín 5e
+Estado: **Aceptada** — 2026-09-13.
+
+Starting at L6, a paladin shares their charisma with every save of
+their side. Automática (D1: el motor la aplica, el LLM no la anuncia
+ni la pide) y **sin campos nuevos** — se deriva de `class`/`level`/
+`cha`/`hp`/`side` que ya viven en `Character`.
+
+- **Bonus**: `modifier(paladín, :cha)` por paladín consciente L6+ del
+  mismo `side` que quien tira (el propio paladín incluido). Varios
+  paladines **apilan** (RAW auras múltiples de same-name no, pero de
+  paladines distintos sí: sumamos). CHA < 10 → bonus **negativo sin
+  piso** (RAW: se aplica tal cual).
+- **Simplificación sin grid**: no hay radio de 10 pies ni posiciones —
+  el aura cubre a TODO personaje con `side == paladín.side` mientras
+  el paladín tenga `hp > 0` (mismo criterio de "aliado consciente" que
+  `conscious_ally?` D41). La regla es **genérica por side**: un
+  no-muerto aliado de un paladín L6+ también lo recibe (aceptable).
+- **Cobertura**: TODAS las salvaciones que resuelve el motor — rama
+  `:save` de `cast_spell`, `turn_undead` (SAB), death saves
+  (`make_death_save`, RAW sí aplica) y concentración (CON, daño). NO
+  aplica a ability checks ni attack rolls (RAW).
+- **Inserción**: `Actions.aura_save_bonus/2` (privado) suma al total
+  tras `Combat.saving_throw` y antes de la inspiración bárdica (D50
+  re-deriva el éxito del total acumulado, así no se pierde);
+  `Combat.death_save/2` gana `bonus \\ 0` que desplaza el umbral 10
+  sin tocar nat 1/20 (key off del dado). El desglose del mensaje lo
+  muestra: "13 vs CD 13 **+3 aura**" / "(-1 aura)" en death saves.
+- Helper compartido `World.paladins_conscious/3` (side, min_level).
+- Sin tools, sin allowlist, sin prompts (pasiva), sin cambios de
+  `Character`/`Weapon`/`Spell`/`Item` ni Codec.
+
+**Fuera**: radio 10 pies (sin grid), Aura of Devotion vs charm (aura
+de nivel 7, futuro), Aura of Hate (Oathbreaker), auras de otro tipo
+(courage es D62), Improved Divine Smite, feats, multiclase. M45 en el
+catálogo.
+
+### D62 — Aura of Courage del paladín 5e
+Estado: **Aceptada** — 2026-09-13.
+
+Starting at L10, the paladin (y todo su side) no puede ser
+frightened. Automática, **sin campos nuevos**, misma simplificación
+sin-grid por `side` que D61 (todo aliado consciente-incluido del
+paladín L10+ con `hp > 0`).
+
+- **Hook en `World.apply_condition/2`**: si `condition ==
+  "frightened"` y `World.courage_immune?/2` (alias de
+  `paladins_conscious(w, side, 10) != []`, D61) → la condición NO se
+  aplica: `{:ok, world}` **sin mutar**. La inmunidad no es error —
+  los callers lo reportan.
+- **Mensajes**: `Tools.apply_condition` (DM) devuelve "X es inmune al
+  miedo (Aura de Coraje)" en vez del "ahora está frightened" mentiroso;
+  `turn_undead` (D53) particiona sus objetivos fallidos en
+  asustados/inmunes y añade "X es inmune al miedo (Aura de Coraje)".
+  El doble hook (Actions particiona, World no-op) es defensa en
+  profundidad: cualquier caller viejo queda cubierto por el no-op.
+- **Idempotencia intacta**: la rama inmune no añade duplicados ni
+  rompe `remove_condition`; las demás condiciones pasan igual.
+- **Regla genérica por side**: `apply_condition` la usa turn_undead
+  (D53) — un no-muerto aliado de un paladín L10+ sería inmune al
+  fear de su propio clérigo (aceptable, documentado aquí).
+- Sin tools nuevas, sin prompts (pasiva), sin cambios de
+  `Character`/`Weapon`/`Spell`/`Item` ni Codec.
+
+**Fuera**: radio 10 pies, inmunidad compartida con charm (Aura of
+Devotion, L7, futuro), cleansed fear existente (el DM tiene
+`remove_condition`), feats, multiclase. M46 en el catálogo.
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
+Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
+D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50,
+Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of
+Blows D54, Hunter's Mark D55, Font of Magic D56, Cunning Action (Hide)
+D57, Danger Sense D58, Evasión D59, Jack of All Trades D60, Aura of
+Protection D61, Aura of Courage D62 y spellcasting paladín/ranger L2;
+el resto de features por nivel sigue 🟡.
+
 ---
 
 ## Pendientes de decisión (abiertas)

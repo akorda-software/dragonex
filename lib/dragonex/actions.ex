@@ -131,6 +131,8 @@ defmodule Dragonex.Actions do
             inspired? = a.inspired == true
             mark? = mark_target?(a, target)
             hidden? = "hidden" in Character.condition_names(a)
+            # D61: the attack target's concentration saves ride this aura.
+            aura = aura_save_bonus(world, target)
 
             swings =
               resolve_swings(
@@ -152,7 +154,7 @@ defmodule Dragonex.Actions do
             ac = target_ac(t)
 
             {notes, change} =
-              pipe_attack_damage(target, swings, roller, roll_log, t, weapon.damage_type)
+              pipe_attack_damage(target, swings, roller, roll_log, t, weapon.damage_type, aura)
 
             change = compose_smite_spend(attacker, a.smite_slot, swings, change)
             change = compose_inspired_clear(attacker, inspired?, change)
@@ -207,7 +209,8 @@ defmodule Dragonex.Actions do
                "a #{caster_name} no le quedan casillas de hechizo de nivel #{spell.level} " <>
                  "(debe descansar para recuperarlas). Los trucos siempre están disponibles."}
             else
-              result = resolve_spell(c, caster_name, t, target_name, spell, roller, roll_log)
+              result =
+                resolve_spell(world, c, caster_name, t, target_name, spell, roller, roll_log)
 
               result
               |> compose_slot_consumption(caster_name, spell.level)
@@ -280,12 +283,20 @@ defmodule Dragonex.Actions do
 
       %Character{} = c ->
         inspired? = c.inspired == true
+        # D61 Aura of Protection applies to death saves (RAW).
+        aura = aura_save_bonus(world, name)
         {r, close} = RollLog.open(roll_log, roller, name, :death_save, "salvación de muerte")
-        result = Combat.death_save(r)
-        {result, bardic} = apply_inspired_death(c, result, r)
-        RollLog.close(close, total: elem(result, 1), against: {:dc, 10}, outcome: elem(result, 0))
+        result = Combat.death_save(r, aura)
+        {result, bardic} = apply_inspired_death(c, result, r, aura)
+
+        RollLog.close(close,
+          total: elem(result, 1) + aura,
+          against: {:dc, 10},
+          outcome: elem(result, 0)
+        )
+
         change = compose_inspired_clear(name, inspired?, World.apply_death_save(name, result))
-        {:ok, describe_death_save(name, result, bardic), change}
+        {:ok, describe_death_save(name, result, bardic, aura), change}
     end
   end
 
@@ -489,6 +500,9 @@ defmodule Dragonex.Actions do
   Other living undead (`race` downcase `"undead"`, hp > 0) roll a Wisdom
   save vs DC `8 + proficiency + cleric Wisdom modifier`. Failure applies
   frightened (M06). Spends even if there are no targets. Combat allowed.
+  Aura of Protection (D61) adds to the save; Aura of Courage (D62) makes
+  a target sharing a side with a conscious paladin L10+ immune (the message
+  reports it; no condition lands).
   """
   @spec turn_undead(World.t(), String.t(), roller(), RollLog.t() | nil) :: result()
   def turn_undead(world, who, roller, roll_log \\ nil) do
@@ -507,20 +521,28 @@ defmodule Dragonex.Actions do
 
       %Character{} = cleric ->
         dc = 8 + Ability.proficiency(cleric.level) + Character.modifier(cleric, :wis)
-        {failed, saved} = turn_undead_resolutions(world, who, dc, roller, roll_log)
+        {failed, saved, immune} = turn_undead_resolutions(world, who, dc, roller, roll_log)
 
-        {:ok, turn_undead_message(who, dc, failed, saved), compose_turn_undead(who, failed)}
+        {:ok, turn_undead_message(who, dc, failed, saved, immune),
+         compose_turn_undead(who, failed)}
     end
   end
 
   defp turn_undead_resolutions(world, who, dc, roller, roll_log) do
     world
     |> turn_undead_targets(who)
-    |> Enum.reduce({[], []}, fn target, {failed, saved} ->
-      if turn_undead_save_success?(target, dc, roller, roll_log) do
-        {failed, saved ++ [target.name]}
-      else
-        {failed ++ [target.name], saved}
+    |> Enum.reduce({[], [], []}, fn target, {failed, saved, immune} ->
+      cond do
+        # D62 Aura of Courage: a same-side ally of a conscious paladin L10+
+        # can't be frightened — no save needed (nothing would land).
+        World.courage_immune?(world, target.name) ->
+          {failed, saved, immune ++ [target.name]}
+
+        turn_undead_save_success?(world, target, dc, roller, roll_log) ->
+          {failed, saved ++ [target.name], immune}
+
+        true ->
+          {failed ++ [target.name], saved, immune}
       end
     end)
   end
@@ -540,7 +562,7 @@ defmodule Dragonex.Actions do
 
   defp turn_undead_target?(_), do: false
 
-  defp turn_undead_save_success?(target, dc, roller, roll_log) do
+  defp turn_undead_save_success?(world, target, dc, roller, roll_log) do
     case Conditions.save_mode(target, :wis) do
       :auto_fail ->
         false
@@ -555,25 +577,27 @@ defmodule Dragonex.Actions do
             "salvación de Sabiduría contra Expulsar no-muertos"
           )
 
-        {_d20, total, success?} = Combat.saving_throw(target, :wis, dc, r, save_mode)
+        {_d20, total, _success?} = Combat.saving_throw(target, :wis, dc, r, save_mode)
+        # D61 Aura of Protection: covers this Wisdom save too.
+        total = total + aura_save_bonus(world, target.name)
 
         RollLog.close(close,
           total: total,
           against: {:dc, dc},
-          outcome: if(success?, do: :success, else: :failure)
+          outcome: if(total >= dc, do: :success, else: :failure)
         )
 
-        success?
+        total >= dc
     end
   end
 
-  defp turn_undead_message(who, dc, [], []) do
+  defp turn_undead_message(who, dc, [], [], []) do
     "#{who} usa Expulsar no-muertos (CD #{dc}) y no hay no-muertos que Expulsar no-muertos pueda afectar (usos restantes 0)."
   end
 
-  defp turn_undead_message(who, dc, failed, saved) do
+  defp turn_undead_message(who, dc, failed, saved, immune) do
     bits =
-      [frightened_clause(failed), saved_clause(saved)]
+      [frightened_clause(failed), saved_clause(saved), immune_clause(immune)]
       |> Enum.reject(&is_nil/1)
 
     "#{who} usa Expulsar no-muertos (CD #{dc}): #{Enum.join(bits, "; ")} (usos restantes 0)."
@@ -586,6 +610,13 @@ defmodule Dragonex.Actions do
   defp saved_clause([]), do: nil
   defp saved_clause([name]), do: "#{name} supera la salvación"
   defp saved_clause(names), do: "#{Enum.join(names, ", ")} superan la salvación"
+
+  # D62: immunity is an outcome, not an error — the message says so.
+  defp immune_clause([]), do: nil
+
+  defp immune_clause([name]), do: "#{name} es inmune al miedo (Aura de Coraje)"
+
+  defp immune_clause(names), do: "#{Enum.join(names, ", ")} son inmunes al miedo (Aura de Coraje)"
 
   defp compose_turn_undead(who, failed) do
     fn w ->
@@ -788,6 +819,8 @@ defmodule Dragonex.Actions do
         t = World.character(world, target)
         weapon = unarmed_strike(monk.level)
         inspired? = monk.inspired == true
+        # D61: the target's concentration saves ride this aura.
+        aura = aura_save_bonus(world, target)
 
         effective_mode =
           Conditions.attack_mode(monk, t,
@@ -818,7 +851,7 @@ defmodule Dragonex.Actions do
         ac = target_ac(t)
 
         {notes, change} =
-          pipe_attack_damage(target, swings, roller, roll_log, t, weapon.damage_type)
+          pipe_attack_damage(target, swings, roller, roll_log, t, weapon.damage_type, aura)
 
         change = compose_inspired_clear(who, inspired?, change)
 
@@ -1297,7 +1330,11 @@ defmodule Dragonex.Actions do
 
   # ------------------------------------------------------------- spell helpers
 
-  defp resolve_spell(c, caster_name, t, target_name, spell, roller, roll_log) do
+  defp resolve_spell(world, c, caster_name, t, target_name, spell, roller, roll_log) do
+    # D61: the aura covers the save target and the target's concentration
+    # saves triggered by this spell's damage.
+    aura = aura_save_bonus(world, target_name)
+
     case spell.kind do
       :automatic ->
         {r, close} = RollLog.open(roll_log, roller, caster_name, :spell, "conjura #{spell.name}")
@@ -1357,7 +1394,8 @@ defmodule Dragonex.Actions do
               roller,
               roll_log,
               t,
-              spell.damage_type
+              spell.damage_type,
+              aura
             )
 
           # Utility spell (shield, bless, etc.): no dice → just report
@@ -1415,7 +1453,8 @@ defmodule Dragonex.Actions do
             roller,
             roll_log,
             t,
-            spell.damage_type
+            spell.damage_type,
+            aura
           )
           |> clear_hidden_after_attack_spell(caster_name, hidden?)
         else
@@ -1426,11 +1465,11 @@ defmodule Dragonex.Actions do
         end
 
       :save ->
-        resolve_save_spell(c, caster_name, t, target_name, spell, roller, roll_log)
+        resolve_save_spell(c, caster_name, t, target_name, spell, roller, roll_log, aura)
     end
   end
 
-  defp resolve_save_spell(c, caster_name, t, target_name, spell, roller, roll_log) do
+  defp resolve_save_spell(c, caster_name, t, target_name, spell, roller, roll_log, aura) do
     dc = Combat.spell_save_dc(c, spell)
 
     case Conditions.save_mode(t, spell.save_ability) do
@@ -1454,7 +1493,8 @@ defmodule Dragonex.Actions do
           roller,
           roll_log,
           t,
-          spell.damage_type
+          spell.damage_type,
+          aura
         )
 
       {:roll, save_mode} ->
@@ -1469,6 +1509,9 @@ defmodule Dragonex.Actions do
 
         inspired? = t.inspired == true
         {d20, stotal, _success?} = Combat.saving_throw(t, spell.save_ability, dc, r, save_mode)
+        # D61 Aura of Protection: added before bardic inspiration (which
+        # re-derives success from the running total).
+        stotal = stotal + aura
         {stotal, success?, bardic} = apply_inspired_vs_dc(t, stotal, dc, r)
 
         RollLog.close(close_save,
@@ -1503,20 +1546,21 @@ defmodule Dragonex.Actions do
           end
 
         bardic_bit = if bardic != 0, do: " +#{bardic} inspiración", else: ""
+        aura_b = aura_bit(aura)
 
         verdict =
           cond do
             success? and evasion? ->
-              "supera la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{bardic_bit})#{mode_tag(save_mode)} (Evasión: sin daño)"
+              "supera la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)} (Evasión: sin daño)"
 
             success? ->
-              "supera la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{bardic_bit})#{mode_tag(save_mode)}, mitad de daño"
+              "supera la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}, mitad de daño"
 
             evasion? ->
-              "falla la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{bardic_bit})#{mode_tag(save_mode)} (Evasión: mitad)"
+              "falla la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)} (Evasión: mitad)"
 
             true ->
-              "falla la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{bardic_bit})#{mode_tag(save_mode)}"
+              "falla la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}"
           end
 
         {:ok, msg, change} =
@@ -1527,7 +1571,8 @@ defmodule Dragonex.Actions do
             roller,
             roll_log,
             t,
-            spell.damage_type
+            spell.damage_type,
+            aura
           )
 
         {:ok, msg, compose_inspired_clear(target_name, inspired?, change)}
@@ -1564,18 +1609,25 @@ defmodule Dragonex.Actions do
   defp spell_damage_verb(%{name: "magic missile"}, _dmg), do: " (3 dardos de fuerza)"
   defp spell_damage_verb(_spell, _dmg), do: ""
 
-  defp describe_death_save(name, {:revive, _d20, _, _}, bardic),
-    do: "#{name} saca un 20 natural#{bardic_death_bit(bardic)} — ¡revive con 1 pg!"
-
-  defp describe_death_save(name, {:crit_fail, 1, _, _}, bardic),
+  defp describe_death_save(name, {:revive, _d20, _, _}, bardic, aura),
     do:
-      "#{name} saca un 1 natural#{bardic_death_bit(bardic)} — ¡dos fallos de salvación de muerte!"
+      "#{name} saca un 20 natural#{aura_death_bit(aura)}#{bardic_death_bit(bardic)} — ¡revive con 1 pg!"
 
-  defp describe_death_save(name, {:fail, d20, _, _}, bardic),
-    do: "#{name} saca #{d20}#{bardic_death_bit(bardic)} — un fallo de salvación de muerte."
+  defp describe_death_save(name, {:crit_fail, 1, _, _}, bardic, aura),
+    do:
+      "#{name} saca un 1 natural#{aura_death_bit(aura)}#{bardic_death_bit(bardic)} — ¡dos fallos de salvación de muerte!"
 
-  defp describe_death_save(name, {:success, d20, _, _}, bardic),
-    do: "#{name} saca #{d20}#{bardic_death_bit(bardic)} — un éxito de salvación de muerte."
+  defp describe_death_save(name, {:fail, d20, _, _}, bardic, aura),
+    do:
+      "#{name} saca #{d20}#{aura_death_bit(aura)}#{bardic_death_bit(bardic)} — un fallo de salvación de muerte."
+
+  defp describe_death_save(name, {:success, d20, _, _}, bardic, aura),
+    do:
+      "#{name} saca #{d20}#{aura_death_bit(aura)}#{bardic_death_bit(bardic)} — un éxito de salvación de muerte."
+
+  # D61: the aura shifts the 10 threshold, so the breakdown shows it.
+  defp aura_death_bit(aura) when aura != 0, do: " (#{signed(aura)} aura)"
+  defp aura_death_bit(_), do: ""
 
   defp bardic_death_bit(n) when is_integer(n) and n > 0, do: " (+#{n} inspiración)"
   defp bardic_death_bit(_), do: ""
@@ -1748,14 +1800,14 @@ defmodule Dragonex.Actions do
 
   defp smite_amounts(swings), do: for(%{smite: n} <- swings, n > 0, do: n)
 
-  defp pipe_attack_damage(target, swings, roller, roll_log, char, weapon_type) do
+  defp pipe_attack_damage(target, swings, roller, roll_log, char, weapon_type, aura) do
     {weapon_notes, weapon_change} =
-      pipe_damage(target, swing_amounts(swings), roller, roll_log, char, weapon_type)
+      pipe_damage(target, swing_amounts(swings), roller, roll_log, char, weapon_type, aura)
 
     char_after = Enum.reduce(swing_amounts(swings), char, &simulate_damage(&2, &1, weapon_type))
 
     {smite_notes, smite_change} =
-      pipe_damage(target, smite_amounts(swings), roller, roll_log, char_after, "radiant")
+      pipe_damage(target, smite_amounts(swings), roller, roll_log, char_after, "radiant", aura)
 
     change = fn w ->
       with {:ok, w} <- weapon_change.(w) do
@@ -1796,20 +1848,22 @@ defmodule Dragonex.Actions do
 
   defp compose_concentration(result, _caster, _spell), do: result
 
-  defp with_conc_damage(msg, target_name, amount, roller, roll_log, target_char, type) do
-    {notes, change} = pipe_damage(target_name, [amount], roller, roll_log, target_char, type)
+  defp with_conc_damage(msg, target_name, amount, roller, roll_log, target_char, type, aura) do
+    {notes, change} =
+      pipe_damage(target_name, [amount], roller, roll_log, target_char, type, aura)
+
     {:ok, append_notes(msg, notes), change}
   end
 
-  defp pipe_damage(_target, [], _roller, _roll_log, _char, _type), do: {[], noop()}
+  defp pipe_damage(_target, [], _roller, _roll_log, _char, _type, _aura), do: {[], noop()}
 
-  defp pipe_damage(target, amounts, roller, roll_log, char, type) do
+  defp pipe_damage(target, amounts, roller, roll_log, char, type, aura) do
     amounts = Enum.filter(amounts, &(&1 > 0))
 
     {pairs, _char} =
       Enum.map_reduce(amounts, char, fn amount, c ->
         {note, break?, c2, clear_inspired?} =
-          one_hit_concentration(c, amount, roller, roll_log, type)
+          one_hit_concentration(c, amount, roller, roll_log, type, aura)
 
         {{note, break?, clear_inspired?}, c2}
       end)
@@ -1862,11 +1916,18 @@ defmodule Dragonex.Actions do
     {notes, change}
   end
 
-  defp one_hit_concentration(%Character{concentrating: nil} = c, amount, _roller, _roll_log, type) do
+  defp one_hit_concentration(
+         %Character{concentrating: nil} = c,
+         amount,
+         _roller,
+         _roll_log,
+         type,
+         _aura
+       ) do
     {nil, false, simulate_damage(c, amount, type), false}
   end
 
-  defp one_hit_concentration(%Character{} = c, amount, roller, roll_log, type) do
+  defp one_hit_concentration(%Character{} = c, amount, roller, roll_log, type, aura) do
     incoming = Character.incoming_damage(c, amount, type)
     c2 = simulate_damage(c, amount, type)
 
@@ -1890,6 +1951,8 @@ defmodule Dragonex.Actions do
           )
 
         {d20, total, _success?} = Combat.saving_throw(c, :con, dc, r, mode)
+        # D61: concentration is a CON save — the aura applies (RAW).
+        total = total + aura
         {total, success?, bardic} = apply_inspired_vs_dc(c, total, dc, r)
 
         RollLog.close(close,
@@ -1898,14 +1961,15 @@ defmodule Dragonex.Actions do
           outcome: if(success?, do: :success, else: :failure)
         )
 
+        aura_b = aura_bit(aura)
         bardic_bit = if bardic != 0, do: " +#{bardic} inspiración", else: ""
         c2 = if inspired?, do: %{c2 | inspired: false}, else: c2
 
         if success? do
-          {"#{c.name} mantiene la concentración en #{c.concentrating} (d20 #{d20}: #{total} vs CD #{dc}#{bardic_bit}).",
+          {"#{c.name} mantiene la concentración en #{c.concentrating} (d20 #{d20}: #{total} vs CD #{dc}#{aura_b}#{bardic_bit}).",
            false, c2, inspired?}
         else
-          {"#{c.name} pierde la concentración en #{c.concentrating} (d20 #{d20}: #{total} vs CD #{dc}#{bardic_bit}).",
+          {"#{c.name} pierde la concentración en #{c.concentrating} (d20 #{d20}: #{total} vs CD #{dc}#{aura_b}#{bardic_bit}).",
            true, %{c2 | concentrating: nil}, inspired?}
         end
 
@@ -2071,7 +2135,9 @@ defmodule Dragonex.Actions do
 
   defp apply_inspired_vs_dc(_, total, dc, _), do: {total, total >= dc, 0}
 
-  defp apply_inspired_death(%Character{inspired: true}, result, roller) do
+  # D61: the aura already shaped `result` (Combat.death_save/2); re-deriving
+  # the outcome with bardic must keep it in the total.
+  defp apply_inspired_death(%Character{inspired: true}, result, roller, aura) do
     d20 = elem(result, 1)
     bonus = roller.(6)
 
@@ -2079,14 +2145,35 @@ defmodule Dragonex.Actions do
       case result do
         {:revive, _, _, _} -> result
         {:crit_fail, _, _, _} -> result
-        _ when d20 + bonus >= 10 -> {:success, d20, 0, 1}
+        _ when d20 + aura + bonus >= 10 -> {:success, d20, 0, 1}
         _ -> {:fail, d20, 1, 0}
       end
 
     {new_result, bonus}
   end
 
-  defp apply_inspired_death(_, result, _), do: {result, 0}
+  defp apply_inspired_death(_, result, _, _), do: {result, 0}
+
+  # D61 Aura of Protection: every conscious paladin (L6+) on the saver's side
+  # shares their CHA modifier with ALL saves of that side (the paladin
+  # included). Multiple paladins stack (RAW); a CHA below 10 gives a negative
+  # bonus with no floor (RAW). 0 when the side has none.
+  defp aura_save_bonus(%World{} = world, name) do
+    case World.character(world, name) do
+      %Character{side: side} ->
+        world
+        |> World.paladins_conscious(side, 6)
+        |> Enum.map(&Character.modifier(&1, :cha))
+        |> Enum.sum()
+
+      _ ->
+        0
+    end
+  end
+
+  # Breakdown bit for save messages: " +3 aura" / " -1 aura".
+  defp aura_bit(aura) when aura != 0, do: " #{signed(aura)} aura"
+  defp aura_bit(_), do: ""
 
   defp compose_inspired_clear(_name, false, change), do: change
 
