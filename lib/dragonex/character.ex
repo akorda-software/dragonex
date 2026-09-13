@@ -52,6 +52,9 @@ defmodule Dragonex.Character do
     # %{beast: key, orig_str, orig_dex, orig_con, orig_hp, orig_max_hp,
     #   orig_ac, orig_weapons} (claves átomo en memoria; strings en Codec).
     field(:wild_shape, :map)
+    # D64 Uncanny Dodge: true = armada (el próximo daño se reduce a la mitad
+    # y se consume en World.apply_damage/3).
+    field(:uncanny_dodge, :boolean, default: false)
     field(:damage_resistances, {:array, :string}, default: [])
     field(:damage_vulnerabilities, {:array, :string}, default: [])
     field(:damage_immunities, {:array, :string}, default: [])
@@ -119,6 +122,7 @@ defmodule Dragonex.Character do
         :sorcery_points,
         :wild_shape_uses,
         :wild_shape,
+        :uncanny_dodge,
         :damage_resistances,
         :damage_vulnerabilities,
         :damage_immunities,
@@ -211,6 +215,7 @@ defmodule Dragonex.Character do
       sorcery_points: 0,
       wild_shape_uses: 0,
       wild_shape: nil,
+      uncanny_dodge: false,
       damage_resistances: [],
       damage_vulnerabilities: [],
       damage_immunities: [],

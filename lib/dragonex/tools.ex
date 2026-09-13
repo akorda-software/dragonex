@@ -484,6 +484,21 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
+  Uncanny Dodge (5e, D64). Rogue level 5+. Arms a defensive posture: the
+  engine halves (floor) the NEXT damage `who` takes — any source — and
+  consumes the flag. Arming is free and can be done at any moment (no
+  reaction economy); 0 damage or healing never consumes it. The DM may
+  arm anyone; a PC may only arm themselves.
+  """
+  deftool start_uncanny_dodge(ctx, who :: String.t()) do
+    with :ok <- assert_uncanny_dodge_self(ctx, who),
+         {:ok, msg, change} <- Dragonex.Actions.start_uncanny_dodge(world(ctx), who),
+         {:ok, _} <- propose(ctx, change) do
+      {:ok, msg}
+    end
+  end
+
+  @doc """
   Create a Spell Slot (5e, D56 Font of Magic). Sorcerer level 2+. Spends
   sorcery points (2/3/5/6/7 by slot level 1–5) and gains one slot of that
   level. The DM may use it for any sorcerer; a PC may only use it as
@@ -841,6 +856,18 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error, "RECHAZADO — solo puedes esconderte tú mismo (#{proposer}), no a #{who}."}
+    end
+  end
+
+  # Uncanny Dodge (D64): self guard (divine_smite pattern).
+  defp assert_uncanny_dodge_self(ctx, who) do
+    proposer = ctx.deps.state.participant_id
+
+    if proposer == "dm" or proposer == who do
+      :ok
+    else
+      {:error,
+       "RECHAZADO — solo puedes armarte tú mismo de Esquiva asombrosa (#{proposer}), no a #{who}."}
     end
   end
 

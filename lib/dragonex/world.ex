@@ -299,6 +299,15 @@ defmodule Dragonex.World do
           {:error, "no such character: #{target}"}
 
         %Character{} = c ->
+          # D64 Uncanny Dodge: an armed rogue halves ANY incoming damage
+          # (floor) at the entry point — before resistances (D38), temp_hp
+          # (D36) and hp — and the flag is consumed. amount <= 0 never
+          # consumes it. The D63 auto-revert flow below runs after, with the
+          # already-mitigated damage.
+          dodge? = c.uncanny_dodge == true and amount > 0
+          amount = if dodge?, do: div(amount, 2), else: amount
+          c = if dodge?, do: %{c | uncanny_dodge: false}, else: c
+
           incoming = Character.incoming_damage(c, amount, type)
           temp = c.temp_hp || 0
           absorbed = min(temp, incoming)
@@ -469,6 +478,25 @@ defmodule Dragonex.World do
   @doc "End Reckless Attack (D44). Idempotent if already false."
   @spec end_reckless(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
   def end_reckless(name), do: set_reckless(name, false)
+
+  @doc """
+  Set `who`'s Uncanny Dodge flag (5e, D64). `true` = armed: the next
+  damage is halved and the flag consumed in `apply_damage/3`. Does not
+  check class/level — `Actions.start_uncanny_dodge/2` does.
+  """
+  @spec set_uncanny_dodge(String.t(), boolean()) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def set_uncanny_dodge(name, armed) when is_boolean(armed) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          {:ok, put_char(w, name, %{c | uncanny_dodge: armed})}
+      end
+    end
+  end
 
   @doc """
   Set `who`'s Second Wind used flag (5e, D45). Does not heal — `second_wind/2`

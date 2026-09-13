@@ -1449,6 +1449,53 @@ paladín/ranger L2; el resto de features por nivel sigue 🟡.
 
 ---
 
+### D64 — Uncanny Dodge del pícaro 5e
+Estado: **Aceptada** — 2026-09-13.
+
+El pícaro L5+ arma una postura defensiva que reduce a la mitad el
+próximo daño; el LLM decide CUÁNDO armar, el motor mitiga y consume
+(D1). Sin reacciones ni rondas en el motor, se modela como flag
+booleana (patrón `inspired`/`reckless`): `Character.uncanny_dodge`
+(default false; true = armada; jsonb viejo/ausente → false, D8).
+
+- **Tool** `start_uncanny_dodge(who)`: DM cualquiera; PC sólo sí mismo
+  (patrón divine_smite). Errores NO mutan (who inexistente, caído
+  hp≤0, no pícaro, nivel < 5, ya armada). Éxito: `uncanny_dodge =
+  true`. Mensaje ES: "X se prepara para esquivar (Uncanny Dodge
+  armado: el próximo daño se reduce a la mitad)."
+- **Mitigación** en `World.apply_damage/3` (cuello único de daño):
+  armada y `amount > 0` → el amount de ENTRADA se reduce a la mitad
+  (`div/2`, floor) ANTES de resistencias (D38), temp_hp (D36) y hp —
+  la forma más simple y determinista; el orden interno existente de
+  `apply_damage` manda y queda fijado aquí. La flag se consume
+  (`false`). Aplica a CUALQUIER fuente que pase por `apply_damage`
+  (ataque, hechizo, trampa). amount ≤ 0 NO consume.
+- **D63 intacto**: el auto-revert de Wild Shape corre después con el
+  daño ya mitigado (exceso mitigado); un druida nunca es pícaro (sin
+  multiclase), no hay caso cruzado.
+- **Apila con Evasión (D59)**: mitad de mitad = cuarto (floor) —
+  correcto RAW para un pícaro L7+ con ambas activas.
+- **Sin economía de reacción/ronda** (simplificación asumida): 1 uso
+  por DAÑO, no por ronda; armar es gratis en cualquier momento y se
+  puede rearmar tras consumir; los descansos NO la gestionan (no es
+  recurso por descanso — no se "recarga", simplemente se rearma).
+
+**Fuera**: reacción formal/ronda (1/ronda RAW), resistencias dañinas
+(otro sistema, D38), Evasion (ya existe D59 y se apila), Deflect
+Missiles, feats, multiclase. M48 en el catálogo.
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
+Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
+D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50,
+Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of
+Blows D54, Hunter's Mark D55, Font of Magic D56, Cunning Action (Hide)
+D57, Danger Sense D58, Evasión D59, Jack of All Trades D60, Aura of
+Protection D61, Aura of Courage D62, Wild Shape D63, Uncanny Dodge D64
+y spellcasting paladín/ranger L2; el resto de features por nivel sigue
+🟡.
+
+---
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,

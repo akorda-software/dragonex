@@ -315,9 +315,25 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
   `World.apply_damage/3` con sólo el exceso de daño al druida
   (`hp = max(0, orig_hp − exceso)`; temp_hp/resist como siempre; nota
   en el log para la narración; caído a 0 → death saves normales);
-  short y long rest recargan los 2 usos sin forzar revert; level-up
-  no toca usos ni forma. Sin duración, Circle of the Moon, formas
-  volar/nadar, equipment merge, feats, multiclase.
+   short y long rest recargan los 2 usos sin forzar revert; level-up
+   no toca usos ni forma. Sin duración, Circle of the Moon, formas
+   volar/nadar, equipment merge, feats, multiclase.
+- **Uncanny Dodge del pícaro** (D64): **entregado.** Un campo nuevo
+  (`Character.uncanny_dodge` boolean con Codec tolerante a jsonb
+  viejo), tool `start_uncanny_dodge(who)` (pícaro L5+, DM cualquiera,
+  PC sólo sí mismo, errores no mutan: who inexistente, caído, no
+  pícaro, L4–, ya armada); postura armable gratis en cualquier
+  momento (sin reacciones ni rondas en el motor — patrón
+  `inspired`/`reckless`); en `World.apply_damage/3` (cuello único de
+  daño): armada y amount > 0 → `div(amount, 2)` (floor) sobre el
+  amount de entrada — antes de resistencias D38 y temp_hp D36 (orden
+  fijado en D64) — y consume la flag; aplica a CUALQUIER fuente de
+  daño; amount ≤ 0 no consume; apila con Evasión D59 (mitad de mitad
+  = cuarto, floor); auto-revert D63 intacto (corre tras la
+  mitigación); descansos NO gestionan la flag y rearmar tras consumir
+  es gratis. Sin economía de reacción/ronda (1 uso por daño, no por
+  ronda), resistencias dañinas (D38 es otro sistema), Deflect
+  Missiles, feats, multiclase.
 - **Multiclase**: fuera del builder actual por diseño; implicaría rehacer
   progression.
 - **Marketplace de contenido custom** (D22): compartir entre usuarios.

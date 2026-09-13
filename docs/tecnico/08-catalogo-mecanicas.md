@@ -676,6 +676,30 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   feats.
 - **Tests**: `wild_shape_test.exs`.
 
+### M48 — Uncanny Dodge (`start_uncanny_dodge`, D64)
+- **Dónde**: `Character.uncanny_dodge` (boolean, default false = no
+  armada; Codec `== true`, jsonb viejo → false) +
+  `World.set_uncanny_dodge/2` + hook en `World.apply_damage/3` +
+  `Actions.start_uncanny_dodge/2` + tool `start_uncanny_dodge(who)`
+  (DM cualquiera; PC sólo sí mismo).
+- **Armar** (pícaro L5+, gratis, en cualquier momento):
+  `uncanny_dodge = true`; mensaje "X se prepara para esquivar
+  (Uncanny Dodge armado: el próximo daño se reduce a la mitad).";
+  errores NO mutan: who inexistente, caído (hp≤0), no pícaro, L4–, ya
+  armada. Rearmar tras consumir es gratis; los descansos NO gestionan
+  la flag (no es recurso por descanso).
+- **Mitigar** (`apply_damage/3`, cuello único): armada y `amount > 0`
+  → `div(amount, 2)` (floor) sobre el amount de ENTRADA — antes de
+  resistencias D38 y temp_hp D36 (orden fijado en D64) — y consume la
+  flag (false). CUALQUIER fuente que pase por apply_damage (ataque,
+  hechizo, trampa). amount ≤ 0 no consume. Apila con Evasión D59
+  (mitad de mitad = cuarto, floor). Auto-revert D63 intacto (corre
+  tras la mitigación, con el exceso ya mitigado).
+- Sin economía de reacción/ronda (1 uso por daño, no por ronda),
+  resistencias dañinas (D38 es otro sistema), Deflect Missiles,
+  feats, multiclase.
+- **Tests**: `uncanny_dodge_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -692,6 +716,7 @@ Cunning Action (Hide): **D57 / M41**. Danger Sense: **D58 / M42**.
 Evasión: **D59 / M43**. Jack of All Trades (y prof de skills en
 checks): **D60 / M44**. Aura of Protection: **D61 / M45**.
 Aura of Courage: **D62 / M46**. Wild Shape: **D63 / M47**.
+Uncanny Dodge: **D64 / M48**.
 XP en partida: **D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
@@ -699,8 +724,9 @@ Iniciativa individual por monstruo: **D34**.
 siguen fuera. Protection / TWF / GWF siguen fuera. Curar
 enfermedad/veneno con Lay on Hands (gastar 5) sigue fuera.
 Channel Divinity / Turn the Unholy / Improved Divine Sense siguen
-fuera. Dash / Disengage y Uncanny Dodge siguen fuera (sin grid ni
-ataques de oportunidad no tienen efecto mecánico — D57). Expertise
+fuera. Dash / Disengage siguen fuera (sin grid ni ataques de
+oportunidad no tienen efecto mecánico — D57); Uncanny Dodge entró en
+**D64 / M48**. Expertise
 (doble prof de skill) sigue fuera.
 
 Para que una de estas entre: ADR nuevo + mecánica `M44+` en este catálogo +

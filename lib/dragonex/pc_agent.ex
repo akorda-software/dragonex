@@ -30,7 +30,8 @@ defmodule Dragonex.PCAgent do
   (target may be an ally), use Divine Sense on themselves,
   grant Bardic Inspiration as themselves
   (target may be an ally),   use Arcane Recovery on themselves, use Turn Undead on themselves, hide themselves with
-  Cunning Action (rogue), and transform themselves with Wild Shape
+  Cunning Action (rogue), arm themselves with Uncanny Dodge
+  (rogue L5+), and transform themselves with Wild Shape
   (druid L2+: `wild_shape` / `end_wild_shape`).
   They CANNOT:
   set the scene, spawn monsters, roll initiative, end combat, level up, or
@@ -39,7 +40,7 @@ defmodule Dragonex.PCAgent do
   @spec tools() :: [term()]
   def tools do
     pc_tools =
-      ~w(make_attack cast_spell ability_check make_death_save short_rest long_rest drop_concentration start_rage end_rage start_reckless end_reckless second_wind action_surge flurry_of_blows hunters_mark cunning_action_hide create_spell_slot convert_to_sorcery_points divine_smite end_smite lay_on_hands divine_sense turn_undead bardic_inspiration arcane_recovery wild_shape end_wild_shape)
+      ~w(make_attack cast_spell ability_check make_death_save short_rest long_rest drop_concentration start_rage end_rage start_reckless end_reckless second_wind action_surge flurry_of_blows hunters_mark cunning_action_hide start_uncanny_dodge create_spell_slot convert_to_sorcery_points divine_smite end_smite lay_on_hands divine_sense turn_undead bardic_inspiration arcane_recovery wild_shape end_wild_shape)
 
     Tools.tools()
     |> Enum.filter(fn tool -> to_string(tool.name) in pc_tools end)
@@ -155,7 +156,7 @@ defmodule Dragonex.PCAgent do
     4. Si tu turno es en EXPLORACIÓN y no hay enemigos a la vista, responde con 1-2 frases EN PERSONAJE sin llamar a ninguna herramienta. Llama a `ability_check` SÓLO si intentas algo con riesgo real (forzar, persuadir, detectar…). Nunca inventes un combate que el DM no haya iniciado.
     5. **MESA, NO SOLILOQUIO**: eres un compañero de mesa, no el director. En exploración, PROPÓN una acción concreta en 1-2 frases y ESPERA al grupo y al DM. No te marches solo, no cruces umbrales, no viajes, no ejecutes un plan de varios pasos, no decidas por un PC humano. Puedes hablar con un PNJ UNA frase y parar: el DM responde. Nunca termines un turno diciendo sólo "espero", "paso" o "no hago nada" — hay que haber propuesto o hecho un gesto local. **ANTIBUCLE**: si ya propusiste lo mismo, no lo reformules; cambia de ángulo EN ESTA ESCENA (un detalle, un gesto, una frase nueva). Nunca "camina hacia la salida", "desaparece en el arco" ni "sin esperar respuesta".
      6. Cuando SÍ haya combate y tu instrucción liste objetivos VÁLIDOS, llama a UNA herramienta (make_attack / cast_spell) por turno y luego reacciona en 1-2 frases. Sé breve. Oleada de acción (guerrero nivel 2+): puedes llamar `action_surge("#{c.name}", objetivo, arma, mode)` EN EL MISMO turno tras `make_attack` — 1 Acción de Ataque extra, 1/descanso.
-      7. Ventaja/desventaja: pasa `mode: "advantage"` o `mode: "disadvantage"` a `make_attack` cuando la situación lo conceda (un enemigo caído, una posición oculta, etc.). En caso contrario pasa "normal". Reckless Attack (bárbaro): llama `start_reckless("#{c.name}")`; el motor aplica la ventaja — no pases mode por Reckless. Segundo aliento (guerrero): llama `second_wind("#{c.name}")` — 1d10+nivel, 1/descanso. Oleada de acción (guerrero nivel 2+): `action_surge("#{c.name}", objetivo, arma, mode)` en el mismo turno tras atacar. Ráfaga de golpes (monje nivel 2+): `flurry_of_blows("#{c.name}", objetivo, mode)` — gasta 1 ki; el motor resuelve 2 golpes sin armas. Fuente de magia (hechicero nivel 2+): `create_spell_slot("#{c.name}", nivel)` convierte puntos de hechicería en 1 casilla (nivel 1–5, cuesta 2/3/5/6/7) y `convert_to_sorcery_points("#{c.name}", nivel)` drena 1 casilla (nivel 1–5) y recupera esos puntos (tope nivel); el motor valida, gasta y convierte. Castigo divino (paladín): llama `divine_smite("#{c.name}", nivel_casilla)` antes del ataque melee; el motor aplica el daño radiante al impactar. Manos impositoras (paladín): `lay_on_hands("#{c.name}", objetivo, cantidad)` — cura a un aliado o a ti mismo gastando el pool (5×nivel); el motor aplica y gasta. Sentido divino (paladín): llama `divine_sense("#{c.name}")` — el motor gasta 1 uso y reporta celestiales, infernales y no-muertos. Expulsar no-muertos (clérigo nivel 2+): llama `turn_undead("#{c.name}")` — el motor gasta Canalizar divinidad y aplica asustado a no-muertos que fallen la salvación. Inspiración bárdica (bardo): `bardic_inspiration("#{c.name}", objetivo)` — gasta 1 uso; el motor suma 1d6 al primer ataque, chequeo, salvación o salvación de muerte del inspirado. Recuperación arcana (mago): llama `arcane_recovery("#{c.name}")` fuera de combate — el motor restaura huecos gastados, 1/descanso largo. Marca del cazador (explorador nivel 2+): `hunters_mark("#{c.name}", presa)` — gasta 1 casilla de nivel 1 y concentra; el motor suma +1d6 a tus impactos de arma contra la presa. Astucia de pícaro (pícaro nivel 2+): `cunning_action_hide("#{c.name}")` — el motor tira Sigilo (1d20+DES) contra la percepción pasiva más alta de los enemigos; si superas, quedas oculto: tu próximo ataque sale con ventaja (y te revela). Forma salvaje (druida nivel 2+): `wild_shape("#{c.name}", "cat" | "wolf" | "black_bear")` — gasta 1 uso (2/descanso) y el motor aplica los stats y ataques de la bestia; en forma animal NO puedes conjurar; `end_wild_shape("#{c.name}")` vuelve a tu forma con tus pg originales (si la bestia cae a 0 pg el motor revierte solo).
+      7. Ventaja/desventaja: pasa `mode: "advantage"` o `mode: "disadvantage"` a `make_attack` cuando la situación lo conceda (un enemigo caído, una posición oculta, etc.). En caso contrario pasa "normal". Reckless Attack (bárbaro): llama `start_reckless("#{c.name}")`; el motor aplica la ventaja — no pases mode por Reckless. Segundo aliento (guerrero): llama `second_wind("#{c.name}")` — 1d10+nivel, 1/descanso. Oleada de acción (guerrero nivel 2+): `action_surge("#{c.name}", objetivo, arma, mode)` en el mismo turno tras atacar. Ráfaga de golpes (monje nivel 2+): `flurry_of_blows("#{c.name}", objetivo, mode)` — gasta 1 ki; el motor resuelve 2 golpes sin armas. Fuente de magia (hechicero nivel 2+): `create_spell_slot("#{c.name}", nivel)` convierte puntos de hechicería en 1 casilla (nivel 1–5, cuesta 2/3/5/6/7) y `convert_to_sorcery_points("#{c.name}", nivel)` drena 1 casilla (nivel 1–5) y recupera esos puntos (tope nivel); el motor valida, gasta y convierte. Castigo divino (paladín): llama `divine_smite("#{c.name}", nivel_casilla)` antes del ataque melee; el motor aplica el daño radiante al impactar. Manos impositoras (paladín): `lay_on_hands("#{c.name}", objetivo, cantidad)` — cura a un aliado o a ti mismo gastando el pool (5×nivel); el motor aplica y gasta. Sentido divino (paladín): llama `divine_sense("#{c.name}")` — el motor gasta 1 uso y reporta celestiales, infernales y no-muertos. Expulsar no-muertos (clérigo nivel 2+): llama `turn_undead("#{c.name}")` — el motor gasta Canalizar divinidad y aplica asustado a no-muertos que fallen la salvación. Inspiración bárdica (bardo): `bardic_inspiration("#{c.name}", objetivo)` — gasta 1 uso; el motor suma 1d6 al primer ataque, chequeo, salvación o salvación de muerte del inspirado. Recuperación arcana (mago): llama `arcane_recovery("#{c.name}")` fuera de combate — el motor restaura huecos gastados, 1/descanso largo. Marca del cazador (explorador nivel 2+): `hunters_mark("#{c.name}", presa)` — gasta 1 casilla de nivel 1 y concentra; el motor suma +1d6 a tus impactos de arma contra la presa. Astucia de pícaro (pícaro nivel 2+): `cunning_action_hide("#{c.name}")` — el motor tira Sigilo (1d20+DES) contra la percepción pasiva más alta de los enemigos; si superas, quedas oculto: tu próximo ataque sale con ventaja (y te revela). Forma salvaje (druida nivel 2+): `wild_shape("#{c.name}", "cat" | "wolf" | "black_bear")` — gasta 1 uso (2/descanso) y el motor aplica los stats y ataques de la bestia; en forma animal NO puedes conjurar; `end_wild_shape("#{c.name}")` vuelve a tu forma con tus pg originales (si la bestia cae a 0 pg el motor revierte solo). Esquiva asombrosa (pícaro nivel 5+): `start_uncanny_dodge("#{c.name}")` — arma la postura; el motor reduce a la mitad el próximo daño que recibas (de cualquier fuente) y la consume.
     8. Pelea con inteligencia: ataca al enemigo más débil, protege a los aliados con poca vida, usa tus habilidades más fuertes. Si estás muy herido, dilo y busca cobertura o curación.
     9. Mantente siempre en personaje. Habla como lo haría #{c.name} — en primera persona, con tu personalidad. No rompas la cuarta pared ni menciones mecánicas del juego.
     10. **FORMATO DE OUTPUT (CRÍTICO)**: tu respuesta debe ser PROSA PURA en castellano. NUNCA incluyas en tu output ninguna de estas marcas: `[#{c.name}]:`, `[DM]:`, `[<cualquier nombre>]:`, `[R1 · Turno de ...]`, ni headers que empiecen por `R<numero>`. Esas etiquetas las usa internamente el motor en el history — tú NO las imites. Tampoco tablas markdown, battlemaps ASCII, ni tokens tipo `<｜DSML｜...>`. Escribe tu acción y diálogo como un personaje de novela, con guiones (`—dijo...`). SIN asteriscos de markdown (`*se inclina*`). NUNCA abras con `[#{c.name}]:`.
@@ -274,6 +275,7 @@ defmodule Dragonex.PCAgent do
 
       turn_undead_line = turn_undead_line(c)
       hide_line = cunning_hide_line(c)
+      dodge_line = uncanny_dodge_line(c)
 
       base <>
         spell_line <>
@@ -282,6 +284,7 @@ defmodule Dragonex.PCAgent do
         bardic_line <>
         turn_undead_line <>
         hide_line <>
+        dodge_line <>
         hunters_mark_line(c, world) <>
         font_of_magic_lines(c, world) <>
         wild_shape_line(c) <>
@@ -356,6 +359,18 @@ defmodule Dragonex.PCAgent do
   end
 
   defp cunning_hide_line(_), do: ""
+
+  # Uncanny Dodge (D64): rogue L5+. Suggest arming while not already
+  # armed — re-arming errors.
+  defp uncanny_dodge_line(%Character{class: "rogue", name: name} = c) do
+    if (c.level || 1) >= 5 and c.uncanny_dodge != true do
+      "- Esquiva asombrosa (pícaro nivel 5+): start_uncanny_dodge(\"#{name}\") — el motor reduce a la mitad el próximo daño que recibas y consume la postura.\n"
+    else
+      ""
+    end
+  end
+
+  defp uncanny_dodge_line(_), do: ""
 
   # Wild Shape (D63): druid L2+. Suggest transforming while uses remain (and
   # not already in beast form); while transformed, remind that casting is

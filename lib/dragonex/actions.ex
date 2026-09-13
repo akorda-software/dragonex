@@ -1089,6 +1089,41 @@ defmodule Dragonex.Actions do
      if(success?, do: World.apply_condition(who, "hidden"), else: noop())}
   end
 
+  @doc """
+  Uncanny Dodge (5e, D64): a rogue of level 5+ arms a defensive posture.
+
+  Without reactions or rounds in the engine, this is modeled as a flag
+  (pattern `inspired`/`reckless`): arming is free at any moment; the LLM
+  decides WHEN. While armed, `World.apply_damage/3` halves ANY incoming
+  damage (floor) at entry — before resistances (D38) and temp_hp (D36) —
+  and consumes the flag. Stacks with Evasión (D59): half of half. Errors
+  do not mutate.
+  """
+  @spec start_uncanny_dodge(World.t(), String.t()) :: result()
+  def start_uncanny_dodge(world, who) do
+    case World.character(world, who) do
+      nil ->
+        {:error, "no existe el personaje: #{who}"}
+
+      %Character{hp: hp} when hp <= 0 ->
+        {:error, "#{who} está caído (0 pg) y no puede prepararse para esquivar"}
+
+      %Character{class: class} when class != "rogue" ->
+        {:error, "#{who} no es pícaro y no puede usar Esquiva asombrosa"}
+
+      %Character{level: level} when not is_integer(level) or level < 5 ->
+        {:error, "#{who} no tiene Esquiva asombrosa (nivel 5)"}
+
+      %Character{uncanny_dodge: true} ->
+        {:error, "#{who} ya tiene Esquiva asombrosa armada"}
+
+      %Character{} ->
+        {:ok,
+         "#{who} se prepara para esquivar (Uncanny Dodge armado: el próximo daño se reduce a la mitad).",
+         World.set_uncanny_dodge(who, true)}
+    end
+  end
+
   # DC: the highest passive perception among conscious enemies; 10 when
   # there is none (RAW minimum).
   defp hide_dc(%World{} = world, %Character{} = who) do
