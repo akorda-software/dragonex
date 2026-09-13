@@ -84,7 +84,7 @@ Dragonex (warlock Pact Magic D40; paladín/ranger spellcasting a L2 R09).
 Sin bugs de derivados; las simplificaciones (feats, features
 por nivel salvo Extra Attack D35, Pact Magic D40, Sneak Attack D41,
     Rage D42, Reckless Attack D44, Second Wind D45, Divine Smite D46,
-    Action Surge D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Turn Undead D53 y spellcasting paladín/ranger L2,
+    Action Surge D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of Blows D54 y spellcasting paladín/ranger L2,
 `spells_known`) quedan en 🟡.
 
 ---
@@ -164,6 +164,17 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
   que fallen Sabiduría vs DC `8+prof+wis`; combate y exploración;
   short y long rest recargan. Sin Destroy Undead, sin Channel de
   dominio, sin Turn the Unholy, sin 30 ft.
+- **Ki + Flurry of Blows del monje** (D54): **entregado.**
+  `Character.ki` + Codec (restantes, default 0; máximo `level` en monk
+  L2+, builder L2+ → nivel); tool `flurry_of_blows(who, target, mode)`
+  gasta 1 ki SIEMPRE que se resuelvan los 2 golpes sin armas (arma
+  sintética `unarmed strike`, dado de artes marciales
+  `martial_arts_die/1` 1d4→1d10, DEX; N=2 fijo, sin Sneak/Smite/Extra
+  Attack); combate permitido; objetivo cae a mitad → omite el segundo
+  swing; short y long rest recargan al máximo (`compose_rest`);
+  level-up no resetea restante. Sin Patient Defense, Step of the Wind,
+  Stunning Strike, Deflect Missiles, golpe extra de Martial Arts,
+  Unarmored Movement.
 - **Divine Smite del paladín** (D46): **entregado.** `Character.smite_slot`
   + Codec; `divine_smite(who, slot_level)` arma pendiente sin gastar
   casilla; primer hit melee de `Actions.attack` consume el hueco y tira

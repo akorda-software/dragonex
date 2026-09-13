@@ -421,6 +421,27 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
+  Flurry of Blows (5e, D54). Monk level 2+. Spends 1 ki point; the engine
+  resolves two unarmed strikes (martial arts die). The DM may use it for
+  any monk; a PC may only use it as themselves.
+  """
+  deftool flurry_of_blows(ctx, who :: String.t(), target :: String.t(), mode :: String.t()) do
+    with :ok <- assert_flurry_self(ctx, who),
+         {:ok, msg, change} <-
+           Dragonex.Actions.flurry_of_blows(
+             world(ctx),
+             who,
+             target,
+             ctx.deps.roller,
+             parse_mode(mode),
+             ctx.deps[:roll_log]
+           ),
+         {:ok, _} <- propose(ctx, change) do
+      {:ok, msg}
+    end
+  end
+
+  @doc """
   Arm Divine Smite (5e, D46). Paladin only. Leaves a pending smite_slot;
   the spell slot is consumed on the next melee hit, not now. The DM may
   arm anyone; a PC may only arm themselves.
@@ -683,6 +704,17 @@ defmodule Dragonex.Tools do
     else
       {:error,
        "RECHAZADO — solo puedes usar Oleada de acción en ti mismo (#{proposer}), no en #{who}."}
+    end
+  end
+
+  defp assert_flurry_self(ctx, who) do
+    proposer = ctx.deps.state.participant_id
+
+    if proposer == "dm" or proposer == who do
+      :ok
+    else
+      {:error,
+       "RECHAZADO — solo puedes usar Ráfaga de golpes en ti mismo (#{proposer}), no en #{who}."}
     end
   end
 

@@ -1,4 +1,4 @@
-# Catálogo de mecánicas 5e (M1–M29)
+# Catálogo de mecánicas 5e (M1–M38)
 
 > **Técnico.** Cada mecánica implementada, con identificador estable `Mxx`,
 > dónde vive (módulo:función), qué regla 5e aplica, sus simplificaciones (ADR)
@@ -415,6 +415,27 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   30 ft, cobertura, reloj 1 minuto, feats, multiclase.
 - **Tests**: `turn_undead_test.exs`, `codec_test.exs`.
 
+### M38 — Ki + Flurry of Blows (`ki`, D54)
+- **Dónde**: `Character.ki` (integer restantes, Codec, default 0;
+  jsonb viejo → 0). Máximo `Progression.ki_points/2`: monk L2+ →
+  `level`; L1 y otras clases → 0 (`Heroes.build` monje L2+ → nivel).
+  Solo `class == "monk"` y `level >= 2`. `Actions.flurry_of_blows/5` +
+  `World.spend_ki/2`: gasta 1 ki y resuelve 2 golpes sin armas con un
+  `Weapon` sintético (`unarmed strike`, dado
+  `Progression.martial_arts_die/1` — L1–4 1d4, L5–10 1d6, L11–16 1d8,
+  L17–20 1d10 —, contundente, DEX/finesse) que no hace falta en
+  inventory. N=2 fijo: sin Sneak, sin Smite, sin Extra Attack; reusa
+  `resolve_swings` (omite el segundo swing si el objetivo cae).
+  Combate permitido. Gasta aunque ambos golpes fallen. Errores no
+  gastan: missing who/target, caído (hp ≤ 0), no monje, L1, ki 0. Tool
+  `flurry_of_blows(who, target, mode)` (DM cualquiera; PC sólo `who`
+  sí mismo; mode como `make_attack`). `short_rest` y `long_rest`
+  recargan al máximo (`compose_rest`); otras clases no-op. Level-up no
+  resetea remaining. Sin Patient Defense, Step of the Wind, Stunning
+  Strike, Deflect Missiles, golpe extra de Martial Arts, Unarmored
+  Movement, feats, multiclase.
+- **Tests**: `flurry_of_blows_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -425,7 +446,8 @@ Reckless Attack: **D44 / M28**. Second Wind: **D45 / M29**. Divine Smite:
 **D46 / M30**. Action Surge: **D47 / M31**. Fighting Style: **D48 / M32**.
 Lay on Hands: **D49 / M33**. Bardic Inspiration: **D50 / M34**.
 Arcane Recovery: **D51 / M35**. Divine Sense: **D52 / M36**.
-Turn Undead: **D53 / M37**. XP en partida: **D43 / M27**.
+Turn Undead: **D53 / M37**. Ki + Flurry of Blows: **D54 / M38**.
+XP en partida: **D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
 **D38 / M25**. Cupo de Rage/día y segundo uso de Action Surge a L17
@@ -434,7 +456,7 @@ enfermedad/veneno con Lay on Hands (gastar 5) sigue fuera.
 Channel Divinity / Turn the Unholy / Improved Divine Sense siguen
 fuera.
 
-Para que una de estas entre: ADR nuevo + mecánica `M37+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M38+` en este catálogo +
 tests.
 
 ## Dados

@@ -39,9 +39,12 @@ defmodule Dragonex.World do
        `arcane_recovery_used`, `short_rest` does not,
      * Divine Sense (D52) is a paladin scan (`1 + cha_mod` uses, floor 1);
        `long_rest` refills it, `short_rest` does not,
-     * Channel Divinity: Turn Undead (D53) is 1/rest for clerics L2+;
-       `short_rest`/`long_rest` clear `channel_divinity_used`,
-     * `grant_xp` adds to `Character.xp` and never levels up (D43).
+      * Channel Divinity: Turn Undead (D53) is 1/rest for clerics L2+;
+        `short_rest`/`long_rest` clear `channel_divinity_used`,
+      * Ki (D54) is a monk L2+ pool (`level` points); `Actions.flurry_of_blows`
+        spends 1 per use; `short_rest`/`long_rest` refill it to `level`
+        (no-op for other classes),
+      * `grant_xp` adds to `Character.xp` and never levels up (D43).
 
   Characters are stored as full `Dragonex.Character` structs, so the engine can
   read any stat (AC, abilities, weapons ...) straight from the world.
@@ -587,6 +590,53 @@ defmodule Dragonex.World do
           else
             {:ok, put_char(w, name, %{c | divine_sense_uses: uses - 1})}
           end
+      end
+    end
+  end
+
+  @doc """
+  Spend `amount` ki points (5e, D54). Monk only. Errors (no spend):
+  missing who, not a monk, fewer than `amount` ki left.
+  """
+  @spec spend_ki(String.t(), pos_integer()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def spend_ki(name, amount) when is_integer(amount) and amount >= 1 do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{class: class} when class != "monk" ->
+          {:error, "#{name} no es monje y no puede gastar ki"}
+
+        %Character{ki: ki} = c ->
+          ki = ki || 0
+
+          if ki < amount do
+            {:error, "#{name} no tiene suficiente ki (le quedan #{ki})"}
+          else
+            {:ok, put_char(w, name, %{c | ki: ki - amount})}
+          end
+      end
+    end
+  end
+
+  @doc """
+  Rest refill (D54). Monk ki → `level` (L2+; a L1 monk → 0). No-op for
+  other classes. Both `short_rest` and `long_rest` call this.
+  """
+  @spec restore_ki(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def restore_ki(name) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{class: "monk"} = c ->
+          max_ki = Dragonex.Heroes.Progression.ki_points("monk", c.level)
+          {:ok, put_char(w, name, %{c | ki: max_ki})}
+
+        %Character{} ->
+          {:ok, w}
       end
     end
   end

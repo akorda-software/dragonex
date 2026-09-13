@@ -24,7 +24,7 @@ defmodule Dragonex.Heroes.Progression do
     * **Features**: se modelan las que afectan a la ficha de forma
         mecánica inmediata (conjuración paladín/explorador a L2; Extra Attack
         a L5 en clases marciales, D35; Sneak Attack del rogue, D41; Action
-        Surge del fighter a L2, D47). El resto de features por nivel sigue
+        Surge del fighter a L2, D47; Ki/Flurry of Blows del monje a L2, D54). El resto de features por nivel sigue
         fuera de v1. Rage del bárbaro (D42) usa `rage_damage/1`, no el
         string `"rage"`.
   """
@@ -236,6 +236,32 @@ defmodule Dragonex.Heroes.Progression do
   def rage_damage(level) when is_integer(level) and level >= 16, do: 4
   def rage_damage(level) when is_integer(level) and level >= 9, do: 3
   def rage_damage(level) when is_integer(level) and level >= 1, do: 2
+
+  @doc """
+  Dados de artes marciales del monje según nivel (D54).
+
+  Tabla 5e; el motor es fuente de verdad (D1):
+
+    * L1–4 → "1d4"; L5–10 → "1d6"; L11–16 → "1d8"; L17–20 → "1d10"
+  """
+  @spec martial_arts_die(pos_integer()) :: String.t()
+  def martial_arts_die(level) when is_integer(level) and level >= 17, do: "1d10"
+  def martial_arts_die(level) when is_integer(level) and level >= 11, do: "1d8"
+  def martial_arts_die(level) when is_integer(level) and level >= 5, do: "1d6"
+  def martial_arts_die(level) when is_integer(level) and level >= 1, do: "1d4"
+
+  @doc """
+  Puntos de ki máximos según clase y nivel (D54). Tabla 5e; el motor es
+  fuente de verdad (D1):
+
+    * monk L2+ → `level`; L1 → 0; resto → 0
+  """
+  @spec ki_points(String.t() | atom(), pos_integer()) :: non_neg_integer()
+  def ki_points(class, level) when is_integer(level) and level >= 2 do
+    if class_name(class) == :monk, do: level, else: 0
+  end
+
+  def ki_points(_class, _level), do: 0
 
   # ------------------------------------------------------------ helpers
 

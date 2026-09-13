@@ -960,6 +960,51 @@ D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50,
 Arcane Recovery D51, Divine Sense D52, Turn Undead D53 y
 spellcasting paladín/ranger L2; el resto de features por nivel sigue 🟡.
 
+### D54 — Ki + Flurry of Blows 5e
+Estado: **Aceptada** — 2026-09-13.
+
+RAW acotado del monje. El LLM no tira ni elige dados (D1): llama
+`flurry_of_blows`; el motor gasta 1 ki y resuelve 2 golpes sin armas.
+Economía de acciones simplificada: la tool ES el Flurry (no exige haber
+atacado antes). Combate permitido; también fuera de combate. Sin
+Patient Defense, Step of the Wind, Stunning Strike, Deflect Missiles,
+Martial Arts "golpe extra tras Attack action", Unarmored Movement,
+feats ni multiclase.
+
+- Solo `class == "monk"` y `level >= 2`.
+- Campo `Character.ki` integer = puntos RESTANTES, default 0. Codec
+  integer; jsonb viejo/ausente → 0 (D4/D8).
+- Máximo de ki: `level` si monk L2+, si no 0 (`Progression.ki_points/2`).
+  Builder monje L1 → 0; L2+ → `level`. Otras clases 0.
+- Tool `flurry_of_blows(who, target, mode)`. DM cualquiera; PC sólo
+  sí mismo. `mode` como `make_attack` (normal/advantage/disadvantage).
+- Error, no gasta ki: who/target no existen; who caído (hp ≤ 0); no
+  monje; level < 2; ki < 1.
+- Gasta 1 ki SIEMPRE que se resuelvan los swings (hit o miss). Si el
+  objetivo cae a mitad, omite el segundo swing (igual que Extra Attack).
+- 2 golpes sin armas, N=2 fijo (NO `Progression.attack_count/2`): sin
+  Sneak, sin Smite, sin Extra Attack. Reusa `resolve_swings` (como
+  Action Surge D47).
+- Arma sintética, no hace falta en inventory y no cambia `Weapon`:
+  `%Weapon{name: "unarmed strike", dice: martial_arts_die, damage_type: "bludgeoning", attack_ability: :dex, finesse: true, ranged: false}`.
+  Dado de artes marciales (`Progression.martial_arts_die/1`): L1–4
+  "1d4", L5–10 "1d6", L11–16 "1d8", L17–20 "1d10".
+- Mensaje ES: "X usa Ráfaga de golpes (ki restantes N). …" + el formato
+  de ataque habitual.
+- Short rest Y long rest: monje → refill ki al máximo (`level`); otras
+  clases no-op. En `compose_rest` (como Channel Divinity D53).
+- Level-up / merge / transitorios: no resetear ki restante.
+- D35/D41/D46/D47 intactos.
+
+No cambia `Weapon`/`Spell`/`Item`. D53 intacto.
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
+Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
+D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50,
+Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of
+Blows D54 y spellcasting paladín/ranger L2; el resto de features por
+nivel sigue 🟡.
+
 ---
 
 ## Pendientes de decisión (abiertas)

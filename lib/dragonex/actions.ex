@@ -22,6 +22,7 @@ defmodule Dragonex.Actions do
     Rules.Combat,
     Rules.Conditions,
     SpellSlots,
+    Weapon,
     World
   }
 
@@ -730,6 +731,104 @@ defmodule Dragonex.Actions do
             err
         end
     end
+  end
+
+  @doc """
+  Flurry of Blows (5e, D54): a monk of level 2+ spends 1 ki point and makes
+  two unarmed strikes (martial arts die, DEX) against `target`.
+
+  The tool IS the bonus action (simplified action economy); no prior attack
+  required. N is fixed at 2 — never `Progression.attack_count/2` — and no
+  Sneak Attack, Divine Smite or Extra Attack stacking. The unarmed strike is
+  a synthetic weapon: not required in inventory. Hit or miss spends the ki;
+  errors (missing who/target, 0 hp, not a monk, L1, 0 ki) do not. If the
+  target drops (hp ≤ 0) mid-flurry, the second swing is skipped.
+  """
+  @spec flurry_of_blows(
+          World.t(),
+          String.t(),
+          String.t(),
+          roller(),
+          :normal | :advantage | :disadvantage,
+          RollLog.t() | nil
+        ) :: result()
+  def flurry_of_blows(world, who, target, roller, mode \\ :normal, roll_log \\ nil) do
+    monk = World.character(world, who)
+
+    cond do
+      is_nil(monk) ->
+        {:error, "no existe el personaje: #{who}"}
+
+      is_nil(World.character(world, target)) ->
+        {:error, "no existe el objetivo: #{target}"}
+
+      (monk.hp || 0) <= 0 ->
+        {:error, "#{who} está caído (0 pg) y no puede atacar"}
+
+      monk.class != "monk" ->
+        {:error, "#{who} no es monje y no puede usar Ráfaga de golpes"}
+
+      not is_integer(monk.level) or monk.level < 2 ->
+        {:error, "#{who} no tiene Ráfaga de golpes (nivel 2)"}
+
+      (monk.ki || 0) < 1 ->
+        {:error, "#{who} no tiene ki (se recarga con un descanso)"}
+
+      true ->
+        t = World.character(world, target)
+        weapon = unarmed_strike(monk.level)
+        inspired? = monk.inspired == true
+
+        effective_mode =
+          Conditions.attack_mode(monk, t,
+            requested: mode,
+            ranged: false,
+            attack_ability: :dex,
+            finesse: true
+          )
+
+        # N=2 fijo (D54): sin sneak, sin smite, sin Extra Attack.
+        swings =
+          resolve_swings(
+            monk,
+            t,
+            who,
+            target,
+            weapon,
+            roller,
+            roll_log,
+            effective_mode,
+            2,
+            nil,
+            nil,
+            inspired?
+          )
+
+        ac = target_ac(t)
+
+        {notes, change} =
+          pipe_attack_damage(target, swings, roller, roll_log, t, weapon.damage_type)
+
+        change = compose_inspired_clear(who, inspired?, change)
+
+        {:ok,
+         append_notes(
+           "#{who} usa Ráfaga de golpes (ki restantes #{(monk.ki || 0) - 1}). " <>
+             format_attack_message(who, target, weapon, ac, effective_mode, swings),
+           notes
+         ), compose_spend_ki(who, change)}
+    end
+  end
+
+  defp unarmed_strike(level) do
+    %Weapon{
+      name: "unarmed strike",
+      dice: Progression.martial_arts_die(level || 1),
+      damage_type: "bludgeoning",
+      attack_ability: :dex,
+      finesse: true,
+      ranged: false
+    }
   end
 
   @doc """
@@ -1625,7 +1724,8 @@ defmodule Dragonex.Actions do
            {:ok, w} <- maybe_restore_slots(w, name, restore_slots?),
            {:ok, w} <- World.set_second_wind_used(name, false).(w),
            {:ok, w} <- World.set_action_surge_used(name, false).(w),
-           {:ok, w} <- World.set_channel_divinity_used(name, false).(w) do
+           {:ok, w} <- World.set_channel_divinity_used(name, false).(w),
+           {:ok, w} <- World.restore_ki(name).(w) do
         {:ok, w}
       end
     end
@@ -1648,6 +1748,14 @@ defmodule Dragonex.Actions do
     fn w ->
       with {:ok, w} <- change.(w) do
         World.set_action_surge_used(who, true).(w)
+      end
+    end
+  end
+
+  defp compose_spend_ki(who, change) do
+    fn w ->
+      with {:ok, w} <- change.(w) do
+        World.spend_ki(who, 1).(w)
       end
     end
   end
