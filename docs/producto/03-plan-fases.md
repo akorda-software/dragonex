@@ -226,7 +226,31 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
   (composition en el change_fn); RollLog patrón ability_check;
   errores no mutan. Sin Dash/Disengage (sin grid ni opportunity
   attacks), visibilidad/posición, sigilo sostenido, ocultarse de
-  aliados, Uncanny Dodge, feats ni multiclase.
+   aliados, Uncanny Dodge, feats ni multiclase.
+- **Danger Sense del bárbaro** (D58): **entregado.** Pasiva sin tool ni
+  campos nuevos: `Rules.Conditions.save_mode/3` concede ventaja en
+  TODAS las salvaciones de DES del bárbaro L2+ (combinada vía
+  `combine/2`: la desventaja de condición —p. ej. restrained— se
+  cancela a normal; la ventaja pedida por el modelo se mantiene); el
+  corte de incapacitación reusa `@auto_fail_saves` (paralyzed/stunned/
+  unconscious/petrified auto-fallan DES cortocircuitando antes de
+  computar la ventaja); `mode_tag(:advantage)` existente muestra
+  "(ventaja)" en el mensaje; WIS y otros saves no cambian. Sin aplicar
+  prof a ability_check, Uncanny Dodge, Indomitable, Relentless Rage,
+  feats ni multiclase.
+- **Evasión del pícaro** (D59): **entregado.** Pasiva sin tool ni
+  campos nuevos: en la rama `:save` de `cast_spell`, un pícaro L7+ ante
+  un hechizo con salvación de DES recibe 0 daño si supera la
+  salvación (aunque el hechizo mitigara a mitad en éxito) y
+  `div(full, 2)` —redondeo hacia abajo— si falla (aunque el hechizo
+  hiciera daño completo en fallo); un hechizo que ya haría 0 en éxito
+  sigue en 0; la inspiración bárdica (D50) se aplica antes (un éxito
+  por inspiración activa Evasión); desglose "(Evasión: sin daño)" /
+  "(Evasión: mitad)"; el pícaro incapacitado auto-falla DES en
+  `save_mode` y nunca llega a la rama que aplica Evasión (mismo corte
+  que D58); saves no-DES y daño sin save (o `:attack`) ignoran
+  Evasión. Sin Uncanny Dodge, Indomitable, Jack of All Trades, feats
+  ni multiclase.
 - **Multiclase**: fuera del builder actual por diseño; implicaría rehacer
   progression.
 - **Marketplace de contenido custom** (D22): compartir entre usuarios.

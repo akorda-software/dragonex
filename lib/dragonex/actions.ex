@@ -1400,15 +1400,35 @@ defmodule Dragonex.Actions do
         full = dice_with(spell, r2)
         RollLog.close(close_dmg, total: full, against: nil, outcome: nil)
 
-        dmg = if success?, do: div(full, 2), else: full
+        # D59 Evasión: a rogue L7+ takes no damage on a successful DEX save
+        # and half on a failed one. Incapacitated rogues are cut off by the
+        # auto-fail set in Conditions.save_mode (they never roll here).
+        evasion? = evasion?(t, spell)
+
+        dmg =
+          cond do
+            success? and evasion? -> 0
+            success? -> div(full, 2)
+            evasion? -> div(full, 2)
+            true -> full
+          end
+
         bardic_bit = if bardic != 0, do: " +#{bardic} inspiración", else: ""
 
         verdict =
-          if success?,
-            do:
-              "supera la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{bardic_bit})#{mode_tag(save_mode)}, mitad de daño",
-            else:
+          cond do
+            success? and evasion? ->
+              "supera la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{bardic_bit})#{mode_tag(save_mode)} (Evasión: sin daño)"
+
+            success? ->
+              "supera la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{bardic_bit})#{mode_tag(save_mode)}, mitad de daño"
+
+            evasion? ->
+              "falla la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{bardic_bit})#{mode_tag(save_mode)} (Evasión: mitad)"
+
+            true ->
               "falla la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{bardic_bit})#{mode_tag(save_mode)}"
+          end
 
         {:ok, msg, change} =
           with_conc_damage(
@@ -1441,6 +1461,16 @@ defmodule Dragonex.Actions do
 
   defp dice_with(%{dice: nil}, _roller), do: 0
   defp dice_with(%{dice: expr}, roller), do: Dice.roll_expr(expr, roller)
+
+  # D59 Evasión: rogue L7+ — no damage on a successful DEX save, half on a
+  # failed one. The auto-fail conditions short-circuit DEX saves inside
+  # Conditions.save_mode, so an incapacitated rogue never reaches the roll
+  # branch that applies this (RAW "unless incapacitated").
+  defp evasion?(%Character{} = target, %{save_ability: :dex}) do
+    target.class == "rogue" and (target.level || 1) >= 7
+  end
+
+  defp evasion?(_target, _spell), do: false
 
   defp spell_damage_verb(%{name: "magic missile"}, _dmg), do: " (3 dardos de fuerza)"
   defp spell_damage_verb(_spell, _dmg), do: ""

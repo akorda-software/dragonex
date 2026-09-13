@@ -8,6 +8,11 @@ defmodule Dragonex.Rules.Conditions do
   Auto-fail STR/DEX saves (paralyzed, stunned, unconscious, petrified) skip
   the roll. Death saves are not ability saves and are not adjusted here.
 
+  Danger Sense (D58): a barbarian L2+ has advantage on DEX saves through
+  every route that consults `save_mode/3`. The RAW "unless incapacitated"
+  cutoff is the auto-fail set: those conditions short-circuit STR/DEX
+  saves before the advantage is computed.
+
   v1 simplifications: frightened always applies (no line-of-sight to the
   source); blinded/deafened do not auto-fail checks (the engine does not
   know if a check requires sight/hearing); spell attacks are treated as
@@ -55,7 +60,14 @@ defmodule Dragonex.Rules.Conditions do
     combine(advantage?, disadvantage?)
   end
 
-  @doc "Save outcome for `target` on `ability`. Auto-fail short-circuits STR/DEX."
+  @doc """
+  Save outcome for `target` on `ability`. Auto-fail short-circuits STR/DEX.
+
+  Danger Sense (D58): barbarian L2+ gets advantage on DEX saves (combined
+  via `combine/2` — a condition's disadvantage, e.g. restrained, cancels
+  to normal). Incapacitating conditions never reach this advantage: the
+  auto-fail set short-circuits DEX saves first.
+  """
   @spec save_mode(Character.t(), atom(), mode()) :: save_outcome()
   def save_mode(%Character{} = target, ability, requested \\ :normal) do
     conds = Character.condition_names(target)
@@ -63,7 +75,7 @@ defmodule Dragonex.Rules.Conditions do
     if ability in [:str, :dex] and Enum.any?(conds, &(&1 in @auto_fail_saves)) do
       :auto_fail
     else
-      advantage? = requested == :advantage
+      advantage? = requested == :advantage or danger_sense?(target, ability)
 
       disadvantage? =
         requested == :disadvantage or (ability == :dex and "restrained" in conds)
@@ -92,6 +104,17 @@ defmodule Dragonex.Rules.Conditions do
   def combine(true, false), do: :advantage
   def combine(false, true), do: :disadvantage
   def combine(false, false), do: :normal
+
+  # D58 Danger Sense: barbarian L2+ gains advantage on DEX saves. The
+  # incapacitating conditions modeled here (@auto_fail_saves) auto-fail DEX
+  # and short-circuit in save_mode/3, so the defensive re-check below is the
+  # RAW "unless incapacitated" cutoff for v1.
+  defp danger_sense?(%Character{} = target, :dex) do
+    target.class == "barbarian" and (target.level || 1) >= 2 and
+      not Enum.any?(Character.condition_names(target), &(&1 in @auto_fail_saves))
+  end
+
+  defp danger_sense?(_target, _ability), do: false
 
   defp reckless_attacker_advantage?(%Character{} = attacker, opts) do
     attacker.reckless == true and

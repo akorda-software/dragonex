@@ -1172,6 +1172,85 @@ Blows D54, Hunter's Mark D55, Font of Magic D56, Cunning Action (Hide)
 D57 y spellcasting paladín/ranger L2; el resto de features por nivel
 sigue 🟡.
 
+### D58 — Danger Sense 5e
+Estado: **Aceptada** — 2026-09-13.
+
+Defensa pasiva del bárbaro: ventaja en salvaciones de DES si no está
+incapacitado. El LLM no interviene (no hay tool ni reacción): el motor
+la aplica solo en la ruta existente de salvaciones.
+
+- Solo `class == "barbarian"` y `level >= 2`. Sin campos nuevos ni
+  Codec: class+level se leen en la ruta de resolución.
+- Implementación: `Rules.Conditions.save_mode/3` — si el personaje es
+  bárbaro L2+ y `ability == :dex` → ventaja, combinada vía `combine/2`
+  existente (la desventaja de condición —p. ej. restrained— se cancela a
+  normal; la ventaja pedida por el modelo se mantiene).
+- Corte de incapacitación: reusa `@auto_fail_saves` (paralyzed/stunned/
+  unconscious/petrified) — todas incapacitan y ya auto-fallan DES
+  cortocircuitando antes de computar la ventaja (el helper `danger_sense?/2`
+  re-chequea por robustez). No hay lista separada de condiciones
+  incapacitantes en `Rules.Conditions`; una condición "incapacitated"
+  aplicada suelta no corta Danger Sense (simplificación v1 documentada).
+- Alcance: TODAS las salvaciones de DES del personaje que pasen por
+  `Conditions.save_mode` — spells con save dex (y cualquier ruta futura).
+  turn_undead es WIS: no cambia.
+- Mensaje: el `mode_tag(:advantage)` existente ya muestra "(ventaja)" en
+  el desglose; nada nuevo que escribir.
+- **Fuera**: aplicar prof a ability_check (v1 no lo hace — no se arregla
+  aquí), Uncanny Dodge, Indomitable, Relentless Rage, feats, multiclase.
+
+No cambia `Character`/`Weapon`/`Spell`/`Item` ni Codec. M06/M42 ganan la
+fila Danger Sense (ventaja en salvación DES del bárbaro L2+).
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
+Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
+D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50,
+Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of
+Blows D54, Hunter's Mark D55, Font of Magic D56, Cunning Action (Hide)
+D57, Danger Sense D58 y spellcasting paladín/ranger L2; el resto de
+features por nivel sigue 🟡.
+
+### D59 — Evasión 5e
+Estado: **Aceptada** — 2026-09-13.
+
+Defensa pasiva del pícaro: ante un hechizo con salvación de DES que
+dañe a medias o a lo bestia, un pícaro L7+ no recibe daño si supera la
+salvación y sólo la mitad si falla. El LLM no interviene: el motor la
+aplica solo en la rama `:save` de `cast_spell`.
+
+- Solo `class == "rogue"` y `level >= 7`. Sin campos nuevos ni Codec:
+  class+level se leen en la ruta de resolución.
+- Implementación: `Actions.resolve_save_spell` (rama `{:roll, _}`) —
+  tras `Combat.saving_throw`, helper `evasion?/2`: si
+  `spell.save_ability == :dex` y el objetivo es pícaro L7+ → éxito en la
+  salvación ⇒ daño 0 (aunque el hechizo mitigara a mitad en éxito);
+  fallo ⇒ `div(full, 2)` (redondeo hacia abajo), aunque el hechizo
+  hiciera daño completo en fallo. Si el hechizo ya haría 0 en éxito,
+  Evasión no cambia nada (sigue 0). Inspiración bárdica (D50) se aplica
+  antes: un éxito gracias a la inspiración también activa Evasión.
+- Sólo hechizos con salvación de DES (`kind: :save`). No aplica a saves
+  de otras habilidades ni a daño directo sin save (ni a `:attack`).
+- Mensaje: el desglose refleja el efecto — "(Evasión: sin daño)" tras
+  superar la salvación, "(Evasión: mitad)" tras fallarla.
+- Corte de incapacitación (RAW 5e14 "unless incapacitated"): misma lista
+  que D58 — `@auto_fail_saves` auto-falla DES en `Conditions.save_mode`,
+  así que un pícaro incapacitado nunca llega a la rama que aplica
+  Evasión (recibe daño completo por auto-fallo).
+- **Fuera**: Uncanny Dodge, Indomitable, Relentless Rage, Jack of All
+  Trades, feats, multiclase; Evasión sobre daños no-HECHIZO (aliento,
+  trampas) — v1 sólo modela saves de hechizo.
+
+No cambia `Character`/`Weapon`/`Spell`/`Item` ni Codec. M43 en el
+catálogo. 07-contrato-tools NO cambia (no hay tools nuevas).
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
+Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
+D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50,
+Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of
+Blows D54, Hunter's Mark D55, Font of Magic D56, Cunning Action (Hide)
+D57, Danger Sense D58, Evasión D59 y spellcasting paladín/ranger L2; el
+resto de features por nivel sigue 🟡.
+
 ---
 
 ## Pendientes de decisión (abiertas)

@@ -1,4 +1,4 @@
-# Catálogo de mecánicas 5e (M1–M41)
+# Catálogo de mecánicas 5e (M1–M43)
 
 > **Técnico.** Cada mecánica implementada, con identificador estable `Mxx`,
 > dónde vive (módulo:función), qué regla 5e aplica, sus simplificaciones (ADR)
@@ -89,6 +89,10 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 
 - **Auto-fallo**: STR/DEX de paralizado/aturdido/inconsciente/petrificado no
   tira; el hechizo `:save` aplica daño completo.
+- **Danger Sense (D58 / M42)**: fuente de ventaja no-condición que entra en
+  `save_mode` — bárbaro L2+ → ventaja en salvaciones de DES (cancelable por
+  desventaja de condición vía `combine`); el auto-fallo de arriba es el corte
+  de incapacitación.
 - **Simplificaciones v1**: `frightened` siempre (sin línea de visión a la
   fuente); cegado/sordo no auto-fallan chequeos (el motor no sabe si el
   chequeo exige vista/oído); ataques de hechizo se tratan como a distancia
@@ -112,7 +116,9 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 ### M09 — Hechizo `:save`
 - **Dónde**: rama `:save` — `spell_save_dc` + `saving_throw`.
 - **5e**: el objetivo salva; éxito = mitad de daño (si el spell lo dice).
-- **Tests**: `actions_test.exs`, `flows/narration_test.exs`.
+  **Evasión (D59 / M43)**: pícaro L7+ → éxito = 0 daño, fallo = mitad
+  (sólo saves de DES; el desglose añade "(Evasión: …)").
+- **Tests**: `actions_test.exs`, `flows/narration_test.exs`, `evasion_test.exs`.
 
 ### M10 — Spell slots
 - **Dónde**: `World.has_slot?/3`, `consume_slot/2`, `restore_slots/1`;
@@ -522,6 +528,42 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   combate (usa `ability_check`), Uncanny Dodge, feats, multiclase.
 - **Tests**: `cunning_action_hide_test.exs`.
 
+### M42 — Danger Sense (`save_mode`, D58)
+- **Dónde**: `Rules.Conditions.save_mode/3` (helper privado
+  `danger_sense?/2`); sin campos nuevos ni cambios de Codec. Solo
+  `class == "barbarian"` y `level >= 2`. Pasiva: no hay tool ni
+  intervención del LLM — el motor aplica ventaja en TODAS las
+  salvaciones de DES del bárbaro que pasen por `save_mode` (spells con
+  save dex hoy). Combinada vía `combine/2`: la desventaja de condición
+  (restrained) se cancela a normal; la ventaja pedida por el modelo se
+  mantiene. Corte de incapacitación = `@auto_fail_saves` (paralyzed/
+  stunned/unconscious/petrified incapacitan y auto-fallan DES
+  cortocircuitando antes de computar la ventaja; una condición
+  "incapacitated" suelta no corta — simplificación v1, D58). El
+  `mode_tag(:advantage)` existente muestra "(ventaja)" en el mensaje;
+  nada nuevo que escribir. WIS/otros saves no cambian. Sin aplicar prof
+  a ability_check, Uncanny Dodge, Indomitable, Relentless Rage, feats,
+  multiclase.
+- **Tests**: `danger_sense_test.exs`.
+
+### M43 — Evasión (`cast_spell` rama `:save`, D59)
+- **Dónde**: `Actions.resolve_save_spell` (rama `{:roll, _}`, helper
+  privado `evasion?/2`); sin campos nuevos ni cambios de Codec. Solo
+  `class == "rogue"` y `level >= 7`, y sólo hechizos con
+  `save_ability: :dex`. Pasiva: no hay tool ni intervención del LLM.
+  Tras `Combat.saving_throw`: éxito ⇒ daño 0 (aunque el hechizo
+  mitigara a mitad en éxito); fallo ⇒ `div(full, 2)` redondeando hacia
+  abajo (aunque el hechizo hiciera daño completo en fallo); hechizo que
+  ya haría 0 en éxito sigue en 0. Inspiración bárdica (D50) se aplica
+  antes: un éxito por inspiración también activa Evasión. Mensaje:
+  "(Evasión: sin daño)" / "(Evasión: mitad)" en el desglose. Corte de
+  incapacitación (RAW 5e14): mismo `@auto_fail_saves` que D58 — el
+  pícaro incapacitado auto-falla DES en `save_mode` y nunca llega a la
+  rama que aplica Evasión. No aplica a saves no-DES ni a daño sin save
+  (ni a `:attack`), ni a daños no-HECHIZO (aliento/trampas). Sin
+  Uncanny Dodge, Indomitable, Jack of All Trades, feats, multiclase.
+- **Tests**: `evasion_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -534,7 +576,8 @@ Lay on Hands: **D49 / M33**. Bardic Inspiration: **D50 / M34**.
 Arcane Recovery: **D51 / M35**. Divine Sense: **D52 / M36**.
 Turn Undead: **D53 / M37**. Ki + Flurry of Blows: **D54 / M38**.
 Hunter's Mark: **D55 / M39**. Font of Magic: **D56 / M40**.
-Cunning Action (Hide): **D57 / M41**.
+Cunning Action (Hide): **D57 / M41**. Danger Sense: **D58 / M42**.
+Evasión: **D59 / M43**.
 XP en partida: **D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
@@ -545,7 +588,7 @@ Channel Divinity / Turn the Unholy / Improved Divine Sense siguen
 fuera. Dash / Disengage y Uncanny Dodge siguen fuera (sin grid ni
 ataques de oportunidad no tienen efecto mecánico — D57).
 
-Para que una de estas entre: ADR nuevo + mecánica `M41+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M43+` en este catálogo +
 tests.
 
 ## Dados

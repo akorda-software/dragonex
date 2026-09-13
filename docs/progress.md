@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **1163 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **1176 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -28,7 +28,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 - `Rules.Conditions` — tabla M06: condición → ventaja/desventaja/auto-fallo
   en ataque, salvación y chequeo (cancelación 5e).
  - `Actions` — puente intent→world (`attack` con Extra Attack 5e / D35,
-    Sneak Attack D41, Rage D42 y Divine Smite D46, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57, `spell` automatic/attack/save + consumo de slot, False Life → temp_hp D36,
+    Sneak Attack D41, Rage D42 y Divine Smite D46, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57, Danger Sense D58 y Evasión D59 (pasivas del motor en salvaciones), `spell` automatic/attack/save + consumo de slot, False Life → temp_hp D36,
     concentración D37, resist/vuln/immune D38, `initiative`, `death_save`, `heal`,
      `second_wind`, `action_surge`, `flurry_of_blows`, `create_spell_slot`, `convert_to_sorcery_points`, `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`, `arcane_recovery`, `short_rest`, `long_rest`, `check`). Con `RollLog` para dados estructurados.
  - `Tools` — `deftool`s que el LLM invoca: `make_attack`, `cast_spell`,
@@ -87,7 +87,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   Feats / features por nivel (salvo Extra Attack D35, Pact Magic D40,
   Sneak Attack D41, Rage D42, Reckless Attack D44, Second Wind D45,
     Divine Smite D46, Action Surge D47, Fighting Style D48, Lay on Hands
-    D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57 y spellcasting paladín/ranger L2) siguen en 🟡.
+    D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57, Danger Sense D58, Evasión D59 y spellcasting paladín/ranger L2) siguen en 🟡.
 
 ### Contenido custom por usuario
 - CRUD `custom_contents` (weapon/spell/item, unique por usuario) con
@@ -248,6 +248,22 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
     quita "hidden" (hit o miss); RollLog patrón ability_check; errores
     no mutan. Sin Dash/Disengage (sin grid), sigilo sostenido,
     Uncanny Dodge, feats ni multiclase.
+ - ✅ Danger Sense del bárbaro (D58 / M42): pasiva sin tool ni campos
+    nuevos — `Rules.Conditions.save_mode/3` da ventaja en TODAS las
+    salvaciones de DES del bárbaro L2+ (combinada vía `combine`: la
+    desventaja de condición —restrained— se cancela a normal); corte de
+    incapacitación = `@auto_fail_saves` (paralyzed/stunned/unconscious/
+    petrified auto-fallan DES antes de computar la ventaja); el
+    `mode_tag` existente muestra "(ventaja)"; WIS y otros saves no
+    cambian.
+ - ✅ Evasión del pícaro (D59 / M43): pasiva sin tool ni campos nuevos
+    — en la rama `:save` de `cast_spell`, un pícaro L7+ ante un hechizo
+    con salvación de DES recibe 0 daño si supera la salvación (aunque
+    mitigara a mitad) y `div(full, 2)` si falla (aunque fuera daño
+    completo); hechizo que ya haría 0 sigue en 0; inspiración bárdica
+    aplicada antes activa Evasión; desglose "(Evasión: sin daño)" /
+    "(Evasión: mitad)"; pícaro incapacitado auto-falla y no llega a
+    aplicar Evasión; saves no-DES y daño sin save ignoran Evasión.
 - ✅ XP 5e en partida (D43): `World.grant_xp/2` + tool `grant_xp` (DM).
   Suma XP; no auto-level-up. Subida explícita (ficha / `level_up`).
   D10 SUPERSEDED. Sin calculadora CR/encuentro.
@@ -260,7 +276,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 |---|---|---|
 | Dotes | Fuera; ASI = +2 fijo | D13 |
 | `spells_known` | `nil` (sin cap estricto por clase) | D14 |
-| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + Fighting Style D48 + Lay on Hands D49 + Bardic Inspiration D50 + Arcane Recovery D51 + Divine Sense D52 + Turn Undead D53 + Ki/Flurry of Blows D54 + Hunter's Mark D55 + Font of Magic D56 + Cunning Action Hide D57 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47, D48, D49, D50, D51, D52, D53, D54, D55, D56, D57 |
+| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + Fighting Style D48 + Lay on Hands D49 + Bardic Inspiration D50 + Arcane Recovery D51 + Divine Sense D52 + Turn Undead D53 + Ki/Flurry of Blows D54 + Hunter's Mark D55 + Font of Magic D56 + Cunning Action Hide D57 + Danger Sense D58 + Evasión D59 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47, D48, D49, D50, D51, D52, D53, D54, D55, D56, D57, D58, D59 |
 | Empate iniciativa | DEX score desc, luego nombre; sin roll-off extra | D39 |
 | Banner level-up in-game | Eliminado (D33); subida desde la ficha | D33 |
 | Stub legado en `Tools` | `attack`/`roll`/`spawn_character`/`next_round` mantenidos para tests del framework exAgent | `tools.ex:31-72` |
