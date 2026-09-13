@@ -125,6 +125,7 @@ defmodule Dragonex.Codec do
       "divine_sense_uses" => c.divine_sense_uses || 0,
       "channel_divinity_used" => c.channel_divinity_used == true,
       "ki" => c.ki || 0,
+      "sorcery_points" => c.sorcery_points || 0,
       "damage_resistances" => c.damage_resistances || [],
       "damage_vulnerabilities" => c.damage_vulnerabilities || [],
       "damage_immunities" => c.damage_immunities || [],
@@ -179,6 +180,7 @@ defmodule Dragonex.Codec do
       divine_sense_uses: decode_divine_sense_uses(c["divine_sense_uses"]),
       channel_divinity_used: c["channel_divinity_used"] == true,
       ki: decode_ki(c["ki"]),
+      sorcery_points: decode_sorcery_points(c["sorcery_points"]),
       damage_resistances: c["damage_resistances"] || [],
       damage_vulnerabilities: c["damage_vulnerabilities"] || [],
       damage_immunities: c["damage_immunities"] || [],
@@ -294,6 +296,9 @@ defmodule Dragonex.Codec do
 
   defp decode_ki(n) when is_integer(n) and n >= 0, do: n
   defp decode_ki(_), do: 0
+
+  defp decode_sorcery_points(n) when is_integer(n) and n >= 0, do: n
+  defp decode_sorcery_points(_), do: 0
 
   defp encode_saves(%{successes: s, fails: f}), do: %{"successes" => s, "fails" => f}
   defp decode_saves(nil), do: %{successes: 0, fails: 0}

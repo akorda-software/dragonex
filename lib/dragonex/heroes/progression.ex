@@ -24,7 +24,8 @@ defmodule Dragonex.Heroes.Progression do
     * **Features**: se modelan las que afectan a la ficha de forma
         mecánica inmediata (conjuración paladín/explorador a L2; Extra Attack
         a L5 en clases marciales, D35; Sneak Attack del rogue, D41; Action
-        Surge del fighter a L2, D47; Ki/Flurry of Blows del monje a L2, D54). El resto de features por nivel sigue
+        Surge del fighter a L2, D47; Ki/Flurry of Blows del monje a L2, D54;
+        Font of Magic del hechicero a L2, D56). El resto de features por nivel sigue
         fuera de v1. Rage del bárbaro (D42) usa `rage_damage/1`, no el
         string `"rage"`.
   """
@@ -262,6 +263,34 @@ defmodule Dragonex.Heroes.Progression do
   end
 
   def ki_points(_class, _level), do: 0
+
+  @doc """
+  Puntos de hechicería máximos según clase y nivel (D56, Font of Magic).
+  Tabla 5e; el motor es fuente de verdad (D1):
+
+    * sorcerer L2+ → `level`; L1 → 0; resto → 0
+  """
+  @spec sorcery_points(String.t() | atom(), pos_integer()) :: non_neg_integer()
+  def sorcery_points(class, level) when is_integer(level) and level >= 2 do
+    if class_name(class) == :sorcerer, do: level, else: 0
+  end
+
+  def sorcery_points(_class, _level), do: 0
+
+  @doc """
+  Coste en puntos de hechicería de crear una casilla de nivel `level`
+  (Font of Magic, D56). Tabla RAW 5e:
+
+    * 1º → 2; 2º → 3; 3º → 5; 4º → 6; 5º → 7
+
+  Casillas por encima de 5º no se pueden crear (RAW); devuelve `nil`.
+  """
+  @spec sorcery_slot_cost(integer()) :: pos_integer() | nil
+  def sorcery_slot_cost(level)
+      when is_integer(level) and level >= 1 and level <= 5,
+      do: %{1 => 2, 2 => 3, 3 => 5, 4 => 6, 5 => 7}[level]
+
+  def sorcery_slot_cost(_), do: nil
 
   # ------------------------------------------------------------ helpers
 

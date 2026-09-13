@@ -46,6 +46,7 @@ defmodule Dragonex.Character do
     field(:divine_sense_uses, :integer, default: 0)
     field(:channel_divinity_used, :boolean, default: false)
     field(:ki, :integer, default: 0)
+    field(:sorcery_points, :integer, default: 0)
     field(:damage_resistances, {:array, :string}, default: [])
     field(:damage_vulnerabilities, {:array, :string}, default: [])
     field(:damage_immunities, {:array, :string}, default: [])
@@ -110,6 +111,7 @@ defmodule Dragonex.Character do
         :divine_sense_uses,
         :channel_divinity_used,
         :ki,
+        :sorcery_points,
         :damage_resistances,
         :damage_vulnerabilities,
         :damage_immunities,
@@ -151,6 +153,7 @@ defmodule Dragonex.Character do
     |> Ecto.Changeset.validate_number(:bardic_inspiration_uses, greater_than_or_equal_to: 0)
     |> Ecto.Changeset.validate_number(:divine_sense_uses, greater_than_or_equal_to: 0)
     |> Ecto.Changeset.validate_number(:ki, greater_than_or_equal_to: 0)
+    |> Ecto.Changeset.validate_number(:sorcery_points, greater_than_or_equal_to: 0)
     |> validate_abilities()
   end
 
@@ -197,6 +200,7 @@ defmodule Dragonex.Character do
       divine_sense_uses: 0,
       channel_divinity_used: false,
       ki: 0,
+      sorcery_points: 0,
       damage_resistances: [],
       damage_vulnerabilities: [],
       damage_immunities: [],

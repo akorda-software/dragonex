@@ -463,6 +463,35 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
+  Create a Spell Slot (5e, D56 Font of Magic). Sorcerer level 2+. Spends
+  sorcery points (2/3/5/6/7 by slot level 1–5) and gains one slot of that
+  level. The DM may use it for any sorcerer; a PC may only use it as
+  themselves.
+  """
+  deftool create_spell_slot(ctx, who :: String.t(), level :: integer()) do
+    with :ok <- assert_font_of_magic_self(ctx, who),
+         {:ok, msg, change} <- Dragonex.Actions.create_spell_slot(world(ctx), who, level),
+         {:ok, _} <- propose(ctx, change) do
+      {:ok, msg}
+    end
+  end
+
+  @doc """
+  Convert to Sorcery Points (5e, D56 Font of Magic). Sorcerer level 2+.
+  Spends one slot of `level` (1–5) and gains that many sorcery points,
+  capped at the pool maximum. The DM may use it for any sorcerer; a PC may
+  only use it as themselves.
+  """
+  deftool convert_to_sorcery_points(ctx, who :: String.t(), level :: integer()) do
+    with :ok <- assert_font_of_magic_self(ctx, who),
+         {:ok, msg, change} <-
+           Dragonex.Actions.convert_to_sorcery_points(world(ctx), who, level),
+         {:ok, _} <- propose(ctx, change) do
+      {:ok, msg}
+    end
+  end
+
+  @doc """
   Arm Divine Smite (5e, D46). Paladin only. Leaves a pending smite_slot;
   the spell slot is consumed on the next melee hit, not now. The DM may
   arm anyone; a PC may only arm themselves.
@@ -746,6 +775,18 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error, "RECHAZADO — solo puedes usar Marca del cazador como #{proposer}, no como #{who}."}
+    end
+  end
+
+  # Font of Magic (D56): both tools share the self guard (divine_smite pattern).
+  defp assert_font_of_magic_self(ctx, who) do
+    proposer = ctx.deps.state.participant_id
+
+    if proposer == "dm" or proposer == who do
+      :ok
+    else
+      {:error,
+       "RECHAZADO — solo puedes usar Fuente de magia en ti mismo (#{proposer}), no en #{who}."}
     end
   end
 

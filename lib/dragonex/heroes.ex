@@ -721,6 +721,7 @@ defmodule Dragonex.Heroes do
       smite_slot: nil,
       lay_on_hands_pool: lay_on_hands_pool_for(class.key, choices[:level] || 1),
       ki: ki_for(class.key, choices[:level] || 1),
+      sorcery_points: sorcery_points_for(class.key, choices[:level] || 1),
       bardic_inspiration_uses: bardic_uses_for(class.key, scores[:cha]),
       inspired: false,
       arcane_recovery_used: false,
@@ -870,6 +871,12 @@ defmodule Dragonex.Heroes do
   defp ki_for("monk", level) when is_integer(level) and level >= 2, do: level
   defp ki_for("monk", _), do: 0
   defp ki_for(_, _), do: 0
+
+  # Puntos de hechicería del hechicero (D56, Font of Magic): nivel completo
+  # desde L2; L1 y otras clases → 0.
+  defp sorcery_points_for("sorcerer", level) when is_integer(level) and level >= 2, do: level
+  defp sorcery_points_for("sorcerer", _), do: 0
+  defp sorcery_points_for(_, _), do: 0
 
   defp fetch(_module, nil, field), do: {:error, "#{field} is required"}
 

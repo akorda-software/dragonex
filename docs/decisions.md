@@ -1053,6 +1053,59 @@ Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of
 Blows D54, Hunter's Mark D55 y spellcasting paladín/ranger L2; el resto
 de features por nivel sigue 🟡.
 
+### D56 — Font of Magic 5e
+Estado: **Aceptada** — 2026-09-13.
+
+RAW acotado del hechicero: pool de puntos de hechicería con conversión
+bidireccional a casillas. El LLM no calcula (D1): llama las tools; el
+motor valida, gasta y convierte. Combate permitido (bonus action RAW;
+economía de acciones fuera, como siempre). Sin Metamagic
+(Quickened/Twinned/etc.), sorcerous restoration, gastar puntos en otras
+cosas, feats ni multiclase.
+
+- Solo `class == "sorcerer"` y `level >= 2`.
+- Campo `Character.sorcery_points` integer = puntos RESTANTES, default
+  0. Codec integer; jsonb viejo/ausente → 0 (patrón `ki` D54).
+- Máximo: `level` si hechicero L2+, si no 0
+  (`Progression.sorcery_points/2`). Builder hechicero L1 → 0; L2+ →
+  `level`. Otras clases 0.
+- Tool A `create_spell_slot(who, level)`: `level` entero 1..5 (RAW:
+  máx casilla 5º). Coste RAW (`Progression.sorcery_slot_cost/1`):
+  1º=2, 2º=3, 3º=5, 4º=6, 5º=7. Requiere `sorcery_points >= coste`;
+  resta puntos y suma 1 casilla de ese nivel (`World.gain_slot/2`,
+  encima del máximo diario — RAW lo permite). Si ya tiene casillas de
+  ese nivel, incrementa en 1.
+- Tool B `convert_to_sorcery_points(who, level)`: `level` entero 1..5
+  — **decisión**: mismo rango que create por coherencia (el hechicero
+  no tiene casillas superiores a 5º de su tabla y las creadas también
+  son 1..5; sigue RAW en la práctica). Requiere `has_slot?(who, level)`;
+  gasta 1 casilla (`consume_slot`) y gana `level` puntos con cap
+  silencioso al máximo (`gain_sorcery_points`): el exceso se pierde, NO
+  es error, y el mensaje muestra el resultado real.
+- Ambas tools: DM cualquiera; PC sólo sí mismo (patrón divine_smite
+  D46).
+- Errores NO mutan nada: who no existe; who caído (hp ≤ 0); no
+  hechicero; level < 2; nivel de casilla inválido (no entero o fuera
+  de 1..5); puntos insuficientes (A); sin casilla de ese nivel (B).
+- Rests: SOLO long rest rellena puntos al máximo (`level`) en
+  `compose_long_rest` — RAW es long rest; DISTINTO de ki D54 que
+  recarga en ambos. Short rest no toca el pool. Level-up no resetea
+  puntos restantes.
+- Mensajes ES: A "X teje magia: convierte N puntos de hechicería en 1
+  casilla de nivel L (quedan M puntos)."; B "X drena una casilla de
+  nivel L y recupera P punto(s) de hechicería (M/L máx)." + nota de
+  exceso disipado si aplica cap.
+
+No cambia `Weapon`/`Spell`/`Item`. D54 intacto (recarga de ki en ambos
+rests se mantiene).
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
+Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
+D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50,
+Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of
+Blows D54, Hunter's Mark D55, Font of Magic D56 y spellcasting
+paladín/ranger L2; el resto de features por nivel sigue 🟡.
+
 ---
 
 ## Pendientes de decisión (abiertas)

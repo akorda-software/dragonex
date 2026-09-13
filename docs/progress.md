@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **1108 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **1137 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -27,14 +27,14 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   `level_up`.
 - `Rules.Conditions` — tabla M06: condición → ventaja/desventaja/auto-fallo
   en ataque, salvación y chequeo (cancelación 5e).
-- `Actions` — puente intent→world (`attack` con Extra Attack 5e / D35,
-  Sneak Attack D41, Rage D42 y Divine Smite D46, Hunter's Mark D55, `spell` automatic/attack/save + consumo de slot, False Life → temp_hp D36,
-  concentración D37, resist/vuln/immune D38, `initiative`, `death_save`, `heal`,
-   `second_wind`, `action_surge`, `flurry_of_blows`, `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`, `arcane_recovery`, `short_rest`, `long_rest`, `check`). Con `RollLog` para dados estructurados.
+ - `Actions` — puente intent→world (`attack` con Extra Attack 5e / D35,
+   Sneak Attack D41, Rage D42 y Divine Smite D46, Hunter's Mark D55, Font of Magic D56, `spell` automatic/attack/save + consumo de slot, False Life → temp_hp D36,
+   concentración D37, resist/vuln/immune D38, `initiative`, `death_save`, `heal`,
+    `second_wind`, `action_surge`, `flurry_of_blows`, `create_spell_slot`, `convert_to_sorcery_points`, `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`, `arcane_recovery`, `short_rest`, `long_rest`, `check`). Con `RollLog` para dados estructurados.
 - `Tools` — `deftool`s que el LLM invoca: `make_attack`, `cast_spell`,
-   `roll_initiative`, `make_death_save`, `heal`, `grant_temp_hp`, `grant_xp`, `drop_concentration`, `start_rage`, `end_rage`, `start_reckless`, `end_reckless`,    `second_wind`, `action_surge`, `flurry_of_blows`, `hunters_mark`, `divine_smite`, `end_smite`, `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`, `arcane_recovery`, `ability_check`, `end_combat`,
-  `short_rest`, `long_rest`, `spawn_monster`, `apply_condition`,
-  `remove_condition`, `set_scene`, `establish_fact`, `level_up`, `roll_dice`.
+   `roll_initiative`, `make_death_save`, `heal`, `grant_temp_hp`, `grant_xp`, `drop_concentration`, `start_rage`, `end_rage`, `start_reckless`, `end_reckless`,    `second_wind`, `action_surge`, `flurry_of_blows`, `hunters_mark`, `create_spell_slot`, `convert_to_sorcery_points`, `divine_smite`, `end_smite`, `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`, `arcane_recovery`, `ability_check`, `end_combat`,
+   `short_rest`, `long_rest`, `spawn_monster`, `apply_condition`,
+   `remove_condition`, `set_scene`, `establish_fact`, `level_up`, `roll_dice`.
 - `TurnPolicy.WorldDriven` — turno leído del World; un beat por monstruo
   (D34); el LLM no puede saltar/reordenar.
 - `Codec` + `Store.Coded` — `World ↔ jsonb` simétrico (D8).
@@ -87,7 +87,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   Feats / features por nivel (salvo Extra Attack D35, Pact Magic D40,
   Sneak Attack D41, Rage D42, Reckless Attack D44, Second Wind D45,
     Divine Smite D46, Action Surge D47, Fighting Style D48, Lay on Hands
-    D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Hunter's Mark D55 y spellcasting paladín/ranger L2) siguen en 🟡.
+    D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Hunter's Mark D55, Font of Magic D56 y spellcasting paladín/ranger L2) siguen en 🟡.
 
 ### Contenido custom por usuario
 - CRUD `custom_contents` (weapon/spell/item, unique por usuario) con
@@ -214,16 +214,27 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   Sin Patient Defense, Step of the Wind, Stunning Strike, Deflect
   Missiles ni golpe extra de Martial Arts.
 - ✅ Hunter's Mark del explorador (D55): sin campos nuevos — la marca
-  vive en `concentrating` (`"hunter's mark:<presa>"`, D37) y gasta 1
-  casilla de nivel 1 (`spell_slots`); tool `hunters_mark(who, target)`
-  (ranger L2+, DM cualquiera, PC sólo sí mismo) valida who/target,
-  caídos, ranger L2+, casilla y no-concentración antes de gastar; el
-  motor suma +1d6 por impacto de arma contra la presa (crit dobla,
-  tipo del arma, RollLog patrón sneak; spells y Flurry nunca; match
-  exacto case-insensitive); fin sólo por las rutas existentes de
-  concentración; rests sin cambios (RAW la marca persiste). Sin
-  bonus action economy, tracking, múltiples presas, transferir ni
-  Branding Smite.
+   vive en `concentrating` (`"hunter's mark:<presa>"`, D37) y gasta 1
+   casilla de nivel 1 (`spell_slots`); tool `hunters_mark(who, target)`
+   (ranger L2+, DM cualquiera, PC sólo sí mismo) valida who/target,
+   caídos, ranger L2+, casilla y no-concentración antes de gastar; el
+   motor suma +1d6 por impacto de arma contra la presa (crit dobla,
+   tipo del arma, RollLog patrón sneak; spells y Flurry nunca; match
+   exacto case-insensitive); fin sólo por las rutas existentes de
+   concentración; rests sin cambios (RAW la marca persiste). Sin
+   bonus action economy, tracking, múltiples presas, transferir ni
+   Branding Smite.
+- ✅ Font of Magic del hechicero (D56): `Character.sorcery_points` +
+   Codec (jsonb viejo → 0); máximo `level` (sorcerer L2+, L1 → 0);
+   tools `create_spell_slot(who, level)` (nivel 1..5, coste RAW
+   2/3/5/6/7 vía `sorcery_slot_cost/1`, puede superar el máximo
+   diario) y `convert_to_sorcery_points(who, level)` (drena 1 casilla
+   1..5 y recupera esos puntos con cap silencioso al máximo; el
+   mensaje muestra el resultado real); DM cualquiera, PC sólo sí
+   mismo; combate permitido; errores no mutan (missing who, caído, no
+   hechicero, L1, nivel inválido, puntos insuficientes, sin casillas);
+   SOLO long rest rellena al máximo (distinto del ki D54); level-up no
+   resetea. Sin Metamagic ni sorcerous restoration.
 - ✅ XP 5e en partida (D43): `World.grant_xp/2` + tool `grant_xp` (DM).
   Suma XP; no auto-level-up. Subida explícita (ficha / `level_up`).
   D10 SUPERSEDED. Sin calculadora CR/encuentro.
@@ -236,7 +247,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 |---|---|---|
 | Dotes | Fuera; ASI = +2 fijo | D13 |
 | `spells_known` | `nil` (sin cap estricto por clase) | D14 |
-| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + Fighting Style D48 + Lay on Hands D49 + Bardic Inspiration D50 + Arcane Recovery D51 + Divine Sense D52 + Turn Undead D53 + Ki/Flurry of Blows D54 + Hunter's Mark D55 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47, D48, D49, D50, D51, D52, D53, D54, D55 |
+| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + Fighting Style D48 + Lay on Hands D49 + Bardic Inspiration D50 + Arcane Recovery D51 + Divine Sense D52 + Turn Undead D53 + Ki/Flurry of Blows D54 + Hunter's Mark D55 + Font of Magic D56 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47, D48, D49, D50, D51, D52, D53, D54, D55, D56 |
 | Empate iniciativa | DEX score desc, luego nombre; sin roll-off extra | D39 |
 | Banner level-up in-game | Eliminado (D33); subida desde la ficha | D33 |
 | Stub legado en `Tools` | `attack`/`roll`/`spawn_character`/`next_round` mantenidos para tests del framework exAgent | `tools.ex:31-72` |

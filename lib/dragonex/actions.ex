@@ -894,6 +894,93 @@ defmodule Dragonex.Actions do
   end
 
   @doc """
+  Create a Spell Slot (5e, D56 Font of Magic): a sorcerer of level 2+ spends
+  sorcery points (RAW cost 2/3/5/6/7 for slots 1–5) and gains one slot of
+  `level`. RAW allows exceeding the daily slot maximum. Combat allowed
+  (bonus action RAW; action economy out of scope). Errors (nothing spent):
+  missing who, 0 hp, not a sorcerer, level < 2, invalid slot level,
+  insufficient points.
+  """
+  @spec create_spell_slot(World.t(), String.t(), integer()) :: result()
+  def create_spell_slot(world, who, level) do
+    sorcerer = World.character(world, who)
+    cost = Progression.sorcery_slot_cost(level)
+
+    cond do
+      is_nil(sorcerer) ->
+        {:error, "no existe el personaje: #{who}"}
+
+      (sorcerer.hp || 0) <= 0 ->
+        {:error, "#{who} está caído (0 pg) y no puede usar Fuente de magia"}
+
+      sorcerer.class != "sorcerer" ->
+        {:error, "#{who} no es hechicero y no puede usar Fuente de magia"}
+
+      not is_integer(sorcerer.level) or sorcerer.level < 2 ->
+        {:error, "#{who} no tiene Fuente de magia (nivel 2)"}
+
+      is_nil(cost) ->
+        {:error, "nivel de casilla inválido: #{inspect(level)} (1 a 5)"}
+
+      (sorcerer.sorcery_points || 0) < cost ->
+        {:error,
+         "#{who} no tiene suficientes puntos de hechicería (le quedan #{sorcerer.sorcery_points || 0}; la casilla de nivel #{level} cuesta #{cost})"}
+
+      true ->
+        remaining = (sorcerer.sorcery_points || 0) - cost
+
+        {:ok,
+         "#{who} teje magia: convierte #{cost} puntos de hechicería en 1 casilla de nivel #{level} (quedan #{remaining} puntos).",
+         compose_create_slot(who, level, cost)}
+    end
+  end
+
+  @doc """
+  Convert to Sorcery Points (5e, D56 Font of Magic): a sorcerer of level 2+
+  spends one slot of `level` (1–5, same range as create) and gains `level`
+  sorcery points, capped at the pool maximum (`Progression.sorcery_points/2`).
+  The excess is silently discarded (RAW) — never an error — and the message
+  reports the real result. Errors (nothing spent): missing who, 0 hp, not a
+  sorcerer, level < 2, invalid slot level, no slot of that level left.
+  """
+  @spec convert_to_sorcery_points(World.t(), String.t(), integer()) :: result()
+  def convert_to_sorcery_points(world, who, level) do
+    sorcerer = World.character(world, who)
+
+    cond do
+      is_nil(sorcerer) ->
+        {:error, "no existe el personaje: #{who}"}
+
+      (sorcerer.hp || 0) <= 0 ->
+        {:error, "#{who} está caído (0 pg) y no puede usar Fuente de magia"}
+
+      sorcerer.class != "sorcerer" ->
+        {:error, "#{who} no es hechicero y no puede usar Fuente de magia"}
+
+      not is_integer(sorcerer.level) or sorcerer.level < 2 ->
+        {:error, "#{who} no tiene Fuente de magia (nivel 2)"}
+
+      not (is_integer(level) and level >= 1 and level <= 5) ->
+        {:error, "nivel de casilla inválido: #{inspect(level)} (1 a 5)"}
+
+      not World.has_slot?(world, who, level) ->
+        {:error, "#{who} no le quedan casillas de nivel #{level}"}
+
+      true ->
+        max = Progression.sorcery_points("sorcerer", sorcerer.level)
+        before = sorcerer.sorcery_points || 0
+        after_points = min(before + level, max)
+        gained = after_points - before
+        cap_note = if before + level > max, do: " El exceso se disipa en la Fuente.", else: ""
+
+        {:ok,
+         "#{who} drena una casilla de nivel #{level} y recupera #{gained} " <>
+           "punto#{if gained == 1, do: "", else: "s"} de hechicería " <>
+           "(#{after_points}/#{max} máx).#{cap_note}", compose_convert_slot(who, level)}
+    end
+  end
+
+  @doc """
   A short rest: the character spends hit dice to recover HP.
 
   At level 1, a character has 1 hit die. The heal is `roll(hit_die) + con_mod`.
@@ -1833,7 +1920,8 @@ defmodule Dragonex.Actions do
            {:ok, w} <- World.restore_divine_sense(name).(w),
            {:ok, w} <- World.restore_bardic_inspiration(name).(w),
            {:ok, w} <- World.set_inspired(name, false).(w),
-           {:ok, w} <- World.set_arcane_recovery_used(name, false).(w) do
+           {:ok, w} <- World.set_arcane_recovery_used(name, false).(w),
+           {:ok, w} <- World.restore_sorcery_points(name).(w) do
         {:ok, w}
       end
     end
@@ -1851,6 +1939,24 @@ defmodule Dragonex.Actions do
     fn w ->
       with {:ok, w} <- change.(w) do
         World.spend_ki(who, 1).(w)
+      end
+    end
+  end
+
+  # Font of Magic (D56): spend points first, then grant the slot. The chain
+  # re-validates, so a mid-chain failure leaves the world untouched.
+  defp compose_create_slot(who, level, cost) do
+    fn w ->
+      with {:ok, w} <- World.spend_sorcery_points(who, cost).(w) do
+        World.gain_slot(who, level).(w)
+      end
+    end
+  end
+
+  defp compose_convert_slot(who, level) do
+    fn w ->
+      with {:ok, w} <- World.consume_slot(who, level).(w) do
+        World.gain_sorcery_points(who, level).(w)
       end
     end
   end

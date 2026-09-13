@@ -44,6 +44,11 @@ defmodule Dragonex.World do
       * Ki (D54) is a monk L2+ pool (`level` points); `Actions.flurry_of_blows`
         spends 1 per use; `short_rest`/`long_rest` refill it to `level`
         (no-op for other classes),
+      * Font of Magic (D56) is a sorcerer L2+ pool (`level` points);
+        `Actions.create_spell_slot` spends points into slots and
+        `Actions.convert_to_sorcery_points` drains a slot back into points
+        (capped at `level`); only `long_rest` refills it (no-op for other
+        classes),
       * `grant_xp` adds to `Character.xp` and never levels up (D43).
 
   Characters are stored as full `Dragonex.Character` structs, so the engine can
@@ -634,6 +639,79 @@ defmodule Dragonex.World do
         %Character{class: "monk"} = c ->
           max_ki = Dragonex.Heroes.Progression.ki_points("monk", c.level)
           {:ok, put_char(w, name, %{c | ki: max_ki})}
+
+        %Character{} ->
+          {:ok, w}
+      end
+    end
+  end
+
+  @doc """
+  Spend `amount` sorcery points (5e, D56 Font of Magic). Sorcerer only.
+  Errors (no spend): missing who, not a sorcerer, fewer than `amount`
+  points left.
+  """
+  @spec spend_sorcery_points(String.t(), pos_integer()) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def spend_sorcery_points(name, amount) when is_integer(amount) and amount >= 1 do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{class: class} when class != "sorcerer" ->
+          {:error, "#{name} no es hechicero y no puede gastar puntos de hechicería"}
+
+        %Character{sorcery_points: points} = c ->
+          points = points || 0
+
+          if points < amount do
+            {:error, "#{name} no tiene suficientes puntos de hechicería (le quedan #{points})"}
+          else
+            {:ok, put_char(w, name, %{c | sorcery_points: points - amount})}
+          end
+      end
+    end
+  end
+
+  @doc """
+  Gain `amount` sorcery points (D56), capped at the class/level maximum
+  (`Progression.sorcery_points/2`; the excess is silently discarded).
+  No-op gain of 0; errors on missing who or not a sorcerer.
+  """
+  @spec gain_sorcery_points(String.t(), non_neg_integer()) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def gain_sorcery_points(name, amount) when is_integer(amount) and amount >= 0 do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{class: class} when class != "sorcerer" ->
+          {:error, "#{name} no es hechicero y no puede ganar puntos de hechicería"}
+
+        %Character{sorcery_points: points, class: class, level: level} = c ->
+          max = Dragonex.Heroes.Progression.sorcery_points(class, level)
+          {:ok, put_char(w, name, %{c | sorcery_points: min((points || 0) + amount, max)})}
+      end
+    end
+  end
+
+  @doc """
+  Long-rest refill (D56). Sorcerer points → `level` (L2+; a L1 sorcerer → 0).
+  No-op for other classes. Only `long_rest` calls this (RAW: sorcery points
+  return on a long rest, unlike ki D54 which returns on both).
+  """
+  @spec restore_sorcery_points(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def restore_sorcery_points(name) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{class: "sorcerer"} = c ->
+          max = Dragonex.Heroes.Progression.sorcery_points("sorcerer", c.level)
+          {:ok, put_char(w, name, %{c | sorcery_points: max})}
 
         %Character{} ->
           {:ok, w}
@@ -1235,6 +1313,28 @@ defmodule Dragonex.World do
 
       _ ->
         spell_level
+    end
+  end
+
+  @doc """
+  Gain one spell slot of `level` (Font of Magic, D56). Raw slot level — no
+  warlock pact remap (sorcerers are the only callers) — and it may exceed
+  the daily maximum (RAW). Errors: missing who, invalid level.
+  """
+  @spec gain_slot(String.t(), pos_integer()) :: (t() -> {:ok, t()} | {:error, String.t()})
+  def gain_slot(name, level) when is_integer(level) and level >= 1 do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} ->
+          slots = Map.get(w.spell_slots, name, %{})
+          current = Map.get(slots, level, 0)
+
+          {:ok,
+           %{w | spell_slots: Map.put(w.spell_slots, name, Map.put(slots, level, current + 1))}}
+      end
     end
   end
 

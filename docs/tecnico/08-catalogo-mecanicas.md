@@ -1,4 +1,4 @@
-# Catálogo de mecánicas 5e (M1–M39)
+# Catálogo de mecánicas 5e (M1–M40)
 
 > **Técnico.** Cada mecánica implementada, con identificador estable `Mxx`,
 > dónde vive (módulo:función), qué regla 5e aplica, sus simplificaciones (ADR)
@@ -459,6 +459,35 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   Branding Smite, feats, multiclase.
 - **Tests**: `hunters_mark_test.exs`.
 
+### M40 — Font of Magic (`sorcery_points`, D56)
+- **Dónde**: `Character.sorcery_points` (integer restantes, Codec,
+  default 0; jsonb viejo → 0, patrón `ki` M38). Máximo
+  `Progression.sorcery_points/2`: sorcerer L2+ → `level`; L1 y otras
+  clases → 0 (`Heroes.build` hechicero L2+ → nivel). Solo
+  `class == "sorcerer"` y `level >= 2`. Dos tools con validación en
+  cadena (`Actions.create_spell_slot/3`,
+  `Actions.convert_to_sorcery_points/3`):
+  `create_spell_slot(who, level)` — `level` 1..5, coste RAW
+  `Progression.sorcery_slot_cost/1` (1º=2, 2º=3, 3º=5, 4º=6, 5º=7),
+  resta puntos (`World.spend_sorcery_points/2`) y suma 1 casilla de
+  ese nivel (`World.gain_slot/2`, puede superar el máximo diario —
+  RAW); `convert_to_sorcery_points(who, level)` — `level` 1..5
+  (coherente con create), requiere `has_slot?(who, level)`, gasta 1
+  casilla (`consume_slot`) y gana `level` puntos
+  (`World.gain_sorcery_points/2`) con cap silencioso al máximo: el
+  exceso se pierde (no es error) y el mensaje muestra el resultado
+  real. Combate permitido (bonus action RAW; economía de acciones
+  fuera). Errores no mutan: missing who, caído (hp ≤ 0), no hechicero,
+  L1, nivel de casilla inválido (no entero o fuera de 1..5), puntos
+  insuficientes (create), sin casillas de ese nivel (convert). Ambas:
+  DM cualquiera; PC sólo `who` sí mismo (patrón divine_smite M30).
+  Rests: SOLO `long_rest` rellena al máximo (`compose_long_rest`,
+  `World.restore_sorcery_points/1`) — RAW long rest, distinto del ki
+  M38 que recarga en ambos; `short_rest` no toca el pool. Level-up no
+  resetea remaining. Sin Metamagic, sorcerous restoration, casillas
+  > 5º, gastar puntos en otras cosas, feats, multiclase.
+- **Tests**: `font_of_magic_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -470,7 +499,7 @@ Reckless Attack: **D44 / M28**. Second Wind: **D45 / M29**. Divine Smite:
 Lay on Hands: **D49 / M33**. Bardic Inspiration: **D50 / M34**.
 Arcane Recovery: **D51 / M35**. Divine Sense: **D52 / M36**.
 Turn Undead: **D53 / M37**. Ki + Flurry of Blows: **D54 / M38**.
-Hunter's Mark: **D55 / M39**.
+Hunter's Mark: **D55 / M39**. Font of Magic: **D56 / M40**.
 XP en partida: **D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
@@ -480,7 +509,7 @@ enfermedad/veneno con Lay on Hands (gastar 5) sigue fuera.
 Channel Divinity / Turn the Unholy / Improved Divine Sense siguen
 fuera.
 
-Para que una de estas entre: ADR nuevo + mecánica `M39+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M40+` en este catálogo +
 tests.
 
 ## Dados

@@ -84,7 +84,7 @@ Dragonex (warlock Pact Magic D40; paladín/ranger spellcasting a L2 R09).
 Sin bugs de derivados; las simplificaciones (feats, features
 por nivel salvo Extra Attack D35, Pact Magic D40, Sneak Attack D41,
     Rage D42, Reckless Attack D44, Second Wind D45, Divine Smite D46,
-    Action Surge D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of Blows D54, Hunter's Mark D55 y spellcasting paladín/ranger L2,
+    Action Surge D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of Blows D54, Hunter's Mark D55, Font of Magic D56 y spellcasting paladín/ranger L2,
 `spells_known`) quedan en 🟡.
 
 ---
@@ -194,6 +194,22 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
   rutas existentes de concentración (drop, condiciones, rage, 0 hp);
   rests sin cambios. Sin bonus action economy, ventajas de tracking,
   múltiples presas, transferir ni Branding Smite.
+- **Font of Magic del hechicero** (D56): **entregado.**
+  `Character.sorcery_points` + Codec (restantes, default 0; jsonb
+  viejo → 0; máximo `Progression.sorcery_points/2` = `level` en
+  sorcerer L2+, builder L2+ → nivel, L1 → 0); tools
+  `create_spell_slot(who, level)` (nivel 1..5, coste RAW
+  `sorcery_slot_cost/1` 2/3/5/6/7, suma 1 casilla de ese nivel vía
+  `World.gain_slot/2`, puede superar el máximo diario — RAW) y
+  `convert_to_sorcery_points(who, level)` (drena 1 casilla 1..5 vía
+  `consume_slot` y recupera esos puntos con `gain_sorcery_points/2`
+  cap silencioso al máximo; el mensaje muestra el resultado real);
+  DM cualquiera, PC sólo sí mismo; combate permitido; errores no
+  mutan (missing who, caído, no hechicero, L1, nivel inválido,
+  puntos insuficientes, sin casillas); SOLO long rest rellena
+  (`compose_long_rest`, distinto del ki D54); level-up no resetea
+  restante. Sin Metamagic, sorcerous restoration, casillas > 5º ni
+  gastar puntos en otras cosas.
 - **Multiclase**: fuera del builder actual por diseño; implicaría rehacer
   progression.
 - **Marketplace de contenido custom** (D22): compartir entre usuarios.

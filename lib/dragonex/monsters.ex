@@ -218,6 +218,7 @@ defmodule Dragonex.Monsters do
       divine_sense_uses: 0,
       channel_divinity_used: false,
       ki: 0,
+      sorcery_points: 0,
       damage_resistances: resist,
       damage_vulnerabilities: vuln,
       damage_immunities: immune,
