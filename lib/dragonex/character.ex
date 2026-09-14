@@ -55,6 +55,10 @@ defmodule Dragonex.Character do
     # D64 Uncanny Dodge: true = armada (el próximo daño se reduce a la mitad
     # y se consume en World.apply_damage/3).
     field(:uncanny_dodge, :boolean, default: false)
+    # D67 Relentless Endurance: true = ya gastada desde el último descanso
+    # largo (World.apply_damage/3 la gasta al salvar al semi-orco a 1 pg;
+    # Actions.long_rest la recarga).
+    field(:relentless_endurance_used, :boolean, default: false)
     # D65 Metamagic: nil = sin armar; armada =
     # %{option: "empowered"|"heightened"|"twinned", target: String.t() | nil}
     # (claves átomo en memoria; strings en Codec; jsonb viejo/ausente → nil).
@@ -128,6 +132,7 @@ defmodule Dragonex.Character do
         :wild_shape_uses,
         :wild_shape,
         :uncanny_dodge,
+        :relentless_endurance_used,
         :metamagic,
         :damage_resistances,
         :damage_vulnerabilities,
@@ -222,6 +227,7 @@ defmodule Dragonex.Character do
       wild_shape_uses: 0,
       wild_shape: nil,
       uncanny_dodge: false,
+      relentless_endurance_used: false,
       metamagic: nil,
       damage_resistances: [],
       damage_vulnerabilities: [],

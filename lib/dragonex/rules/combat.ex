@@ -31,7 +31,8 @@ defmodule Dragonex.Rules.Combat do
     * else   — hit when the total meets the AC.
 
   Archery (D48): +2 to the total when `attacker.fighting_style == "archery"`
-  and `weapon.ranged == true`.
+  and `weapon.ranged == true`. Lucky (D66): a halfling's kept nat 1 is
+  rerolled once and the new die is used.
   """
   @spec attack_roll(
           Character.t(),
@@ -41,17 +42,41 @@ defmodule Dragonex.Rules.Combat do
           :normal | :advantage | :disadvantage
         ) :: attack_outcome()
   def attack_roll(%Character{} = attacker, %Weapon{} = weapon, target_ac, roller, mode \\ :normal) do
-    d20 = roll_d20(roller, mode)
+    {kind, d20, total, _lucky} = attack_roll_tagged(attacker, weapon, target_ac, roller, mode)
+    {kind, d20, total}
+  end
+
+  @doc """
+  Tagged attack roll (D66 Lucky): `attack_roll/5` plus the Lucky reroll tag
+  (`nil` when it didn't fire) as a fourth element, so the Actions layer can
+  render the reroll in the chat breakdown. The mechanics live HERE — the
+  plain `attack_roll/5` delegates and drops the tag.
+  """
+  @spec attack_roll_tagged(
+          Character.t(),
+          Weapon.t(),
+          non_neg_integer(),
+          roller(),
+          :normal | :advantage | :disadvantage
+        ) :: {:hit | :miss | :crit, pos_integer(), integer(), String.t() | nil}
+  def attack_roll_tagged(
+        %Character{} = attacker,
+        %Weapon{} = weapon,
+        target_ac,
+        roller,
+        mode \\ :normal
+      ) do
+    {d20, lucky} = maybe_lucky(attacker, roll_d20(roller, mode), roller)
 
     total =
       d20 + Ability.proficiency(attacker.level) + ability_for_weapon(attacker, weapon) +
         fighting_style_attack_bonus(attacker, weapon)
 
     cond do
-      d20 == 20 -> {:crit, d20, total}
-      d20 == 1 -> {:miss, d20, total}
-      total >= target_ac -> {:hit, d20, total}
-      true -> {:miss, d20, total}
+      d20 == 20 -> {:crit, d20, total, lucky}
+      d20 == 1 -> {:miss, d20, total, lucky}
+      total >= target_ac -> {:hit, d20, total, lucky}
+      true -> {:miss, d20, total, lucky}
     end
   end
 
@@ -86,7 +111,8 @@ defmodule Dragonex.Rules.Combat do
   Resolve a saving throw against a DC.
 
   Returns `{d20, total, success?}`. Adds the proficiency bonus when the target
-  is proficient in the relevant ability save.
+  is proficient in the relevant ability save. Lucky (D66): a halfling's kept
+  nat 1 is rerolled once and the new die is used.
   """
   @spec saving_throw(
           Character.t(),
@@ -97,9 +123,26 @@ defmodule Dragonex.Rules.Combat do
         ) ::
           {pos_integer(), integer(), boolean()}
   def saving_throw(%Character{} = target, save_ability, dc, roller, mode \\ :normal) do
-    d20 = roll_d20(roller, mode)
-    total = d20 + Character.modifier(target, save_ability) + save_prof(target, save_ability)
+    {d20, total, _success?, _lucky} = saving_throw_tagged(target, save_ability, dc, roller, mode)
     {d20, total, total >= dc}
+  end
+
+  @doc """
+  Tagged saving throw (D66 Lucky): `saving_throw/5` plus the Lucky reroll tag
+  (`nil` when it didn't fire) as a fourth element — see `attack_roll_tagged/5`.
+  """
+  @spec saving_throw_tagged(
+          Character.t(),
+          ability(),
+          integer(),
+          roller(),
+          :normal | :advantage | :disadvantage
+        ) ::
+          {pos_integer(), integer(), boolean(), String.t() | nil}
+  def saving_throw_tagged(%Character{} = target, save_ability, dc, roller, mode \\ :normal) do
+    {d20, lucky} = maybe_lucky(target, roll_d20(roller, mode), roller)
+    total = d20 + Character.modifier(target, save_ability) + save_prof(target, save_ability)
+    {d20, total, total >= dc, lucky}
   end
 
   @doc """
@@ -125,10 +168,38 @@ defmodule Dragonex.Rules.Combat do
         ) ::
           {pos_integer(), integer(), boolean()}
   def ability_check(%Character{} = c, ability, dc, roller, proficient \\ false, mode \\ :normal) do
-    d20 = roll_d20(roller, mode)
+    {d20, total, _success?, _lucky} =
+      ability_check_tagged(c, ability, dc, roller, proficient, mode)
+
+    {d20, total, total >= dc}
+  end
+
+  @doc """
+  Tagged ability check (D66 Lucky): `ability_check/6` plus the Lucky reroll
+  tag (`nil` when it didn't fire) as a fourth element — see
+  `attack_roll_tagged/5`.
+  """
+  @spec ability_check_tagged(
+          Character.t(),
+          ability(),
+          integer(),
+          roller(),
+          boolean(),
+          :normal | :advantage | :disadvantage
+        ) ::
+          {pos_integer(), integer(), boolean(), String.t() | nil}
+  def ability_check_tagged(
+        %Character{} = c,
+        ability,
+        dc,
+        roller,
+        proficient \\ false,
+        mode \\ :normal
+      ) do
+    {d20, lucky} = maybe_lucky(c, roll_d20(roller, mode), roller)
     {prof, _kind} = check_proficiency(c, proficient)
     total = d20 + Character.modifier(c, ability) + prof
-    {d20, total, total >= dc}
+    {d20, total, total >= dc, lucky}
   end
 
   @doc """
@@ -202,6 +273,19 @@ defmodule Dragonex.Rules.Combat do
   end
 
   defp roll_d20(roller, _), do: roller.(20)
+
+  # Lucky (D66): when a halfling's KEPT d20 (after advantage/disadvantage)
+  # shows a 1, reroll it ONCE and use the new result (RAW "must use the new
+  # roll" — not keep-best). The reroll goes through the same `roller`, so the
+  # RollLog group records both dice. Death saves take no character and never
+  # reach this. Returns `{die, lucky_tag}`; the tag is `nil` when it didn't
+  # fire.
+  defp maybe_lucky(%Character{race: "halfling"}, 1, roller) do
+    reroll = roller.(20)
+    {reroll, "(Lucky: 1→#{reroll})"}
+  end
+
+  defp maybe_lucky(_character, d20, _roller), do: {d20, nil}
 
   # Ability modifier applied to hit and damage for a given weapon.
   defp fighting_style_attack_bonus(%Character{fighting_style: "archery"}, %Weapon{ranged: true}),

@@ -742,6 +742,43 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   un-arm, reembolsos, Metamagic Adept, feats, multiclase.
 - **Tests**: `metamagic_test.exs`.
 
+### M50 — Lucky (pasiva racial, D66)
+- **Dónde**: `Rules.Combat.maybe_lucky/3` (privado) aplicado dentro de
+  `attack_roll/5`, `saving_throw/5` y `ability_check/6` (que delegan
+  en `attack_roll_tagged/5` / `saving_throw_tagged/5` /
+  `ability_check_tagged/6` — mismas tiradas + 4º elemento
+  `lucky_tag`, `nil` cuando no fired). Sin tool, sin prompt, sin
+  allowlist: el motor lee `Character.race`.
+- **Cuándo**: `race == "halfling"` y el d20 EFECTIVO (conservado tras
+  ventaja/desventaja) es 1 → UN reroll y se USA el nuevo resultado
+  (RAW "must use the new roll"; reroll a 1 se queda 1 — sólo un
+  reroll). Nat-20/1 del ataque se evalúa sobre el dado final. El
+  reroll pasa por el mismo roller (el RollLog registra ambos dados).
+  NO aplica a death saves (sin personaje en la ruta); un monstruo con
+  raza mediano también lo tiene.
+- **Desglose**: etiqueta "(Lucky: 1→N)" tras el dado en todos los
+  mensajes que muestran el d20 — ataque (single/multi), salvación de
+  hechizo, concentración, `check` y Sigilo (patrón mode_tag).
+- Fuera: Brave, Halfling Nimbleness, demás rasgos raciales.
+- **Tests**: `racial_traits_test.exs`.
+
+### M51 — Resistencia implacable (pasiva racial, D67)
+- **Dónde**: `Character.relentless_endurance_used` (boolean, default
+  false; Codec `== true`, jsonb viejo → false) + hook en
+  `World.apply_damage/3` (tras el auto-revert D63) +
+  `World.set_relentless_endurance/2` + recarga en
+  `compose_long_rest` (Actions). Sin tool ni prompt.
+- **Cuándo**: `race == "half-orc"`, hp final ≤ 0 y flag en false →
+  `hp = 1`, flag `true`, nota en el log del world ("la furia semi-orca
+  mantiene a X en pie con 1 pg (Resistencia implacable)"). Orden de
+  capas de `apply_damage` (fijado en D67): Uncanny Dodge D64 mitiga el
+  amount → resist D38 → temp_hp D36 → hp → revert Wild Shape D63 →
+  RE → death saves. Al salvar a 1 no se limpian flags de caído.
+- **Recarga**: sólo `long_rest` (`short_rest` no). Ya gastada y vuelve
+  a caer → 0 pg normal.
+- Fuera: Savage Attacks, Darkvision, demás rasgos raciales.
+- **Tests**: `racial_traits_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -760,6 +797,9 @@ checks): **D60 / M44**. Aura of Protection: **D61 / M45**.
 Aura of Courage: **D62 / M46**. Wild Shape: **D63 / M47**.
 Uncanny Dodge: **D64 / M48**. Metamagic: **D65 / M49**.
 XP en partida: **D43 / M27**.
+Rasgos raciales automáticos: Lucky **D66 / M50**, Resistencia
+implacable **D67 / M51**; Brave, Halfling Nimbleness, Savage Attacks,
+Darkvision y demás siguen fuera.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
 **D38 / M25**. Cupo de Rage/día y segundo uso de Action Surge a L17

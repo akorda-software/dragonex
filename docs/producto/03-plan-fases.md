@@ -85,7 +85,8 @@ Sin bugs de derivados; las simplificaciones (feats, features
 por nivel salvo Extra Attack D35, Pact Magic D40, Sneak Attack D41,
     Rage D42, Reckless Attack D44, Second Wind D45, Divine Smite D46,
     Action Surge D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of Blows D54, Hunter's Mark D55, Font of Magic D56 y spellcasting paladín/ranger L2,
-`spells_known`) quedan en 🟡.
+`spells_known`, rasgos raciales salvo Lucky D66 y Resistencia
+implacable D67) quedan en 🟡.
 
 ---
 

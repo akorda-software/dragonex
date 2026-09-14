@@ -1580,6 +1580,79 @@ nivel sigue 🟡.
 
 ---
 
+### D66 — Lucky del mediano 5e
+Estado: **Aceptada** — 2026-09-14.
+
+Rasgo racial AUTOMÁTICO (D1): el mediano (`race == "halfling"`, clave
+del builder D52) rerollea sus 1 naturales. El agente no llama nada y no
+hay tool ni prompt — el motor lee la raza de la ficha.
+
+- **Dónde aplica**: en las TRES tiradas de d20 con personaje de
+  `Rules.Combat` — `attack_roll/5`, `saving_throw/5`, `ability_check/6`.
+  Si el d20 EFECTIVO (el conservado tras ventaja/desventaja) es 1 → se
+  rerollea UNA vez y se USA el nuevo resultado (RAW "must use the new
+  roll"; NO es keep-best: si el reroll da 1 otra vez, se queda en 1).
+  El nat-1/nat-20 del ataque se evalúa sobre el dado FINAL (reroll a 20
+  = crítico; reroll a 1 = fallo).
+- **NO aplica** a death saves (`death_save/2` no recibe personaje) ni a
+  tiradas sin d20 de personaje. Monstruos con `race: "halfling"`
+  también lo tienen (gratis y correcto: el motor no distingue lado).
+- **Implementación**: helper privado `maybe_lucky(%Character{}, d20,
+  roller) -> {die, tag}` usado en los tres sitios. El reroll pasa por
+  el MISMO roller → el RollLog group registra ambos dados
+  (instrumentación intacta). Las firmas públicas de las tres funciones
+  NO cambian: cada una delega en su variante `_tagged` nueva
+  (`attack_roll_tagged/5`, `saving_throw_tagged/5`,
+  `ability_check_tagged/6`) que devuelve el 4º elemento
+  `lucky_tag` (`nil` cuando no fired) — es la que la capa `Actions`
+  consume para pintar el desglose.
+- **Desglose** (patrón mode_tag/aura_b): etiqueta "(Lucky: 1→N)" justo
+  tras el dado en TODOS los mensajes que muestran el d20: ataque
+  (single y multi-swing), salvación de hechizo, salvación de
+  concentración, chequeo (`check_parts`) y Sigilo de Astucia.
+- **Ventaja/desventaja**: Lucky rerollea sólo el dado CONSERVADO: con
+  ventaja [1, 20] el 1 descartado NO rerrollea; con desventaja [15, 1]
+  el 1 conservado SÍ.
+
+**Fuera**: Brave, Halfling Nimbleness (sin grid/percepción), demás
+razas y rasgos raciales, feats, multiclase. M50 en el catálogo.
+
+---
+
+### D67 — Resistencia implacable del semi-orco 5e
+Estado: **Aceptada** — 2026-09-14.
+
+Rasgo racial AUTOMÁTICO (D1): al semi-orco (`race == "half-orc"`) que
+cae a 0 pg le quedan 1 pg y consciousness — una vez por descanso largo.
+Sin tool ni prompt: hook en el cuello único de daño.
+
+- **Campo**: `Character.relentless_endurance_used` (boolean, default
+  false; true = gastada). Codec `== true` en ambas direcciones → jsonb
+  viejo/ausente decodifica a false (D8).
+- **Hook en `World.apply_damage/3`**: si el hp final ≤ 0, raza
+  semi-orca y flag en false → `hp = 1`, flag a `true`, y el cambio
+  añade nota al log del world: "la furia semi-orca mantiene a X en pie
+  con 1 pg (Resistencia implacable)" (la narración la superficie).
+- **Orden de capas en `apply_damage/3` (queda fijado aquí)**: Uncanny
+  Dodge mitiga el amount de entrada (D64) → resistencias (D38) →
+  temp_hp (D36) → hp → auto-revert de Wild Shape (D63, si forma
+  bestia) → **Resistencia implacable** (hp 0 → 1) → death-save state
+  como siempre. RE corre TRAS el revert: un druida semi-orco cuya
+  bestia cae con exceso que dejaría al druida a ≤ 0 lo salva a 1 (ya
+  en forma propia). Al salvar a 1 pg el personaje NO cae → no se
+  limpian flags de caído (rage/reckless siguen).
+- **Recarga**: `long_rest` (`compose_long_rest` →
+  `World.set_relentless_endurance/2` a false). `short_rest` NO recarga.
+  Si ya está gastada y vuelve a caer → 0 pg con normalidad.
+- **Sin tools nuevas, sin allowlist, sin prompts** (pasiva racial; el
+  builder ya pone la raza D52). Sin cambios en Weapon/Spell/Item.
+
+**Fuera**: Savage Attacks (daño extra en crit — evaluar otro día),
+Darkvision (sin percepción modelada), demás rasgos raciales, feats,
+multiclase. M51 en el catálogo.
+
+---
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,

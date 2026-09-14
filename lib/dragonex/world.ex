@@ -55,11 +55,17 @@ defmodule Dragonex.World do
           auto-reverts with only the excess carried over; `cast_spell` is
           blocked while transformed; both rests refill the uses; level-up
           never touches uses or form,
-        * Metamagic (D65) is a sorcerer L3+ armed option
-          (`%{option, target}`, ONE at a time): arming spends sorcery
-          points (`Actions.arm_metamagic/4`); `Actions.spell/5` applies
-          and consumes it when the spell qualifies; rests never touch it,
-        * `grant_xp` adds to `Character.xp` and never levels up (D43).
+         * Metamagic (D65) is a sorcerer L3+ armed option
+           (`%{option, target}`, ONE at a time): arming spends sorcery
+           points (`Actions.arm_metamagic/4`); `Actions.spell/5` applies
+           and consumes it when the spell qualifies; rests never touch it,
+        * Relentless Endurance (D67) is a half-orc passive in
+          `apply_damage/3`: damage-layering order is Uncanny Dodge halves
+          the incoming amount (D64) → temp_hp (D36) → hp → Wild Shape
+          auto-revert (D63) → Relentless Endurance (hp 0 → 1, once per
+          long rest; `relentless_endurance_used`); `long_rest` recharges
+          it, `short_rest` does not,
+         * `grant_xp` adds to `Character.xp` and never levels up (D43).
 
   Characters are stored as full `Dragonex.Character` structs, so the engine can
   read any stat (AC, abilities, weapons ...) straight from the world.
@@ -326,20 +332,30 @@ defmodule Dragonex.World do
             excess = max(0, rest - (c.hp || 0))
             orig_hp = c.wild_shape[:orig_hp] || 0
             final_hp = max(0, orig_hp - excess)
-            updated = %{restore_wild_shape_form(c, final_hp) | temp_hp: new_temp}
-            updated = clear_drop_flags(updated, final_hp)
+            reverted = %{restore_wild_shape_form(c, final_hp) | temp_hp: new_temp}
+
+            # D67 Relentless Endurance runs AFTER the revert: a half-orc
+            # druid whose own hp still lands at 0 stays up at 1 instead.
+            {updated, re_note} = maybe_relentless(reverted, target)
+            updated = clear_drop_flags(updated, updated.hp)
+
+            msg =
+              "la bestia cae y #{target} vuelve a su forma (PG #{final_hp})" <>
+                if(re_note, do: "; #{re_note}", else: "")
+
             # Note in the world change so the narration surfaces it.
             w = put_char(w, target, updated)
 
-            {:ok,
-             %{
-               w
-               | log: log(w, "dm", "la bestia cae y #{target} vuelve a su forma (PG #{final_hp})")
-             }}
+            {:ok, %{w | log: log(w, "dm", msg)}}
           else
-            updated = %{c | hp: new_hp, temp_hp: new_temp}
-            updated = clear_drop_flags(updated, new_hp)
-            {:ok, put_char(w, target, updated)}
+            {updated, re_note} = maybe_relentless(%{c | hp: new_hp, temp_hp: new_temp}, target)
+            updated = clear_drop_flags(updated, updated.hp)
+
+            if re_note do
+              {:ok, %{put_char(w, target, updated) | log: log(w, "dm", re_note)}}
+            else
+              {:ok, put_char(w, target, updated)}
+            end
           end
       end
     end
@@ -349,6 +365,22 @@ defmodule Dragonex.World do
     do: %{c | raging: false, reckless: false, smite_slot: nil}
 
   defp clear_drop_flags(%Character{} = c, _hp), do: c
+
+  # D67 Relentless Endurance: a half-orc whose hp lands at 0 drops to 1
+  # instead — ONCE per long rest (`relentless_endurance_used` is recharged by
+  # Actions' long rest). Runs after the D63 auto-revert, so the carried-over
+  # excess is what RE saves. Returns the character plus a world-log note when
+  # it fired (`nil` otherwise).
+  defp maybe_relentless(
+         %Character{race: "half-orc", relentless_endurance_used: false, hp: hp} = c,
+         name
+       )
+       when hp <= 0 do
+    {%{c | hp: 1, relentless_endurance_used: true},
+     "la furia semi-orca mantiene a #{name} en pie con 1 pg (Resistencia implacable)"}
+  end
+
+  defp maybe_relentless(%Character{} = c, _name), do: {c, nil}
 
   @doc """
   Grant temporary hit points (5e, D36). Does not stack: the character keeps
@@ -498,6 +530,25 @@ defmodule Dragonex.World do
 
         %Character{} = c ->
           {:ok, put_char(w, name, %{c | uncanny_dodge: armed})}
+      end
+    end
+  end
+
+  @doc """
+  Set `who`'s Relentless Endurance spent flag (5e, D67). `apply_damage/3`
+  sets it when the feature saves a half-orc at 1 hp; `Actions`' long rest
+  recharges it (`false`). Short rest does not.
+  """
+  @spec set_relentless_endurance(String.t(), boolean()) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def set_relentless_endurance(name, used) when is_boolean(used) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          {:ok, put_char(w, name, %{c | relentless_endurance_used: used})}
       end
     end
   end

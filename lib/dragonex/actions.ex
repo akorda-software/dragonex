@@ -1081,7 +1081,8 @@ defmodule Dragonex.Actions do
     {r, close} =
       RollLog.open(roll_log, roller, who, :check, "Sigilo para esconderse")
 
-    {d20, total, success?} = Combat.ability_check(rogue, :dex, dc, r, stealth?, mode)
+    {d20, total, success?, lucky} =
+      Combat.ability_check_tagged(rogue, :dex, dc, r, stealth?, mode)
 
     RollLog.close(close,
       total: total,
@@ -1100,7 +1101,7 @@ defmodule Dragonex.Actions do
 
     verdict = if success?, do: "oculto", else: "falla y sigue a la vista"
 
-    {:ok, "#{who} se esconde: #{breakdown}=#{total} vs #{dc} — #{verdict}",
+    {:ok, "#{who} se esconde: #{breakdown}=#{total} vs #{dc} — #{verdict}#{lucky_suffix(lucky)}",
      if(success?, do: World.apply_condition(who, "hidden"), else: noop())}
   end
 
@@ -1489,8 +1490,8 @@ defmodule Dragonex.Actions do
           {r, close} =
             RollLog.open(roll_log, roller, who, :check, "chequeo de #{label}")
 
-          {d20, total, _success?} =
-            Combat.ability_check(c, ability, dc, r, prof?, effective_mode)
+          {d20, total, _success?, lucky} =
+            Combat.ability_check_tagged(c, ability, dc, r, prof?, effective_mode)
 
           inspired? = c.inspired == true
           {total, success?, bardic} = apply_inspired_vs_dc(c, total, dc, r)
@@ -1505,7 +1506,7 @@ defmodule Dragonex.Actions do
           {prof_bonus, prof_kind} = Combat.check_proficiency(c, prof?)
           verdict = if success?, do: "éxito", else: "fallo"
 
-          parts = check_parts(d20, mod, ability, prof_bonus, prof_kind, bardic, skill)
+          parts = check_parts(d20, mod, ability, prof_bonus, prof_kind, bardic, skill, lucky)
 
           {:ok,
            "#{who} hace un chequeo de #{label}#{mode_tag(effective_mode)}: #{Enum.join(parts, " + ")} = #{total} vs CD #{dc} — #{verdict}.",
@@ -1553,8 +1554,9 @@ defmodule Dragonex.Actions do
   # Breakdown parts. A named skill gets the D60 format
   # ("1d20(11) + DES 3 + prof 2" / "+ JoaT 1"); a raw ability keeps the v1
   # format ("d20 11 + +3 (dex) + 2 (competencia)") for backwards compat.
-  defp check_parts(d20, mod, ability, prof_bonus, prof_kind, bardic, nil) do
-    ["d20 #{d20}"]
+  # The Lucky reroll tag (D66) rides right after the die value.
+  defp check_parts(d20, mod, ability, prof_bonus, prof_kind, bardic, nil, lucky) do
+    ["d20 #{d20}#{lucky_suffix(lucky)}"]
     |> then(fn p -> if mod != 0, do: p ++ ["#{signed(mod)} (#{ability})"], else: p end)
     |> then(fn p ->
       case prof_kind do
@@ -1566,11 +1568,11 @@ defmodule Dragonex.Actions do
     |> then(fn p -> if bardic != 0, do: p ++ ["#{bardic} (inspiración)"], else: p end)
   end
 
-  defp check_parts(d20, mod, ability, prof_bonus, prof_kind, bardic, skill)
+  defp check_parts(d20, mod, ability, prof_bonus, prof_kind, bardic, skill, lucky)
        when is_binary(skill) do
     abbr = Translations.ability_short(ability)
 
-    ["1d20(#{d20})"]
+    ["1d20(#{d20})#{lucky_suffix(lucky)}"]
     |> then(fn p -> if mod != 0, do: p ++ ["#{abbr} #{mod}"], else: p end)
     |> then(fn p ->
       case prof_kind do
@@ -1931,7 +1933,10 @@ defmodule Dragonex.Actions do
           )
 
         inspired? = t.inspired == true
-        {d20, stotal, _success?} = Combat.saving_throw(t, spell.save_ability, dc, r, save_mode)
+
+        {d20, stotal, _success?, lucky} =
+          Combat.saving_throw_tagged(t, spell.save_ability, dc, r, save_mode)
+
         # D61 Aura of Protection: added before bardic inspiration (which
         # re-derives success from the running total).
         stotal = stotal + aura
@@ -1970,20 +1975,21 @@ defmodule Dragonex.Actions do
 
         bardic_bit = if bardic != 0, do: " +#{bardic} inspiración", else: ""
         aura_b = aura_bit(aura)
+        lucky_b = lucky_suffix(lucky)
 
         verdict =
           cond do
             success? and evasion? ->
-              "supera la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag} (Evasión: sin daño)"
+              "supera la salvación (d20 #{d20}#{lucky_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag} (Evasión: sin daño)"
 
             success? ->
-              "supera la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag}, mitad de daño"
+              "supera la salvación (d20 #{d20}#{lucky_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag}, mitad de daño"
 
             evasion? ->
-              "falla la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag} (Evasión: mitad)"
+              "falla la salvación (d20 #{d20}#{lucky_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag} (Evasión: mitad)"
 
             true ->
-              "falla la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag}"
+              "falla la salvación (d20 #{d20}#{lucky_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag}"
           end
 
         {:ok, msg, change} =
@@ -2168,7 +2174,7 @@ defmodule Dragonex.Actions do
       )
 
     ac = target_ac(t)
-    {kind, d20, total} = Combat.attack_roll(a, weapon, ac, r, mode)
+    {kind, d20, total, lucky} = Combat.attack_roll_tagged(a, weapon, ac, r, mode)
     {kind, total, bardic} = apply_inspired_attack(inspired?, kind, d20, total, ac, r)
     RollLog.close(close_atk, total: total, against: {:ac, ac}, outcome: kind)
 
@@ -2184,7 +2190,8 @@ defmodule Dragonex.Actions do
           smite: 0,
           smite_dice: 0,
           mark: 0,
-          bardic: bardic
+          bardic: bardic,
+          lucky: lucky
         }
 
       k ->
@@ -2221,19 +2228,20 @@ defmodule Dragonex.Actions do
           smite: smite_dmg,
           smite_dice: smite_dice,
           mark: mark_dmg,
-          bardic: bardic
+          bardic: bardic,
+          lucky: lucky
         }
     end
   end
 
   defp format_attack_message(attacker, target, _weapon, ac, mode, [%{kind: :miss} = s]) do
-    "#{attacker} lanza un golpe a #{target} — fallo (d20 #{s.d20}: #{s.total} vs CA #{ac})#{bardic_tag(s)}#{mode_tag(mode)}."
+    "#{attacker} lanza un golpe a #{target} — fallo (d20 #{s.d20}#{lucky_tag(s)}: #{s.total} vs CA #{ac})#{bardic_tag(s)}#{mode_tag(mode)}."
   end
 
   defp format_attack_message(attacker, target, weapon, ac, mode, [s]) do
     verb = if s.kind == :crit, do: "CRÍTICO", else: "acierta"
 
-    "#{attacker} #{verb} a #{target} (d20 #{s.d20}: #{s.total} vs CA #{ac}) por #{s.dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{rage_tag(s)}#{mark_tag(s)}#{smite_tag(s)}#{bardic_tag(s)}#{mode_tag(mode)}."
+    "#{attacker} #{verb} a #{target} (d20 #{s.d20}#{lucky_tag(s)}: #{s.total} vs CA #{ac}) por #{s.dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{rage_tag(s)}#{mark_tag(s)}#{smite_tag(s)}#{bardic_tag(s)}#{mode_tag(mode)}."
   end
 
   defp format_attack_message(attacker, target, weapon, ac, mode, swings) do
@@ -2242,13 +2250,13 @@ defmodule Dragonex.Actions do
   end
 
   defp describe_swing(%{kind: :miss, d20: d20, total: total} = s, _weapon, ac) do
-    "fallo (d20 #{d20}: #{total} vs CA #{ac})#{bardic_tag(s)}"
+    "fallo (d20 #{d20}#{lucky_tag(s)}: #{total} vs CA #{ac})#{bardic_tag(s)}"
   end
 
   defp describe_swing(%{kind: k, d20: d20, total: total, dmg: dmg} = s, weapon, ac) do
     verb = if k == :crit, do: "CRÍTICO", else: "acierta"
 
-    "#{verb} (d20 #{d20}: #{total} vs CA #{ac}) por #{dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{rage_tag(s)}#{mark_tag(s)}#{smite_tag(s)}#{bardic_tag(s)}"
+    "#{verb} (d20 #{d20}#{lucky_tag(s)}: #{total} vs CA #{ac}) por #{dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{rage_tag(s)}#{mark_tag(s)}#{smite_tag(s)}#{bardic_tag(s)}"
   end
 
   defp swing_amounts(swings), do: for(%{dmg: dmg} <- swings, dmg > 0, do: dmg)
@@ -2405,7 +2413,7 @@ defmodule Dragonex.Actions do
             "salvación de Constitución (concentración)"
           )
 
-        {d20, total, _success?} = Combat.saving_throw(c, :con, dc, r, mode)
+        {d20, total, _success?, lucky} = Combat.saving_throw_tagged(c, :con, dc, r, mode)
         # D61: concentration is a CON save — the aura applies (RAW).
         total = total + aura
         {total, success?, bardic} = apply_inspired_vs_dc(c, total, dc, r)
@@ -2418,13 +2426,14 @@ defmodule Dragonex.Actions do
 
         aura_b = aura_bit(aura)
         bardic_bit = if bardic != 0, do: " +#{bardic} inspiración", else: ""
+        lucky_b = lucky_suffix(lucky)
         c2 = if inspired?, do: %{c2 | inspired: false}, else: c2
 
         if success? do
-          {"#{c.name} mantiene la concentración en #{c.concentrating} (d20 #{d20}: #{total} vs CD #{dc}#{aura_b}#{bardic_bit}).",
+          {"#{c.name} mantiene la concentración en #{c.concentrating} (d20 #{d20}#{lucky_b}: #{total} vs CD #{dc}#{aura_b}#{bardic_bit}).",
            false, c2, inspired?}
         else
-          {"#{c.name} pierde la concentración en #{c.concentrating} (d20 #{d20}: #{total} vs CD #{dc}#{aura_b}#{bardic_bit}).",
+          {"#{c.name} pierde la concentración en #{c.concentrating} (d20 #{d20}#{lucky_b}: #{total} vs CD #{dc}#{aura_b}#{bardic_bit}).",
            true, %{c2 | concentrating: nil}, inspired?}
         end
 
@@ -2561,9 +2570,19 @@ defmodule Dragonex.Actions do
   end
 
   defp smite_tag(_), do: ""
-
   defp bardic_tag(%{bardic: n}) when is_integer(n) and n > 0, do: " (+#{n} inspiración)"
+
   defp bardic_tag(_), do: ""
+
+  # D66 Lucky: the tagged roll returns the reroll note ("(Lucky: 1→N)") —
+  # render it right after the die value (mode_tag pattern).
+  defp lucky_tag(%{lucky: tag}) when is_binary(tag), do: " #{tag}"
+
+  defp lucky_tag(_), do: ""
+
+  defp lucky_suffix(nil), do: ""
+
+  defp lucky_suffix(tag) when is_binary(tag), do: " #{tag}"
 
   defp apply_inspired_attack(true, _kind, d20, total, ac, roller) do
     bonus = roller.(6)
@@ -2702,7 +2721,8 @@ defmodule Dragonex.Actions do
            {:ok, w} <- World.restore_bardic_inspiration(name).(w),
            {:ok, w} <- World.set_inspired(name, false).(w),
            {:ok, w} <- World.set_arcane_recovery_used(name, false).(w),
-           {:ok, w} <- World.restore_sorcery_points(name).(w) do
+           {:ok, w} <- World.restore_sorcery_points(name).(w),
+           {:ok, w} <- World.set_relentless_endurance(name, false).(w) do
         {:ok, w}
       end
     end
