@@ -84,7 +84,8 @@ defmodule Dragonex.Actions do
   Hunter's Mark (D55) adds 1d6 to every hit against the marked prey while
   the attacker concentrates `"hunter's mark:prey"` (crit doubles the mark
   dice; damage type is the weapon's, like Sneak Attack). Spells and
-  Flurry never benefit from the mark.
+  Flurry never benefit from the mark. Savage Attacks (D69) adds one extra
+  weapon die to a half-orc's melee crit (inside `Combat.damage_roll`).
   """
   @spec attack(
           World.t(),
@@ -542,7 +543,7 @@ defmodule Dragonex.Actions do
         {failed, saved, immune} = turn_undead_resolutions(world, who, dc, roller, roll_log)
 
         {:ok, turn_undead_message(who, dc, failed, saved, immune),
-         compose_turn_undead(who, failed)}
+         compose_turn_undead(who, failed, saved)}
     end
   end
 
@@ -556,11 +557,17 @@ defmodule Dragonex.Actions do
         World.courage_immune?(world, target.name) ->
           {failed, saved, immune ++ [target.name]}
 
-        turn_undead_save_success?(world, target, dc, roller, roll_log) ->
-          {failed, saved ++ [target.name], immune}
-
         true ->
-          {failed ++ [target.name], saved, immune}
+          # D68: {saved?, indomitable_tag} — the tag rides the entry so the
+          # clause renders the reroll and compose marks the spent flag.
+          {success?, indom} = turn_undead_save_success?(world, target, dc, roller, roll_log)
+          entry = {target.name, indom}
+
+          if success? do
+            {failed, saved ++ [entry], immune}
+          else
+            {failed ++ [entry], saved, immune}
+          end
       end
     end)
   end
@@ -582,8 +589,9 @@ defmodule Dragonex.Actions do
 
   defp turn_undead_save_success?(world, target, dc, roller, roll_log) do
     case Conditions.save_mode(target, :wis) do
+      # No die was rolled — Indomitable (D68) never rerolls an auto-fail.
       :auto_fail ->
-        false
+        {false, nil}
 
       {:roll, save_mode} ->
         {r, close} =
@@ -597,15 +605,21 @@ defmodule Dragonex.Actions do
 
         {_d20, total, _success?} = Combat.saving_throw(target, :wis, dc, r, save_mode)
         # D61 Aura of Protection: covers this Wisdom save too.
-        total = total + aura_save_bonus(world, target.name)
+        aura = aura_save_bonus(world, target.name)
+        total = total + aura
+
+        # D68 Indomitable: a fighter L9+ undead rerolls a failed WIS save
+        # once per long rest — the reroll decides (aura re-applies).
+        {_d20_2, total, success?, indom} =
+          maybe_indomitable(target, :wis, dc, r, save_mode, {nil, total, total >= dc}, aura)
 
         RollLog.close(close,
           total: total,
           against: {:dc, dc},
-          outcome: if(total >= dc, do: :success, else: :failure)
+          outcome: if(success?, do: :success, else: :failure)
         )
 
-        total >= dc
+        {success?, indom}
     end
   end
 
@@ -621,13 +635,24 @@ defmodule Dragonex.Actions do
     "#{who} usa Expulsar no-muertos (CD #{dc}): #{Enum.join(bits, "; ")} (usos restantes 0)."
   end
 
+  # Entries are {name, indomitable_tag} (D68): the tag renders next to the
+  # name when the reroll fired ("X (Indomitable: 9→15)"), nothing otherwise.
   defp frightened_clause([]), do: nil
-  defp frightened_clause([name]), do: "#{name} queda asustado"
-  defp frightened_clause(names), do: "#{Enum.join(names, ", ")} quedan asustados"
+
+  defp frightened_clause([{name, tag}]), do: "#{name}#{indom_suffix(tag)} queda asustado"
+
+  defp frightened_clause(entries) do
+    "#{turn_names(entries)} quedan asustados"
+  end
 
   defp saved_clause([]), do: nil
-  defp saved_clause([name]), do: "#{name} supera la salvación"
-  defp saved_clause(names), do: "#{Enum.join(names, ", ")} superan la salvación"
+
+  defp saved_clause([{name, tag}]), do: "#{name}#{indom_suffix(tag)} supera la salvación"
+
+  defp saved_clause(entries), do: "#{turn_names(entries)} superan la salvación"
+
+  defp turn_names(entries),
+    do: Enum.map_join(entries, ", ", fn {name, tag} -> "#{name}#{indom_suffix(tag)}" end)
 
   # D62: immunity is an outcome, not an error — the message says so.
   defp immune_clause([]), do: nil
@@ -636,16 +661,30 @@ defmodule Dragonex.Actions do
 
   defp immune_clause(names), do: "#{Enum.join(names, ", ")} son inmunes al miedo (Aura de Coraje)"
 
-  defp compose_turn_undead(who, failed) do
+  defp compose_turn_undead(who, failed, saved) do
+    # D68: every target whose Indomitable reroll fired (saved OR frightened)
+    # spends the flag.
+    rerolled = for {name, tag} <- failed ++ saved, tag != nil, do: name
+
     fn w ->
-      with {:ok, w} <- World.set_channel_divinity_used(who, true).(w) do
-        Enum.reduce_while(failed, {:ok, w}, fn name, {:ok, acc} ->
+      with {:ok, w} <- World.set_channel_divinity_used(who, true).(w),
+           {:ok, w} <- mark_indomitable_all(w, rerolled) do
+        Enum.reduce_while(failed, {:ok, w}, fn {name, _tag}, {:ok, acc} ->
           case World.apply_condition(name, "frightened").(acc) do
             {:ok, w2} -> {:cont, {:ok, w2}}
             err -> {:halt, err}
           end
         end)
       end
+    end
+  end
+
+  defp mark_indomitable_all(w, []), do: {:ok, w}
+
+  defp mark_indomitable_all(w, [name | rest]) do
+    case World.set_indomitable(name, true).(w) do
+      {:ok, w2} -> mark_indomitable_all(w2, rest)
+      error -> error
     end
   end
 
@@ -1942,6 +1981,26 @@ defmodule Dragonex.Actions do
         stotal = stotal + aura
         {stotal, success?, bardic} = apply_inspired_vs_dc(t, stotal, dc, r)
 
+        # D68 Indomitable: a fighter L9+ rerolls a FAILED save once per long
+        # rest — the reroll decides the final outcome (aura re-applies; the
+        # bardic die was consumed by the first attempt). The reroll goes
+        # through the same roller/mode (Heightened/Danger Sense intact).
+        {d20, stotal, success?, indom} =
+          maybe_indomitable(
+            t,
+            spell.save_ability,
+            dc,
+            r,
+            save_mode,
+            {d20, stotal, success?},
+            aura
+          )
+
+        # The reroll spends Indomitable: the updated struct rides into the
+        # concentration simulation so a later CON save this same resolution
+        # can't double-spend it.
+        t = if indom, do: %{t | indomitable_used: true}, else: t
+
         RollLog.close(close_save,
           total: stotal,
           against: {:dc, dc},
@@ -1976,20 +2035,21 @@ defmodule Dragonex.Actions do
         bardic_bit = if bardic != 0, do: " +#{bardic} inspiración", else: ""
         aura_b = aura_bit(aura)
         lucky_b = lucky_suffix(lucky)
+        indom_b = indom_suffix(indom)
 
         verdict =
           cond do
             success? and evasion? ->
-              "supera la salvación (d20 #{d20}#{lucky_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag} (Evasión: sin daño)"
+              "supera la salvación (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag} (Evasión: sin daño)"
 
             success? ->
-              "supera la salvación (d20 #{d20}#{lucky_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag}, mitad de daño"
+              "supera la salvación (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag}, mitad de daño"
 
             evasion? ->
-              "falla la salvación (d20 #{d20}#{lucky_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag} (Evasión: mitad)"
+              "falla la salvación (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag} (Evasión: mitad)"
 
             true ->
-              "falla la salvación (d20 #{d20}#{lucky_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag}"
+              "falla la salvación (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag}"
           end
 
         {:ok, msg, change} =
@@ -2004,7 +2064,12 @@ defmodule Dragonex.Actions do
             aura
           )
 
-        {:ok, msg, compose_inspired_clear(target_name, inspired?, change)}
+        {:ok, msg,
+         compose_indomitable_mark(
+           target_name,
+           indom,
+           compose_inspired_clear(target_name, inspired?, change)
+         )}
     end
   end
 
@@ -2189,6 +2254,7 @@ defmodule Dragonex.Actions do
           rage: 0,
           smite: 0,
           smite_dice: 0,
+          savage: 0,
           mark: 0,
           bardic: bardic,
           lucky: lucky
@@ -2204,7 +2270,7 @@ defmodule Dragonex.Actions do
             "daño #{weapon.damage_type} a #{target}"
           )
 
-        dmg = Combat.damage_roll(a, weapon, k, r2)
+        {dmg, savage_dmg} = Combat.damage_roll_tagged(a, weapon, k, r2)
         sneak_dmg = sneak_damage(sneak, k, r2)
         rage_dmg = rage_bonus(a, weapon)
         mark_dmg = mark_damage(mark?, k, r2)
@@ -2227,6 +2293,7 @@ defmodule Dragonex.Actions do
           rage: rage_dmg,
           smite: smite_dmg,
           smite_dice: smite_dice,
+          savage: savage_dmg,
           mark: mark_dmg,
           bardic: bardic,
           lucky: lucky
@@ -2241,7 +2308,7 @@ defmodule Dragonex.Actions do
   defp format_attack_message(attacker, target, weapon, ac, mode, [s]) do
     verb = if s.kind == :crit, do: "CRÍTICO", else: "acierta"
 
-    "#{attacker} #{verb} a #{target} (d20 #{s.d20}#{lucky_tag(s)}: #{s.total} vs CA #{ac}) por #{s.dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{rage_tag(s)}#{mark_tag(s)}#{smite_tag(s)}#{bardic_tag(s)}#{mode_tag(mode)}."
+    "#{attacker} #{verb} a #{target} (d20 #{s.d20}#{lucky_tag(s)}: #{s.total} vs CA #{ac}) por #{s.dmg} de daño #{weapon.damage_type}#{savage_tag(s)}#{sneak_tag(s)}#{rage_tag(s)}#{mark_tag(s)}#{smite_tag(s)}#{bardic_tag(s)}#{mode_tag(mode)}."
   end
 
   defp format_attack_message(attacker, target, weapon, ac, mode, swings) do
@@ -2256,7 +2323,7 @@ defmodule Dragonex.Actions do
   defp describe_swing(%{kind: k, d20: d20, total: total, dmg: dmg} = s, weapon, ac) do
     verb = if k == :crit, do: "CRÍTICO", else: "acierta"
 
-    "#{verb} (d20 #{d20}#{lucky_tag(s)}: #{total} vs CA #{ac}) por #{dmg} de daño #{weapon.damage_type}#{sneak_tag(s)}#{rage_tag(s)}#{mark_tag(s)}#{smite_tag(s)}#{bardic_tag(s)}"
+    "#{verb} (d20 #{d20}#{lucky_tag(s)}: #{total} vs CA #{ac}) por #{dmg} de daño #{weapon.damage_type}#{savage_tag(s)}#{sneak_tag(s)}#{rage_tag(s)}#{mark_tag(s)}#{smite_tag(s)}#{bardic_tag(s)}"
   end
 
   defp swing_amounts(swings), do: for(%{dmg: dmg} <- swings, dmg > 0, do: dmg)
@@ -2264,12 +2331,10 @@ defmodule Dragonex.Actions do
   defp smite_amounts(swings), do: for(%{smite: n} <- swings, n > 0, do: n)
 
   defp pipe_attack_damage(target, swings, roller, roll_log, char, weapon_type, aura) do
-    {weapon_notes, weapon_change} =
+    {weapon_notes, weapon_change, char_after} =
       pipe_damage(target, swing_amounts(swings), roller, roll_log, char, weapon_type, aura)
 
-    char_after = Enum.reduce(swing_amounts(swings), char, &simulate_damage(&2, &1, weapon_type))
-
-    {smite_notes, smite_change} =
+    {smite_notes, smite_change, _char} =
       pipe_damage(target, smite_amounts(swings), roller, roll_log, char_after, "radiant", aura)
 
     change = fn w ->
@@ -2312,30 +2377,39 @@ defmodule Dragonex.Actions do
   defp compose_concentration(result, _caster, _spell), do: result
 
   defp with_conc_damage(msg, target_name, amount, roller, roll_log, target_char, type, aura) do
-    {notes, change} =
+    {notes, change, _char} =
       pipe_damage(target_name, [amount], roller, roll_log, target_char, type, aura)
 
     {:ok, append_notes(msg, notes), change}
   end
 
-  defp pipe_damage(_target, [], _roller, _roll_log, _char, _type, _aura), do: {[], noop()}
+  # D68: pipe_damage threads the simulated character through each amount's
+  # concentration save, so a reroll that spent Indomitable blocks a second
+  # reroll on the next hit of the same action.
+  defp pipe_damage(_target, [], _roller, _roll_log, char, _type, _aura), do: {[], noop(), char}
 
   defp pipe_damage(target, amounts, roller, roll_log, char, type, aura) do
     amounts = Enum.filter(amounts, &(&1 > 0))
 
-    {pairs, _char} =
+    {pairs, final_char} =
       Enum.map_reduce(amounts, char, fn amount, c ->
-        {note, break?, c2, clear_inspired?} =
+        {note, break?, c2, clear_inspired?, mark_indomitable?} =
           one_hit_concentration(c, amount, roller, roll_log, type, aura)
 
-        {{note, break?, clear_inspired?}, c2}
+        {{note, break?, clear_inspired?, mark_indomitable?}, c2}
       end)
 
     notes = pairs |> Enum.map(&elem(&1, 0)) |> Enum.reject(&is_nil/1)
-    flags = Enum.map(pairs, fn {_, break?, clear_inspired?} -> {break?, clear_inspired?} end)
+
+    flags =
+      Enum.map(pairs, fn {_, break?, clear_inspired?, mark_indomitable?} ->
+        {break?, clear_inspired?, mark_indomitable?}
+      end)
 
     change = fn w ->
-      Enum.reduce_while(Enum.zip(amounts, flags), {:ok, w}, fn {amount, {break?, clear_inspired?}},
+      Enum.reduce_while(Enum.zip(amounts, flags), {:ok, w}, fn {amount,
+                                                                {break?, clear_inspired?,
+                                                                 mark_indomitable?}},
                                                                {:ok, acc} ->
         case World.character(acc, target) do
           %Character{hp: hp} when hp <= 0 ->
@@ -2364,6 +2438,18 @@ defmodule Dragonex.Actions do
                     next
                   end
 
+                # D68: the Indomitable reroll spent the flag for this
+                # long-rest cycle.
+                next =
+                  if mark_indomitable? do
+                    case World.set_indomitable(target, true).(next) do
+                      {:ok, marked} -> marked
+                      _ -> next
+                    end
+                  else
+                    next
+                  end
+
                 {:cont, {:ok, next}}
 
               error ->
@@ -2376,7 +2462,7 @@ defmodule Dragonex.Actions do
       end)
     end
 
-    {notes, change}
+    {notes, change, final_char}
   end
 
   defp one_hit_concentration(
@@ -2387,7 +2473,7 @@ defmodule Dragonex.Actions do
          type,
          _aura
        ) do
-    {nil, false, simulate_damage(c, amount, type), false}
+    {nil, false, simulate_damage(c, amount, type), false, false}
   end
 
   defp one_hit_concentration(%Character{} = c, amount, roller, roll_log, type, aura) do
@@ -2397,7 +2483,7 @@ defmodule Dragonex.Actions do
     cond do
       c2.hp <= 0 ->
         {"#{c.name} cae a 0 pg y pierde la concentración en #{c.concentrating}.", true,
-         %{c2 | concentrating: nil}, false}
+         %{c2 | concentrating: nil}, false, false}
 
       incoming > 0 ->
         dc = max(10, div(incoming, 2))
@@ -2418,6 +2504,15 @@ defmodule Dragonex.Actions do
         total = total + aura
         {total, success?, bardic} = apply_inspired_vs_dc(c, total, dc, r)
 
+        # D68 Indomitable: a fighter L9+ rerolls a failed concentration
+        # save once per long rest — the reroll decides whether it holds.
+        {d20, total, success?, indom} =
+          maybe_indomitable(c, :con, dc, r, mode, {d20, total, success?}, aura)
+
+        # The reroll spends Indomitable on the simulated char too, so a
+        # second hit this action can't double-spend it.
+        c2 = if indom, do: %{c2 | indomitable_used: true}, else: c2
+
         RollLog.close(close,
           total: total,
           against: {:dc, dc},
@@ -2427,18 +2522,19 @@ defmodule Dragonex.Actions do
         aura_b = aura_bit(aura)
         bardic_bit = if bardic != 0, do: " +#{bardic} inspiración", else: ""
         lucky_b = lucky_suffix(lucky)
+        indom_b = indom_suffix(indom)
         c2 = if inspired?, do: %{c2 | inspired: false}, else: c2
 
         if success? do
-          {"#{c.name} mantiene la concentración en #{c.concentrating} (d20 #{d20}#{lucky_b}: #{total} vs CD #{dc}#{aura_b}#{bardic_bit}).",
-           false, c2, inspired?}
+          {"#{c.name} mantiene la concentración en #{c.concentrating} (d20 #{d20}#{lucky_b}#{indom_b}: #{total} vs CD #{dc}#{aura_b}#{bardic_bit}).",
+           false, c2, inspired?, indom != nil}
         else
-          {"#{c.name} pierde la concentración en #{c.concentrating} (d20 #{d20}#{lucky_b}: #{total} vs CD #{dc}#{aura_b}#{bardic_bit}).",
-           true, %{c2 | concentrating: nil}, inspired?}
+          {"#{c.name} pierde la concentración en #{c.concentrating} (d20 #{d20}#{lucky_b}#{indom_b}: #{total} vs CD #{dc}#{aura_b}#{bardic_bit}).",
+           true, %{c2 | concentrating: nil}, inspired?, indom != nil}
         end
 
       true ->
-        {nil, false, c2, false}
+        {nil, false, c2, false, false}
     end
   end
 
@@ -2491,6 +2587,11 @@ defmodule Dragonex.Actions do
 
   defp sneak_tag(%{sneak: n}) when is_integer(n) and n > 0, do: " (+#{n} sneak)"
   defp sneak_tag(_), do: ""
+
+  # D69 Savage Attacks: the extra weapon die rides the swing map (0 when the
+  # attack wasn't a melee crit by a half-orc).
+  defp savage_tag(%{savage: n}) when is_integer(n) and n > 0, do: " (+#{n} Savage)"
+  defp savage_tag(_), do: ""
 
   @mark_prefix "hunter's mark:"
 
@@ -2583,6 +2684,59 @@ defmodule Dragonex.Actions do
   defp lucky_suffix(nil), do: ""
 
   defp lucky_suffix(tag) when is_binary(tag), do: " #{tag}"
+
+  # D68 Indomitable: a fighter of level 9+ rerolls a FAILED saving throw
+  # once per long rest — the NEW total is used (RAW), whatever it is. The
+  # reroll is the SAME `saving_throw_tagged` call with the same arguments,
+  # so the mode (Heightened D65, Danger Sense D58, conditions) still shapes
+  # it and Lucky (D66) can fire on the reroll for free. `extra` is the flat
+  # bonus the site already added to the first roll (the D61 aura) — it
+  # re-applies to the reroll; the bardic die was consumed by the first
+  # attempt and never re-rolls. Auto-fails never reach here (no die rolled).
+  # Returns the final {d20, total, success?} plus a breakdown tag (nil when
+  # it didn't fire) — the site marks `indomitable_used` on a non-nil tag.
+  defp maybe_indomitable(
+         %Character{} = t,
+         ability,
+         dc,
+         roller,
+         mode,
+         {d20, total, success?},
+         extra
+       ) do
+    if success? or not indomitable?(t) do
+      {d20, total, success?, nil}
+    else
+      {d20_2, total_2, _success?, lucky_2} =
+        Combat.saving_throw_tagged(t, ability, dc, roller, mode)
+
+      total_2 = total_2 + extra
+      tag = "(Indomitable: #{total}→#{total_2})" <> lucky_suffix(lucky_2)
+      {d20_2, total_2, total_2 >= dc, tag}
+    end
+  end
+
+  # Fighter L9+, use still unspent this long-rest cycle.
+  defp indomitable?(%Character{class: "fighter", level: level, indomitable_used: false})
+       when is_integer(level) and level >= 9,
+       do: true
+
+  defp indomitable?(_), do: false
+
+  defp indom_suffix(nil), do: ""
+
+  defp indom_suffix(tag) when is_binary(tag), do: " #{tag}"
+
+  # D68: a fired reroll spends Indomitable (composed into the site's change).
+  defp compose_indomitable_mark(_name, nil, change), do: change
+
+  defp compose_indomitable_mark(name, _tag, change) do
+    fn w ->
+      with {:ok, w} <- change.(w) do
+        World.set_indomitable(name, true).(w)
+      end
+    end
+  end
 
   defp apply_inspired_attack(true, _kind, d20, total, ac, roller) do
     bonus = roller.(6)
@@ -2722,7 +2876,8 @@ defmodule Dragonex.Actions do
            {:ok, w} <- World.set_inspired(name, false).(w),
            {:ok, w} <- World.set_arcane_recovery_used(name, false).(w),
            {:ok, w} <- World.restore_sorcery_points(name).(w),
-           {:ok, w} <- World.set_relentless_endurance(name, false).(w) do
+           {:ok, w} <- World.set_relentless_endurance(name, false).(w),
+           {:ok, w} <- World.set_indomitable(name, false).(w) do
         {:ok, w}
       end
     end

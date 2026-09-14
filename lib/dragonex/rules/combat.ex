@@ -86,13 +86,30 @@ defmodule Dragonex.Rules.Combat do
   A normal hit rolls the weapon dice once + the ability modifier; a crit rolls
   the weapon dice twice + the ability modifier (5e doubles the dice, not the
   flat modifier). Dueling (D48): +2 when `attacker.fighting_style == "dueling"`
-  and `weapon.ranged != true`.
+  and `weapon.ranged != true`. Savage Attacks (D69): a half-orc's melee crit
+  rolls ONE extra weapon die (not doubled).
   """
   @spec damage_roll(Character.t(), Weapon.t(), :hit | :crit, roller()) :: integer()
   def damage_roll(%Character{} = attacker, %Weapon{} = weapon, outcome, roller) do
+    {total, _savage} = damage_roll_tagged(attacker, weapon, outcome, roller)
+    total
+  end
+
+  @doc """
+  Tagged damage roll (D69 Savage Attacks): `damage_roll/4` plus the extra
+  Savage die (0 when it didn't fire) as a second element, so the Actions
+  layer can render it in the swing breakdown. The mechanics live HERE — the
+  plain `damage_roll/4` delegates and drops the tag.
+  """
+  @spec damage_roll_tagged(Character.t(), Weapon.t(), :hit | :crit, roller()) ::
+          {integer(), integer()}
+  def damage_roll_tagged(%Character{} = attacker, %Weapon{} = weapon, outcome, roller) do
     multiplier = if outcome == :crit, do: 2, else: 1
     dice = sum_weapon_dice(weapon.dice, multiplier, roller)
-    dice + ability_for_weapon(attacker, weapon) + fighting_style_damage_bonus(attacker, weapon)
+    savage = savage_die(attacker, weapon, outcome, roller)
+
+    {dice + savage + ability_for_weapon(attacker, weapon) +
+       fighting_style_damage_bonus(attacker, weapon), savage}
   end
 
   @doc "Spell save DC: 8 + proficiency + casting ability modifier."
@@ -286,6 +303,23 @@ defmodule Dragonex.Rules.Combat do
   end
 
   defp maybe_lucky(_character, d20, _roller), do: {d20, nil}
+
+  # D69 Savage Attacks: when a half-orc scores a melee crit, roll ONE of the
+  # weapon's damage dice one additional time — a single die of the weapon's
+  # size (never the whole dice expression, never doubled). Ranged weapons,
+  # non-crits and non-half-orcs get 0.
+  defp savage_die(
+         %Character{race: "half-orc"},
+         %Weapon{dice: dice, ranged: ranged},
+         :crit,
+         roller
+       )
+       when ranged != true do
+    {_count, sides} = parse_dice(dice)
+    roller.(sides)
+  end
+
+  defp savage_die(_attacker, _weapon, _outcome, _roller), do: 0
 
   # Ability modifier applied to hit and damage for a given weapon.
   defp fighting_style_attack_bonus(%Character{fighting_style: "archery"}, %Weapon{ranged: true}),

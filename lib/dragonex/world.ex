@@ -554,6 +554,26 @@ defmodule Dragonex.World do
   end
 
   @doc """
+  Set `who`'s Indomitable spent flag (5e, D68). The save-reroll sites in
+  `Actions` (spell save, turn undead, concentration) set it when a fighter
+  L9+ rerolls a failed save; `Actions`' long rest recharges it (`false`).
+  Short rest does not.
+  """
+  @spec set_indomitable(String.t(), boolean()) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def set_indomitable(name, used) when is_boolean(used) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          {:ok, put_char(w, name, %{c | indomitable_used: used})}
+      end
+    end
+  end
+
+  @doc """
   Set `who`'s armed Metamagic option (5e, D65). `nil` clears (consumed);
   armed = `%{option: String.t(), target: String.t() | nil}` with atom keys.
   Does not check class/level/points — `Actions.arm_metamagic/4` does.

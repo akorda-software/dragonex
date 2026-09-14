@@ -779,6 +779,48 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 - Fuera: Savage Attacks, Darkvision, demás rasgos raciales.
 - **Tests**: `racial_traits_test.exs`.
 
+### M52 — Indomitable (pasiva de clase, D68)
+- **Dónde**: `Character.indomitable_used` (boolean, default false;
+  Codec `== true`, jsonb viejo → false) + `World.set_indomitable/2` +
+  helper privado `maybe_indomitable/7` en `Actions` usado en los TRES
+  sitios donde el personaje salva: rama `:save` de hechizos
+  (`resolve_save_spell`), SAB de `turn_undead` y CON de concentración
+  (`one_hit_concentration`). Recarga en `compose_long_rest` (long rest
+  only). Sin tool, sin prompt, sin allowlist: el motor lee
+  `class == "fighter"` y `level >= 9`.
+- **Cuándo**: tirada FINAL fallida (post aura D61 e inspiración D50) y
+  `indomitable_used == false` → UN reroll con la MISMA llamada
+  `Combat.saving_throw_tagged/5` (mismo modo —Heightened D58/D65— y
+  mismo bonus plano —el aura se re-suma—; el d6 bárdico se gastó en el
+  primer intento y no se re-tira) y se USA el nuevo resultado (RAW, no
+  keep-best; puede fallar otra vez). El reroll pasa por el mismo roller
+  (el RollLog registra ambos dados). Marca `indomitable_used = true`
+  compuesto en el change del sitio; el struct actualizado viaja a la
+  simulación de concentración y se hilva entre golpes de una misma
+  acción (sin doble gasto).
+- **Desglose**: etiqueta "(Indomitable: X→Y)" (totales) tras el dado
+  (patrón Lucky D66); en `turn_undead` pegada al nombre. Lucky D66
+  puede dispararse gratis en el reroll (la etiqueta se encadena).
+- **Fuera**: death saves (ruta sin personaje), auto-fails (sin dado),
+  ability checks, usos extra L13/L17, feats, multiclase.
+- **Tests**: `indomitable_savage_test.exs`.
+
+### M53 — Savage Attacks (pasiva racial, D69)
+- **Dónde**: hook en `Combat.damage_roll/4` (vía nueva variante pública
+  `damage_roll_tagged/4` que devuelve `{total, savage_die}`;
+  `damage_roll/4` delega y dropea la etiqueta — patrón `*_tagged` D66,
+  firmas intactas) + `swing.savage` y etiqueta " (+N Savage)" en
+  `Actions.attack`/`flurry` (patrón " (+N sneak)"). Sin tool, sin
+  campos, sin rests: el motor lee `Character.race`.
+- **Cuándo**: `race == "half-orc"` + `weapon.ranged != true` + outcome
+  `:crit` → UN dado del TAMAÑO del arma (`roller.(sides)`: un 2d6 añade
+  1d6, no otra tirada completa; nunca doblado). NO a distancia, hechizos
+  (no pasan por `damage_roll`) ni golpes no-críticos. Apila con sneak
+  D41 / smite D46 / mark D55 / rage D42 (dados independientes en el
+  mismo swing); el golpe sin armas de Flurry D54 también aplica (melee
+  weapon attack RAW).
+- **Tests**: `indomitable_savage_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -798,8 +840,9 @@ Aura of Courage: **D62 / M46**. Wild Shape: **D63 / M47**.
 Uncanny Dodge: **D64 / M48**. Metamagic: **D65 / M49**.
 XP en partida: **D43 / M27**.
 Rasgos raciales automáticos: Lucky **D66 / M50**, Resistencia
-implacable **D67 / M51**; Brave, Halfling Nimbleness, Savage Attacks,
-Darkvision y demás siguen fuera.
+implacable **D67 / M51**, Savage Attacks **D69 / M53**; Brave, Halfling
+Nimbleness, Darkvision y demás siguen fuera. Indomitable del guerrero:
+**D68 / M52**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
 **D38 / M25**. Cupo de Rage/día y segundo uso de Action Surge a L17

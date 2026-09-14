@@ -1653,6 +1653,87 @@ multiclase. M51 en el catálogo.
 
 ---
 
+### D68 — Indomitable del guerrero 5e
+Estado: **Aceptada** — 2026-09-14.
+
+Rasgo de clase AUTOMÁTICO (D1): el guerrero L9+ (`class == "fighter"`,
+`level >= 9`) rerollea una salvación fallida. El agente no llama nada — no
+hay tool ni prompt: el motor aplica el reroll tras el fallo, ANTES de
+decidir daño/efecto.
+
+- **Campo**: `Character.indomitable_used` (boolean, default false; true =
+  gastado). Codec `== true` en ambas direcciones → jsonb viejo/ausente
+  decodifica a false (D8). Builder/monstruos lo heredan de
+  `Character.new` (default false, patrón D67).
+- **Dónde aplica — TODOS los sitios de `Actions` donde el PERSONAJE
+  salva** (chokepoints post-Lucky D66): rama `:save` de hechizos
+  (`resolve_save_spell`), SAB de `turn_undead` y salvación de
+  CON de concentración (`one_hit_concentration`). Si la tirada FINAL
+  (tras aura D61 e inspiración bárdica D50, que re-derivan el éxito) es
+  FALLO y el guerrero L9+ tiene `indomitable_used == false` → UN reroll:
+  la MISMA llamada `Combat.saving_throw_tagged/5` con los MISMOS
+  argumentos (mismo modo y bonus; el aura se re-suma), se USA el nuevo
+  resultado (RAW, no keep-best) y se marca `indomitable_used = true` vía
+  `World.set_indomitable/2` compuesto en el change del sitio.
+- **Desglose** (patrón Lucky D66): etiqueta "(Indomitable: X→Y)" (totales
+  contra la CD) justo tras el dado; en `turn_undead` va pegada al nombre
+  del no-muerto. El reroll pasa por el MISMO roller → el RollLog group
+  registra ambos dados.
+- **Interacciones fijadas aquí**:
+  - El reroll decide el éxito FINAL: Evasión D59/mitad de daño/condiciones
+    se evalúan tras él (mecánicamente Evasión es de pícaro y no solapa con
+    guerrero, pero el orden queda fijado igual).
+  - Modo: Heightened D65 (desventaja), Danger Sense D58 y condiciones
+    entraron en la primera tirada → el reroll usa el MISMO modo (misma
+    llamada). Lucky D66 puede dispararse EN el reroll si sale 1 (gratis,
+    correcto RAW).
+  - Inspiración bárdica (D50): el d6 se gastó en el primer intento y NO
+    se re-tira en el reroll; el aura D61 (bonus plano) sí se re-suma.
+  - Auto-fails (`Conditions.save_mode` → `:auto_fail`) y death saves
+    (ruta sin personaje): FUERA — no hay dado que rerrollear.
+  - Un solo uso por resolución: el struct actualizado viaja a la
+    simulación de concentración (hechizo) y se hilvan los golpes de una
+    misma acción (`pipe_damage`), así un segundo save en la misma
+    resolución no puede gastar dos veces lo que es 1/descanso largo.
+- **Recarga**: `long_rest` (`compose_long_rest` →
+  `World.set_indomitable/2` a false, patrón D67). `short_rest` NO.
+  Si ya está gastado, el fallo se queda como está.
+
+**Fuera**: usos extra a L13/L17, Indomitable en ability checks o attack
+rolls, death saves, feats, multiclase. M52 en el catálogo.
+
+---
+
+### D69 — Savage Attacks del semi-orco 5e
+Estado: **Aceptada** — 2026-09-14.
+
+Rasgo racial AUTOMÁTICO (D1): el semi-orco (`race == "half-orc"`) añade UN
+dado de arma en el crítico melee. Sin tool ni prompt; sin campos nuevos
+(racial); sin rests.
+
+- **Hook en `Combat.damage_roll/4`** (dónde el crítico de ARMA duplica
+  dados): atacante semi-orco + `weapon.ranged != true` + outcome `:crit`
+  → UN dado del TAMAÑO del arma (`roller.(sides)` — para un 2d6 añade
+  1d6, no otra tirada de 2d6; nunca doblado). Nueva variante pública
+  `damage_roll_tagged/4` devuelve `{total, savage_die}` para que
+  `Actions` pinte el desglose; `damage_roll/4` delega y dropea la
+  etiqueta (patrón `*_tagged` D66, firmas intactas).
+- **Desglose**: " (+N Savage)" en el swing (patrón " (+N sneak)"), antes
+  del sneak; `swing.savage` viaja en el mapa del swing (0 cuando no
+  aplica).
+- **Aplica a**: golpes melee de `attack/6` (incluido el golpe sin armas
+  sintético de Flurry D54 — melee weapon attack RAW) y de
+  `action_surge`/`flurry`. **NO aplica** a armas a distancia, hechizos
+  (`resolve_spell` no pasa por `damage_roll`), ni golpes no-críticos.
+- **Apilable** (RAW): Savage es un dado de ARMA adicional y convive con
+  sneak D41 / smite D46 / mark D55 / rage D42 — cada uno suma sus dados
+  propios en el mismo swing.
+
+**Fuera**: demás rasgos raciales del semi-orco (Darkvision sin
+percepción modelada), feats, multiclase. M53 en el catálogo.
+
+---
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,

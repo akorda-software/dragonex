@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **1351 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **1377 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -27,13 +27,19 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   `level_up`.
 - `Rules.Conditions` — tabla M06: condición → ventaja/desventaja/auto-fallo
   en ataque, salvación y chequeo (cancelación 5e).
-- Rasgos raciales automáticos (D66/D67, pasivas sin tool — el motor lee
-  `Character.race` del builder D52): Lucky del mediano M50 (d20 efectivo 1 en
-  ataque/salvación/chequeo → un reroll y se usa el nuevo; etiqueta "(Lucky:
-  1→N)" en el desglose; variantes `*_tagged` en `Rules.Combat` mantienen las
-  firmas públicas) y Resistencia implacable del semi-orco M51 (hook en
-  `World.apply_damage/3` tras el auto-revert D63: hp 0 → 1 una vez por
-  descanso largo; `long_rest` recarga, `short_rest` no).
+- Rasgos raciales y de clase automáticos (D66/D67/D68/D69, pasivas sin
+  tool — el motor lee `Character.race`/`class` del builder D52): Lucky del
+  mediano M50 (d20 efectivo 1 en ataque/salvación/chequeo → un reroll y se
+  usa el nuevo; etiqueta "(Lucky: 1→N)" en el desglose; variantes
+  `*_tagged` en `Rules.Combat` mantienen las firmas públicas), Resistencia
+  implacable del semi-orco M51 (hook en `World.apply_damage/3` tras el
+  auto-revert D63: hp 0 → 1 una vez por descanso largo; `long_rest`
+  recarga, `short_rest` no), Indomitable del guerrero L9+ M52 (reroll de
+  una salvación fallida —hechizo :save, turn_undead SAB, concentración
+  CON— una vez por descanso largo, se usa el nuevo resultado; etiqueta
+  "(Indomitable: X→Y)"; `long_rest` recarga) y Savage Attacks del semi-orco
+  M53 (en `Combat.damage_roll`, crítico melee de arma → UN dado del tamaño
+  del arma extra, " (+N Savage)" en el desglose; distancia y hechizos no).
  - `Actions` — puente intent→world (`attack` con Extra Attack 5e / D35,
        Sneak Attack D41, Rage D42 y Divine Smite D46, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57, Danger Sense D58 y Evasión D59 (pasivas del motor en salvaciones), auras de paladín D61/D62 (pasivas: +CHA a salvaciones del side, inmunidad al miedo), Uncanny Dodge D64 (postura armable que mitiga el próximo daño), Metamagic D65 (armable: Empowered/Heightened/Twinned aplicadas y consumidas por el próximo hechizo que califique), `spell` automatic/attack/save + consumo de slot, False Life → temp_hp D36,
     concentración D37, resist/vuln/immune D38, `initiative`, `death_save`, `heal`,
@@ -91,12 +97,13 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 - ✅ Golden SRD del creador (F6.5): 12 clases × L1/L3/L5 en
   `test/dragonex/heroes/srd_golden_test.exs`. Oráculos a mano; sin bugs
   de HP/AC/slots/saves vs SRD. Pact Magic (D40) y Sneak Attack (D41) en ✅.
-    Feats / features por nivel (salvo Extra Attack D35, Pact Magic D40,
-    Sneak Attack D41, Rage D42, Reckless Attack D44, Second Wind D45,
-     Divine Smite D46, Action Surge D47, Fighting Style D48, Lay on Hands
-     D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57, Danger Sense D58, Evasión D59, Aura of Protection D61, Aura of Courage D62, Wild Shape D63, Uncanny Dodge D64, Metamagic D65 y spellcasting paladín/ranger L2) siguen en 🟡. Rasgos
-     raciales: Lucky (D66) y Resistencia implacable (D67) en ✅; Brave,
-     Halfling Nimbleness, Savage Attacks, Darkvision y demás siguen 🟡.
+     Feats / features por nivel (salvo Extra Attack D35, Pact Magic D40,
+     Sneak Attack D41, Rage D42, Reckless Attack D44, Second Wind D45,
+      Divine Smite D46, Action Surge D47, Fighting Style D48, Lay on Hands
+      D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57, Danger Sense D58, Evasión D59, Aura of Protection D61, Aura of Courage D62, Wild Shape D63, Uncanny Dodge D64, Metamagic D65, Indomitable D68 y spellcasting paladín/ranger L2) siguen en 🟡. Rasgos
+      raciales: Lucky (D66), Resistencia implacable (D67) y Savage
+      Attacks (D69) en ✅; Brave, Halfling Nimbleness, Darkvision y demás
+      siguen 🟡.
 
 ### Contenido custom por usuario
 - CRUD `custom_contents` (weapon/spell/item, unique por usuario) con
@@ -381,18 +388,47 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
        desgloses (ataque, salvación de hechizo, concentración, chequeo,
        Sigilo); death saves no aplican; monstruos medianos también.
        Sin Brave/Halfling Nimbleness, feats, multiclase.
-    - ✅ Resistencia implacable del semi-orco (D67 / M51, pasiva racial
-       sin tool): `Character.relentless_endurance_used` (default false,
-       jsonb viejo → false) + hook en `World.apply_damage/3` con orden
-       de capas fijado (Uncanny Dodge D64 mitiga amount → resist D38 →
-       temp_hp D36 → hp → auto-revert Wild Shape D63 → RE: hp 0 → 1
-       con nota en el log "la furia semi-orca mantiene a X en pie con
-       1 pg (Resistencia implacable)" → death saves); 1 uso por
-       descanso largo (`long_rest` recarga vía
-       `World.set_relentless_endurance/2`, `short_rest` no); ya gastada
-       → 0 pg normal; al salvar a 1 no se limpian flags de caído.
-       Sin Savage Attacks, Darkvision, feats, multiclase.
-- ✅ XP 5e en partida (D43): `World.grant_xp/2` + tool `grant_xp` (DM).
+     - ✅ Resistencia implacable del semi-orco (D67 / M51, pasiva racial
+        sin tool): `Character.relentless_endurance_used` (default false,
+        jsonb viejo → false) + hook en `World.apply_damage/3` con orden
+        de capas fijado (Uncanny Dodge D64 mitiga amount → resist D38 →
+        temp_hp D36 → hp → auto-revert Wild Shape D63 → RE: hp 0 → 1
+        con nota en el log "la furia semi-orca mantiene a X en pie con
+        1 pg (Resistencia implacable)" → death saves); 1 uso por
+        descanso largo (`long_rest` recarga vía
+        `World.set_relentless_endurance/2`, `short_rest` no); ya gastada
+        → 0 pg normal; al salvar a 1 no se limpian flags de caído.
+        Sin Savage Attacks, Darkvision, feats, multiclase.
+     - ✅ Indomitable del guerrero (D68 / M52, pasiva de clase sin tool):
+        `Character.indomitable_used` (default false, jsonb viejo →
+        false) + helper `maybe_indomitable/7` en `Actions` aplicado en
+        los TRES sitios donde el personaje salva (hechizo `:save`,
+        `turn_undead` SAB, concentración CON): fallo FINAL de un
+        guerrero L9+ con el uso disponible → UN reroll con la misma
+        llamada `Combat.saving_throw_tagged/5` (mismo modo de
+        Heightened/Danger Sense/condiciones; el aura D61 se re-suma; el
+        d6 bárdico se gastó en el primer intento; Lucky D66 puede
+        dispararse gratis en el reroll) y se USA el nuevo resultado (RAW,
+        no keep-best); marca `indomitable_used` vía
+        `World.set_indomitable/2` (el struct actualizado viaja a la
+        simulación de concentración y se hilva entre golpes de una misma
+        acción — sin doble gasto); etiqueta "(Indomitable: X→Y)" en el
+        desglose (totales; en turn_undead pegada al nombre); 1 uso por
+        descanso largo (`long_rest` recarga, `short_rest` no); death
+        saves y auto-fails fuera (no hay dado). Sin usos L13/L17,
+        checks/attack rolls, feats, multiclase.
+     - ✅ Savage Attacks del semi-orco (D69 / M53, pasiva racial sin
+        tool, sin campos ni rests): hook en `Combat.damage_roll/4` vía
+        nueva variante pública `damage_roll_tagged/4` que devuelve
+        `{total, savage_die}` (firma de `damage_roll/4` intacta, patrón
+        `*_tagged` D66) — `race == "half-orc"` + arma melee
+        (`ranged != true`) + `:crit` → UN dado del TAMAÑO del arma (un
+        2d6 añade 1d6, no otra tirada completa; nunca doblado); NO a
+        distancia, hechizos ni no-críticos; apila con sneak D41 / smite
+        D46 / mark D55 / rage D42; el golpe sin armas de Flurry D54
+        también aplica; desglose " (+N Savage)" en el swing (patrón
+        sneak). Sin Darkvision, feats, multiclase.
+ - ✅ XP 5e en partida (D43): `World.grant_xp/2` + tool `grant_xp` (DM).
   Suma XP; no auto-level-up. Subida explícita (ficha / `level_up`).
   D10 SUPERSEDED. Sin calculadora CR/encuentro.
 
@@ -404,8 +440,8 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 |---|---|---|
 | Dotes | Fuera; ASI = +2 fijo | D13 |
 | `spells_known` | `nil` (sin cap estricto por clase) | D14 |
-| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + Fighting Style D48 + Lay on Hands D49 + Bardic Inspiration D50 + Arcane Recovery D51 + Divine Sense D52 + Turn Undead D53 + Ki/Flurry of Blows D54 + Hunter's Mark D55 + Font of Magic D56 + Cunning Action Hide D57 + Danger Sense D58 + Evasión D59 + Jack of All Trades D60 + Aura of Protection D61 + Aura of Courage D62 + Wild Shape D63 + Uncanny Dodge D64 + Metamagic D65 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47, D48, D49, D50, D51, D52, D53, D54, D55, D56, D57, D58, D59, D60, D61, D62, D63, D64, D65 |
-| Rasgos raciales | Lucky D66 + Resistencia implacable D67 (automáticos, sin tool); Brave, Halfling Nimbleness, Savage Attacks, Darkvision y demás 🟡 | D66, D67 |
+| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + Fighting Style D48 + Lay on Hands D49 + Bardic Inspiration D50 + Arcane Recovery D51 + Divine Sense D52 + Turn Undead D53 + Ki/Flurry of Blows D54 + Hunter's Mark D55 + Font of Magic D56 + Cunning Action Hide D57 + Danger Sense D58 + Evasión D59 + Jack of All Trades D60 + Aura of Protection D61 + Aura of Courage D62 + Wild Shape D63 + Uncanny Dodge D64 + Metamagic D65 + Indomitable D68 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47, D48, D49, D50, D51, D52, D53, D54, D55, D56, D57, D58, D59, D60, D61, D62, D63, D64, D65, D68 |
+| Rasgos raciales | Lucky D66 + Resistencia implacable D67 + Savage Attacks D69 (automáticos, sin tool); Brave, Halfling Nimbleness, Darkvision y demás 🟡 | D66, D67, D69 |
 | Empate iniciativa | DEX score desc, luego nombre; sin roll-off extra | D39 |
 | Banner level-up in-game | Eliminado (D33); subida desde la ficha | D33 |
 | Stub legado en `Tools` | `attack`/`roll`/`spawn_character`/`next_round` mantenidos para tests del framework exAgent | `tools.ex:31-72` |

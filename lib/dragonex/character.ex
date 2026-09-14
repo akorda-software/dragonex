@@ -59,6 +59,9 @@ defmodule Dragonex.Character do
     # largo (World.apply_damage/3 la gasta al salvar al semi-orco a 1 pg;
     # Actions.long_rest la recarga).
     field(:relentless_endurance_used, :boolean, default: false)
+    # D68 Indomitable: true = ya gastado desde el último descanso largo (el
+    # reroll de una salvación fallida en Actions lo gasta; long_rest recarga).
+    field(:indomitable_used, :boolean, default: false)
     # D65 Metamagic: nil = sin armar; armada =
     # %{option: "empowered"|"heightened"|"twinned", target: String.t() | nil}
     # (claves átomo en memoria; strings en Codec; jsonb viejo/ausente → nil).
@@ -133,6 +136,7 @@ defmodule Dragonex.Character do
         :wild_shape,
         :uncanny_dodge,
         :relentless_endurance_used,
+        :indomitable_used,
         :metamagic,
         :damage_resistances,
         :damage_vulnerabilities,
@@ -228,6 +232,7 @@ defmodule Dragonex.Character do
       wild_shape: nil,
       uncanny_dodge: false,
       relentless_endurance_used: false,
+      indomitable_used: false,
       metamagic: nil,
       damage_resistances: [],
       damage_vulnerabilities: [],

@@ -77,16 +77,19 @@ enemigos consecutivos; `acted_this_round` marca el monstruo, no `"dm"`.
 
 ### F6.5 — Pase de fidelidad SRD del creador (auditoría) ✅
 
-Hecho: `test/dragonex/heroes/srd_golden_test.exs` — 12 clases × {1, 3, 5}
+ Hecho: `test/dragonex/heroes/srd_golden_test.exs` — 12 clases × {1, 3, 5}
 = 36 oráculos a mano (humano + soldier + standard array, ASI +2 al
 primario en L4). HP/AC/saves/slots/DC coinciden con SRD 5.1 y el modelo
 Dragonex (warlock Pact Magic D40; paladín/ranger spellcasting a L2 R09).
 Sin bugs de derivados; las simplificaciones (feats, features
 por nivel salvo Extra Attack D35, Pact Magic D40, Sneak Attack D41,
     Rage D42, Reckless Attack D44, Second Wind D45, Divine Smite D46,
-    Action Surge D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of Blows D54, Hunter's Mark D55, Font of Magic D56 y spellcasting paladín/ranger L2,
-`spells_known`, rasgos raciales salvo Lucky D66 y Resistencia
-implacable D67) quedan en 🟡.
+    Action Surge D47, Fighting Style D48, Lay on Hands D49, Bardic
+    Inspiration D50, Arcane Recovery D51, Divine Sense D52, Turn Undead
+    D53, Ki/Flurry of Blows D54, Hunter's Mark D55, Font of Magic D56,
+    Indomitable D68 y spellcasting paladín/ranger L2, `spells_known`,
+    rasgos raciales salvo Lucky D66, Resistencia implacable D67 y Savage
+    Attacks D69) quedan en 🟡.
 
 ---
 
@@ -354,11 +357,36 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
   aplica ni consume) y Twinned (hechizo contra target ≠ lanzador → la
   misma resolución contra el segundo target armado con dados propios,
   mensaje en bloque por objetivo, UNA casilla y UNA concentración;
-  self-buff no aplica ni consume); consumo-on-apply (divergencia
-  menor de RAW documentada en el ADR); rests y level-up NO tocan la
-  metamagia (los puntos ya se recargan en long rest). Sin Quickened,
-  Distant, Extended, Subtle, Careful (sin efecto en este motor),
-  Sorcerous Restoration, Metamagic Adept, feats, multiclase.
+   self-buff no aplica ni consume); consumo-on-apply (divergencia
+   menor de RAW documentada en el ADR); rests y level-up NO tocan la
+   metamagia (los puntos ya se recargan en long rest). Sin Quickened,
+   Distant, Extended, Subtle, Careful (sin efecto en este motor),
+   Sorcerous Restoration, Metamagic Adept, feats, multiclase.
+- **Indomitable del guerrero** (D68): **entregado.** Pasiva de clase sin
+   tool ni prompt: `Character.indomitable_used` (Codec tolerante a jsonb
+   viejo) + helper `maybe_indomitable/7` en `Actions` aplicado en los
+   TRES sitios donde el personaje salva (hechizo `:save`, `turn_undead`
+   SAB, concentración CON): fallo FINAL de un guerrero L9+ con el uso
+   disponible → UN reroll con la misma llamada (mismo modo —Heightened
+   D65/Danger Sense D58— y mismo bonus plano —aura D61 re-sumada—; el d6
+   bárdico se gastó en el primer intento; Lucky D66 puede dispararse
+   gratis en el reroll) y se USA el nuevo resultado (RAW, no keep-best);
+   marca la flag vía `World.set_indomitable/2` (struct actualizado que
+   viaja a la simulación de concentración y se hilva entre golpes de una
+   misma acción — sin doble gasto); etiqueta "(Indomitable: X→Y)" en el
+   desglose; 1 uso por descanso largo (`long_rest` recarga,
+   `short_rest` no). Death saves y auto-fails fuera (no hay dado que
+   rerrollear). Sin usos L13/L17, checks ni attack rolls, feats,
+   multiclase.
+- **Savage Attacks del semi-orco** (D69): **entregado.** Pasiva racial
+   sin tool, sin campos ni rests: hook en `Combat.damage_roll/4` vía
+   nueva variante pública `damage_roll_tagged/4` (`{total, savage_die}`,
+   firma intacta, patrón `*_tagged` D66) — `race == "half-orc"` + arma
+   melee (`ranged != true`) + `:crit` → UN dado del TAMAÑO del arma (un
+   2d6 añade 1d6; nunca doblado); NO a distancia, hechizos ni
+   no-críticos; apila con sneak/smite/mark/rage; el golpe sin armas de
+   Flurry D54 también aplica (melee weapon attack RAW); desglose
+   " (+N Savage)" en el swing. Sin Darkvision, feats, multiclase.
 - **Multiclase**: fuera del builder actual por diseño; implicaría rehacer
   progression.
 - **Marketplace de contenido custom** (D22): compartir entre usuarios.
