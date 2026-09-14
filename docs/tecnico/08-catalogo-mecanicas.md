@@ -494,8 +494,8 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   Rests: SOLO `long_rest` rellena al máximo (`compose_long_rest`,
   `World.restore_sorcery_points/1`) — RAW long rest, distinto del ki
   M38 que recarga en ambos; `short_rest` no toca el pool. Level-up no
-  resetea remaining. Sin Metamagic, sorcerous restoration, casillas
-  > 5º, gastar puntos en otras cosas, feats, multiclase.
+  resetea remaining. Sin sorcerous restoration, casillas > 5º, feats,
+  multiclase (el gasto de puntos en Metamagic entró en **D65 / M49**).
 - **Tests**: `font_of_magic_test.exs`.
 
 ### M41 — Cunning Action: Hide (`conditions: "hidden"`, D57)
@@ -700,6 +700,48 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   feats, multiclase.
 - **Tests**: `uncanny_dodge_test.exs`.
 
+### M49 — Metamagic (`arm_metamagic`, D65)
+- **Dónde**: `Character.metamagic` (nil | `%{option, target}` — claves
+  átomo en memoria, strings en Codec, jsonb viejo/ausente → nil;
+  opción validada contra empowered/heightened/twinned en encode/decode) +
+  `World.set_metamagic/2` + `Actions.arm_metamagic/4` + hooks en
+  `Actions.spell/5` → `resolve_spell` (`empowered_count/2`,
+  `heightened?/3`, `twinned_target/4`, `resolve_twinned/8`,
+  `dice_with/3` con rerolls, `consume_metamagic/3`) + tool
+  `arm_metamagic(who, option, target)` (DM cualquiera; PC sólo sí
+  mismo).
+- **Armar** (hechicero L3+, UNA opción, SIN un-arm ni reembolso): gasta
+  1/3/2 puntos vía `spend_sorcery_points` (D56) y fija el mapa.
+  Errores NO mutan: who inexistente/caído, no hechicero, L2–, opción
+  desconocida (lista las tres), ya armada, puntos insuficientes (coste
+  exacto), heightened sin target, twinned sin target/inexistente/self.
+  Mensaje: "X arma Metamagia: OP (N punto(s) de hechicería, quedan M).
+  El próximo hechizo que califique la aplicará."
+- **Empowered** (hechizo con dice + damage_type): los primeros
+  `max(1, mod CAR)` dados de daño se tiran dos veces conservando el
+  mayor (dos draws del roller por dado mejorado; determinista y
+  demostrable con roller de secuencia); crit dobla la base mejorada sin
+  duplicar rerolls; un :attack que falla igualmente consume (califica
+  por tipo, RAW elige al lanzar); curación/utilidad nunca califican.
+  Etiqueta "(Metamagia: Empowered)".
+- **Heightened** (hechizo :save cuyo target == armado): la salvación
+  entra como `requested: :disadvantage` en `Conditions.save_mode` (se
+  combina por capas con Danger Sense D58/Evasión D59/auras D61-D62);
+  etiqueta "(Metamagia: Heightened)"; otro objetivo u otro kind → no
+  aplica ni consume.
+- **Twinned** (hechizo contra target ≠ lanzador): el mismo hechizo se
+  resuelve también contra el segundo target armado — cada resolución
+  tira sus propios dados; mensaje en bloque por objetivo ("… en A: …;
+  en B: …"); UNA casilla y UNA concentración (compuestas una vez en
+  `spell/5`); self-buff o twin desaparecido → no aplica ni consume.
+- **Consumo-on-apply**: la opción se consume SÓLO cuando el hechizo
+  califica (divergencia menor de RAW, documentada en D65); rests y
+  level-up NO tocan `metamagic`.
+- Fuera: Quickened, Distant, Extended, Subtle, Careful (sin efecto en
+  este motor), Sorcerous Restoration, varias opciones simultáneas,
+  un-arm, reembolsos, Metamagic Adept, feats, multiclase.
+- **Tests**: `metamagic_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -716,17 +758,19 @@ Cunning Action (Hide): **D57 / M41**. Danger Sense: **D58 / M42**.
 Evasión: **D59 / M43**. Jack of All Trades (y prof de skills en
 checks): **D60 / M44**. Aura of Protection: **D61 / M45**.
 Aura of Courage: **D62 / M46**. Wild Shape: **D63 / M47**.
-Uncanny Dodge: **D64 / M48**.
+Uncanny Dodge: **D64 / M48**. Metamagic: **D65 / M49**.
 XP en partida: **D43 / M27**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
 **D38 / M25**. Cupo de Rage/día y segundo uso de Action Surge a L17
 siguen fuera. Protection / TWF / GWF siguen fuera. Curar
 enfermedad/veneno con Lay on Hands (gastar 5) sigue fuera.
-Channel Divinity / Turn the Unholy / Improved Divine Sense siguen
+ Channel Divinity / Turn the Unholy / Improved Divine Sense siguen
 fuera. Dash / Disengage siguen fuera (sin grid ni ataques de
 oportunidad no tienen efecto mecánico — D57); Uncanny Dodge entró en
-**D64 / M48**. Expertise
+ **D64 / M48**. Metamagic (Quickened/Distant/Extended/Subtle/Careful y
+compañía) entró en **D65 / M49** con las tres opciones con efecto real
+en este motor. Expertise
 (doble prof de skill) sigue fuera.
 
 Para que una de estas entre: ADR nuevo + mecánica `M44+` en este catálogo +

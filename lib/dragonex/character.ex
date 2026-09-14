@@ -55,6 +55,11 @@ defmodule Dragonex.Character do
     # D64 Uncanny Dodge: true = armada (el próximo daño se reduce a la mitad
     # y se consume en World.apply_damage/3).
     field(:uncanny_dodge, :boolean, default: false)
+    # D65 Metamagic: nil = sin armar; armada =
+    # %{option: "empowered"|"heightened"|"twinned", target: String.t() | nil}
+    # (claves átomo en memoria; strings en Codec; jsonb viejo/ausente → nil).
+    # Se consume en Actions.spell/5 cuando el hechizo califica.
+    field(:metamagic, :map)
     field(:damage_resistances, {:array, :string}, default: [])
     field(:damage_vulnerabilities, {:array, :string}, default: [])
     field(:damage_immunities, {:array, :string}, default: [])
@@ -123,6 +128,7 @@ defmodule Dragonex.Character do
         :wild_shape_uses,
         :wild_shape,
         :uncanny_dodge,
+        :metamagic,
         :damage_resistances,
         :damage_vulnerabilities,
         :damage_immunities,
@@ -216,6 +222,7 @@ defmodule Dragonex.Character do
       wild_shape_uses: 0,
       wild_shape: nil,
       uncanny_dodge: false,
+      metamagic: nil,
       damage_resistances: [],
       damage_vulnerabilities: [],
       damage_immunities: [],

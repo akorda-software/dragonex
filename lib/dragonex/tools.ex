@@ -528,6 +528,26 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
+  Metamagic (5e, D65). Sorcerer level 3+. Spends sorcery points to arm ONE
+  option that the engine applies to and consumes with the sorcerer's next
+  qualifying spell: "empowered" (1 punto — the first max(1, CHA) damage
+  dice roll twice keeping the higher), "heightened" (3 puntos — the armed
+  target saves with disadvantage), "twinned" (2 puntos — the same spell
+  also resolves against the armed second target). Pass `target` (a
+  character name) for heightened/twinned, "" for empowered. Only ONE
+  option at a time; no un-arm nor refund; spells that don't qualify leave
+  it armed. The DM may arm anyone; a PC may only arm themselves.
+  """
+  deftool arm_metamagic(ctx, who :: String.t(), option :: String.t(), target :: String.t()) do
+    with :ok <- assert_metamagic_self(ctx, who),
+         {:ok, msg, change} <-
+           Dragonex.Actions.arm_metamagic(world(ctx), who, option, target || ""),
+         {:ok, _} <- propose(ctx, change) do
+      {:ok, msg}
+    end
+  end
+
+  @doc """
   Arm Divine Smite (5e, D46). Paladin only. Leaves a pending smite_slot;
   the spell slot is consumed on the next melee hit, not now. The DM may
   arm anyone; a PC may only arm themselves.
@@ -880,6 +900,17 @@ defmodule Dragonex.Tools do
     else
       {:error,
        "RECHAZADO — solo puedes usar Fuente de magia en ti mismo (#{proposer}), no en #{who}."}
+    end
+  end
+
+  # Metamagic (D65): self guard (divine_smite pattern).
+  defp assert_metamagic_self(ctx, who) do
+    proposer = ctx.deps.state.participant_id
+
+    if proposer == "dm" or proposer == who do
+      :ok
+    else
+      {:error, "RECHAZADO — solo puedes armar Metamagia en ti mismo (#{proposer}), no en #{who}."}
     end
   end
 

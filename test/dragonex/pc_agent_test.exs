@@ -300,6 +300,8 @@ defmodule Dragonex.PCAgentTest do
       assert "turn_undead" in tool_names
       assert "bardic_inspiration" in tool_names
       assert "arcane_recovery" in tool_names
+      # D65 Metamagic: el hechicero arma su propia Metamagia.
+      assert "arm_metamagic" in tool_names
 
       # PC CANNOT use these (DM-only)
       refute "set_scene" in tool_names

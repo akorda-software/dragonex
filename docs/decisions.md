@@ -1496,6 +1496,90 @@ y spellcasting paladín/ranger L2; el resto de features por nivel sigue
 
 ---
 
+### D65 — Metamagic del hechicero 5e
+Estado: **Aceptada** — 2026-09-13.
+
+El hechicero L3+ arma UNA opción de Metamagic gastando puntos de
+hechicería (D56); el LLM decide CUÁNDO armar, el motor aplica y consume
+con el próximo hechizo que califique (D1). Campo NUEVO en `Character`:
+`metamagic` (nil = sin armar; armada =
+`%{option: String.t(), target: String.t() | nil}` — claves átomo en
+memoria, strings en Codec, jsonb viejo/ausente → nil, D8). Sólo UNA
+opción armada a la vez.
+
+- **Por qué esas tres**: Empowered (1 pt — reroll de dados de daño),
+  Heightened (3 pts — desventaja en la salvación del objetivo) y Twinned
+  (2 pts — el hechizo golpea también a un segundo objetivo) son las tres
+  con efecto determinista real en un motor single-target sin reacciones
+  ni economía de bonus actions. Quickened (economía de acciones),
+  Distant/Extended (rango/duración no modelados), Subtle y Careful (sin
+  área ni counterspell) quedan FUERA por no tener efecto mecánico aquí.
+- **Tool** `arm_metamagic(who, option, target \\ "")`: DM cualquiera; PC
+  sólo sí mismo (patrón divine_smite). `option` minúscula, tolerante a
+  mayúsculas. Errores NO mutan: who inexistente, caído (hp≤0), no
+  hechicero, nivel < 3, opción desconocida (mensaje con las tres
+  válidas), ya armada ("X ya tiene Metamagia armada: OP — se consume con
+  su próximo hechizo que califique"; SIN un-arm en v1), puntos
+  insuficientes (coste exacto en el mensaje), heightened sin target,
+  twinned sin target / target inexistente / target == who.
+- **Éxito**: gasta el coste (1/3/2) vía `World.spend_sorcery_points/2`
+  (D56) y fija `metamagic` (`World.set_metamagic/2`). SIN reembolso.
+  Mensaje ES: "X arma Metamagia: Empowered (1 punto de hechicería,
+  quedan N). El próximo hechizo que califique la aplicará." (Heightened/
+  Twinned añaden "sobre <target>").
+- **Aplicación/consumo** — SÓLO en `Actions.spell/5` → `resolve_spell`
+  (nada de make_attack ni otros sitios):
+  - **Empowered**: hechizo con dados de daño (dice + damage_type, kinds
+    :attack/:automatic/:save) → los primeros `max(1, mod CAR)` dados se
+    tiran dos veces conservando el mayor (determinista: dos tiradas del
+    roller por dado mejorado; flat modifiers intactos). En crit se dobla
+    la base mejorada SIN duplicar los rerolls. Etiqueta
+    "(Metamagia: Empowered)" en el desglose. Un hechizo :attack que
+    falla igualmente la consume (el hechizo califica por tipo — RAW se
+    elige al lanzar). Curación y utilidad NUNCA califican.
+  - **Heightened**: hechizo :save cuyo objetivo == target armado → esa
+    salvación se resuelve con desventaja (entra como
+    `requested: :disadvantage` en `Conditions.save_mode`, se combina con
+    lo existente por capas: Evasión/Danger Sense D58-D59/auras D61-D62
+    intactas). Etiqueta "(Metamagia: Heightened)". Si el hechizo apunta
+    a OTRO personaje (o no es :save), NO aplica NI consume.
+  - **Twinned**: hechizo resuelto contra un objetivo ≠ lanzador → el
+    MISMO hechizo se resuelve también contra el segundo target armado
+    (cada resolución tira sus propios dados, NO re-usa los del primero;
+    helper `resolve_twinned` que reusa `resolve_spell` contra target2 y
+    compone cambios/mensajes en bloque por objetivo "… en A: …; en B:
+    …"). La casilla se consume UNA vez (`compose_slot_consumption` ya lo
+    hace) y la concentración se fija UNA sola vez (el hechizo es uno).
+    Self-buff (objetivo == lanzador) NO aplica NI consume; twin target
+    desaparecido del mundo → resolución simple sin consumir.
+- **Consumo-on-apply** (divergencia menor de RAW, que la elige al
+  lanzar): la opción se consume SÓLO cuando el hechizo califica;
+  hechizos que no califican la dejan armada. Es la semántica más simple
+  con un flag persistente y evita "quemar" la opción con un buff.
+- **Interacciones**: un hechicero nunca es druida/bárbaro (sin
+  multiclase) — sin casos cruzados con Wild Shape D63/rage. Empowered
+  respeta crit doubling donde aplique (sin duplicar rerolls).
+- **Rests**: nada nuevo — los puntos ya se recargan en long rest (D56);
+  `metamagic` NO se toca en descansos (si quedó armada, sigue armada).
+  Level-up tampoco la toca (patrón estado transitorio).
+
+**Fuera**: Quickened, Distant, Extended, Subtle, Careful (sin efecto en
+este motor), Sorcerous Restoration, más de una opción simultánea,
+un-arm, reembolsos, Metamagic Adept, feats, multiclase. M49 en el
+catálogo.
+
+R09 queda **parcial**: Extra Attack D35, Sneak Attack D41, Rage D42,
+Reckless Attack D44, Second Wind D45, Divine Smite D46, Action Surge
+D47, Fighting Style D48, Lay on Hands D49, Bardic Inspiration D50,
+Arcane Recovery D51, Divine Sense D52, Turn Undead D53, Ki/Flurry of
+Blows D54, Hunter's Mark D55, Font of Magic D56, Cunning Action (Hide)
+D57, Danger Sense D58, Evasión D59, Jack of All Trades D60, Aura of
+Protection D61, Aura of Courage D62, Wild Shape D63, Uncanny Dodge D64,
+Metamagic D65 y spellcasting paladín/ranger L2; el resto de features por
+nivel sigue 🟡.
+
+---
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,

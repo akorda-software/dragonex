@@ -49,13 +49,17 @@ defmodule Dragonex.World do
          `Actions.convert_to_sorcery_points` drains a slot back into points
          (capped at `level`); only `long_rest` refills it (no-op for other
          classes),
-       * Wild Shape (D63) is a druid L2+ transform (2 uses/rest): the beast's
-         str/dex/con/hp/max_hp/ac/weapons replace the druid's while the
-         originals live in `wild_shape`; damage that drops the beast to 0
-         auto-reverts with only the excess carried over; `cast_spell` is
-         blocked while transformed; both rests refill the uses; level-up
-         never touches uses or form,
-       * `grant_xp` adds to `Character.xp` and never levels up (D43).
+        * Wild Shape (D63) is a druid L2+ transform (2 uses/rest): the beast's
+          str/dex/con/hp/max_hp/ac/weapons replace the druid's while the
+          originals live in `wild_shape`; damage that drops the beast to 0
+          auto-reverts with only the excess carried over; `cast_spell` is
+          blocked while transformed; both rests refill the uses; level-up
+          never touches uses or form,
+        * Metamagic (D65) is a sorcerer L3+ armed option
+          (`%{option, target}`, ONE at a time): arming spends sorcery
+          points (`Actions.arm_metamagic/4`); `Actions.spell/5` applies
+          and consumes it when the spell qualifies; rests never touch it,
+        * `grant_xp` adds to `Character.xp` and never levels up (D43).
 
   Characters are stored as full `Dragonex.Character` structs, so the engine can
   read any stat (AC, abilities, weapons ...) straight from the world.
@@ -494,6 +498,25 @@ defmodule Dragonex.World do
 
         %Character{} = c ->
           {:ok, put_char(w, name, %{c | uncanny_dodge: armed})}
+      end
+    end
+  end
+
+  @doc """
+  Set `who`'s armed Metamagic option (5e, D65). `nil` clears (consumed);
+  armed = `%{option: String.t(), target: String.t() | nil}` with atom keys.
+  Does not check class/level/points — `Actions.arm_metamagic/4` does.
+  """
+  @spec set_metamagic(String.t(), map() | nil) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def set_metamagic(name, metamagic) when is_nil(metamagic) or is_map(metamagic) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          {:ok, put_char(w, name, %{c | metamagic: metamagic})}
       end
     end
   end

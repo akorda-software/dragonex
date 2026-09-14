@@ -129,6 +129,7 @@ defmodule Dragonex.Codec do
       "wild_shape_uses" => c.wild_shape_uses || 0,
       "wild_shape" => encode_wild_shape(c.wild_shape),
       "uncanny_dodge" => c.uncanny_dodge == true,
+      "metamagic" => encode_metamagic(c.metamagic),
       "damage_resistances" => c.damage_resistances || [],
       "damage_vulnerabilities" => c.damage_vulnerabilities || [],
       "damage_immunities" => c.damage_immunities || [],
@@ -187,6 +188,7 @@ defmodule Dragonex.Codec do
       wild_shape_uses: decode_wild_shape_uses(c["wild_shape_uses"]),
       wild_shape: decode_wild_shape(c["wild_shape"]),
       uncanny_dodge: c["uncanny_dodge"] == true,
+      metamagic: decode_metamagic(c["metamagic"]),
       damage_resistances: c["damage_resistances"] || [],
       damage_vulnerabilities: c["damage_vulnerabilities"] || [],
       damage_immunities: c["damage_immunities"] || [],
@@ -344,6 +346,36 @@ defmodule Dragonex.Codec do
   end
 
   defp decode_wild_shape(_), do: nil
+
+  # D65 Metamagic: atom keys in memory, string keys in the stored map.
+  # nil (or anything malformed / absent in an old jsonb) → sin armar.
+  defp encode_metamagic(nil), do: nil
+
+  defp encode_metamagic(%{} = mm) do
+    case mm[:option] do
+      opt when opt in ~w(empowered heightened twinned) ->
+        %{"option" => opt, "target" => mm[:target]}
+
+      _ ->
+        nil
+    end
+  end
+
+  defp encode_metamagic(_), do: nil
+
+  defp decode_metamagic(nil), do: nil
+
+  defp decode_metamagic(%{} = mm) do
+    case mm["option"] do
+      opt when opt in ~w(empowered heightened twinned) ->
+        %{option: opt, target: mm["target"]}
+
+      _ ->
+        nil
+    end
+  end
+
+  defp decode_metamagic(_), do: nil
 
   defp encode_saves(%{successes: s, fails: f}), do: %{"successes" => s, "fails" => f}
   defp decode_saves(nil), do: %{successes: 0, fails: 0}

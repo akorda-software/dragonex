@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **1288 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **1318 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -28,13 +28,13 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 - `Rules.Conditions` — tabla M06: condición → ventaja/desventaja/auto-fallo
   en ataque, salvación y chequeo (cancelación 5e).
  - `Actions` — puente intent→world (`attack` con Extra Attack 5e / D35,
-      Sneak Attack D41, Rage D42 y Divine Smite D46, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57, Danger Sense D58 y Evasión D59 (pasivas del motor en salvaciones), auras de paladín D61/D62 (pasivas: +CHA a salvaciones del side, inmunidad al miedo), Uncanny Dodge D64 (postura armable que mitiga el próximo daño), `spell` automatic/attack/save + consumo de slot, False Life → temp_hp D36,
+       Sneak Attack D41, Rage D42 y Divine Smite D46, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57, Danger Sense D58 y Evasión D59 (pasivas del motor en salvaciones), auras de paladín D61/D62 (pasivas: +CHA a salvaciones del side, inmunidad al miedo), Uncanny Dodge D64 (postura armable que mitiga el próximo daño), Metamagic D65 (armable: Empowered/Heightened/Twinned aplicadas y consumidas por el próximo hechizo que califique), `spell` automatic/attack/save + consumo de slot, False Life → temp_hp D36,
     concentración D37, resist/vuln/immune D38, `initiative`, `death_save`, `heal`,
      `second_wind`, `action_surge`, `flurry_of_blows`, `create_spell_slot`, `convert_to_sorcery_points`, `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`,       `arcane_recovery`, `wild_shape`, `end_wild_shape`, `start_uncanny_dodge`, `short_rest`, `long_rest`, `check` — acepta skills con prof de ficha + JoaT D60). Con `RollLog` para dados estructurados.
  - `Tools` — `deftool`s que el LLM invoca: `make_attack`, `cast_spell`,
     `roll_initiative`, `make_death_save`, `heal`, `grant_temp_hp`, `grant_xp`, `drop_concentration`, `start_rage`, `end_rage`, `start_reckless`, `end_reckless`,    `second_wind`, `action_surge`, `flurry_of_blows`, `hunters_mark`, `cunning_action_hide`, `create_spell_slot`, `convert_to_sorcery_points`, `divine_smite`, `end_smite`, `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`, `arcane_recovery`, `ability_check`, `end_combat`,
    `short_rest`, `long_rest`, `spawn_monster`, `apply_condition`,
-   `remove_condition`, `set_scene`, `establish_fact`, `level_up`, `roll_dice`, `wild_shape`, `end_wild_shape`, `start_uncanny_dodge`.
+   `remove_condition`, `set_scene`, `establish_fact`, `level_up`, `roll_dice`, `wild_shape`, `end_wild_shape`, `start_uncanny_dodge`, `arm_metamagic`.
 - `TurnPolicy.WorldDriven` — turno leído del World; un beat por monstruo
   (D34); el LLM no puede saltar/reordenar.
 - `Codec` + `Store.Coded` — `World ↔ jsonb` simétrico (D8).
@@ -84,10 +84,10 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 - ✅ Golden SRD del creador (F6.5): 12 clases × L1/L3/L5 en
   `test/dragonex/heroes/srd_golden_test.exs`. Oráculos a mano; sin bugs
   de HP/AC/slots/saves vs SRD. Pact Magic (D40) y Sneak Attack (D41) en ✅.
-   Feats / features por nivel (salvo Extra Attack D35, Pact Magic D40,
-   Sneak Attack D41, Rage D42, Reckless Attack D44, Second Wind D45,
-    Divine Smite D46, Action Surge D47, Fighting Style D48, Lay on Hands
-    D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57, Danger Sense D58, Evasión D59, Aura of Protection D61, Aura of Courage D62, Wild Shape D63, Uncanny Dodge D64 y spellcasting paladín/ranger L2) siguen en 🟡.
+    Feats / features por nivel (salvo Extra Attack D35, Pact Magic D40,
+    Sneak Attack D41, Rage D42, Reckless Attack D44, Second Wind D45,
+     Divine Smite D46, Action Surge D47, Fighting Style D48, Lay on Hands
+     D49, Bardic Inspiration D50, Arcane Recovery D51, Divine Sense D52, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57, Danger Sense D58, Evasión D59, Aura of Protection D61, Aura of Courage D62, Wild Shape D63, Uncanny Dodge D64, Metamagic D65 y spellcasting paladín/ranger L2) siguen en 🟡.
 
 ### Contenido custom por usuario
 - CRUD `custom_contents` (weapon/spell/item, unique por usuario) con
@@ -234,7 +234,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
     mismo; combate permitido; errores no mutan (missing who, caído, no
     hechicero, L1, nivel inválido, puntos insuficientes, sin casillas);
     SOLO long rest rellena al máximo (distinto del ki D54); level-up no
-    resetea. Sin Metamagic ni sorcerous restoration.
+    resetea. Sin sorcerous restoration (Metamagic entró en D65).
  - ✅ Cunning Action (Hide) del pícaro (D57 / M41): sin campos nuevos —
     "hidden" vive en `conditions` (`apply_condition`, M06 le añade
     ventaja al atacar); tool `cunning_action_hide(who)` (rogue L2+, DM
@@ -330,9 +330,36 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
        en D64) — y consume la flag; CUALQUIER fuente de daño; amount
        ≤ 0 no consume; apila con Evasión D59 (mitad de mitad = cuarto,
        floor); auto-revert D63 intacto (corre tras la mitigación);
-       descansos NO gestionan la flag; rearmar tras consumir es
-       gratis. Sin economía de reacción/ronda (1 uso por daño),
-       resistencias dañinas, Deflect Missiles, feats, multiclase.
+        descansos NO gestionan la flag; rearmar tras consumir es
+        gratis. Sin economía de reacción/ronda (1 uso por daño),
+        resistencias dañinas, Deflect Missiles, feats, multiclase.
+    - ✅ Metamagic del hechicero (D65 / M49): `Character.metamagic`
+       (nil | `%{option, target}`, claves átomo en memoria/strings en
+       Codec, jsonb viejo → nil) + tool `arm_metamagic(who, option,
+       target)` (hechicero L3+, DM cualquiera, PC sólo sí mismo, UNA
+       opción, SIN un-arm ni reembolso; errores NO mutan: who
+       inexistente, caído, no hechicero, L2–, opción desconocida, ya
+       armada, puntos insuficientes con coste exacto, heightened sin
+       target, twinned sin target/inexistente/self); armar gasta 1/3/2
+       puntos vía `spend_sorcery_points` (D56) y fija el mapa;
+       aplicación y consumo SÓLO en `Actions.spell/5` → `resolve_spell`:
+       Empowered (dados de daño — los primeros `max(1, CAR)` dados se
+       tiran dos veces conservando el mayor, dos draws del roller por
+       dado; crit dobla la base sin duplicar rerolls; fallo de :attack
+       también consume; curación/utilidad nunca califican; etiqueta
+       "(Metamagia: Empowered)"), Heightened (hechizo :save al target
+       armado → salvación con desventaja como `requested` en
+       `save_mode`, combinada por capas con D58-D62; otro objetivo → no
+       aplica ni consume; etiqueta "(Metamagia: Heightened)"), Twinned
+       (hechizo contra target ≠ lanzador → misma resolución también
+       contra el segundo target armado, dados propios por resolución,
+       bloque por objetivo, UNA casilla y UNA concentración; self-buff o
+       twin desaparecido → no aplica ni consume); consumo-on-apply
+       (divergencia menor de RAW documentada); rests y level-up NO tocan
+       la metamagia (los puntos ya se recargan en long rest D56). Sin
+       Quickened, Distant, Extended, Subtle, Careful (sin efecto en este
+       motor), Sorcerous Restoration, Metamagic Adept, feats,
+       multiclase.
 - ✅ XP 5e en partida (D43): `World.grant_xp/2` + tool `grant_xp` (DM).
   Suma XP; no auto-level-up. Subida explícita (ficha / `level_up`).
   D10 SUPERSEDED. Sin calculadora CR/encuentro.
@@ -345,7 +372,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 |---|---|---|
 | Dotes | Fuera; ASI = +2 fijo | D13 |
 | `spells_known` | `nil` (sin cap estricto por clase) | D14 |
-| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + Fighting Style D48 + Lay on Hands D49 + Bardic Inspiration D50 + Arcane Recovery D51 + Divine Sense D52 + Turn Undead D53 + Ki/Flurry of Blows D54 + Hunter's Mark D55 + Font of Magic D56 + Cunning Action Hide D57 + Danger Sense D58 + Evasión D59 + Jack of All Trades D60 + Aura of Protection D61 + Aura of Courage D62 + Wild Shape D63 + Uncanny Dodge D64 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47, D48, D49, D50, D51, D52, D53, D54, D55, D56, D57, D58, D59, D60, D61, D62, D63, D64 |
+| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + Fighting Style D48 + Lay on Hands D49 + Bardic Inspiration D50 + Arcane Recovery D51 + Divine Sense D52 + Turn Undead D53 + Ki/Flurry of Blows D54 + Hunter's Mark D55 + Font of Magic D56 + Cunning Action Hide D57 + Danger Sense D58 + Evasión D59 + Jack of All Trades D60 + Aura of Protection D61 + Aura of Courage D62 + Wild Shape D63 + Uncanny Dodge D64 + Metamagic D65 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47, D48, D49, D50, D51, D52, D53, D54, D55, D56, D57, D58, D59, D60, D61, D62, D63, D64, D65 |
 | Empate iniciativa | DEX score desc, luego nombre; sin roll-off extra | D39 |
 | Banner level-up in-game | Eliminado (D33); subida desde la ficha | D33 |
 | Stub legado en `Tools` | `attack`/`roll`/`spawn_character`/`next_round` mantenidos para tests del framework exAgent | `tools.ex:31-72` |

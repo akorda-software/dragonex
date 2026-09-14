@@ -213,7 +213,22 @@ defmodule Dragonex.Actions do
                  "(debe descansar para recuperarlas). Los trucos siempre están disponibles."}
             else
               result =
-                resolve_spell(world, c, caster_name, t, target_name, spell, roller, roll_log)
+                case twinned_target(world, c, caster_name, target_name) do
+                  nil ->
+                    resolve_spell(world, c, caster_name, t, target_name, spell, roller, roll_log)
+
+                  twin_name ->
+                    resolve_twinned(
+                      world,
+                      c,
+                      caster_name,
+                      target_name,
+                      twin_name,
+                      spell,
+                      roller,
+                      roll_log
+                    )
+                end
 
               result
               |> compose_slot_consumption(caster_name, spell.level)
@@ -1237,6 +1252,120 @@ defmodule Dragonex.Actions do
   end
 
   @doc """
+  Metamagic (5e, D65): a sorcerer of level 3+ spends sorcery points to arm
+  ONE option that the NEXT qualifying spell they cast will apply and
+  consume:
+
+    * `"empowered"` (1 punto) — the first `max(1, CHA mod)` damage dice
+      of the spell roll twice, keeping the higher;
+    * `"heightened"` (3 puntos, `target` required) — that target's save
+      against the spell is resolved with disadvantage;
+    * `"twinned"` (2 puntos, `target` required) — the same spell also
+      resolves against the armed second target.
+
+  Only ONE option may be armed at a time and there is no un-arm nor
+  refund: a spell that doesn't qualify leaves it armed. Rests never touch
+  it. Errors (nothing spent): missing who, downed, not a sorcerer,
+  level < 3, unknown option, already armed, insufficient points,
+  heightened without target, twinned without/inexistent/self target.
+  """
+  @spec arm_metamagic(World.t(), String.t(), String.t(), String.t()) :: result()
+  def arm_metamagic(world, who, option, target \\ "")
+
+  def arm_metamagic(world, who, option, target) do
+    sorcerer = World.character(world, who)
+    opt = normalize_metamagic_option(option)
+    target = if is_binary(target), do: String.trim(target), else: ""
+
+    cond do
+      is_nil(sorcerer) ->
+        {:error, "no existe el personaje: #{who}"}
+
+      (sorcerer.hp || 0) <= 0 ->
+        {:error, "#{who} está caído (0 pg) y no puede usar Metamagia"}
+
+      sorcerer.class != "sorcerer" ->
+        {:error, "#{who} no es hechicero y no puede usar Metamagia"}
+
+      not is_integer(sorcerer.level) or sorcerer.level < 3 ->
+        {:error, "#{who} no tiene Metamagia (nivel 3)"}
+
+      is_nil(opt) ->
+        {:error,
+         "opción de Metamagia desconocida: #{option} " <>
+           "(válidas: empowered, heightened, twinned)"}
+
+      sorcerer.metamagic != nil ->
+        {:error,
+         "#{who} ya tiene Metamagia armada: " <>
+           "#{metamagic_es(sorcerer.metamagic)} — se consume con su próximo " <>
+           "hechizo que califique (espera a que se consuma antes de armar otra)"}
+
+      (sorcerer.sorcery_points || 0) < metamagic_cost(opt) ->
+        {:error,
+         "#{who} no tiene suficientes puntos de hechicería " <>
+           "(le quedan #{sorcerer.sorcery_points || 0}; " <>
+           "#{metamagic_es(opt)} cuesta #{metamagic_cost(opt)})"}
+
+      opt == "heightened" and target == "" ->
+        {:error, "heightened requiere un objetivo (target)"}
+
+      opt == "twinned" and target == "" ->
+        {:error, "twinned requiere un segundo objetivo (target)"}
+
+      opt == "twinned" and is_nil(World.character(world, target)) ->
+        {:error, "no existe el objetivo: #{target}"}
+
+      opt == "twinned" and target == who ->
+        {:error, "twinned no puede gemarse a sí mismo (target debe ser otro personaje)"}
+
+      true ->
+        cost = metamagic_cost(opt)
+        remaining = (sorcerer.sorcery_points || 0) - cost
+
+        points_label =
+          if cost == 1, do: "1 punto de hechicería", else: "#{cost} puntos de hechicería"
+
+        target_bit = if target == "", do: "", else: " sobre #{target}"
+
+        {:ok,
+         "#{who} arma Metamagia: #{metamagic_es(opt)} (#{points_label}, quedan #{remaining})" <>
+           "#{target_bit}. El próximo hechizo que califique la aplicará.",
+         compose_arm_metamagic(who, cost, opt, target)}
+    end
+  end
+
+  defp compose_arm_metamagic(who, cost, opt, target) do
+    armed = %{option: opt, target: if(target == "", do: nil, else: target)}
+
+    fn w ->
+      with {:ok, w} <- World.spend_sorcery_points(who, cost).(w) do
+        World.set_metamagic(who, armed).(w)
+      end
+    end
+  end
+
+  @metamagic_costs %{"empowered" => 1, "heightened" => 3, "twinned" => 2}
+
+  defp metamagic_cost(opt) when is_binary(opt), do: Map.get(@metamagic_costs, opt, 0)
+
+  defp normalize_metamagic_option(option) when is_binary(option) do
+    case String.downcase(String.trim(option)) do
+      opt when opt in ~w(empowered heightened twinned) -> opt
+      _ -> nil
+    end
+  end
+
+  defp normalize_metamagic_option(_), do: nil
+
+  defp metamagic_es(%{option: opt}), do: metamagic_es(opt)
+
+  defp metamagic_es("empowered"), do: "Empowered"
+  defp metamagic_es("heightened"), do: "Heightened"
+  defp metamagic_es("twinned"), do: "Twinned"
+  defp metamagic_es(opt), do: opt
+
+  @doc """
   A short rest: the character spends hit dice to recover HP.
 
   At level 1, a character has 1 hit die. The heal is `roll(hit_die) + con_mod`.
@@ -1459,6 +1588,13 @@ defmodule Dragonex.Actions do
     # D61: the aura covers the save target and the target's concentration
     # saves triggered by this spell's damage.
     aura = aura_save_bonus(world, target_name)
+    # D65 Metamagic: Empowered boosts the spell's damage dice; Heightened
+    # forces disadvantage on the armed target's save. Both apply (and are
+    # consumed) only when the spell qualifies — see empowered_count/2 and
+    # heightened?/3.
+    emp = empowered_count(c, spell)
+    heightened? = heightened?(c, target_name, spell)
+    emp_tag = metamagic_tag(emp)
 
     case spell.kind do
       :automatic ->
@@ -1467,7 +1603,9 @@ defmodule Dragonex.Actions do
         amount =
           case spell do
             %{dice: nil} -> 0
-            %{dice: expr} -> Dice.roll_expr(expr, r)
+            # D65 Empowered: damage dice roll through the empowered path
+            # (no-op for healing spells — emp is 0 without a damage_type).
+            %{dice: _expr} -> dice_with(spell, r, emp)
           end
 
         cond do
@@ -1513,7 +1651,7 @@ defmodule Dragonex.Actions do
             )
 
             with_conc_damage(
-              "#{caster_name} conjura #{spell.name}; #{target_name} recibe #{amount} de daño #{spell.damage_type}#{verb}.",
+              "#{caster_name} conjura #{spell.name}; #{target_name} recibe #{amount} de daño #{spell.damage_type}#{verb}#{emp_tag}.",
               target_name,
               amount,
               roller,
@@ -1563,16 +1701,24 @@ defmodule Dragonex.Actions do
             )
 
           dmg =
-            if d20 == 20 do
-              dice_with(spell, r2) + dice_with(spell, r2)
-            else
-              dice_with(spell, r2)
+            cond do
+              # D65: a crit doubles the (already empowered) base dice —
+              # the rerolls themselves are never duplicated.
+              d20 == 20 and emp > 0 ->
+                base = dice_with(spell, r2, emp)
+                base + base
+
+              d20 == 20 ->
+                dice_with(spell, r2, 0) + dice_with(spell, r2, 0)
+
+              true ->
+                dice_with(spell, r2, emp)
             end
 
           RollLog.close(close_dmg, total: dmg, against: nil, outcome: nil)
 
           with_conc_damage(
-            "#{caster_name} conjura #{spell.name}; impacta a #{target_name} (d20 #{d20}: #{total} vs CA #{t.ac}) por #{dmg} de daño #{spell.damage_type}#{mode_tag(effective_mode)}.",
+            "#{caster_name} conjura #{spell.name}; impacta a #{target_name} (d20 #{d20}: #{total} vs CA #{t.ac}) por #{dmg} de daño #{spell.damage_type}#{emp_tag}#{mode_tag(effective_mode)}.",
             target_name,
             dmg,
             roller,
@@ -1590,14 +1736,166 @@ defmodule Dragonex.Actions do
         end
 
       :save ->
-        resolve_save_spell(c, caster_name, t, target_name, spell, roller, roll_log, aura)
+        resolve_save_spell(
+          c,
+          caster_name,
+          t,
+          target_name,
+          spell,
+          roller,
+          roll_log,
+          aura,
+          heightened?,
+          emp
+        )
+    end
+    |> consume_metamagic(caster_name, emp > 0 or heightened?)
+  end
+
+  # D65 Heightened: applies when a save spell targets EXACTLY the armed
+  # target — that save resolves with disadvantage (entered as `requested`,
+  # so it combines with conditions through Conditions.save_mode). Any other
+  # target: no apply, no consume.
+  defp heightened?(%Character{metamagic: metamagic}, target_name, %{kind: :save}) do
+    case metamagic do
+      %{option: "heightened", target: armed}
+      when is_binary(armed) and armed != "" and armed == target_name ->
+        true
+
+      _ ->
+        false
     end
   end
 
-  defp resolve_save_spell(c, caster_name, t, target_name, spell, roller, roll_log, aura) do
-    dc = Combat.spell_save_dc(c, spell)
+  defp heightened?(_c, _target_name, _spell), do: false
 
-    case Conditions.save_mode(t, spell.save_ability) do
+  # D65 Empowered: applies to spells that roll damage dice (a dice
+  # expression AND a damage type — heals and utility never qualify).
+  # Returns how many of the dice roll twice keeping the higher:
+  # `max(1, CHA mod)` of the caster.
+  defp empowered_count(%Character{} = c, %{dice: dice, damage_type: dt})
+       when is_binary(dt) and dt != "" do
+    case c.metamagic do
+      %{option: "empowered"} when dice != nil and dice != "" ->
+        max(1, Character.modifier(c, :cha))
+
+      _ ->
+        0
+    end
+  end
+
+  defp empowered_count(_c, _spell), do: 0
+
+  # D65: consume the armed option once it applied (resolve_spell sites only
+  # — never make_attack or anywhere else).
+  defp consume_metamagic({:ok, msg, change}, caster_name, true) do
+    combined = fn w ->
+      with {:ok, w} <- change.(w) do
+        World.set_metamagic(caster_name, nil).(w)
+      end
+    end
+
+    {:ok, msg, combined}
+  end
+
+  defp consume_metamagic(result, _caster_name, _applied), do: result
+
+  defp metamagic_tag(0), do: ""
+
+  defp metamagic_tag(_emp), do: " (Metamagia: Empowered)"
+
+  # D65 Twinned: applies when the armed twin target exists and differs from
+  # the caster, and the spell targets someone other than the caster
+  # (self-buffs never apply nor consume). Returns the twin's name or nil.
+  defp twinned_target(world, %Character{} = c, caster_name, target_name) do
+    case c.metamagic do
+      %{option: "twinned", target: twin} when is_binary(twin) and twin != "" ->
+        if twin != caster_name and target_name != caster_name and
+             not is_nil(World.character(world, twin)) do
+          twin
+        else
+          nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  # D65 Twinned: the SAME spell resolves against both targets — each
+  # resolution rolls its own dice (the first one's rolls are never
+  # re-used). The spell is one: the slot is consumed once and concentration
+  # set once (both composed by the caller in spell/5). The option is
+  # consumed here, once.
+  defp resolve_twinned(world, c, caster_name, target_name, twin_name, spell, roller, roll_log) do
+    t1 = World.character(world, target_name)
+    t2 = World.character(world, twin_name)
+
+    {:ok, msg1, change1} =
+      resolve_spell(world, c, caster_name, t1, target_name, spell, roller, roll_log)
+
+    {:ok, msg2, change2} =
+      resolve_spell(world, c, caster_name, t2, twin_name, spell, roller, roll_log)
+
+    change = fn w ->
+      with {:ok, w} <- change1.(w),
+           {:ok, w} <- change2.(w) do
+        World.set_metamagic(caster_name, nil).(w)
+      end
+    end
+
+    {:ok,
+     "#{caster_name} conjura #{spell.name} (Metamagia: Twinned): " <>
+       "#{twin_block(caster_name, spell, target_name, msg1)}; " <>
+       "#{twin_block(caster_name, spell, twin_name, msg2)}.", change}
+  end
+
+  # Per-target block of a Twinned message: strip the shared
+  # "X conjura Y; " prefix (or "X conjura Y sobre <target>. ") so the outer
+  # message reads "en <target>: <resolution>".
+  defp twin_block(caster_name, spell, target_name, msg) do
+    prefix = "#{caster_name} conjura #{spell.name}"
+
+    body =
+      cond do
+        String.starts_with?(msg, prefix <> "; ") ->
+          msg
+          |> String.replace_prefix(prefix <> "; ", "")
+          |> String.replace_prefix("#{target_name} ", "")
+
+        String.starts_with?(msg, prefix <> " sobre ") ->
+          msg
+          |> String.replace_prefix(prefix <> " sobre ", "")
+          |> String.replace_prefix("#{target_name}. ", "")
+
+        true ->
+          msg
+      end
+      |> String.trim_trailing(".")
+
+    "en #{target_name}: #{body}"
+  end
+
+  defp resolve_save_spell(
+         c,
+         caster_name,
+         t,
+         target_name,
+         spell,
+         roller,
+         roll_log,
+         aura,
+         heightened?,
+         emp
+       ) do
+    dc = Combat.spell_save_dc(c, spell)
+    # D65 Heightened: the armed target's save enters as requested
+    # disadvantage (combines with conditions/Danger Sense via save_mode).
+    requested = if heightened?, do: :disadvantage, else: :normal
+    height_tag = if heightened?, do: " (Metamagia: Heightened)", else: ""
+    emp_tag = metamagic_tag(emp)
+
+    case Conditions.save_mode(t, spell.save_ability, requested) do
       :auto_fail ->
         {r2, close_dmg} =
           RollLog.open(
@@ -1608,11 +1906,11 @@ defmodule Dragonex.Actions do
             "daño de #{spell.name} (#{spell.damage_type})"
           )
 
-        full = dice_with(spell, r2)
+        full = dice_with(spell, r2, emp)
         RollLog.close(close_dmg, total: full, against: nil, outcome: nil)
 
         with_conc_damage(
-          "#{caster_name} conjura #{spell.name}; #{target_name} falla automáticamente la salvación de #{ability_es(spell.save_ability)} vs CD #{dc} — #{full} de daño #{spell.damage_type}.",
+          "#{caster_name} conjura #{spell.name}; #{target_name} falla automáticamente la salvación de #{ability_es(spell.save_ability)} vs CD #{dc}#{height_tag} — #{full} de daño #{spell.damage_type}#{emp_tag}.",
           target_name,
           full,
           roller,
@@ -1654,7 +1952,7 @@ defmodule Dragonex.Actions do
             "daño de #{spell.name} (#{spell.damage_type})"
           )
 
-        full = dice_with(spell, r2)
+        full = dice_with(spell, r2, emp)
         RollLog.close(close_dmg, total: full, against: nil, outcome: nil)
 
         # D59 Evasión: a rogue L7+ takes no damage on a successful DEX save
@@ -1676,21 +1974,21 @@ defmodule Dragonex.Actions do
         verdict =
           cond do
             success? and evasion? ->
-              "supera la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)} (Evasión: sin daño)"
+              "supera la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag} (Evasión: sin daño)"
 
             success? ->
-              "supera la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}, mitad de daño"
+              "supera la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag}, mitad de daño"
 
             evasion? ->
-              "falla la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)} (Evasión: mitad)"
+              "falla la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag} (Evasión: mitad)"
 
             true ->
-              "falla la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}"
+              "falla la salvación (d20 #{d20}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag}"
           end
 
         {:ok, msg, change} =
           with_conc_damage(
-            "#{caster_name} conjura #{spell.name}; #{target_name} #{verdict} — #{dmg} de daño #{spell.damage_type}.",
+            "#{caster_name} conjura #{spell.name}; #{target_name} #{verdict} — #{dmg} de daño #{spell.damage_type}#{emp_tag}.",
             target_name,
             dmg,
             roller,
@@ -1718,8 +2016,40 @@ defmodule Dragonex.Actions do
 
   defp clear_hidden_after_attack_spell(result, _name, false), do: result
 
-  defp dice_with(%{dice: nil}, _roller), do: 0
-  defp dice_with(%{dice: expr}, roller), do: Dice.roll_expr(expr, roller)
+  defp dice_with(%{dice: nil}, _roller, _emp), do: 0
+
+  defp dice_with(%{dice: expr}, roller, emp) when emp > 0,
+    do: empowered_roll(expr, roller, emp)
+
+  defp dice_with(%{dice: expr}, roller, _emp), do: Dice.roll_expr(expr, roller)
+
+  # D65 Empowered: the first `emp` dice of `NdM±K` roll twice keeping the
+  # higher (deterministic: two roller draws per boosted die); the rest and
+  # the flat modifier pass through unchanged.
+  defp empowered_roll(expr, roller, emp) do
+    {count, sides, mod} = parse_dice_expr(expr)
+
+    rolls =
+      for i <- 1..count do
+        if i <= emp, do: max(roller.(sides), roller.(sides)), else: roller.(sides)
+      end
+
+    Enum.sum(rolls) + mod
+  end
+
+  defp parse_dice_expr(expr) do
+    case Regex.run(~r/^(\d+)d(\d+)(?:([+-])(\d+))?$/, String.trim(expr)) do
+      [_, count, sides, sign, mod] ->
+        m = String.to_integer(mod)
+        {String.to_integer(count), String.to_integer(sides), if(sign == "-", do: -m, else: m)}
+
+      [_, count, sides] ->
+        {String.to_integer(count), String.to_integer(sides), 0}
+
+      _ ->
+        raise ArgumentError, "unparseable dice expression: #{inspect(expr)}"
+    end
+  end
 
   # D59 Evasión: rogue L7+ — no damage on a successful DEX save, half on a
   # failed one. The auto-fail conditions short-circuit DEX saves inside

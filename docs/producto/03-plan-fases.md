@@ -208,8 +208,8 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
   mutan (missing who, caído, no hechicero, L1, nivel inválido,
   puntos insuficientes, sin casillas); SOLO long rest rellena
   (`compose_long_rest`, distinto del ki D54); level-up no resetea
-  restante. Sin Metamagic, sorcerous restoration, casillas > 5º ni
-  gastar puntos en otras cosas.
+  restante. Sin sorcerous restoration ni casillas > 5º (el gasto de
+  puntos en Metamagic entró en D65).
 - **Cunning Action (Hide) del pícaro** (D57): **entregado.** Sin
   campos nuevos ("hidden" va en `conditions` vía `apply_condition`;
   M06 le añade ventaja al atacar junto a invisible); tool
@@ -328,12 +328,36 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
   daño): armada y amount > 0 → `div(amount, 2)` (floor) sobre el
   amount de entrada — antes de resistencias D38 y temp_hp D36 (orden
   fijado en D64) — y consume la flag; aplica a CUALQUIER fuente de
-  daño; amount ≤ 0 no consume; apila con Evasión D59 (mitad de mitad
-  = cuarto, floor); auto-revert D63 intacto (corre tras la
+  daño; amount ≤ 0 no consume; apila con Evasión D59 (mitad de mitad =
+  cuarto, floor); auto-revert D63 intacto (corre tras la
   mitigación); descansos NO gestionan la flag y rearmar tras consumir
   es gratis. Sin economía de reacción/ronda (1 uso por daño, no por
   ronda), resistencias dañinas (D38 es otro sistema), Deflect
   Missiles, feats, multiclase.
+- **Metamagic del hechicero** (D65): **entregado.** Un campo nuevo
+  (`Character.metamagic` nil | `%{option, target}` con Codec
+  tolerante a jsonb viejo), tool `arm_metamagic(who, option, target)`
+  (hechicero L3+, DM cualquiera, PC sólo sí mismo, UNA opción sin
+  un-arm ni reembolso, errores no mutan: who inexistente, caído, no
+  hechicero, L2–, opción desconocida, ya armada, puntos
+  insuficientes, heightened sin target, twinned sin target /
+  inexistente / self); armar gasta 1/3/2 puntos de hechicería (D56) y
+  fija el mapa; la aplicación y el consumo viven SÓLO en
+  `Actions.spell/5` → `resolve_spell`: Empowered (los primeros
+  `max(1, CAR)` dados de daño se tiran dos veces conservando el mayor,
+  dos draws del roller por dado, crit dobla la base sin duplicar
+  rerolls, fallo de :attack también consume, curación/utilidad nunca
+  califican, etiqueta en el desglose), Heightened (hechizo :save al
+  target armado → desventaja como `requested` en `save_mode`,
+  combinada por capas con Danger Sense/Evasión/auras; otro objetivo no
+  aplica ni consume) y Twinned (hechizo contra target ≠ lanzador → la
+  misma resolución contra el segundo target armado con dados propios,
+  mensaje en bloque por objetivo, UNA casilla y UNA concentración;
+  self-buff no aplica ni consume); consumo-on-apply (divergencia
+  menor de RAW documentada en el ADR); rests y level-up NO tocan la
+  metamagia (los puntos ya se recargan en long rest). Sin Quickened,
+  Distant, Extended, Subtle, Careful (sin efecto en este motor),
+  Sorcerous Restoration, Metamagic Adept, feats, multiclase.
 - **Multiclase**: fuera del builder actual por diseño; implicaría rehacer
   progression.
 - **Marketplace de contenido custom** (D22): compartir entre usuarios.
