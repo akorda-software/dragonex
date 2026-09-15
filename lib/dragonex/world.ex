@@ -14,6 +14,9 @@ defmodule Dragonex.World do
     * typed damage is scaled by immunity/resistance/vulnerability first (D38),
       then hits `temp_hp`, remainder to `hp` (D36); `temp_hp` never negative,
     * untyped damage (`apply_damage/2` or empty type) is flat — no resist math,
+    * damage taken while already at 0 hp registers death-save failures
+      (RAW: 1 per hit, 2 on a crit; `apply_damage/5` opts) — the hit that
+      merely DROPS you to 0 registers none,
     * you can't damage/heal a missing character,
     * `begin_combat` requires the exploration phase and known combatants,
     * the death-save tracker resolves dead (3 fails) / stable (3 successes) /
@@ -323,7 +326,15 @@ defmodule Dragonex.World do
           (pos_integer() -> pos_integer()) | nil
         ) ::
           (t() -> {:ok, t()} | {:error, String.t()})
-  def apply_damage(target, amount, type \\ nil, roller \\ nil) do
+  @spec apply_damage(
+          String.t(),
+          integer(),
+          String.t() | nil,
+          (pos_integer() -> pos_integer()) | nil,
+          keyword()
+        ) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def apply_damage(target, amount, type \\ nil, roller \\ nil, opts \\ []) do
     fn w ->
       case character(w, target) do
         nil ->
@@ -375,13 +386,22 @@ defmodule Dragonex.World do
 
             {:ok, %{w | log: log(w, "dm", msg)}}
           else
+            downed? = (c.hp || 0) <= 0
+
             {updated, rr_note} =
               maybe_relentless_rage(%{c | hp: new_hp, temp_hp: new_temp}, target, w, roller)
 
             {updated, re_note} = maybe_relentless(updated, target)
             updated = clear_drop_flags(updated, updated.hp)
 
-            case join_notes([rr_note, re_note]) do
+            # RAW: damage taken WHILE already at 0 hp registers death-save
+            # failures (the hit that DROPS you to 0 does not — the layer
+            # order keeps Relentless Rage/Endurance ahead: they leave the
+            # character at 1 hp and no fail is registered).
+            {updated, df_note} =
+              maybe_death_save_fail(updated, target, downed? and rest > 0, opts)
+
+            case join_notes([rr_note, re_note, df_note]) do
               "" -> {:ok, put_char(w, target, updated)}
               notes -> {:ok, %{put_char(w, target, updated) | log: log(w, "dm", notes)}}
             end
@@ -453,6 +473,32 @@ defmodule Dragonex.World do
   end
 
   defp maybe_relentless(%Character{} = c, _name), do: {c, nil}
+
+  # RAW death saves: damage taken WHILE already at 0 hp registers failures
+  # in the death-save tracker — one per hit, TWO when the hit was a critical
+  # (`opts[:crit]`). Runs as the LAST layer of `apply_damage` (after D72/D67:
+  # a Relentless save leaves the character at 1 hp and nothing registers).
+  # The 3rd failure just accumulates — death is `dead?/2` (fails >= 3), the
+  # existing vía. `opts[:death_fail] == false` skips registration (the smite
+  # pipe uses it: the weapon damage of the SAME hit already registered).
+  # Massive-damage insta-death is deliberately OUT of scope.
+  defp maybe_death_save_fail(%Character{} = c, _name, false, _opts), do: {c, nil}
+
+  defp maybe_death_save_fail(%Character{hp: hp, death_saves: saves} = c, name, true, opts)
+       when hp <= 0 do
+    if (saves.fails || 0) >= 3 or Keyword.get(opts, :death_fail, true) == false do
+      {c, nil}
+    else
+      crit? = Keyword.get(opts, :crit, false)
+      delta = if crit?, do: 2, else: 1
+
+      {%{c | death_saves: %{saves | fails: saves.fails + delta}},
+       "#{name} recibe daño estando caído: " <>
+         if(crit?, do: "dos fallos", else: "un fallo") <> " de salvación de muerte"}
+    end
+  end
+
+  defp maybe_death_save_fail(%Character{} = c, _name, _downed_hit?, _opts), do: {c, nil}
 
   @doc """
   Grant temporary hit points (5e, D36). Does not stack: the character keeps

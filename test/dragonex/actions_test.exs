@@ -281,6 +281,112 @@ defmodule Dragonex.ActionsTest do
     end
   end
 
+  describe "attack vs objetivo caído (death saves RAW)" do
+    # Antes: atacar a un caído se cortaba antes de tirar (0 golpes, 0 daño,
+    # 0 fallos). RAW: se puede atacar a un caído y cada golpe con daño
+    # restante registra fallos de salvación de muerte.
+    setup do
+      f = Archetypes.fighter()
+
+      downed =
+        Character.new(
+          name: "goblin",
+          class: "monster",
+          hp: 0,
+          max_hp: 40,
+          ac: 12,
+          side: "enemy",
+          death_saves: %{successes: 0, fails: 0}
+        )
+
+      world =
+        World.new()
+        |> then_apply(World.add_character(f))
+        |> then_apply(World.add_character(downed))
+
+      {:ok, world: world}
+    end
+
+    test "golpear a un caído registra 1 fallo de muerte", %{world: w} do
+      # longsword +5 (FUE 3 + prof 2): d20 10 → 15 vs CA 12 acierta; 1d8=4
+      # +3 = 7 de daño (restante > 0 con hp 0).
+      assert {:ok, msg, change} = Actions.attack(w, "Thane", "goblin", "longsword", seq([10, 4]))
+      assert msg =~ "acierta"
+
+      {:ok, w2} = change.(w)
+      assert w2.characters["goblin"].hp == 0
+      assert w2.characters["goblin"].death_saves.fails == 1
+    end
+
+    test "crítico a un caído registra 2 fallos (dados doblados)", %{world: w} do
+      assert {:ok, msg, change} =
+               Actions.attack(w, "Thane", "goblin", "longsword", seq([20, 4, 4]))
+
+      assert msg =~ "CRÍTICO"
+
+      {:ok, w2} = change.(w)
+      assert w2.characters["goblin"].death_saves.fails == 2
+    end
+
+    test "fallo no registra fallos de muerte", %{world: w} do
+      assert {:ok, _, change} = Actions.attack(w, "Thane", "goblin", "longsword", always(1))
+      {:ok, w2} = change.(w)
+      assert w2.characters["goblin"].death_saves.fails == 0
+    end
+
+    test "secuencia hasta la muerte: 3 golpes mortales", %{world: w} do
+      {:ok, _, c1} = Actions.attack(w, "Thane", "goblin", "longsword", seq([10, 4]))
+      {:ok, w} = c1.(w)
+      assert w.characters["goblin"].death_saves.fails == 1
+
+      {:ok, _, c2} = Actions.attack(w, "Thane", "goblin", "longsword", seq([10, 4]))
+      {:ok, w} = c2.(w)
+      assert w.characters["goblin"].death_saves.fails == 2
+      refute World.dead?(w, "goblin")
+
+      {:ok, _, c3} = Actions.attack(w, "Thane", "goblin", "longsword", seq([10, 4]))
+      {:ok, w} = c3.(w)
+      assert World.dead?(w, "goblin")
+    end
+
+    test "Extra Attack vs caído: cada golpe del golpe múltiple suma su fallo", %{world: w} do
+      f = %{Archetypes.fighter() | level: 5}
+
+      w =
+        World.new()
+        |> then_apply(World.add_character(f))
+        |> then_apply(World.add_character(w.characters["goblin"]))
+
+      assert {:ok, msg, change} =
+               Actions.attack(w, "Thane", "goblin", "longsword", seq([10, 4, 10, 4]))
+
+      assert msg =~ "2 golpes"
+      {:ok, w2} = change.(w)
+      assert w2.characters["goblin"].death_saves.fails == 2
+    end
+
+    test "bajar al objetivo a mitad de la acción sigue saltando golpes restantes", %{world: w} do
+      up = %{w.characters["goblin"] | hp: 10}
+      f = %{Archetypes.fighter() | level: 5}
+
+      w =
+        World.new()
+        |> then_apply(World.add_character(f))
+        |> then_apply(World.add_character(up))
+
+      # Golpe 1: d20 20 crítico, 2d8 8+8 +FUE 3 = 19 → baja de 10 a 0. El
+      # golpe 2 se salta (sin retarget). El daño que TE BAJA a 0 NO registra
+      # fallos (RAW: sólo el daño recibido MIENTRAS estás a 0 pg).
+      assert {:ok, msg, change} =
+               Actions.attack(w, "Thane", "goblin", "longsword", seq([20, 8, 8, 10, 4]))
+
+      refute msg =~ "2 golpes"
+      {:ok, w2} = change.(w)
+      assert w2.characters["goblin"].hp == 0
+      assert w2.characters["goblin"].death_saves.fails == 0
+    end
+  end
+
   describe "initiative/2" do
     test "orders by d20+dex desc and begins combat" do
       f = Archetypes.fighter()

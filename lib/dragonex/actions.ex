@@ -70,10 +70,13 @@ defmodule Dragonex.Actions do
   Resolve a weapon Attack action: N attack rolls (with crit/fumble) against
   the same target, then damage on each hit. N comes from
   `Progression.attack_count/2` (Extra Attack 5e, D35). If the target drops
-  (hp ≤ 0) mid-action, remaining swings are skipped (no retarget). The
+  (hp ≤ 0) mid-action, remaining swings are skipped (no retarget); a target
+  that is ALREADY downed CAN be attacked (RAW: each hit with damage
+  registers death-save failures — `World.apply_damage/5`). The
   attacker and target must already be in the world, and the attacker must
-  wield the named weapon. Sneak Attack (D41) adds N d6 to the first hit
-  of this call when the rogue qualifies.   Rage (D42) adds
+  wield the named weapon. Melee hits vs a `paralyzed`/`unconscious`
+  target are automatic criticals (RAW). Sneak Attack (D41) adds N d6 to
+  the first hit of this call when the rogue qualifies.   Rage (D42) adds
   `Progression.rage_damage/1` to every melee hit (`weapon.ranged != true`)
   while the attacker is raging. Divine Smite (D46) spends a pending
   `smite_slot` on the first melee hit (or crit) of this call: extra
@@ -2576,7 +2579,11 @@ defmodule Dragonex.Actions do
       Enum.reduce_while(1..n, {[], t.hp, sneak, smite, inspired?}, fn _i,
                                                                       {acc, hp, sneak_left,
                                                                        smite_left, inspired_left} ->
-        if hp <= 0 do
+        # A target that DROPS mid-action stops the remaining swings (no
+        # retarget) — but a target that was ALREADY downed when the action
+        # started keeps receiving every swing (RAW: you can attack a dying
+        # creature; each hit registers death-save fails via apply_damage).
+        if hp <= 0 and t.hp > 0 do
           {:halt, {acc, hp, sneak_left, smite_left, inspired_left}}
         else
           swing =
@@ -2612,6 +2619,19 @@ defmodule Dragonex.Actions do
   defp target_ac(%Character{fighting_style: "defense", ac: ac}), do: ac + 1
   defp target_ac(%Character{ac: ac}), do: ac
 
+  # RAW auto-crit vs incapacitating conditions: a melee HIT against a
+  # paralyzed or unconscious target is a critical (doubled damage dice —
+  # the :crit flows into Combat.damage_roll_tagged). Ranged attacks and
+  # misses never upgrade; nat 20 was already :crit.
+  defp auto_crit_vs_incapacitated(:hit, %Character{} = t, %Weapon{ranged: ranged})
+       when ranged != true do
+    conds = Character.condition_names(t)
+
+    if "paralyzed" in conds or "unconscious" in conds, do: :crit, else: :hit
+  end
+
+  defp auto_crit_vs_incapacitated(kind, _t, _weapon), do: kind
+
   defp resolve_one_swing(
          a,
          t,
@@ -2638,6 +2658,11 @@ defmodule Dragonex.Actions do
     ac = target_ac(t)
     {kind, d20, total, lucky} = Combat.attack_roll_tagged(a, weapon, ac, r, mode)
     {kind, total, bardic} = apply_inspired_attack(inspired?, kind, d20, total, ac, r)
+    # RAW: any attack that HITS a paralyzed/unconscious target from within
+    # 5 ft is a critical hit. The engine has no positioning, so the proxy
+    # is melee weapons; the advantage those conditions grant (attack_mode)
+    # is unchanged. Misses stay misses.
+    kind = auto_crit_vs_incapacitated(kind, t, weapon)
     RollLog.close(close_atk, total: total, against: {:ac, ac}, outcome: kind)
 
     case kind do
@@ -2723,9 +2748,15 @@ defmodule Dragonex.Actions do
     "#{verb} (d20 #{d20}#{lucky_tag(s)}: #{total} vs CA #{ac}) por #{dmg} de daño #{weapon.damage_type}#{savage_tag(s)}#{sneak_tag(s)}#{rage_tag(s)}#{mark_tag(s)}#{smite_tag(s)}#{bardic_tag(s)}"
   end
 
-  defp swing_amounts(swings), do: for(%{dmg: dmg} <- swings, dmg > 0, do: dmg)
+  # Amounts carry the per-hit damage opts for `World.apply_damage/5`: weapon
+  # swings pass their crit flag (RAW: a critical registers TWO death-save
+  # fails on a downed target); the smite pipe passes `death_fail: false`
+  # (the weapon damage of the SAME hit already registered it).
+  defp swing_amounts(swings),
+    do: for(%{dmg: dmg, kind: k} <- swings, dmg > 0, do: {dmg, [crit: k == :crit]})
 
-  defp smite_amounts(swings), do: for(%{smite: n} <- swings, n > 0, do: n)
+  defp smite_amounts(swings),
+    do: for(%{smite: n} <- swings, n > 0, do: {n, [death_fail: false]})
 
   defp pipe_attack_damage(target, swings, roller, roll_log, char, weapon_type, aura) do
     {weapon_notes, weapon_change, char_after} =
@@ -2783,86 +2814,121 @@ defmodule Dragonex.Actions do
   # D68: pipe_damage threads the simulated character through each amount's
   # concentration save, so a reroll that spent Indomitable blocks a second
   # reroll on the next hit of the same action.
+  #
+  # Amounts are `{amount, damage_opts}` pairs for `World.apply_damage/5`
+  # (crit flag / death_fail skip — see swing_amounts); a bare integer rides
+  # with default opts (spells and friends). A target that was already DOWN
+  # when the pipe started keeps taking every amount (RAW: damage at 0 hp
+  # registers death-save fails); one that drops mid-pipe stops the rest (no
+  # retarget) — `char` is the target at the pipe's start.
   defp pipe_damage(_target, [], _roller, _roll_log, char, _type, _aura), do: {[], noop(), char}
 
   defp pipe_damage(target, amounts, roller, roll_log, char, type, aura) do
-    amounts = Enum.filter(amounts, &(&1 > 0))
+    amounts =
+      amounts
+      |> Enum.map(fn
+        {amount, opts} when is_integer(amount) and is_list(opts) -> {amount, opts}
+        amount when is_integer(amount) -> {amount, []}
+      end)
+      |> Enum.filter(fn {amount, _opts} -> amount > 0 end)
 
     {pairs, final_char} =
-      Enum.map_reduce(amounts, char, fn amount, c ->
+      Enum.map_reduce(amounts, char, fn {amount, dmg_opts}, c ->
         {note, break?, c2, clear_inspired?, mark_indomitable?} =
           one_hit_concentration(c, amount, roller, roll_log, type, aura)
 
-        {{note, break?, clear_inspired?, mark_indomitable?}, c2}
+        {{note, break?, clear_inspired?, mark_indomitable?, dmg_opts}, c2}
       end)
 
     notes = pairs |> Enum.map(&elem(&1, 0)) |> Enum.reject(&is_nil/1)
 
     flags =
-      Enum.map(pairs, fn {_, break?, clear_inspired?, mark_indomitable?} ->
+      Enum.map(pairs, fn {_, break?, clear_inspired?, mark_indomitable?, _dmg_opts} ->
         {break?, clear_inspired?, mark_indomitable?}
       end)
 
+    started_up? = (char.hp || 0) > 0
+
     change = fn w ->
-      Enum.reduce_while(Enum.zip(amounts, flags), {:ok, w}, fn {amount,
-                                                                {break?, clear_inspired?,
-                                                                 mark_indomitable?}},
-                                                               {:ok, acc} ->
-        case World.character(acc, target) do
-          %Character{hp: hp} when hp <= 0 ->
-            {:halt, {:ok, acc}}
+      Enum.reduce_while(
+        Enum.zip(amounts, flags),
+        {:ok, w},
+        fn {{amount, dmg_opts}, {break?, clear_inspired?, mark_indomitable?}}, {:ok, acc} ->
+          case World.character(acc, target) do
+            %Character{hp: hp} when hp <= 0 and not started_up? ->
+              # Already down when the pipe started: keep applying (RAW —
+              # each hit registers death-save fails in apply_damage).
+              apply_pipe_amount(target, amount, type, roller, dmg_opts, acc, %{
+                break?: break?,
+                clear_inspired?: clear_inspired?,
+                mark_indomitable?: mark_indomitable?
+              })
 
-          %Character{} ->
-            # D72: the roller threads through so a raging barbarian L11+
-            # takes the Relentless Rage save with the SAME deterministic
-            # roller as the rest of the action.
-            case World.apply_damage(target, amount, type, roller).(acc) do
-              {:ok, next} ->
-                next =
-                  if break? do
-                    case World.clear_concentration(target).(next) do
-                      {:ok, cleared} -> cleared
-                      _ -> next
-                    end
-                  else
-                    next
-                  end
+            %Character{hp: hp} when hp <= 0 ->
+              # Dropped mid-pipe: stop the rest (no retarget).
+              {:halt, {:ok, acc}}
 
-                next =
-                  if clear_inspired? do
-                    case World.set_inspired(target, false).(next) do
-                      {:ok, cleared} -> cleared
-                      _ -> next
-                    end
-                  else
-                    next
-                  end
+            %Character{} ->
+              apply_pipe_amount(target, amount, type, roller, dmg_opts, acc, %{
+                break?: break?,
+                clear_inspired?: clear_inspired?,
+                mark_indomitable?: mark_indomitable?
+              })
 
-                # D68: the Indomitable reroll spent the flag for this
-                # long-rest cycle.
-                next =
-                  if mark_indomitable? do
-                    case World.set_indomitable(target, true).(next) do
-                      {:ok, marked} -> marked
-                      _ -> next
-                    end
-                  else
-                    next
-                  end
-
-                {:cont, {:ok, next}}
-
-              error ->
-                {:halt, error}
-            end
-
-          nil ->
-            {:halt, {:error, "no such character: #{target}"}}
+            nil ->
+              {:halt, {:error, "no such character: #{target}"}}
+          end
         end
-      end)
+      )
     end
 
     {notes, change, final_char}
+  end
+
+  # One amount of the damage pipe: apply_damage + the concentration /
+  # inspired / Indomitable side effects the simulation flagged.
+  defp apply_pipe_amount(target, amount, type, roller, dmg_opts, acc, flags) do
+    # D72: the roller threads through so a raging barbarian L11+ takes the
+    # Relentless Rage save with the SAME deterministic roller as the rest
+    # of the action.
+    case World.apply_damage(target, amount, type, roller, dmg_opts).(acc) do
+      {:ok, next} ->
+        next =
+          if flags.break? do
+            case World.clear_concentration(target).(next) do
+              {:ok, cleared} -> cleared
+              _ -> next
+            end
+          else
+            next
+          end
+
+        next =
+          if flags.clear_inspired? do
+            case World.set_inspired(target, false).(next) do
+              {:ok, cleared} -> cleared
+              _ -> next
+            end
+          else
+            next
+          end
+
+        # D68: the Indomitable reroll spent the flag for this long-rest cycle.
+        next =
+          if flags.mark_indomitable? do
+            case World.set_indomitable(target, true).(next) do
+              {:ok, marked} -> marked
+              _ -> next
+            end
+          else
+            next
+          end
+
+        {:cont, {:ok, next}}
+
+      error ->
+        {:halt, error}
+    end
   end
 
   defp one_hit_concentration(

@@ -19,6 +19,67 @@ defmodule Dragonex.WorldTest do
     new_world
   end
 
+  describe "apply_damage vs caído (death saves, RAW)" do
+    setup do
+      downed =
+        Character.new(
+          name: "goblin",
+          class: "monster",
+          hp: 0,
+          max_hp: 7,
+          side: "enemy",
+          death_saves: %{successes: 0, fails: 0}
+        )
+
+      {:ok, w: apply!(World.new(), World.add_character(downed))}
+    end
+
+    test "daño a un caído registra 1 fallo de salvación de muerte", %{w: w} do
+      w = apply!(w, World.apply_damage("goblin", 5))
+      assert w.characters["goblin"].hp == 0
+      assert w.characters["goblin"].death_saves.fails == 1
+      assert Enum.any?(w.log, fn {_a, e} -> e =~ "fallo de salvación de muerte" end)
+    end
+
+    test "daño de un golpe crítico registra 2 fallos", %{w: w} do
+      w = apply!(w, World.apply_damage("goblin", 5, nil, nil, crit: true))
+      assert w.characters["goblin"].death_saves.fails == 2
+    end
+
+    test "daño 0 tras capas (absorbido por temp_hp) no registra fallos", %{w: w} do
+      w = apply!(w, World.apply_temp_hp("goblin", 4))
+      w = apply!(w, World.apply_damage("goblin", 4))
+      assert w.characters["goblin"].temp_hp == 0
+      assert w.characters["goblin"].death_saves.fails == 0
+    end
+
+    test "al 3er fallo el personaje muere por la vía existente", %{w: w} do
+      w = apply!(w, World.apply_damage("goblin", 5))
+      w = apply!(w, World.apply_damage("goblin", 5))
+      refute World.dead?(w, "goblin")
+      w = apply!(w, World.apply_damage("goblin", 5))
+      assert World.dead?(w, "goblin")
+    end
+
+    test "un muerto (3 fallos) no acumula más fallos", %{w: w} do
+      w = apply!(w, World.apply_damage("goblin", 5))
+      w = apply!(w, World.apply_damage("goblin", 5))
+      w = apply!(w, World.apply_damage("goblin", 5))
+      assert World.dead?(w, "goblin")
+
+      w = apply!(w, World.apply_damage("goblin", 5))
+      assert w.characters["goblin"].death_saves.fails == 3
+    end
+
+    test "daño a un caído CON pg positivo no toca el tracker", %{w: w} do
+      w = apply!(w, World.heal("goblin", 5))
+      assert w.characters["goblin"].hp == 5
+      w = apply!(w, World.apply_damage("goblin", 3))
+      assert w.characters["goblin"].hp == 2
+      assert w.characters["goblin"].death_saves.fails == 0
+    end
+  end
+
   describe "add_character/1" do
     test "adds the character and logs its arrival" do
       w = World.new() |> apply!(World.add_character(goblin(7)))

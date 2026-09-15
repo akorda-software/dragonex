@@ -279,6 +279,54 @@ defmodule Dragonex.ConditionsTest do
     end
   end
 
+  describe "auto-crítico melee vs paralizado/inconsciente (RAW)" do
+    test "un golpe melee que acierta sale CRÍTICO (dados doblados)" do
+      for condition <- ~w(paralyzed unconscious) do
+        w = world_with_fighter_and_goblin()
+        # Goblin con pg de sobra: el crítico doblado (11) no lo tuna a 0.
+        big = %{w.characters["goblin"] | hp: 30, max_hp: 30}
+        w = %{w | characters: Map.put(w.characters, "goblin", big)}
+        {:ok, w} = World.apply_condition("goblin", condition).(w)
+
+        # Ventaja (condición) → dos d20; 10+prof 2+FUE 3 = 15 vs CA 15 →
+        # acierta (no nat 20) → RAW: crítico automático → 2d8 doblados.
+        {:ok, msg, change} =
+          Actions.attack(w, "hero", "goblin", "longsword", seq([10, 10, 4, 4]))
+
+        assert msg =~ "CRÍTICO", "esperado auto-crítico vs #{condition}"
+
+        {:ok, w2} = change.(w)
+        # 4+4 doblados + FUE 3 = 11 (sin auto-crítico sería 4+3 = 7).
+        assert w2.characters["goblin"].hp == 30 - 11
+      end
+    end
+
+    test "un arma A DISTANCIA no auto-critica (RAW: sólo melee adyacente)" do
+      w = world_with_fighter_and_goblin()
+      {:ok, w} = World.apply_condition("hero", "paralyzed").(w)
+
+      # Ventaja vs el paralizado → DOS d20 (15, 15); 15+DES 2+prof 2 = 19 vs
+      # CA 16 → acierta; 1d6 SIN doblar (6) + 2 = 8.
+      {:ok, msg, change} = Actions.attack(w, "goblin", "hero", "shortbow", seq([15, 15, 6]))
+
+      refute msg =~ "CRÍTICO"
+      {:ok, w2} = change.(w)
+      assert w2.characters["hero"].hp == 12 - 8
+    end
+
+    test "un fallo sigue siendo fallo (no auto-crítico)" do
+      w = world_with_fighter_and_goblin()
+      {:ok, w} = World.apply_condition("goblin", "paralyzed").(w)
+
+      # d20 2 y 2 (ventaja) + 5 = 7 vs CA 15 → fallo: nada de daño.
+      {:ok, msg, change} = Actions.attack(w, "hero", "goblin", "longsword", seq([2, 2]))
+
+      assert msg =~ "fallo"
+      {:ok, w2} = change.(w)
+      assert w2.characters["goblin"].hp == 7
+    end
+  end
+
   defp seq(values) do
     Process.put(:seq, values)
 
