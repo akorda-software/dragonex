@@ -70,6 +70,13 @@ defmodule Dragonex.Character do
     # D70 Breath Weapon: true = ya usado desde el último descanso (short Y
     # long recargan, como ki D54; Actions.breath_weapon lo gasta).
     field(:breath_weapon_used, :boolean, default: false)
+    # D72 Usos de Furia: furias ya gastadas desde el último descanso largo
+    # (World.start_rage/1 las gasta al entrar; sólo long_rest recarga).
+    field(:rage_uses_used, :integer, default: 0)
+    # D72 Furia implacable: éxitos acumulados desde el último descanso largo
+    # — cada éxito sube la CD del siguiente intento (10 + 5 × successes);
+    # World.apply_damage/4 la incrementa al salvar al bárbaro a 1 pg.
+    field(:relentless_rage_successes, :integer, default: 0)
     field(:damage_resistances, {:array, :string}, default: [])
     field(:damage_vulnerabilities, {:array, :string}, default: [])
     field(:damage_immunities, {:array, :string}, default: [])
@@ -142,6 +149,8 @@ defmodule Dragonex.Character do
         :indomitable_used,
         :metamagic,
         :breath_weapon_used,
+        :rage_uses_used,
+        :relentless_rage_successes,
         :damage_resistances,
         :damage_vulnerabilities,
         :damage_immunities,
@@ -185,6 +194,8 @@ defmodule Dragonex.Character do
     |> Ecto.Changeset.validate_number(:ki, greater_than_or_equal_to: 0)
     |> Ecto.Changeset.validate_number(:sorcery_points, greater_than_or_equal_to: 0)
     |> Ecto.Changeset.validate_number(:wild_shape_uses, greater_than_or_equal_to: 0)
+    |> Ecto.Changeset.validate_number(:rage_uses_used, greater_than_or_equal_to: 0)
+    |> Ecto.Changeset.validate_number(:relentless_rage_successes, greater_than_or_equal_to: 0)
     |> validate_abilities()
   end
 
@@ -239,6 +250,8 @@ defmodule Dragonex.Character do
       indomitable_used: false,
       metamagic: nil,
       breath_weapon_used: false,
+      rage_uses_used: 0,
+      relentless_rage_successes: 0,
       damage_resistances: [],
       damage_vulnerabilities: [],
       damage_immunities: [],

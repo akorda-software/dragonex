@@ -133,6 +133,8 @@ defmodule Dragonex.Codec do
       "indomitable_used" => c.indomitable_used == true,
       "metamagic" => encode_metamagic(c.metamagic),
       "breath_weapon_used" => c.breath_weapon_used == true,
+      "rage_uses_used" => c.rage_uses_used || 0,
+      "relentless_rage_successes" => c.relentless_rage_successes || 0,
       "damage_resistances" => c.damage_resistances || [],
       "damage_vulnerabilities" => c.damage_vulnerabilities || [],
       "damage_immunities" => c.damage_immunities || [],
@@ -195,6 +197,8 @@ defmodule Dragonex.Codec do
       indomitable_used: c["indomitable_used"] == true,
       metamagic: decode_metamagic(c["metamagic"]),
       breath_weapon_used: c["breath_weapon_used"] == true,
+      rage_uses_used: decode_rage_uses_used(c["rage_uses_used"]),
+      relentless_rage_successes: decode_relentless_rage_successes(c["relentless_rage_successes"]),
       damage_resistances: c["damage_resistances"] || [],
       damage_vulnerabilities: c["damage_vulnerabilities"] || [],
       damage_immunities: c["damage_immunities"] || [],
@@ -316,6 +320,13 @@ defmodule Dragonex.Codec do
 
   defp decode_wild_shape_uses(n) when is_integer(n) and n >= 0, do: n
   defp decode_wild_shape_uses(_), do: 0
+
+  # D72: jsonb viejo/ausente/malformado → 0 (patrón decode_ki).
+  defp decode_rage_uses_used(n) when is_integer(n) and n >= 0, do: n
+  defp decode_rage_uses_used(_), do: 0
+
+  defp decode_relentless_rage_successes(n) when is_integer(n) and n >= 0, do: n
+  defp decode_relentless_rage_successes(_), do: 0
 
   # D63 Wild Shape: atom keys in memory, string keys in the stored map.
   # nil (or anything malformed / absent in an old jsonb) → forma normal.

@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **1409 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **1429 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -45,9 +45,14 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
    :save y `turn_undead`; inyectada como fuente extra en
    `Conditions.save_mode/4`, `combine/2` la cancela contra Heightened
    D65/condiciones; etiqueta "(Astucia gnoma: ventaja)"; sin campos ni
-   rests). Aliento de dragón del dragontino D70/M54: rasgo racial CON tool
-   y campo `breath_weapon_used` — ver `Actions.breath_weapon` y la tool
-   `breath_weapon` más abajo.
+    rests). Aliento de dragón del dragontino D70/M54: rasgo racial CON tool
+    y campo `breath_weapon_used` — ver `Actions.breath_weapon` y la tool
+    `breath_weapon` más abajo. Usos de Furia + Furia implacable del
+    bárbaro D72/M56: `start_rage` gasta (`rage_uses_used`, tope
+    `Progression.rage_count/1`, recarga sólo en long rest) y al caer a
+    0 pg en furia un bárbaro L11+ salva CON vs `10 + 5 × éxitos`
+    (`relentless_rage_successes`, aura D61 suma) para quedarse a 1 —
+    ver más abajo.
  - `Actions` — puente intent→world (`attack` con Extra Attack 5e / D35,
        Sneak Attack D41, Rage D42 y Divine Smite D46, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57, Danger Sense D58 y Evasión D59 (pasivas del motor en salvaciones), auras de paladín D61/D62 (pasivas: +CHA a salvaciones del side, inmunidad al miedo), Uncanny Dodge D64 (postura armable que mitiga el próximo daño), Metamagic D65 (armable: Empowered/Heightened/Twinned aplicadas y consumidas por el próximo hechizo que califique), `spell` automatic/attack/save + consumo de slot, False Life → temp_hp D36,
     concentración D37, resist/vuln/immune D38, `initiative`, `death_save`, `heal`,
@@ -434,9 +439,30 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
         2d6 añade 1d6, no otra tirada completa; nunca doblado); NO a
         distancia, hechizos ni no-críticos; apila con sneak D41 / smite
         D46 / mark D55 / rage D42; el golpe sin armas de Flurry D54
-        también aplica; desglose " (+N Savage)" en el swing (patrón
-        sneak). Sin Darkvision, feats, multiclase.
- - ✅ XP 5e en partida (D43): `World.grant_xp/2` + tool `grant_xp` (DM).
+         también aplica; desglose " (+N Savage)" en el swing (patrón
+         sneak). Sin Darkvision, feats, multiclase.
+      - ✅ Usos de Furia + Furia implacable del bárbaro (D72 / M56):
+         `Character.rage_uses_used` y `relentless_rage_successes`
+         (integer default 0, Codec tolerante a jsonb viejo) +
+         `Progression.rage_count/1` (L1–2 2, L3–5 3, L6–11 4, L12–16 5,
+         L17+ 6). `World.start_rage/1` exige usos disponibles ("no le
+         quedan furias hoy (N/N usadas)" sin mutar) y gasta 1 al ENTRAR;
+         `end_rage` NO devuelve el uso; ya raging → idempotente sin
+         gasto extra; sólo `long_rest` recarga. Furia implacable: hook
+         `maybe_relentless_rage/4` en `World.apply_damage/4` (nuevo
+         parámetro opcional `roller`, hilvanado por
+         `Actions.pipe_damage`), bárbaro L11+ raging a 0 pg →
+         salvación CON vs `10 + 5 × successes` vía
+         `Rules.Combat.saving_throw` (prof de CON + Lucky D66) + aura
+         D61 (`World.aura_save_bonus/2`, movida de Actions); éxito →
+         1 pg, successes+1 y nota en el log del world (sin RollLog a
+         esa profundidad — la nota ES el registro); fallo → cae al
+         siguiente check (RE racial D67 si semi-orco: ambas capas, el
+         éxito de clase no consume la racial); orden de capas fijado
+         Uncanny Dodge → resist → temp_hp → hp → revert → Furia
+         implacable → RE. Sin duración/reloj, bonus action, Paths,
+         Persistent Rage L20, feats, multiclase.
+  - ✅ XP 5e en partida (D43): `World.grant_xp/2` + tool `grant_xp` (DM).
   Suma XP; no auto-level-up. Subida explícita (ficha / `level_up`).
   D10 SUPERSEDED. Sin calculadora CR/encuentro.
 
@@ -448,7 +474,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 |---|---|---|
 | Dotes | Fuera; ASI = +2 fijo | D13 |
 | `spells_known` | `nil` (sin cap estricto por clase) | D14 |
-| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + Fighting Style D48 + Lay on Hands D49 + Bardic Inspiration D50 + Arcane Recovery D51 + Divine Sense D52 + Turn Undead D53 + Ki/Flurry of Blows D54 + Hunter's Mark D55 + Font of Magic D56 + Cunning Action Hide D57 + Danger Sense D58 + Evasión D59 + Jack of All Trades D60 + Aura of Protection D61 + Aura of Courage D62 + Wild Shape D63 + Uncanny Dodge D64 + Metamagic D65 + Indomitable D68 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47, D48, D49, D50, D51, D52, D53, D54, D55, D56, D57, D58, D59, D60, D61, D62, D63, D64, D65, D68 |
+| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 (+ usos/Furia implacable D72) + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + Fighting Style D48 + Lay on Hands D49 + Bardic Inspiration D50 + Arcane Recovery D51 + Divine Sense D52 + Turn Undead D53 + Ki/Flurry of Blows D54 + Hunter's Mark D55 + Font of Magic D56 + Cunning Action Hide D57 + Danger Sense D58 + Evasión D59 + Jack of All Trades D60 + Aura of Protection D61 + Aura of Courage D62 + Wild Shape D63 + Uncanny Dodge D64 + Metamagic D65 + Indomitable D68 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47, D48, D49, D50, D51, D52, D53, D54, D55, D56, D57, D58, D59, D60, D61, D62, D63, D64, D65, D68, D72 |
 | Rasgos raciales | Lucky D66 + Resistencia implacable D67 + Savage Attacks D69 + Astucia gnoma D71 (automáticos, sin tool) + Aliento de dragón D70 (tool racial); Brave, Halfling Nimbleness, Darkvision y demás 🟡 | D66, D67, D69, D70, D71 |
 | Empate iniciativa | DEX score desc, luego nombre; sin roll-off extra | D39 |
 | Banner level-up in-game | Eliminado (D33); subida desde la ficha | D33 |

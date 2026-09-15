@@ -121,7 +121,8 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
 - **Rage del bárbaro** (D42): **entregado.** `Character.raging` + Codec;
   bonus melee `rage_damage/1` en cada hit; overlay B/P/S; no spells;
   STR check ventaja; termina en end_rage / 0 hp / unconscious /
-  end_combat. Sin usos/día, sin reloj de 1 minuto.
+  end_combat. Sin usos/día, sin reloj de 1 minuto — los usos entraron
+  en D72.
 - **Reckless Attack del bárbaro** (D44): **entregado.** `Character.reckless`
   + Codec; melee STR ventaja; cualquier ataque vs el bárbaro ventaja;
   expira al inicio de su turno (`set_current_combatant`); también
@@ -415,6 +416,24 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
    inyectada por contrato (hoy inalcanzable: el objetivo de Expulsar
    exige `race == "undead"`). Sin Darkvision, demás rasgos, feats,
    multiclase.
+- **Usos de Furia + Furia implacable del bárbaro** (D72): **entregado.**
+   Economía de recursos del bárbaro: `Character.rage_uses_used`
+   (integer, Codec tolerante) gastado por `World.start_rage/1` al
+   ENTRAR (tope `Progression.rage_count/1`: L1–2 2, L3–5 3, L6–11 4,
+   L12–16 5, L17+ 6; sin furias → error sin mutar; `end_rage` NO
+   devuelve; ya raging idempotente sin gasto; sólo `long_rest`
+   recarga). Furia implacable L11+: `Character.relentless_rage_successes`
+   + hook `maybe_relentless_rage/4` en `World.apply_damage/4` (nuevo
+   `roller` opcional hilvanado por `Actions.pipe_damage`), bárbaro
+   raging a 0 pg → salvación CON vs `10 + 5 × éxitos` con
+   `Rules.Combat.saving_throw` (prof CON + Lucky D66) + aura D61
+   (`World.aura_save_bonus/2`, movida de Actions); éxito → 1 pg,
+   siguientes CD +5, nota en el world log (sin RollLog ahí — la nota
+   es el registro); fallo → cae a la RE racial D67 si semi-orco (ambas
+   capas; el éxito de clase no consume la racial); `long_rest` resetea
+   éxitos. Orden de capas: Uncanny Dodge → resist → temp_hp → hp →
+   revert → Furia implacable → RE. Sin duración, bonus action, Paths,
+   Persistent Rage L20, feats, multiclase.
 - **Multiclase**: fuera del builder actual por diseño; implicaría rehacer
   progression.
 - **Marketplace de contenido custom** (D22): compartir entre usuarios.

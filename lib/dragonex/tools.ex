@@ -331,7 +331,8 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
-  Enter Rage (5e, D42). Barbarian only. Clears concentration. The DM may start
+  Enter Rage (5e, D42). Barbarian only, limited uses per long rest (D72;
+  recharges on long rest). Clears concentration. The DM may start
   anyone; a PC may only start themselves.
   """
   deftool start_rage(ctx, who :: String.t()) do

@@ -239,6 +239,20 @@ defmodule Dragonex.Heroes.Progression do
   def rage_damage(level) when is_integer(level) and level >= 1, do: 2
 
   @doc """
+  Usos de Furia por descanso largo según nivel (D72). Tabla 5e; el motor
+  es fuente de verdad (D1). Sólo el bárbaro tiene usos — la validación de
+  clase vive en `World.start_rage/1` (patrón `rage_damage/1`):
+
+    * L1–2 → 2; L3–5 → 3; L6–11 → 4; L12–16 → 5; L17+ → 6
+  """
+  @spec rage_count(pos_integer()) :: pos_integer()
+  def rage_count(level) when is_integer(level) and level >= 17, do: 6
+  def rage_count(level) when is_integer(level) and level >= 12, do: 5
+  def rage_count(level) when is_integer(level) and level >= 6, do: 4
+  def rage_count(level) when is_integer(level) and level >= 3, do: 3
+  def rage_count(level) when is_integer(level) and level >= 1, do: 2
+
+  @doc """
   Dados de artes marciales del monje según nivel (D54).
 
   Tabla 5e; el motor es fuente de verdad (D1):

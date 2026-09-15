@@ -59,12 +59,23 @@ defmodule Dragonex.World do
            (`%{option, target}`, ONE at a time): arming spends sorcery
            points (`Actions.arm_metamagic/4`); `Actions.spell/5` applies
            and consumes it when the spell qualifies; rests never touch it,
-        * Relentless Endurance (D67) is a half-orc passive in
-          `apply_damage/3`: damage-layering order is Uncanny Dodge halves
-          the incoming amount (D64) → temp_hp (D36) → hp → Wild Shape
-          auto-revert (D63) → Relentless Endurance (hp 0 → 1, once per
-          long rest; `relentless_endurance_used`); `long_rest` recharges
-          it, `short_rest` does not,
+         * Relentless Endurance (D67) is a half-orc passive in
+           `apply_damage/3`: damage-layering order is Uncanny Dodge halves
+           the incoming amount (D64) → temp_hp (D36) → hp → Wild Shape
+           auto-revert (D63) → Relentless Endurance (hp 0 → 1, once per
+           long rest; `relentless_endurance_used`); `long_rest` recharges
+           it, `short_rest` does not,
+         * Rage uses (D72): a barbarian gets `Progression.rage_count/1`
+           rages per long rest; `start_rage/1` spends one on entry
+           (`rage_uses_used`) and refuses when the pool is empty;
+           `end_rage/1` does NOT refund the use; only `long_rest` resets
+           the counter,
+         * Relentless Rage (D72) is a barbarian L11+ passive in
+           `apply_damage/3`, right BEFORE Relentless Endurance (D67): a
+           raging barbarian whose hp lands at 0 saves CON vs
+           `10 + 5 * relentless_rage_successes` (Aura of Protection D61
+           applies — RAW covers all saves) to stay at 1 hp; each success
+           bumps the next DC and only `long_rest` resets the counter,
          * `grant_xp` adds to `Character.xp` and never levels up (D43).
 
   Characters are stored as full `Dragonex.Character` structs, so the engine can
@@ -302,7 +313,14 @@ defmodule Dragonex.World do
           (t() -> {:ok, t()} | {:error, String.t()})
   @spec apply_damage(String.t(), integer(), String.t() | nil) ::
           (t() -> {:ok, t()} | {:error, String.t()})
-  def apply_damage(target, amount, type \\ nil) do
+  @spec apply_damage(
+          String.t(),
+          integer(),
+          String.t() | nil,
+          (pos_integer() -> pos_integer()) | nil
+        ) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def apply_damage(target, amount, type \\ nil, roller \\ nil) do
     fn w ->
       case character(w, target) do
         nil ->
@@ -334,37 +352,86 @@ defmodule Dragonex.World do
             final_hp = max(0, orig_hp - excess)
             reverted = %{restore_wild_shape_form(c, final_hp) | temp_hp: new_temp}
 
-            # D67 Relentless Endurance runs AFTER the revert: a half-orc
-            # druid whose own hp still lands at 0 stays up at 1 instead.
-            {updated, re_note} = maybe_relentless(reverted, target)
+            # Layer order at 0 hp (D67/D72): Relentless RAGE (class, save)
+            # first, then Relentless ENDURANCE (racial, hp 0 → 1).
+            {updated, rr_note} = maybe_relentless_rage(reverted, target, w, roller)
+            {updated, re_note} = maybe_relentless(updated, target)
             updated = clear_drop_flags(updated, updated.hp)
 
             msg =
               "la bestia cae y #{target} vuelve a su forma (PG #{final_hp})" <>
-                if(re_note, do: "; #{re_note}", else: "")
+                case join_notes([rr_note, re_note]) do
+                  "" -> ""
+                  notes -> "; " <> notes
+                end
 
             # Note in the world change so the narration surfaces it.
             w = put_char(w, target, updated)
 
             {:ok, %{w | log: log(w, "dm", msg)}}
           else
-            {updated, re_note} = maybe_relentless(%{c | hp: new_hp, temp_hp: new_temp}, target)
+            {updated, rr_note} =
+              maybe_relentless_rage(%{c | hp: new_hp, temp_hp: new_temp}, target, w, roller)
+
+            {updated, re_note} = maybe_relentless(updated, target)
             updated = clear_drop_flags(updated, updated.hp)
 
-            if re_note do
-              {:ok, %{put_char(w, target, updated) | log: log(w, "dm", re_note)}}
-            else
-              {:ok, put_char(w, target, updated)}
+            case join_notes([rr_note, re_note]) do
+              "" -> {:ok, put_char(w, target, updated)}
+              notes -> {:ok, %{put_char(w, target, updated) | log: log(w, "dm", notes)}}
             end
           end
       end
     end
   end
 
+  defp join_notes(notes), do: notes |> Enum.reject(&is_nil/1) |> Enum.join("; ")
+
   defp clear_drop_flags(%Character{} = c, 0),
     do: %{c | raging: false, reckless: false, smite_slot: nil}
 
   defp clear_drop_flags(%Character{} = c, _hp), do: c
+
+  # D72 Relentless Rage: a barbarian L11+ whose hp lands at 0 WHILE raging
+  # saves CON vs `10 + 5 * relentless_rage_successes` to stay at 1 hp
+  # instead. Runs BEFORE the racial layer (D67) so a half-orc barbarian
+  # stacks both; a rage-save success leaves Relentless Endurance
+  # unconsumed (hp is 1, not 0). The save rides `Rules.Combat.saving_throw`
+  # (CON proficiency from the sheet + Lucky D66) plus the Aura of
+  # Protection bonus (D61 — RAW it covers ALL saves). There is no RollLog
+  # at this depth (the change-fn only sees the world), so the world-log
+  # note is the record of the roll (D72). Returns the character plus the
+  # note when it fired (`nil` otherwise).
+  defp maybe_relentless_rage(
+         %Character{class: "barbarian", raging: true, hp: hp, level: level} = c,
+         name,
+         %__MODULE__{} = w,
+         roller
+       )
+       when is_integer(level) and level >= 11 and hp <= 0 do
+    successes = c.relentless_rage_successes || 0
+    dc = 10 + 5 * successes
+    roller = roller || (&Dragonex.Dice.roll/1)
+    aura = aura_save_bonus(w, name)
+    {d20, total, _success?} = Dragonex.Rules.Combat.saving_throw(c, :con, dc, roller)
+    total = total + aura
+
+    if total >= dc do
+      {%{c | hp: 1, relentless_rage_successes: successes + 1},
+       "la furia mantiene a #{name} en pie con 1 pg (Furia implacable: salvación CON d20 #{d20}: #{total} vs CD #{dc}#{aura_bit(aura)})"}
+    else
+      {c,
+       "#{name} falla la salvación de Furia implacable (CON d20 #{d20}: #{total} vs CD #{dc}#{aura_bit(aura)})"}
+    end
+  end
+
+  defp maybe_relentless_rage(%Character{} = c, _name, _w, _roller), do: {c, nil}
+
+  defp aura_bit(aura) when aura != 0, do: " #{signed(aura)} aura"
+  defp aura_bit(_), do: ""
+
+  defp signed(n) when n >= 0, do: "+#{n}"
+  defp signed(n), do: "#{n}"
 
   # D67 Relentless Endurance: a half-orc whose hp lands at 0 drops to 1
   # instead — ONCE per long rest (`relentless_endurance_used` is recharged by
@@ -456,7 +523,13 @@ defmodule Dragonex.World do
     end
   end
 
-  @doc "Enter Rage (D42). Only `class == \"barbarian\"`. Clears concentration."
+  @doc """
+  Enter Rage (D42/D72). Only `class == "barbarian"` with uses left:
+  spends one of the `Progression.rage_count/1` rages per long rest
+  (`rage_uses_used`) on entry. Clears concentration. Already raging is an
+  idempotent no-op that does NOT spend another use. `end_rage/1` never
+  refunds the use (RAW: spent on entering).
+  """
   @spec start_rage(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
   def start_rage(name) do
     fn w ->
@@ -464,8 +537,21 @@ defmodule Dragonex.World do
         nil ->
           {:error, "no such character: #{name}"}
 
-        %Character{class: "barbarian"} ->
-          set_raging(name, true).(w)
+        %Character{class: "barbarian"} = c ->
+          max_rages = Dragonex.Heroes.Progression.rage_count(c.level || 1)
+
+          cond do
+            c.raging == true ->
+              set_raging(name, true).(w)
+
+            (c.rage_uses_used || 0) >= max_rages ->
+              {:error, "#{name} no le quedan furias hoy (#{max_rages}/#{max_rages} usadas)"}
+
+            true ->
+              with {:ok, w} <- set_raging(name, true).(w) do
+                set_rage_uses_used(name, (c.rage_uses_used || 0) + 1).(w)
+              end
+          end
 
         %Character{} ->
           {:error, "#{name} no es bárbaro y no puede entrar en furia"}
@@ -549,6 +635,44 @@ defmodule Dragonex.World do
 
         %Character{} = c ->
           {:ok, put_char(w, name, %{c | relentless_endurance_used: used})}
+      end
+    end
+  end
+
+  @doc """
+  Set `who`'s spent rage uses (D72). `World.start_rage/1` spends one on
+  entry; `Actions`' long rest resets them to 0. Short rest does not.
+  """
+  @spec set_rage_uses_used(String.t(), non_neg_integer()) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def set_rage_uses_used(name, used) when is_integer(used) and used >= 0 do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          {:ok, put_char(w, name, %{c | rage_uses_used: used})}
+      end
+    end
+  end
+
+  @doc """
+  Set `who`'s Relentless Rage success count (D72). `apply_damage/4` bumps
+  it on each successful save (next DC harder); `Actions`' long rest
+  resets it to 0.
+  """
+  @spec set_relentless_rage_successes(String.t(), non_neg_integer()) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def set_relentless_rage_successes(name, successes)
+      when is_integer(successes) and successes >= 0 do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          {:ok, put_char(w, name, %{c | relentless_rage_successes: successes})}
       end
     end
   end
@@ -1715,6 +1839,30 @@ defmodule Dragonex.World do
       c.class == "paladin" and c.side == side and (c.hp || 0) > 0 and
         is_integer(c.level) and c.level >= min_level
     end)
+  end
+
+  @doc """
+  Aura of Protection bonus (D61) on `name`'s saves.
+
+  Every conscious paladin (L6+) on the saver's side shares their CHA
+  modifier with ALL saves of that side (the paladin themself included).
+  Multiple paladins stack (RAW); a CHA below 10 gives a negative bonus
+  with no floor. 0 when the side has none. Lives in `World` (not just
+  `Actions`) because the D72 Relentless Rage save inside `apply_damage/4`
+  is CON but the aura covers it too (RAW: all saves).
+  """
+  @spec aura_save_bonus(t(), String.t()) :: integer()
+  def aura_save_bonus(%__MODULE__{} = w, name) do
+    case character(w, name) do
+      %Character{side: side} ->
+        w
+        |> paladins_conscious(side, 6)
+        |> Enum.map(&Character.modifier(&1, :cha))
+        |> Enum.sum()
+
+      _ ->
+        0
+    end
   end
 
   @doc """

@@ -267,8 +267,9 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   `Progression.rage_damage/1` en cada hit de `Actions.attack`. Overlay
   B/P/S en `incoming_damage/3` (no muta listas; combina D38).
   `Actions.spell` error si el caster está raging. Chequeo STR con
-  ventaja. Tools `start_rage`/`end_rage`. Sin usos/día, sin reloj de
-  1 minuto. Reckless es M28 / D44. El string `"rage"` del catálogo L1
+  ventaja. Tools `start_rage`/`end_rage`. Cupo por descanso largo en
+  **M56 / D72** (`rage_uses_used`); sigue sin reloj de 1 minuto.
+  Reckless es M28 / D44. El string `"rage"` del catálogo L1
   no es la fuente de verdad.
 - **Tests**: `rage_test.exs`, `codec_test.exs`, `heroes/progression_test.exs`.
 
@@ -862,12 +863,47 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   ventaja en el reroll (mismo modo). Danger Sense D58 no interactúa.
 - **Tests**: `breath_gnome_test.exs`.
 
+### M56 — Usos de Furia + Furia implacable (pasivas de clase, D72)
+- **Dónde**: `Progression.rage_count/1` (L1–2 2, L3–5 3, L6–11 4,
+  L12–16 5, L17+ 6) + campos `Character.rage_uses_used` y
+  `Character.relentless_rage_successes` (integer default 0, Codec
+  tolerante a jsonb viejo, patrón D67/D68) + `World.set_rage_uses_used/2`
+  y `World.set_relentless_rage_successes/2` + recarga de AMBOS en
+  `compose_long_rest` (Actions; long rest only) + hook
+  `maybe_relentless_rage/4` en `World.apply_damage/4` (justo ANTES de
+  la RE racial D67). Sin tools ni prompts: `start_rage`/`end_rage`
+  existen desde D42.
+- **Usos**: `start_rage/1` valida clase Y `rage_uses_used <
+  rage_count(level)`; error "no le quedan furias hoy (N/N usadas)" sin
+  mutar; gasta 1 al ENTRAR; `end_rage/1` NO devuelve el uso; ya raging
+  → idempotente-OK sin gasto extra; `short_rest` no recarga.
+- **Furia implacable**: `class == "barbarian"` + `level >= 11` +
+  `raging == true` + hp final ≤ 0 → salvación CON vs
+  `10 + 5 × relentless_rage_successes` vía
+  `Rules.Combat.saving_throw/5` (prof de CON de la ficha + Lucky D66)
+  + aura D61 (`World.aura_save_bonus/2`, movida de Actions para que el
+  hook use el mismo bonus plano — RAW el aura cubre TODAS las saves);
+  éxito → `hp = 1`, `successes + 1` (siguiente CD +5 más difícil) y
+  nota "la furia mantiene a X en pie con 1 pg (Furia implacable:
+  salvación CON d20 N: total vs CD M)"; fallo → nota de fallo y cae al
+  siguiente check (RE racial D67 si semi-orco: ambas capas; el éxito de
+  clase NO consume la RE ese golpe). Roller: `apply_damage/4` gana un
+  4º parámetro opcional (`&Dice.roll/1` default); `Actions.pipe_damage`
+  hilvana el suyo (mismo roller de la acción). Sin RollLog a esa
+  profundidad: la nota del world log ES el registro (ADR D72).
+  Indomitable NO aplica (guerrero-only).
+- **Orden de capas en `apply_damage`**: Uncanny Dodge D64 → resist
+  D38 → temp_hp D36 → hp → revert Wild Shape D63 → **Furia implacable
+  (D72)** → Resistencia implacable (D67) → death saves.
+- **Tests**: `rage_uses_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
 
 reacciones como mecánica formal (TurnMaster da interrupciones narrativas) ·
-multiclase · feats. Pact Magic: **D40**. Sneak Attack: **D41**. Rage: **D42**.
+multiclase · feats. Pact Magic: **D40**. Sneak Attack: **D41**. Rage:
+**D42** (usos/día y Furia implacable: **D72 / M56**).
 Reckless Attack: **D44 / M28**. Second Wind: **D45 / M29**. Divine Smite:
 **D46 / M30**. Action Surge: **D47 / M31**. Fighting Style: **D48 / M32**.
 Lay on Hands: **D49 / M33**. Bardic Inspiration: **D50 / M34**.
@@ -887,8 +923,9 @@ racial). Brave, Halfling Nimbleness, Darkvision y demás siguen fuera.
 Indomitable del guerrero: **D68 / M52**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
-**D38 / M25**. Cupo de Rage/día y segundo uso de Action Surge a L17
-siguen fuera. Protection / TWF / GWF siguen fuera. Curar
+**D38 / M25**. Cupo de Rage/día entró en **D72 / M56** (Furia implacable
+con él); el segundo uso de Action Surge a L17 sigue fuera.
+Protection / TWF / GWF siguen fuera. Curar
 enfermedad/veneno con Lay on Hands (gastar 5) sigue fuera.
  Channel Divinity / Turn the Unholy / Improved Divine Sense siguen
 fuera. Dash / Disengage siguen fuera (sin grid ni ataques de

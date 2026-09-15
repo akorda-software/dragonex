@@ -1820,6 +1820,66 @@ multiclase. M55 en el catálogo.
 
 ---
 
+### D72 — Usos de Furia y Furia implacable 5e del bárbaro
+Estado: **Aceptada** — 2026-09-15.
+
+Cierra el hueco de economía de recursos del bárbaro: `start_rage` no
+gastaba nada (furias infinitas al día) mientras el motor sí limitaba
+ki/sorcery/breath. Furia implacable (L11) encaja en el hook de 0 pg
+donde ya viven Resistencia implacable (D67) y el auto-revert (D63).
+Sin tools nuevas ni prompts.
+
+- **Usos de Furia**: campo `Character.rage_uses_used` (integer, default
+  0; Codec tolerante a jsonb viejo, patrón D67/D68). Máximo por nivel en
+  `Progression.rage_count/1` (tabla 5e): L1–2 → 2; L3–5 → 3; L6–11 → 4;
+  L12–16 → 5; L17+ → 6. La validación de clase vive en `start_rage/1`
+  (patrón `rage_damage/1`: la tabla es del bárbaro, no-bárbaro ni
+  entra). `World.start_rage/1` exige `rage_uses_used < rage_count(level)`
+  (error "no le quedan furias hoy (N/N usadas)" SIN mutar) y **gasta el
+  uso al entrar** (incrementa 1); `end_rage/1` NO lo devuelve (RAW:
+  gastado al entrar, aunque la furia se apague a los 0 pg o con
+  `end_combat`). Ya raging → idempotente-OK sin gasto extra (comportamiento
+  previo intacto). Sólo `long_rest` recarga (`compose_long_rest` →
+  `set_rage_uses_used(name, 0)`); `short_rest` no.
+- **Furia implacable (L11+)**: campo `Character.relentless_rage_successes`
+  (integer, default 0; Codec tolerante). Hook en `World.apply_damage/4`
+  en el punto de 0 pg, ANTES de la RE racial (D67). Si `class ==
+  "barbarian"`, `level >= 11`, `raging == true` y hp final ≤ 0 →
+  salvación CON contra CD `10 + 5 × successes`. Éxito → `hp = 1`,
+  incrementa `successes` (el siguiente intento es más difícil), nota
+  "la furia mantiene a X en pie con 1 pg (Furia implacable: salvación
+  CON d20 N: total vs CD M)". Fallo → nota de fallo y cae al siguiente
+  check (RE racial D67 si aplica: semi-orco bárbaro = ambas capas; un
+  éxito de Furia implacable NO consume la RE ese golpe — el hp queda en
+  1, no en 0). Long rest resetea `successes` a 0. Al quedar a 0 la furia
+  se apaga (`clear_drop_flags`, orden hook→conditions intacto).
+- **Orden de capas de daño (fijado aquí)**: Uncanny Dodge D64 mitiga el
+  amount → resist D38 → temp_hp D36 → hp → revert Wild Shape D63 →
+  **Furia implacable (clase, salvación)** → **Resistencia implacable
+  (racial, hp 0 → 1)** → death saves.
+- **Tirada**: sale de `Rules.Combat.saving_throw/5` (prof de CON de la
+  ficha + Lucky D66 aplican — trivial porque `Combat` sólo consume el
+  `Character`, no hay dependencia circular) con el roller determinista
+  hilvanado: `apply_damage` gana un 4º parámetro opcional `roller`
+  (default `&Dice.roll/1`) y `Actions.pipe_damage` pasa el suyo, así el
+  save comparte el roller de la acción. **Simplificación documentada**:
+  no hay RollLog a esa profundidad (la change-fn sólo ve el world), así
+  que la nota en el log del world ES el registro de la tirada. Lucky
+  funciona; Indomitable NO aplica (guerrero-only, multiclase fuera).
+- **Aura de Protección (D61) suma** (es CON pero RAW el aura cubre TODAS
+  las salvaciones): el helper `aura_save_bonus/2` pasó de privado en
+  `Actions` a público en `World` (misma firma; `Actions` delega), así el
+  hook usa el MISMO bonus plano que el resto de sitios de salvación.
+- **Errores (NO mutan)**: personaje inexistente; no-bárbaro (mensaje
+  existente); sin furias disponibles.
+
+**Fuera**: duración de la furia (sin reloj de 1 minuto — D42), rage
+como bonus action (economía de acciones), Path features, Persistent
+Rage (L20 — sin duración no aplica), feats, multiclase. M56 en el
+catálogo.
+
+---
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,

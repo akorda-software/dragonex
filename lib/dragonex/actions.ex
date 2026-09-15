@@ -1637,7 +1637,10 @@ defmodule Dragonex.Actions do
   A long rest: full HP restore (and clears short-term conditions).
 
   In 5e RAW, a long rest restores all hit points and hit dice (up to half the
-  total). At level 1 this means full heal + 1 hit die back.
+  total). At level 1 this means full heal + 1 hit die back. It also recharges
+  the long-rest pools: rage uses and the Relentless Rage DC counter (D72)
+  reset to 0 alongside Lay on Hands, sorcery points, Relentless Endurance
+  and Indomitable.
   """
   @spec long_rest(World.t(), String.t()) :: result()
   def long_rest(world, name) do
@@ -2622,7 +2625,10 @@ defmodule Dragonex.Actions do
             {:halt, {:ok, acc}}
 
           %Character{} ->
-            case World.apply_damage(target, amount, type).(acc) do
+            # D72: the roller threads through so a raging barbarian L11+
+            # takes the Relentless Rage save with the SAME deterministic
+            # roller as the rest of the action.
+            case World.apply_damage(target, amount, type, roller).(acc) do
               {:ok, next} ->
                 next =
                   if break? do
@@ -2991,19 +2997,10 @@ defmodule Dragonex.Actions do
   # D61 Aura of Protection: every conscious paladin (L6+) on the saver's side
   # shares their CHA modifier with ALL saves of that side (the paladin
   # included). Multiple paladins stack (RAW); a CHA below 10 gives a negative
-  # bonus with no floor (RAW). 0 when the side has none.
-  defp aura_save_bonus(%World{} = world, name) do
-    case World.character(world, name) do
-      %Character{side: side} ->
-        world
-        |> World.paladins_conscious(side, 6)
-        |> Enum.map(&Character.modifier(&1, :cha))
-        |> Enum.sum()
-
-      _ ->
-        0
-    end
-  end
+  # bonus with no floor (RAW). 0 when the side has none. The computation
+  # moved to `World.aura_save_bonus/2` so the D72 Relentless Rage save inside
+  # `World.apply_damage/4` rides the same bonus.
+  defp aura_save_bonus(%World{} = world, name), do: World.aura_save_bonus(world, name)
 
   # Breakdown bit for save messages: " +3 aura" / " -1 aura".
   defp aura_bit(aura) when aura != 0, do: " #{signed(aura)} aura"
@@ -3084,7 +3081,9 @@ defmodule Dragonex.Actions do
            {:ok, w} <- World.set_arcane_recovery_used(name, false).(w),
            {:ok, w} <- World.restore_sorcery_points(name).(w),
            {:ok, w} <- World.set_relentless_endurance(name, false).(w),
-           {:ok, w} <- World.set_indomitable(name, false).(w) do
+           {:ok, w} <- World.set_indomitable(name, false).(w),
+           {:ok, w} <- World.set_rage_uses_used(name, 0).(w),
+           {:ok, w} <- World.set_relentless_rage_successes(name, 0).(w) do
         {:ok, w}
       end
     end
