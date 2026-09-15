@@ -399,6 +399,117 @@ defmodule Dragonex.UpcastTest do
     end
   end
 
+  # Interacciones que el ADR D74 declara contra otros subsistemas: el gasto
+  # de la casilla de PACTO del brujo (D40 vía slot_level_for), Twinned con
+  # casilla superior (una sola casilla, "(nivel N)" en el outer, D65) y
+  # Empowered sobre los dados COMBINADOS base+extra (D65).
+  describe "interacciones D74 × D40/D65" do
+    test "warlock: upcastear gasta la casilla de PACTO (slot_level_for)" do
+      dark =
+        Character.new(
+          name: "dark",
+          class: "warlock",
+          level: 9,
+          hp: 40,
+          max_hp: 40,
+          ac: 12,
+          dex: 10,
+          con: 14,
+          cha: 16,
+          side: "enemy",
+          spells: [spell("fireball", 3, :save, "8d6", damage_type: "fire", save_ability: :dex)]
+        )
+
+      w = world([dark, goblin()])
+      assert w.spell_slots["dark"] == %{5 => 2}
+
+      # CD 8+prof 4+CAR 3=15; salvación 3+1=4 falla → 10d6 (8+2) con roller
+      # 2 = 20 completos.
+      assert {:ok, msg, change} =
+               Actions.spell(w, "dark", "fireball", "goblin", always(2), nil, 5)
+
+      assert msg =~ "conjura fireball (nivel 5)"
+
+      {:ok, w2} = change.(w)
+      assert w2.characters["goblin"].hp == 40 - 20
+      # Una única casilla de pacto de 5º consumida (no hay casillas de 3º).
+      assert w2.spell_slots["dark"] == %{5 => 1}
+    end
+
+    test "Twinned (D65) con cast_level: una casilla, dos resoluciones escaladas" do
+      twin =
+        Character.new(
+          name: "Sylas",
+          class: "sorcerer",
+          level: 7,
+          hp: 35,
+          max_hp: 35,
+          ac: 12,
+          dex: 14,
+          con: 12,
+          cha: 16,
+          side: "pc",
+          metamagic: %{option: "twinned", target: "gob2"},
+          spells: [spell("fireball", 3, :save, "8d6", damage_type: "fire", save_ability: :dex)]
+        )
+
+      w = world([twin, goblin(), goblin(name: "gob2")])
+
+      # CD 8+prof 3+CAR 3=14; ambos fallan con 3+1=4 → 9d6 con roller 3 =
+      # 27 por objetivo; UNA casilla de 4º.
+      assert {:ok, msg, change} =
+               Actions.spell(w, "Sylas", "fireball", "goblin", always(3), nil, 4)
+
+      assert msg =~ "fireball (nivel 4)"
+      assert msg =~ "goblin"
+      assert msg =~ "gob2"
+      refute msg =~ "(nivel 3)"
+
+      {:ok, w2} = change.(w)
+      assert w2.characters["goblin"].hp == 40 - 27
+      assert w2.characters["gob2"].hp == 40 - 27
+      assert w2.spell_slots["Sylas"][4] == 0
+      assert w2.characters["Sylas"].metamagic == nil
+    end
+
+    test "Empowered (D65) boostea los dados COMBINADOS base+extra" do
+      sylas =
+        Character.new(
+          name: "Sylas",
+          class: "sorcerer",
+          level: 7,
+          hp: 35,
+          max_hp: 35,
+          ac: 12,
+          dex: 14,
+          con: 12,
+          cha: 16,
+          side: "pc",
+          metamagic: %{option: "empowered"},
+          spells: [spell("fireball", 3, :save, "8d6", damage_type: "fire", save_ability: :dex)]
+        )
+
+      w = world([sylas, goblin()])
+
+      # CAR 16 → los primeros 3 dados de 9d6 tiran dos veces y conservan el
+      # mayor: max(1,5)+max(2,6)+max(1,4) + 6×2 = 27. Salvación 3+1=4 falla
+      # (CD 15: 8+prof 3+CAR 3... L7 prof 3) → 27 completos.
+      roller = seq([3, 1, 5, 2, 6, 1, 4, 2, 2, 2, 2, 2, 2])
+
+      assert {:ok, msg, change} = Actions.spell(w, "Sylas", "fireball", "goblin", roller, nil, 4)
+
+      assert msg =~ "(nivel 4)"
+      assert msg =~ "(Metamagia: Empowered)"
+      assert msg =~ "27 de daño fire"
+      assert Process.get(:seq) == []
+
+      {:ok, w2} = change.(w)
+      assert w2.characters["goblin"].hp == 40 - 27
+      assert w2.spell_slots["Sylas"][4] == 0
+      assert w2.characters["Sylas"].metamagic == nil
+    end
+  end
+
   describe "Tools + PCAgent" do
     setup do
       # El guard no cambia (D74): los PCs se conjuran a sí mismos; el DM, a

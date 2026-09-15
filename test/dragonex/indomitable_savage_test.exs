@@ -360,6 +360,37 @@ defmodule Dragonex.IndomitableSavageTest do
       {:ok, w2} = change.(w)
       assert w2.characters["Bjorn"].indomitable_used == true
     end
+
+    # ADR D68: "el aura D61 (bonus plano) sí se re-suma" al reroll.
+    test "Aura de Protección (D61): el reroll vuelve a sumar el bonus del paladín" do
+      paladin =
+        Character.new(
+          name: "Kara",
+          class: "paladin",
+          level: 6,
+          hp: 30,
+          max_hp: 30,
+          ac: 18,
+          str: 16,
+          dex: 10,
+          con: 14,
+          cha: 16,
+          side: "enemy"
+        )
+
+      w = world([mage(), fighter9(), paladin])
+
+      # Primer intento 5+1+3(aura)=9 < CD 13 → fallo; reroll 9+1+3(aura
+      # re-sumada)=13 ≥ 13 → éxito SIN el aura habría vuelto a fallar.
+      assert {:ok, msg, change} = Actions.spell(w, "mage", "acid splash", "Bjorn", seq([5, 9, 4]))
+
+      assert msg =~ "(d20 9 (Indomitable: 9→13): 13 vs CD 13 +3 aura)"
+      assert consumed?()
+
+      {:ok, w2} = change.(w)
+      assert w2.characters["Bjorn"].indomitable_used == true
+      assert w2.characters["Bjorn"].hp == 40 - 2
+    end
   end
 
   # ------------------------------------------- D68 Indomitable (turn_undead)

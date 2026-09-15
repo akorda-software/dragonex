@@ -400,6 +400,98 @@ defmodule Dragonex.BreathGnomeTest do
     end
   end
 
+  # ------------------- D70: mismo stack de sitio de salvación que los hechizos
+
+  # El ADR D70 promete que el aliento pasa por el MISMO stack que la rama
+  # :save de cast_spell: Danger Sense (D58), Lucky (D66), aura (D61),
+  # inspiración bárdica (D50), Indomitable (D68) y el chequeo de
+  # concentración del objetivo (with_conc_damage). Evasión ya está arriba.
+  describe "Aliente de dragón (D70) — stack completo de salvación" do
+    test "el daño del aliento provoca el chequeo de concentración del objetivo" do
+      w = world([dragonborn(), goblin(concentrating: "bless", con: 14)])
+
+      # Salvación 5+1=6 < CD 12 → fallo; daño 2d6(3+5)=8; concentración CD
+      # max(10, div(8,2))=10 → CON 3+2=5 < 10 → la pierde.
+      assert {:ok, msg, change} =
+               Actions.breath_weapon(w, "Draco", "Goblin", seq([5, 3, 5, 3]))
+
+      assert msg =~ "Goblin pierde la concentración en bless"
+      assert consumed?()
+
+      {:ok, w2} = change.(w)
+      assert w2.characters["Goblin"].concentrating == nil
+      assert w2.characters["Draco"].breath_weapon_used == true
+    end
+
+    test "Danger Sense (D58): bárbaro L2+ salva la DES con ventaja" do
+      w = world([dragonborn(), goblin(class: "barbarian", level: 2, con: 14)])
+
+      # Ventaja max(1,15)=15 +2 = 17 ≥ CD 12 → éxito; daño 2d6(3+3)=6 → mitad 3.
+      assert {:ok, msg, _change} =
+               Actions.breath_weapon(w, "Draco", "Goblin", seq([1, 15, 3, 3]))
+
+      assert msg =~ "(d20 15: 17 vs CD 12) (ventaja)"
+      assert msg =~ "— 3 de daño fire"
+      assert consumed?()
+    end
+
+    test "Lucky (D66): el 1 del mediano se rerrollea en la salvación del aliento" do
+      w = world([dragonborn(), goblin(race: "halfling")])
+
+      # 1 → Lucky → 18: 18+2=20 ≥ CD 12 → éxito; 2d6(3+5)=8 → mitad 4.
+      assert {:ok, msg, _change} =
+               Actions.breath_weapon(w, "Draco", "Goblin", seq([1, 18, 3, 5]))
+
+      assert msg =~ "(d20 18 (Lucky: 1→18): 20 vs CD 12)"
+      assert msg =~ "— 4 de daño fire"
+      assert consumed?()
+    end
+
+    test "inspiración bárdica (D50): el d6 salva la tirada y se consume" do
+      w = world([dragonborn(), goblin(inspired: true)])
+
+      # 5+2=7 < CD 12 → fallo; +6 inspiración → 13 ≥ 12 → éxito; 2d6(4+4)=8
+      # → mitad 4. El d6 se gasta (no re-tira en ningún segundo intento).
+      assert {:ok, msg, change} =
+               Actions.breath_weapon(w, "Draco", "Goblin", seq([5, 6, 4, 4]))
+
+      assert msg =~ "(d20 5: 13 vs CD 12 +6 inspiración)"
+      assert msg =~ "— 4 de daño fire"
+      assert consumed?()
+
+      {:ok, w2} = change.(w)
+      assert w2.characters["Goblin"].inspired == false
+    end
+
+    test "Aura de Protección (D61): el aliado del paladín L6 suma +3" do
+      w = world([dragonborn(), goblin(side: "pc", name: "Aliado"), paladin6()])
+
+      # 10+2=12 < CD 12 → fallo... 12 ≥ 12 sería éxito; usamos 9: 9+2=11
+      # < CD 12 → fallo; +3 aura → 14 ≥ 12 → éxito; 2d6(4+4)=8 → mitad 4.
+      assert {:ok, msg, _change} =
+               Actions.breath_weapon(w, "Draco", "Aliado", seq([9, 4, 4]))
+
+      assert msg =~ "Aliado supera la salvación de Destreza (d20 9: 14 vs CD 12 +3 aura)"
+      assert msg =~ "— 4 de daño fire"
+      assert consumed?()
+    end
+
+    test "Indomitable (D68): el guerrero L9+ rerrollea la salvación fallida" do
+      w = world([dragonborn(), goblin(class: "fighter", level: 9, dex: 12)])
+
+      # 5+1=6 < CD 12 → fallo; reroll 15+1=16 ≥ 12 → éxito; 2d6(4+4)=8 → 4.
+      assert {:ok, msg, change} =
+               Actions.breath_weapon(w, "Draco", "Goblin", seq([5, 15, 4, 4]))
+
+      assert msg =~ "(d20 15 (Indomitable: 6→16): 16 vs CD 12)"
+      assert msg =~ "— 4 de daño fire"
+      assert consumed?()
+
+      {:ok, w2} = change.(w)
+      assert w2.characters["Goblin"].indomitable_used == true
+    end
+  end
+
   # ------------------------------------------- D70 Character / Codec
 
   describe "Aliento de dragón (D70) — Character/Codec" do

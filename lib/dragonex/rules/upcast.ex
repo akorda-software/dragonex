@@ -30,6 +30,7 @@ defmodule Dragonex.Rules.Upcast do
   documentada).
   """
 
+  alias Dragonex.Dice
   alias Dragonex.Spell
 
   @type scaling :: %{per: pos_integer(), die: pos_integer()} | :dart
@@ -94,23 +95,9 @@ defmodule Dragonex.Rules.Upcast do
   defp combine_dice(nil, extra), do: extra
 
   defp combine_dice(base, extra) do
-    {n1, sides, k1} = parse(base)
-    {n2, _sides, k2} = parse(extra)
+    {n1, sides, k1} = Dice.parse_expr(base)
+    {n2, _sides, k2} = Dice.parse_expr(extra)
     "#{n1 + n2}d#{sides}" <> flat(k1 + k2)
-  end
-
-  defp parse(expr) do
-    case Regex.run(~r/^(\d+)d(\d+)(?:([+-])(\d+))?$/, String.trim(expr)) do
-      [_, count, sides, sign, mod] ->
-        m = String.to_integer(mod)
-        {String.to_integer(count), String.to_integer(sides), if(sign == "-", do: -m, else: m)}
-
-      [_, count, sides] ->
-        {String.to_integer(count), String.to_integer(sides), 0}
-
-      _ ->
-        raise ArgumentError, "unparseable dice expression: #{inspect(expr)}"
-    end
   end
 
   defp flat(0), do: ""

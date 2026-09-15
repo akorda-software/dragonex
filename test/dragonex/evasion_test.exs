@@ -10,6 +10,18 @@ defmodule Dragonex.EvasionTest do
 
   defp fixed(value), do: Dragonex.Dice.always(value)
 
+  # A roller that pops values from a queue, so the d20, the bardic d6 and
+  # the damage die are distinct and countable.
+  defp seq(values) do
+    Process.put(:seq, values)
+
+    fn _sides ->
+      [h | rest] = Process.get(:seq)
+      Process.put(:seq, rest)
+      h
+    end
+  end
+
   defp add(world, change) do
     {:ok, w} = change.(world)
     w
@@ -171,6 +183,24 @@ defmodule Dragonex.EvasionTest do
 
       {:ok, w2} = change.(w)
       assert w2.characters["vex"].hp == 20
+    end
+
+    # ADR D59: la inspiración bárdica (D50) se aplica ANTES — un éxito
+    # gracias al d6 también activa Evasión.
+    test "a save rescued by bardic inspiration still triggers Evasión" do
+      w = world_with(%Character{rogue(7) | inspired: true})
+
+      # d20 8+2=10 < CD 13 → fallo; +5 inspiración → 15 ≥ 13 → éxito
+      # gracias al d6 → Evasión: 0 daño (el 1d6 de daño se tira igual).
+      {:ok, msg, change} = Actions.spell(w, "mage", "acid splash", "vex", seq([8, 5, 4]))
+
+      assert msg =~ "(d20 8: 15 vs CD 13 +5 inspiración)"
+      assert msg =~ "(Evasión: sin daño)"
+      assert Process.get(:seq) == []
+
+      {:ok, w2} = change.(w)
+      assert w2.characters["vex"].hp == 20
+      assert w2.characters["vex"].inspired == false
     end
   end
 end

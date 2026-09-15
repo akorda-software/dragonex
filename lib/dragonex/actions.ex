@@ -2478,7 +2478,7 @@ defmodule Dragonex.Actions do
   # higher (deterministic: two roller draws per boosted die); the rest and
   # the flat modifier pass through unchanged.
   defp empowered_roll(expr, roller, emp) do
-    {count, sides, mod} = parse_dice_expr(expr)
+    {count, sides, mod} = Dice.parse_expr(expr)
 
     rolls =
       for i <- 1..count do
@@ -2486,20 +2486,6 @@ defmodule Dragonex.Actions do
       end
 
     Enum.sum(rolls) + mod
-  end
-
-  defp parse_dice_expr(expr) do
-    case Regex.run(~r/^(\d+)d(\d+)(?:([+-])(\d+))?$/, String.trim(expr)) do
-      [_, count, sides, sign, mod] ->
-        m = String.to_integer(mod)
-        {String.to_integer(count), String.to_integer(sides), if(sign == "-", do: -m, else: m)}
-
-      [_, count, sides] ->
-        {String.to_integer(count), String.to_integer(sides), 0}
-
-      _ ->
-        raise ArgumentError, "unparseable dice expression: #{inspect(expr)}"
-    end
   end
 
   # D59 Evasión: rogue L7+ — no damage on a successful DEX save, half on a
@@ -2539,7 +2525,7 @@ defmodule Dragonex.Actions do
   # D74: the dart count rides the dice expression (3d4+3 → 3; 4d4+4 → 4 when
   # upcast), so the verb always reports the real number of darts.
   defp spell_damage_verb(%{name: "magic missile", dice: dice}, _dmg) when is_binary(dice) do
-    {count, _sides, _mod} = parse_dice_expr(dice)
+    {count, _sides, _mod} = Dice.parse_expr(dice)
     " (#{count} dardos de fuerza)"
   end
 
