@@ -28,9 +28,9 @@
 Hoy el "intermediario" es `Dragonex.TurnPolicy.WorldDriven`
 (`lib/dragonex/turn_policy/world_driven.ex`): un `TurnPolicy` **determinista**
 que mantiene un cursor sobre una lista fija y lo recorre. La iniciativa se
-decide una sola vez (`roll_initiative` → `World.begin_combat`, `world.ex:233`) y
+decide una sola vez (`roll_initiative` → `World.begin_combat`, `world.ex:1564`) y
 desde ahí `WorldDriven` solo avanza el índice; `Session.end_turn` hace avanzar
-el cursor sincrónicamente (`game.ex:~882`). Quién participa lo fija el wizard,
+el cursor sincrónicamente (`game/settlement.ex:285`). Quién participa lo fija el wizard,
 no el runtime.
 
 Esto hace la partida **cuadriculada**:
@@ -68,7 +68,7 @@ barato/rápido).
 
 **Invariante preservado (crítico)**: solo el participante que tiene el turno
 accede a las tools de resolución (`make_attack`, `cast_spell`, …). El guardia
-`assert_controls` / `controlled_by?` (`tools.ex:1087`, `world.ex:202`) **no se
+`assert_controls` / `controlled_by?` (`tools.ex:1087`, `world.ex:205`) **no se
 toca**. TurnMaster decide a quién se entrega; a partir de ahí el flujo es el
 mismo de hoy.
 
@@ -123,7 +123,7 @@ Datos        Postgres (games/.../game_events) + world jsonb         (S7)
 Definidas con `use ExAgent.Tools` (patrón de `tools.ex`). **No** proponen
 cambios del `World` de combate/resolución: solo **registran la decisión**, que
 el Game lee al cerrar el beat (mismo patrón que `RollLog`: un recorder por beat
-direccionado por pid, `game.ex:~1144`). 
+direccionado por pid; patrón `RollLog` en `game/beats.ex:152`, el del TurnMaster en `:236`). 
 
 - `give_turn_to(participant :: String.t())` — entrega la palabra/iniciativa al
   participante. Validación: existe, está vivo/consciente (o es el DM). Es la
@@ -152,7 +152,7 @@ participante existe y está consciente; **no** usan `SharedState.propose_change`
 
 El `Game` pasa a una micro-máquina de **dos fases por turno** (actor →
 turnmaster). Nunca más de un beat en vuelo a la vez (invariante actual,
-`game.ex:717`).
+`game.ex:89`).
 
 ```
 # estado nuevo en Game: a que fase del par estamos (:actor | :turnmaster)
@@ -181,7 +181,7 @@ advance(state):
 
 **Primer turno / arranque**: la partida abre con un beat de TurnMaster
 (`pass_to_dm` implícito o `give_turn_to` al DM) para que el máster sitúe la
-escena, igual que hoy el DM auto-actúa al abrir (`rehydrate`, `game.ex:~334+`).
+escena, igual que hoy el DM auto-actúa al abrir (`rehydrate`, `game/bootstrap.ex:17`).
 
 **Humanos**: cuando TurnMaster hace `give_turn_to` a un humano, el Game cae a
 `:waiting` y espera `declare/3`. Las `intents` off-turno **no son solo un
@@ -208,7 +208,7 @@ mismo actor cae a fallback.
 - **Anti-bucle TurnMaster**: si la decisión repite al mismo actor que acaba de
   actuar **2 veces seguidas** sin ser `cut_in`/`react` válido → fallback a
   `WorldDriven` + nudge en el siguiente beat del TurnMaster.
-- **Circuit breaker**: la misma idea de `fallback_streak` (`game.ex:~927`) — si
+- **Circuit breaker**: la misma idea de `fallback_streak` (`game/settlement.ex:32`) — si
   TurnMaster cae al fallback N veces consecutivas, se pausa con nota
   `:system` (evita un bucle silencioso de relevo determinista).
 
@@ -225,7 +225,7 @@ peor caso vuelve al comportamiento actual (determinista).
   `initiative_order`, `acted_this_round`, vivos/caídos y quién tiene la palabra
   ahora. El TurnMaster encadena respetando el orden y gasta un `give_turn_to`
   por combatiente hasta cerrar la ronda.
-- `maybe_advance_round` (`game.ex:~1347`) se ajusta para disparar cuando
+- `maybe_advance_round` (`game/combat.ex:110`) se ajusta para disparar cuando
   `acted_this_round` cubre a los combatientes conscientes (en vez del "último
   del ciclo"), reflejando que ahora TurnMaster, no el cursor, cierra la ronda.
 - Reacciones/interrupciones: `cut_in`/`react` dan un mini-turno al reactor; al
@@ -241,7 +241,7 @@ peor caso vuelve al comportamiento actual (determinista).
   falta un tipo nuevo: `:system` ya existe (`game_event.ex:22`). Opcionalmente
   `:turn` con `kind: :handoff` si se quiere agrupar visualmente.
 - **History** (`lib/dragonex/history.ex`): `:system` ya se reconstruye como
-  mensaje `user` `[sistema]:` (`history.ex:121`). Sin cambios: el TurnMaster
+  mensaje `user` `[sistema]:` (`history.ex:158`). Sin cambios: el TurnMaster
   aporta una línea breve por decisión. DM y PCs leen "el turno pasó a X" y
   mantienen coherencia.
 - **Durabilidad**: la decisión vigente (current) ya se persiste en
@@ -285,7 +285,8 @@ el brief del turno → aprovecha el prompt caching ya medido (`cached_tokens/1`)
 
 - **+1 llamada LLM por turno** → asumido por diseño (prioridad: diversión).
   Modelo barato, `max_tokens` ~256, prefijo cacheado. Latencia mitigable
-  lanzando el beat en `Task` (el GenServer sigue responsive, `game.ex:1113`).
+  lanzando el beat en `Task` (el GenServer sigue responsive,
+  `game/beats.ex:73`).
 - **Deadlock / bucle del TurnMaster** → fallback `WorldDriven` + circuit-breaker
   (§7).
 - **Inequidad en combate** → `acted_this_round` en el brief + regla de equidad

@@ -1,4 +1,4 @@
-# Catálogo de mecánicas 5e (M1–M43)
+# Catálogo de mecánicas 5e (M1–M60)
 
 > **Técnico.** Cada mecánica implementada, con identificador estable `Mxx`,
 > dónde vive (módulo:función), qué regla 5e aplica, sus simplificaciones (ADR)
@@ -1040,7 +1040,7 @@ enfermedad/veneno con Lay on Hands (gastar 5) sigue fuera.
   fuera). Veneno real en el motor (araña gigante + Resistencia enana)
   entró en **D75/D76 / M59–M60**.
 
-Para que una de estas entre: ADR nuevo + mecánica `M44+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M61+` en este catálogo +
 tests.
 
 ## Dados

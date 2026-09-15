@@ -36,6 +36,7 @@
 | `Dragonex.Game.Persistence` | Snapshot del world a Postgres + broadcast `:game_updated` en PubSub |
 | `Dragonex.Game.Guardrails` | Heurísticas puras: anti-puppet, anti-repeat, anti-loop (PC), limbo, español |
 | `Dragonex.Game.Instructions` | Builders de instrucciones por turno (humano/DM/post-combate/avance) |
+| `Dragonex.Intents` | Encode/decode de `games.intents`: texto + fase — una reacción encolada en combate no dispara tras acabarse (D28) |
 
 ## S3 · Motor de agentes — `ExAgent.Session` + `lib/dragonex/turn_policy/`
 
@@ -58,6 +59,7 @@ GitHub `kukapu/exagent` branch `main`.)
 | `Dragonex.Rules.Upcast` | Tabla curada de escalado RAW por casilla superior (upcasting, D74/M58) |
 | `Dragonex.Actions` | Puente intent→world: `attack`, `spell` (upcast D74 + metamagic D65), `initiative`, `death_save`, `heal`, `second_wind`, `action_surge`, `flurry_of_blows` (D54), `hunters_mark` (D55), `cunning_action_hide` (D57), `start_uncanny_dodge` (D64), `create_spell_slot`/`convert_to_sorcery_points` (D56), `arm_metamagic` (D65), `wild_shape`/`end_wild_shape` (D63), `breath_weapon` (D70), `gain_expertise` (D73), `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`, `arcane_recovery`, `short_rest`, `long_rest`, `check`, `roll` (Divine Smite D46 / Bardic Inspiration D50 en `attack`) |
 | `Dragonex.World` | Estado + máquina de combate + mutadores (change fns) + spell slots + facts |
+| `Dragonex.SpellSlots` | Tabla pura SRD de casillas por clase/nivel (full L1, half L2) + Pact Magic del warlock (D40); Mystic Arcanum fuera de v1 |
 
 ## S5 · Tools (API del LLM) — `lib/dragonex/tools.ex`
 
@@ -116,6 +118,7 @@ Stubs legacy (sólo para tests del framework exAgent): `attack/2`, `roll/1`,
 | `Dragonex.Heroes.SRDSpells` | Carga `priv/srd/spells.es.json` (319) en compilación (`@external_resource`) |
 | `Dragonex.Heroes.Catalog` | Capa display/consulta: builtin + SRD + **custom inyectado**, con `source:`. Localizado |
 | `Dragonex.Heroes.LevelUp` | Subida de nivel (RAW no cura, `D11`; ASI, hechizos nuevos) |
+| `Dragonex.Heroes.Draft` | Mapeo puro form ↔ draft del wizard (`HeroLive.New`): siembra desde héroe guardado, serializa a `Heroes.build/1`/`Accounts.save_hero/4`. Sin DB (D9) |
 | `Dragonex.Heroes.Progression` | Tablas puras: XP, niveles ASI `[4,8,12,16,19]`, `max_spell_level`, features |
 | `Dragonex.Heroes.Translations` | i18n ES/EN del catálogo |
 
@@ -137,7 +140,7 @@ Stubs legacy (sólo para tests del framework exAgent): `attack/2`, `roll/1`,
 | `Dragonex.Dice` | RNG vía `dic_ex`; `parse_expr/1` (gramática única `NdM±K`, D77), `roll_expr/2`; `always/1` (test) |
 | `Dragonex.RollLog` | `Agent` por beat que graba cada dado en grupos y publica en vivo |
 | `Dragonex.Character` / `Weapon` / `Spell` / `Item` | Structs (la "forma" congelada, `D4`) |
-| `Dragonex.Monsters` | Bestiario: 9 SRD hostiles (goblin…giant_spider D75) + 3 bestias de Forma salvaje (cat/wolf/black_bear, D63) + 2 dianas de entrenamiento |
+| `Dragonex.Monsters` | Bestiario (13): 8 SRD hostiles (goblin, kobold, bandit, skeleton, orc, hobgoblin, ogre CR 3, giant_spider D75) + 3 bestias de Forma salvaje (cat, wolf —también hostil—, black_bear, D63) + 2 dianas de entrenamiento |
 | `Dragonex.Archetypes` | 3 PCs hardcoded (fighter Thane, wizard Lyra, rogue Vex) — fallback del roster |
 | `Dragonex.Roster` | Catálogo de seleccionables para el wizard |
 | `Dragonex.Scenarios` | 6 story scenarios (taberna, cripta, asedio, torre, bosque, arena) — cada uno una story bible |

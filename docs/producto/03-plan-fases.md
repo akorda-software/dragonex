@@ -502,7 +502,7 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
 3. Implementa con tests (ver [`../tecnico/09-estrategia-pruebas.md`](../tecnico/09-estrategia-pruebas.md)
    para qué capa de test exige cada cambio).
 4. Verifica: `mix compile` (0 warnings) → `mix format` → `MIX_ENV=test mix test`
-   (907 verde). Si toca prompts/agentes: smoke con TestModel incluido.
+   (1511 verde). Si toca prompts/agentes: smoke con TestModel incluido.
 5. Actualiza `../progress.md` (mueve el ítem) y este doc (marca el ítem). Si
    tomaste una decisión no trivial: ADR en `../decisions.md`.
 6. Commit estilizado (`feat(motor): …`, `fix(hero): …`).

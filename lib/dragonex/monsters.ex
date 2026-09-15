@@ -4,6 +4,10 @@ defmodule Dragonex.Monsters do
   the WorldDriven policy folds them onto the DM's turn (the DM acts for its
   monsters when their slot in the initiative order comes up).
 
+  Stats caveat: weapon dice are bare `NdM` (the engine adds the STR/DEX
+  modifier on top) and one approximation is declared — the wolf's bite is
+  2d4+1 here vs RAW 2d4+2 (STR 12 → +1, avg 6 vs 7); see D63.
+
   Each monster is CR-rated so the DM can gauge encounter difficulty:
     * CR 0:   cat
     * CR 1/4: goblin, kobold, bandit, skeleton, wolf

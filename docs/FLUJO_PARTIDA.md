@@ -453,7 +453,7 @@ el beat de setup (monstruos preexistentes no cuentan). Emite
 
 ### 15.3 Anti-loop de PCs — `with_pc_anti_loop` (§bug #3)
 Compara las últimas 2 narraciones del bot (similitud de **Jaccard** > 0.75 sobre
-palabras normalizadas, sin stopwords). En casi-duplicado, inyecta un nudge强硬
+palabras normalizadas, sin stopwords). En casi-duplicado, inyecta un nudge contundente
 que fuerza una acción DISTINTA y concreta.
 
 ### 15.4 Anti-puppet del DM — recorte + `with_dm_no_puppet_nudge` (§bug #4, D29)
@@ -662,7 +662,7 @@ tópico `dragonex:game:<id>` y re-fetch del snapshot al recibir
 - [x] **Biblia → facts** (D32): Borin + gancho oficial + enemigos previstos.
 
 ### ⚪ Menores
-- [ ] _（sin pendientes menores abiertos）_
+- [ ] _(sin pendientes menores abiertos)_
 
 ---
 

@@ -19,7 +19,7 @@ Convenciones:
   **4** mesa usable · **5** multiplayer · **6** pulido (mobile, UX).
 
 Fuente de verdad complementaria: los ADR de [`../decisions.md`](../decisions.md)
-(`D1`–`D77`), las mecánicas `M1`–`M60` de
+(`D1`–`D78`), las mecánicas `M1`–`M60` de
 [`../tecnico/08-catalogo-mecanicas.md`](../tecnico/08-catalogo-mecanicas.md) y
 el contrato de tools de [`../tecnico/07-contrato-tools.md`](../tecnico/07-contrato-tools.md).
 
@@ -32,7 +32,9 @@ Registro, login y logout con email + contraseña (bcrypt, session cookies).
 
 - AC-1.1: registro → login → sesión persistente → logout, test en
   `test/dragonex/accounts_test.exs`.
-- AC-1.2: rutas protegidas redirigen a login sin sesión (`test/support/conn_case.exs`).
+- AC-1.2: rutas protegidas redirigen a login sin sesión — redirect del plug
+  `:auth` en el render desconectado y live_redirect del mount hook
+  (`test/dragonex_web/protected_routes_test.exs:23`).
 
 ### R02 — Galería de héroes ✅
 `/heroes` lista los héroes del usuario; cada héroe es un personaje 5e reusable
@@ -61,7 +63,8 @@ SRD (`priv/srd/spells.es.json`, regenerable con `scripts/import_srd_spells.py`).
 
 - AC-4.1: el catálogo mezcla builtin + SRD + custom del usuario con
   `source: :builtin | :srd | :custom` (`Catalog`, test `catalog_test.exs`).
-- AC-4.2: la cuenta de hechizos SRD cargados es 319 (`srd_spells_test.exs`).
+- AC-4.2: la cuenta de hechizos SRD cargados es exactamente 319
+  (`test/dragonex/heroes/srd_spells_test.exs:69`).
 - AC-4.3: i18n ES/EN de catálogo y tipos de daño (`Translations`).
 
 ### R05 — Derivados nivel 1 correctos ✅
@@ -97,7 +100,8 @@ hechizos nuevos respetando `max_spell_level`, half-casters desde nivel 2.
 - AC-8.1: subir de nivel no cambia `hp` actual si hay daño (conserva déficit).
 - AC-8.2: ASI fuera de niveles ASI se ignora; cap 20 por característica.
 - AC-8.3: un paladín nivel 2 gana slots de nivel 1; un wizard nivel 3 gana
-  slots de nivel 2 (`test/dragonex/heroes/level_up_test.exs`).
+  slots de nivel 2 (`test/dragonex/spell_slots_test.exs:85` y el golden
+  wizard L3 en `test/dragonex/heroes/srd_golden_test.exs:196`).
 - AC-8.4: la subida se **sincroniza a partida viva** vía single-writer
   (`Game.sync_hero_level_up`) preservando hp dañado/conditions/slots/AC
   (`game_sync_genserver_test.exs`).
@@ -133,7 +137,9 @@ hechizos nuevos respetando `max_spell_level`, half-casters desde nivel 2.
 custom con título/escena inicial/estilo de DM) + personajes.
 
 - AC-10.1: cada escenario predefinido (`Scenarios.all`) arranca una partida
-  con su story bible horneada en el system prompt (D20).
+  con su story bible horneada en el system prompt (D20) — el wizard persiste
+  la biblia y `DM.new/2` la cuece en las instrucciones
+  (`test/dragonex/scenarios_test.exs:37`).
 
 ### R11 — Compañeros: héroes, arquetipos y monstruos ✅
 El creador añade sus héroes, arquetipos predefinidos (guerrero/maga/pícaro) o
@@ -147,7 +153,8 @@ Partida con slots abiertos arranca en **sala de espera**: link compartido,
 otros usuarios se unen con su héroe, el creador pulsa **Empezar**.
 
 - AC-12.1: `join_game` valida slot libre y añade participante
-  (`games_context_smoke_test.exs`; las guardas de estado en el mismo archivo).
+  (`games_context_smoke_test.exs:154`; las guardas de estado —`no_open_slots`,
+  `already_started`, lobby `:configuring`— en el mismo archivo).
 - AC-12.2: la partida no arranca hasta "Empezar"; tras arrancar no se admiten
   uniones.
 
@@ -161,7 +168,7 @@ paginación "cargar más" (tope ~400 bloques, ventana inicial ~200 eventos).
 
 - AC-13.1: los eventos llegan ordenados por `seq` append-only (`game_events`).
 - AC-13.2: "cargar más" pagina hacia atrás sin saltos ni duplicados
-  (`game_live_test.exs`).
+  (`test/dragonex_web/game_live_test.exs:287`).
 
 ### R14 — Dado modal con desglose ✅
 Cada tirada (ataque, daño, salvación, chequeo) muestra dados animados (2D/3D,
@@ -180,7 +187,7 @@ La narración llega en streaming con anti-duplicación; si el modelo falla:
 reintento con backoff y, si insiste, pausa con nota — nunca feed roto.
 
 - AC-16.1: chunks duplicados (reintento) no aparecen dos veces en el feed
-  (`game_live_test.exs`).
+  (`test/dragonex_web/game_live_test.exs:338`).
 
 ### R17 — Declarar el turno ✅
 Cuando es el turno de un humano, la mesa muestra "Es tu turno" + input. La
@@ -201,7 +208,8 @@ Pausa en cualquier momento (`:paused`), persistida; reanudar continúa el bucle
 exactamente donde estaba (incluso tras kill del proceso).
 
 - AC-19.1: matar el GenServer y reabrir la partida rehidrata estado + historial
-  y el turno en curso (`game_sync_genserver_test.exs`).
+  y el turno en curso (`test/dragonex/persistence_test.exs:16` y
+  `test/dragonex/flows/session_persistence_test.exs:29`).
 
 ### R20 — Mesa responsive ✅
 A ≤720px la mesa apila: feed + input primero, ficha en un drawer CSS
@@ -303,7 +311,8 @@ La invariante `controlled_by?` restringe las tools al participante actual.
 - AC-29.1: si TurnMaster falla/buclea/elige inválido, el Game cae a la policy
   sin deadlock (`turn_master_loop_test.exs`).
 - AC-29.2: un participante no puede usar tools de resolución en turno ajeno
-  (error directivo, `dm_puppet_pc_test.exs`).
+  (error directivo; `test/dragonex/skill_checks_test.exs:327` y la invariante
+  `controlled_by?` en `test/dragonex/world_test.exs:526`).
 
 ### R30 — TurnMaster dramático ✅ (D25, D27)
 En combate respeta `initiative_order` con excepciones explícitas (`cut_in`,

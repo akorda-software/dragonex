@@ -47,6 +47,8 @@ y lo mete en `System.put_env`. Los valores del entorno real **ganan** sobre `.en
 | `PORT` | `4000` | puerto http del endpoint |
 | `PHX_BIND_IP` | `127.0.0.1` | IP de bind |
 | `DRAGONEX_COMPACTION_THRESHOLD` | `250000` | umbral de compactación (tokens) |
+| `DRAGONEX_COMPACTION_KEEP_RECENT` | `12` | mensajes recientes que la compactación conserva verbatim (`game/bootstrap.ex`) |
+| `DRAGONEX_APP_TITLE` | `"dragonex"` | título canónico de la app (attribution de los providers, `models.ex`) |
 
 ## Los dos proveedores LLM (`Dragonex.Models`)
 

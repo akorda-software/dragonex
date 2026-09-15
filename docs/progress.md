@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **1511 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **1545 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -209,7 +209,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   Mensaje "(nivel N)" al subir. Excluidos documentados (ADR D74): heal
   (pg planos), mass_cure_wounds/sleep (motor sin dados reales /
   mal-modelado), multi-objetivo y multi-rayo (scorching_ray). Tests
-  `upcast_test.exs` (21).
+  `upcast_test.exs` (24).
 - ✅ Sneak Attack del rogue (D41): `div(level+1, 2)` d6; arma finesse o
   ranged; advantage o aliado consciente; disadvantage bloquea; primer
   hit de `Actions.attack`; crítico 2N d6. Sin grid ni once-per-turn
@@ -533,6 +533,38 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
        el único hechizo así del catálogo es cloudkill del SRD).
        Tests `poison_test.exs` (14).
 
+### Lote de corrección post-revisión (2026-09-15, FIX-1/FIX-2) ✅
+
+Cierre de los hallazgos de la auditoría de producto+técnica (informes A y B).
+
+- **Bestiario RAW** (FIX-1, `337fa07`): bear_bite a `1d6` (los dados de arma
+  solo parsean `NdM` — un `"1d8+3"` literal crasheaba `Combat.parse_dice`;
+  el motor ya suma STR +3 → 1d6+3 RAW); wolf bite `2d4` (STR 12 → 2d4+1
+  motor vs 2d4+2 RAW, aproximación asumida); ogre CR 3 real (PG 59, garrote
+  2d8 → 2d8+4 con STR 19; antes CR 1/PG 28/1d8 sin declarar). Test de
+  regresión: atacar con CADA bestia del catálogo de wild shape + araña
+  gigante.
+- **Gates RAW** (FIX-1, `337fa07`): wild shape CR 1/2 desde L5 (antes L4);
+  `start_reckless` exige nivel 2.
+- **Hechizos builtin** (FIX-1, `2d60756`): spiritual weapon 1d8 force y
+  prayer of healing 2d8 — el SRD trae `dice: null` y el motor trataba nil
+  como 0 (ataque sin daño / cura nula). Upcast de prayer (+1d8/nivel) ya
+  vivía en D74; ahora con base real.
+- **Combate vs caído/incapacitado** (FIX-1, `da4b8ba`, ADR D78): golpes
+  melee que aciertan vs `paralyzed`/`unconscious` son críticos automáticos
+  (proxy melee: sin posicionamiento); se puede atacar a un caído y el daño
+  con restante > 0 sobre un personaje ya a 0 pg registra fallos de
+  salvación de muerte (+1/+2 crítico), respetando el orden de capas D67 —
+  massive damage sigue fuera.
+- **join_game con guarda de estado** (FIX-1, `84f6a9b`): exige
+  `status :configuring` (`{:error, :already_started}`); `start_game` zeroa
+  `open_slots`; el lobby (`open_games`) lista solo `:configuring`.
+- **Gaps de ACs cerrados con tests** (FIX-2, `e8f3ce1`): paginación del
+  feed (AC-13.2), dedup de chunks ante reintento (AC-16.1), rutas protegidas
+  (AC-1.2), cuenta exacta SRD 319 (AC-4.2), story bible por escenario
+  (AC-10.1) y join con slot/participante (AC-12.1) — recitas verificadas en
+  `02-requisitos.md`.
+
 ---
 
 ## 🟡 Simplificaciones v1 documentadas (deudas técnicas asumidas)
@@ -546,7 +578,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 | Rasgos raciales | Lucky D66 + Resistencia implacable D67 + Savage Attacks D69 + Astucia gnoma D71 + Resistencia enana D76 (automáticos, sin tool) + Aliento de dragón D70 (tool racial); Brave, Halfling Nimbleness, Darkvision y demás 🟡 | D66, D67, D69, D70, D71, D76 |
 | Empate iniciativa | DEX score desc, luego nombre; sin roll-off extra | D39 |
 | Banner level-up in-game | Eliminado (D33); subida desde la ficha | D33 |
-| Stub legado en `Tools` | `attack`/`roll`/`spawn_character`/`next_round` mantenidos para tests del framework exAgent | `tools.ex:31-72` |
+| Stub legado en `Tools` | `attack`/`roll`/`spawn_character`/`next_round` mantenidos para tests del framework exAgent | `tools.ex:36-77` |
 
 ---
 

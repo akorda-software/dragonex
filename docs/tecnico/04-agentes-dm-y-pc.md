@@ -148,6 +148,11 @@ configurado (umbral 250k tokens, env `DRAGONEX_COMPACTION_THRESHOLD` → efectiv
 off con modelos de 1M ventana; `keep_recent: 12`). El summarizer es un modelo barato
 flash/lite; el resumen real lo orquesta `Dragonex.Agent.summarize/5` (`agent.ex`).
 
+Nota `keep_recent`: los defaults por módulo difieren (DM 8, PCAgent 12), pero
+`Game.Bootstrap` construye ambos agentes con el MISMO valor del env
+`DRAGONEX_COMPACTION_KEEP_RECENT` (default 12) — en una partida viva todos
+compactan igual.
+
 ## Resumen ejecutivo del contrato
 
 > El **DM** narra y arbitra el mundo (con todas las tools). El **PCAgent** actúa

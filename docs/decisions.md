@@ -106,7 +106,7 @@ simplificar; documentado en `progression.ex:14-28`.
 
 `Actions.initiative/3` desempata por nombre para determinismo (tests). 5e
 usaría destreza y luego roll-off; queda como refinamiento futuro
-(`actions.ex:231`).
+(`actions.ex:349`).
 
 ### D16 — Hechos durables canónicos (`world.facts`)
 El DM registraba ganchos solo en narración (truncable en el history) y los
@@ -1395,12 +1395,16 @@ orig_weapons}` — claves átomo en memoria, strings en Codec, D8).
 
 - **Catálogo**: `Monsters.cat/1` (CR 0: STR 3, DEX 15, CON 10, SAB 12,
   CAR 7, PG 4, CA 12, bite 1d4 finesse), `black_bear/1` (CR 1/2: STR 15,
-  DEX 14, CON 14, PG 19, CA 11, bite 1d8+3) y el `wolf` existente; los
+  DEX 14, CON 14, PG 19, CA 11, bite 1d6 — el motor suma STR +3 encima →
+  **1d6+3 RAW**; los dados de arma SOLO parsean `NdM`, un `"1d8+3"`
+  literal crasheaba `Combat.parse_dice`) y el `wolf` existente
+  (**bite 2d4**: STR 12 → el motor suma +1 → 2d4+1 vs 2d4+2 RAW, media
+  6 vs 7 — aproximación asumida, sin flat en dados de arma); los
   tres también en `Monsters.catalog/0` (spawnables por el DM) y en
   `Monsters.wild_shape_beasts/0` → `%{"cat" => 0.0, "wolf" => 0.25,
   "black_bear" => 0.5}` (cr float).
-- **Gate de CR** (en `Actions.wild_shape/3`): druida L2–3 → máx 0.25
-  (cat, wolf); L4+ → máx 0.5 (todas). Sin formas volar/nadar.
+- **Gate de CR** (en `Actions.wild_shape/3`, RAW): druida L2–4 → máx
+  0.25 (cat, wolf); L5+ → máx 0.5 (todas). Sin formas volar/nadar.
 - **Tools** `wild_shape(who, beast)` / `end_wild_shape(who)`: DM
   cualquiera; PC sólo sí mismo (patrón divine_smite). Errores NO mutan
   (who inexistente, caído, no druida, L1, ya transformado, bestia
@@ -1537,6 +1541,9 @@ opción armada a la vez.
     "(Metamagia: Empowered)" en el desglose. Un hechizo :attack que
     falla igualmente la consume (el hechizo califica por tipo — RAW se
     elige al lanzar). Curación y utilidad NUNCA califican.
+    **Desviación RAW deliberada**: el keep-higher no es el "you must use
+    the new rolls" del texto 2014 — se elige determinismo (el reroll
+    nunca empeora) sobre la letra; documentado aquí, no en el prompt.
   - **Heightened**: hechizo :save cuyo objetivo == target armado → esa
     salvación se resuelve con desventaja (entra como
     `requested: :disadvantage` en `Conditions.save_mode`, se combina con
@@ -1597,6 +1604,12 @@ hay tool ni prompt — el motor lee la raza de la ficha.
 - **NO aplica** a death saves (`death_save/2` no recibe personaje) ni a
   tiradas sin d20 de personaje. Monstruos con `race: "halfling"`
   también lo tienen (gratis y correcto: el motor no distingue lado).
+  **Cobertura por enumeración**: la suerte vive en las TRES funciones de
+  `Rules.Combat` citadas, no en un cuello único — rutas que tiran su
+  propio d20 por fuera NO la heredan: los ataques de hechizo
+  (`cast_spell` rama `:attack`, que llama `kept_d20` directamente) y las
+  salvaciones de muerte quedan fuera; si nace una ruta d20 nueva, hay
+  que citarla a mano.
 - **Implementación**: helper privado `maybe_lucky(%Character{}, d20,
   roller) -> {die, tag}` usado en los tres sitios. El reroll pasa por
   el MISMO roller → el RollLog group registra ambos dados
@@ -2096,6 +2109,47 @@ en [`tecnico/10-auditoria-motor.md`](tecnico/10-auditoria-motor.md).
 - Cero cambios de comportamiento: suite 1500 → 1511 passed, mismos 3
   excluded (integración live). Contadores de docs realineados
   (AGENTS.md, progress, plan-fases, estrategia-pruebas).
+
+### D78 — Combatir a los caídos: auto-crítico vs incapacitados y death-fails por daño a 0 pg
+Estado: **Aceptada** — 2026-09-15.
+
+Alineación RAW del cierre del lote D35–D77 (FIX-1): dos reglas 5e que el
+motor omitía.
+
+- **Auto-crítico vs incapacitados** (RAW "any attack that hits... within
+  5 feet"): un golpe melee que ACIERTA contra un objetivo con condición
+  `paralyzed` o `unconscious` sale `:crit` (dados doblados por el camino
+  existente de `Combat.damage_roll_tagged`). La ventaja que esas
+  condiciones ya otorgaban (`Conditions.attack_mode`, M06) se conserva;
+  los ataques a distancia y los fallos NUNCA se promocionan. **Proxy de
+  adyacencia**: el motor no tiene posicionamiento, así que "within 5
+  feet" se interpreta como arma melee (`weapon.ranged != true`) —
+  documentado como simplificación. Los ataques de hechizo NO siguen
+  esta vía (la rama `:attack` de `cast_spell` tira su propio d20).
+  Implementado en `Actions.resolve_one_swing` vía
+  `auto_crit_vs_incapacitated/3`.
+- **Death-fails por daño a 0 pg** (RAW): un personaje que ya está a 0 pg
+  registra 1 fallo de salvación de muerte por golpe con daño restante >
+  0 tras capas, 2 si el golpe fue crítico (`opts[:crit]` de
+  `World.apply_damage/5`). El daño que te BAJA a 0 NO registra (sólo el
+  recibido MIENTRAS estás a 0); el orden de capas D67 se respeta
+  (Relentless Rage/Endurance dejan a 1 pg y no registran nada); massive
+  damage instantáneo queda FUERA (deuda declarada); al 3er fallo el
+  personaje muere por la vía existente (`World.dead?/2`). Un muerto no
+  acumula más fallos.
+- **Se puede atacar a un caído**: `resolve_swings` ya no corta los
+  golpes de una acción cuyo objetivo EMPEZÓ a 0 pg (cada golpe registra
+  su fallo); si el objetivo cae a mitad de la acción, los golpes
+  restantes siguen saltándose (sin retarget, D35). El pipe de daño
+  acepta `{cantidad, opts}` por golpe: el smite del MISMO golpe no
+  doble-registra (`death_fail: false`); hechizos y demás callers van con
+  opts por defecto.
+- **Sin campos nuevos** en `Character`/`Weapon`/`Spell`/`Item` (D4): el
+  tracker `death_saves` existente acumula. Nota al log del world por
+  registro ("recibe daño estando caído") para que la narración lo
+  muestre. Tests: `world_test.exs` (capas y muerte), `actions_test.exs`
+  (atacar a un caído, secuencia hasta la muerte, Extra Attack vs
+  caído), `conditions_test.exs` (auto-crítico melee/ranged/fallo).
 
 ---
 
