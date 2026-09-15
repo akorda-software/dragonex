@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **1500 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **1511 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -565,3 +565,6 @@ Una feature entra en ✅ cuando:
 4. No deja `TODO`/`FIXME` sin dirección en `lib/`.
 
 No se marca hecha por "el commit existe" sino por "se verifica".
+
+Auditoría de calidad del lote D35–D76 (tests, arquitectura, docs):
+[`tecnico/10-auditoria-motor.md`](tecnico/10-auditoria-motor.md) (D77).

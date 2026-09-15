@@ -25,7 +25,7 @@ existe" sino por "se verifica".**
 | F4 — Héroes | Forjar y crecer | Builder 5 pasos + catálogos SRD ES + custom (D22) + level-up (D10–D13) |
 | F5 — TurnMaster | La partida fluye | Orquestador de turnos (D25) con fallback WorldDriven |
 
-Verde de referencia hoy: **1041 tests passed**, compile sin warnings.
+Verde de referencia hoy: **1511 tests passed**, compile sin warnings.
 
 ---
 

@@ -2068,6 +2068,35 @@ El rasgo racial del enano 5e, en sus dos mitades RAW, sin campo nuevo
   training, stonecunning), veneno de otros tipos, INMUNIDAD (no
   resistencia) de no-muertos, feats, multiclase. M60 en el catálogo.
 
+### D77 — Auditoría y pulido del lote D35–D76
+Estado: **Aceptada** — 2026-09-15.
+
+Auditoría de CALIDAD del lote D35–D76 (no añade features): revisión de
+los ~34 archivos de test del lote (comportamiento vs internals, rollers
+deterministas con números exactos), verificación de los invariantes de
+arquitectura (D6/D31), y consolidación de duplicación. Informe completo
+en [`tecnico/10-auditoria-motor.md`](tecnico/10-auditoria-motor.md).
+
+- **Gramática de dados única**: la regex `NdM±K` vivía replicada en
+  `Dice.roll_expr`, `Dice.valid?`, `Rules.Upcast.parse` (privado) y
+  `Actions.parse_dice_expr` (privado). Entra `Dice.parse_expr/1`
+  público (`{count, sides, mod}`) como ÚNICO parser; `roll_expr`/`valid?`
+  lo reusan vía el atributo `@dice_expr`, y `Rules.Upcast`/`Actions`
+  delegan (las copias se eliminan). `Rules.Combat.parse_dice` (sólo
+  `NdM`, error propio) NO se toca: su estrechez es deliberada (D75 —
+  los dados de arma no aceptan modificador plano). Decisión: la casa del
+  parser es `Dice`, no un `Rules.*`, porque ahí ya vivía la gramática
+  que `roll_expr`/`valid?` usaban.
+- **Tests de gaps ADR**: se añaden 11 tests de interacciones DECLARADAS
+  en ADRs pero sin cobertura directa: aliento D70 × (concentración del
+  objetivo, Danger Sense, Lucky, inspiración, aura, Indomitable);
+  Evasión × inspiración (D59×D50); Indomitable × aura re-sumada (D68×D61);
+  upcast × casilla de pacto del brujo (D74×D40); upcast × Twinned y
+  upcast × Empowered con dados combinados (D74×D65).
+- Cero cambios de comportamiento: suite 1500 → 1511 passed, mismos 3
+  excluded (integración live). Contadores de docs realineados
+  (AGENTS.md, progress, plan-fases, estrategia-pruebas).
+
 ---
 
 ## Pendientes de decisión (abiertas)
