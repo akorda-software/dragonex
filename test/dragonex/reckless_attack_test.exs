@@ -83,6 +83,9 @@ defmodule Dragonex.RecklessAttackTest do
         [
           name: "Grok",
           class: "barbarian",
+          # Reckless Attack es una FEATURE de nivel 2 (RAW); L2+ en todos los
+          # tests de uso.
+          level: 2,
           hp: 14,
           max_hp: 14,
           ac: 14,
@@ -193,6 +196,19 @@ defmodule Dragonex.RecklessAttackTest do
       assert {:error, msg} = World.start_reckless("Thane").(w)
       assert msg =~ "bárbaro"
       assert w.characters["Thane"].reckless == false
+    end
+
+    test "bárbaro L1 rechazado (Reckless Attack llega en nivel 2, RAW)" do
+      w = world([barbarian(level: 1)])
+      assert {:error, msg} = World.start_reckless("Grok").(w)
+      assert msg =~ "nivel 2"
+      assert w.characters["Grok"].reckless == false
+    end
+
+    test "bárbaro L2 ok" do
+      w = world([barbarian(level: 2)])
+      assert {:ok, w} = World.start_reckless("Grok").(w)
+      assert w.characters["Grok"].reckless == true
     end
 
     test "set_current_combatant limpia reckless de ese personaje" do

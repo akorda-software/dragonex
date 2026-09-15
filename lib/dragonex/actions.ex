@@ -959,8 +959,8 @@ defmodule Dragonex.Actions do
     end
   end
 
-  # CR gate (D63): L2–3 → máx 1/4; L4+ → máx 1/2.
-  defp wild_shape_max_cr(level) when is_integer(level) and level >= 4, do: 0.5
+  # CR gate (D63, RAW): L2–4 → máx 1/4; L5+ → máx 1/2.
+  defp wild_shape_max_cr(level) when is_integer(level) and level >= 5, do: 0.5
   defp wild_shape_max_cr(_), do: 0.25
 
   @doc """

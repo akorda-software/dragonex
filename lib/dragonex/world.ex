@@ -585,7 +585,11 @@ defmodule Dragonex.World do
     end
   end
 
-  @doc "Enter Reckless Attack (D44). Only `class == \"barbarian\"`."
+  @doc """
+  Enter Reckless Attack (D44). Only `class == "barbarian"` of level 2+
+  (RAW: the feature arrives at L2; the level gate mirrors
+  `Actions.start_uncanny_dodge`).
+  """
   @spec start_reckless(String.t()) :: (t() -> {:ok, t()} | {:error, String.t()})
   def start_reckless(name) do
     fn w ->
@@ -593,11 +597,14 @@ defmodule Dragonex.World do
         nil ->
           {:error, "no such character: #{name}"}
 
-        %Character{class: "barbarian"} ->
-          set_reckless(name, true).(w)
+        %Character{class: class} when class != "barbarian" ->
+          {:error, "#{name} no es bárbaro y no puede atacar de forma temeraria"}
+
+        %Character{level: level} when not is_integer(level) or level < 2 ->
+          {:error, "#{name} no tiene Ataque temerario (nivel 2)"}
 
         %Character{} ->
-          {:error, "#{name} no es bárbaro y no puede atacar de forma temeraria"}
+          set_reckless(name, true).(w)
       end
     end
   end

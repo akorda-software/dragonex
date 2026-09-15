@@ -96,7 +96,7 @@ defmodule Dragonex.WildShapeTest do
       {:ok, w2} = change.(w)
       s = w2.characters["Sylvi"]
 
-      # Wolf: STR 12, DEX 15, CON 12, PG 11, CA 13, arma bite 1d6.
+      # Wolf: STR 12, DEX 15, CON 12, PG 11, CA 13, arma bite 2d4.
       assert s.str == 12
       assert s.dex == 15
       assert s.con == 12
@@ -105,7 +105,7 @@ defmodule Dragonex.WildShapeTest do
       assert s.ac == 13
       assert length(s.weapons) == 1
       assert hd(s.weapons).name == "bite"
-      assert hd(s.weapons).dice == "1d6"
+      assert hd(s.weapons).dice == "2d4"
 
       # Conserva mental, identidad, proficiencies, condiciones, concentración.
       assert s.int == 12
@@ -214,8 +214,14 @@ defmodule Dragonex.WildShapeTest do
       assert {:error, _} = Actions.wild_shape(w, "Sylvi", "black_bear")
     end
 
-    test "L4 black_bear ok" do
+    test "L4 sigue a ND 1/4 (RAW: CR 1/2 llega en L5)" do
       w = world([druid(level: 4), goblin([])])
+      assert {:error, msg} = Actions.wild_shape(w, "Sylvi", "black_bear")
+      assert msg =~ "ND"
+    end
+
+    test "L5 black_bear ok" do
+      w = world([druid(level: 5), goblin([])])
       assert {:ok, msg, _} = Actions.wild_shape(w, "Sylvi", "black_bear")
       assert msg == "Sylvi adopta la forma de un oso negro (usos de forma salvaje restantes: 1)."
     end
@@ -518,12 +524,14 @@ defmodule Dragonex.WildShapeTest do
       assert bite.name == "bite" and bite.dice == "1d4" and bite.finesse == true
     end
 
-    test "black_bear: CR 1/2 — STR 15, DEX 14, CON 14, PG 19, CA 11, bite 1d8+3" do
+    test "black_bear: CR 1/2 — STR 15, DEX 14, CON 14, PG 19, CA 11, bite 1d6" do
       c = Monsters.black_bear(name: "oso")
       assert c.str == 15 and c.dex == 14 and c.con == 14
       assert c.hp == 19 and c.max_hp == 19 and c.ac == 11
+      # 1d6 pelado: el motor suma STR +3 encima → 1d6+3 (RAW). Los dados de
+      # arma solo parsean NdM — "1d8+3" crasheaba el combate.
       [bite] = c.weapons
-      assert bite.name == "bite" and bite.dice == "1d8+3"
+      assert bite.name == "bite" and bite.dice == "1d6"
     end
 
     test "cat y black_bear están en el catálogo de monstruos" do
@@ -531,6 +539,36 @@ defmodule Dragonex.WildShapeTest do
       assert is_function(Monsters.get("black_bear"), 1)
       assert "cat" in Monsters.keys()
       assert "black_bear" in Monsters.keys()
+    end
+
+    test "CADA bestia del catálogo (+ giant_spider) puede atacar sin crashear" do
+      # Regresión del oso: dados tipo "1d8+3" (no NdM) hacían raise en
+      # Combat.parse_dice. Atacar con cada arma de cada forma valida que
+      # TODOS los dados del bestiario parsean y dañan. (CA 5: hasta el gato
+      # con STR 3 acierta con d20 15 → los dados SIEMPRE se tiran.)
+      for {beast_key, _cr} <- Monsters.wild_shape_beasts() do
+        beast = Monsters.get(beast_key).(name: "bestia")
+
+        assert Enum.any?(beast.weapons, fn weapon ->
+                 w = world([beast, goblin(hp: 100, max_hp: 100, ac: 5)])
+
+                 with {:ok, _, change} <-
+                        Actions.attack(w, "bestia", "Goblin", weapon.name, fixed(15)),
+                      {:ok, w2} <- change.(w) do
+                   w2.characters["Goblin"].hp < 100
+                 else
+                   _ -> false
+                 end
+               end),
+               "la bestia #{beast_key} no pudo atacar con sus armas"
+      end
+
+      # La araña gigante comparte el mismo contrato de datos (D75: 3d8).
+      spider = Monsters.giant_spider(name: "araña")
+      w = world([spider, goblin(hp: 100, max_hp: 100, ac: 5)])
+      assert {:ok, _, change} = Actions.attack(w, "araña", "Goblin", "bite", fixed(15))
+      {:ok, w2} = change.(w)
+      assert w2.characters["Goblin"].hp < 100
     end
   end
 

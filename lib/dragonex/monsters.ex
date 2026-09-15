@@ -8,7 +8,8 @@ defmodule Dragonex.Monsters do
     * CR 0:   cat
     * CR 1/4: goblin, kobold, bandit, skeleton, wolf
     * CR 1/2: orc, hobgoblin, black bear
-    * CR 1:   ogre, giant spider (D75 — the engine's only poison source)
+    * CR 1:   giant spider (D75 — the engine's only poison source)
+    * CR 3:   ogre (RAW: CR 3, PG 59, garrote 2d8+4)
 
   The beast keys with CR ≤ 1/2 are also the Wild Shape catalogue (D63):
   see `wild_shape_beasts/0`.
@@ -142,7 +143,7 @@ defmodule Dragonex.Monsters do
   @doc """
   All beast forms available to Wild Shape (D63) as `%{key => cr}` (cr float).
 
-  Gate: druid L2–3 → max 0.25 (cat, wolf); L4+ → max 0.5 (all). No flying
+  Gate: druid L2–4 → max 0.25 (cat, wolf); L5+ → max 0.5 (all). No flying
   or swimming speed forms (out of scope by design).
   """
   @spec wild_shape_beasts() :: %{String.t() => float()}
@@ -212,11 +213,14 @@ defmodule Dragonex.Monsters do
     )
   end
 
-  # ------------------------------------------------------------------- CR 1
+  # ----------------------------------------------------------------- CR 3
 
+  # RAW: CR 3, PG 59, garrote 2d8+4 (STR 19 → +4, que el motor suma sobre
+  # los "2d8" pelados). Antes estaba nerfeado sin declarar (CR 1 / PG 28 /
+  # 1d8).
   @spec ogre(opts()) :: Character.t()
   def ogre(opts \\ []) do
-    base(opts, "giant", "ogre", "A massive, dim-witted brute wielding a tree trunk.", 28, 11, 40,
+    base(opts, "giant", "ogre", "A massive, dim-witted brute wielding a tree trunk.", 59, 11, 40,
       str: 19,
       dex: 8,
       con: 16,
@@ -364,8 +368,10 @@ defmodule Dragonex.Monsters do
       ranged: true
     }
 
+  # Wolf bite RAW: 2d4+2. STR 12 → el motor suma +1 → 2d4+1 (media 6 vs 7
+  # RAW): aproximación asumida (se documenta en el ADR del bestiario).
   defp bite,
-    do: %Weapon{name: "bite", dice: "1d6", damage_type: "piercing", attack_ability: :str}
+    do: %Weapon{name: "bite", dice: "2d4", damage_type: "piercing", attack_ability: :str}
 
   defp cat_bite,
     do: %Weapon{
@@ -376,8 +382,11 @@ defmodule Dragonex.Monsters do
       finesse: true
     }
 
+  # Black bear bite RAW: 1d6+3 (STR 15 → el motor suma +3 sobre los "1d6"
+  # pelados). Los dados de arma SOLO parsean NdM — un "1d8+3" literal hace
+  # raise en Combat.parse_dice.
   defp bear_bite,
-    do: %Weapon{name: "bite", dice: "1d8+3", damage_type: "piercing", attack_ability: :str}
+    do: %Weapon{name: "bite", dice: "1d6", damage_type: "piercing", attack_ability: :str}
 
   # D75: bare "3d8" + the DEX modifier the engine adds = "3d8+3" poison
   # total (see `giant_spider/1`). Weapon dice only parse NdM.
@@ -390,8 +399,10 @@ defmodule Dragonex.Monsters do
   defp longsword_ml,
     do: %Weapon{name: "longsword", dice: "1d8", damage_type: "slashing", attack_ability: :str}
 
+  # Ogre's oversized greatclub: RAW 2d8+4 (STR 19 → el motor suma +4 sobre
+  # los "2d8" pelados). Solo lo empuña el ogro.
   defp greatclub,
-    do: %Weapon{name: "greatclub", dice: "1d8", damage_type: "bludgeoning", attack_ability: :str}
+    do: %Weapon{name: "greatclub", dice: "2d8", damage_type: "bludgeoning", attack_ability: :str}
 
   # ----------------------------------------------------------- armor
 

@@ -256,10 +256,13 @@ defmodule Dragonex.HealingAndBestiaryTest do
       assert orc.str > goblin.str
     end
 
-    test "ogre is CR 1 — the toughest" do
+    test "ogre es CR 3 RAW — PG 59, gran garrote 2d8" do
       ogre = Monsters.ogre()
-      assert ogre.hp == 28
+      assert ogre.hp == 59
       assert ogre.str == 19
+      # 2d8 pelados: el motor suma STR +4 → 2d8+4 (RAW exacto).
+      [club] = ogre.weapons
+      assert club.name == "greatclub" and club.dice == "2d8"
     end
 
     test "monster names are customizable" do
