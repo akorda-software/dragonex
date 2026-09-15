@@ -19,7 +19,7 @@ Convenciones:
   **4** mesa usable · **5** multiplayer · **6** pulido (mobile, UX).
 
 Fuente de verdad complementaria: los ADR de [`../decisions.md`](../decisions.md)
-(`D1`–`D26`), las mecánicas `M1`–`M22` de
+(`D1`–`D77`), las mecánicas `M1`–`M60` de
 [`../tecnico/08-catalogo-mecanicas.md`](../tecnico/08-catalogo-mecanicas.md) y
 el contrato de tools de [`../tecnico/07-contrato-tools.md`](../tecnico/07-contrato-tools.md).
 
@@ -103,17 +103,23 @@ hechizos nuevos respetando `max_spell_level`, half-casters desde nivel 2.
   (`game_sync_genserver_test.exs`).
 
 ### R09 — Fidelidad de clase (simplificaciones declaradas) 🟡
-- Pact Magic del warlock entregado (D40). Quedan fuera Mystic Arcanum
-  (6º–9º 1/long rest) y el escalado de daño por upcast.
+- Pact Magic del warlock entregado (D40); upcasting RAW con tabla curada
+  entregado (D74). Queda fuera Mystic Arcanum (6º–9º 1/long rest).
 - Sin feats; ASI = 2 puntos (D13).
 - `spells_known` sin tope modelado (D14).
-- Features de clase por nivel: Extra Attack a L5 (D35), Sneak Attack del
-  rogue (D41), Rage del bárbaro (D42), Reckless Attack (D44), Second Wind
-  (D45), Divine Smite del paladín (D46), Action Surge del fighter a L2
-  (D47), Fighting Style del fighter (D48), Lay on Hands del paladín (D49),
-  Bardic Inspiration del bardo (D50), Arcane Recovery del mago (D51),
-  Divine Sense del paladín (D52)
-  y spellcasting de paladín/ranger a L2; el resto sigue fuera.
+- Features de clase por nivel: el núcleo SRD del lote D35–D76 está entregado —
+  Extra Attack (D35), Sneak Attack (D41), Rage con usos y Furia implacable
+  (D42/D72), Reckless Attack (D44), Second Wind (D45), Divine Smite (D46),
+  Action Surge (D47), Fighting Style (D48), Lay on Hands (D49), Bardic
+  Inspiration (D50), Arcane Recovery (D51), Divine Sense (D52), Turn Undead
+  (D53), Ki/Flurry of Blows (D54), Hunter's Mark (D55), Font of Magic (D56),
+  Cunning Action: Hide (D57), Danger Sense (D58), Evasión (D59), skills +
+  Jack of All Trades (D60), auras de paladín (D61/D62), Wild Shape (D63),
+  Uncanny Dodge (D64), Metamagic (D65), Lucky (D66), Resistencia implacable
+  (D67), Indomitable (D68), Savage Attacks (D69), Expertise (D73) — y
+  spellcasting de paladín/ranger a L2. Fuera siguen, p. ej.: Mystic Arcanum,
+  Action Surge a L17 (2 usos), Inspiración bárdica > d6, Font of Inspiration,
+  colleges/arquetipos de subclase. Cada ADR declara sus recortes exactos.
 - Empate de iniciativa por DEX score y luego nombre; sin roll-off extra (D39).
 
 > **No son bugs.** Cambiar cualquiera exige un ADR que reemplace al vigente.
@@ -266,34 +272,23 @@ humanos **siempre** desde su ficha (la tool los rechaza con mensaje directivo).
   ficha, no aplica cambios (`tools_level_up_test.exs`).
 
 ### R28 — Declarado fuera de v1 (no bugs)
-Sneak Attack del rogue entra (**D41**): sin grid ni once-per-turn entre
-varias llamadas `make_attack`. Rage del bárbaro entra (**D42**): estado
-`raging`, bonus melee, overlay B/P/S, no spells; sin usos/día, sin
-reloj de 1 minuto. Reckless Attack entra (**D44**): melee STR ventaja y
-ventaja vs el bárbaro; expira al inicio de su turno; sin cupo/día.
-Second Wind entra (**D45**): `1d10+level` 1/rest.
-Action Surge entra (**D47**): 1 Acción de Ataque extra 1/rest desde L2;
-sin L17 (2 usos).
-Fighting Style entra (**D48**): archery / defense / dueling; sin
-Protection, TWF, GWF; sin picker.
-Lay on Hands entra (**D49**): pool `5*level`; cura self o aliado; long
-rest recarga; undead/construct no; sin enfermedad/veneno.
-Bardic Inspiration entra (**D50**): usos `max(1, cha_mod)`; d6 al
-primer roll del inspirado; long rest recarga; siempre d6; sin Font of
-Inspiration ni colleges.
-Arcane Recovery entra (**D51**): mago, huecos gastados greedy
-`div(level+1, 2)` (máx 5º); fuera de combate; 1/long rest.
-Divine Sense entra (**D52**): paladín, `max(1, 1+cha_mod)` usos;
-reporta celestial/fiend/undead; long rest recarga; sin 60 ft.
-Divine Smite entra (**D46**): paladín, casilla 1..5 pendiente, primer
-hit melee radiante; sin Improved Divine Smite.
-`temp_hp` entra (**D36**). Concentración entra (**D37**): estado + rotura
-(CON save / 0 hp / incapacitated-class); sin reloj ni efecto de Bless.
-Resistencias/vulnerabilidades/inmunidades entran (**D38**): tres listas
-en `Character`, `apply_damage/3` por tipo, skeleton SRD, hellish
-resistance del tiefling. Sin magic vs mundane. Siguen fuera: reacciones
-como mecánica formal (TurnMaster da interrupciones narrativas, no la
-mecánica 5e), multiclase. Cada una requiere ADR propio para entrar.
+Las features que esta sección listaba como "fuera" entraron por ADR durante el
+lote D35–D76: Sneak Attack (**D41**; sin grid ni once-per-turn entre varias
+llamadas `make_attack`), Rage (**D42/D72**; bonus melee, overlay B/P/S, usos
+por descanso y Furia implacable; sin reloj de 1 minuto), Reckless Attack
+(**D44**; expira al inicio de su turno, sin cupo/día), Second Wind (**D45**),
+Action Surge (**D47**; sin L17 2 usos), Fighting Style (**D48**; sin
+Protection/TWF/GWF ni picker), Lay on Hands (**D49**; sin enfermedad/veneno),
+Bardic Inspiration (**D50**; siempre d6, sin Font of Inspiration ni colleges),
+Arcane Recovery (**D51**), Divine Sense (**D52**; sin 60 ft), Divine Smite
+(**D46**; sin Improved), `temp_hp` (**D36**), Concentración (**D37**; sin reloj
+ni efecto de Bless), Resistencias/vulnerabilidades/inmunidades (**D38**; sin
+magic vs mundane), además de todo el lote D53–D76 (ver R09 y el
+[`08-catalogo-mecanicas`](../tecnico/08-catalogo-mecanicas.md)).
+Siguen fuera: reacciones como mecánica formal (el TurnMaster da interrupciones
+narrativas, no la mecánica 5e), multiclase, feats (D13) y escalados de upcast
+multi-objetivo (exclusión documentada en D74). Cada una requiere ADR propio
+para entrar.
 Iniciativa individual por monstruo → **D34 / F6.4**.
 
 ---
@@ -382,7 +377,7 @@ Prefijo cacheable medido 44–85% de input cacheado.
 | # | Requisito | Estado |
 |---|---|---|
 | NFR-1 | Determinismo del motor: roller inyectado, nunca `:rand` en `Rules`/`Actions`/`World` | ✅ |
-| NFR-2 | Suite offline verde: `MIX_ENV=test mix test` (713) sin red ni API key | ✅ |
+| NFR-2 | Suite offline verde: `MIX_ENV=test mix test` (1511 passed / 3 excluded) sin red ni API key | ✅ |
 | NFR-3 | `mix compile` sin warnings; `mix format` limpio | ✅ |
 | NFR-4 | Sanitización determinística en TODO texto persistido (D7) | ✅ |
 | NFR-5 | Latencia: streaming token-a-token; GenServer nunca bloquea en LLM (Task) | ✅ |

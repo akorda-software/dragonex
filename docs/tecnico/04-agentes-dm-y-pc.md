@@ -62,14 +62,21 @@ re-emitir, y tiene hasta 3 intentos para autocorregirse.
 Identidad (nombre, raza, clase, sexo) + **personalidad por clase**
 (`class_personality/1`: bárbaro = fiero, mago = curioso, pícaro = astuto, druida =
 sabio, …; una cláusula por cada una de las 12 clases) + atributos + equipo + un
-contrato de 11 reglas (más cortas que las del DM).
+contrato de 13 reglas (más cortas que las del DM).
 
 ### Tools del PCAgent (`pc_agent.tools/0`)
 
-**Restringidas**: `make_attack`, `cast_spell`, `ability_check`, `make_death_save`,
-`short_rest`, `long_rest`, `drop_concentration`, `start_rage`, `end_rage`,
-`start_reckless`, `end_reckless`, `second_wind`, `action_surge`, `divine_smite`, `end_smite`, `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`, `arcane_recovery`. **No** tiene `spawn_monster`, `roll_initiative`,
-`end_combat`, `set_scene`, `establish_fact`, `level_up` — un PC **actúa**, no
+**Restringidas** (31, allowlist en `pc_agent.ex:48`): `make_attack`,
+`cast_spell` (con `cast_level` para upcasting D74), `ability_check`,
+`make_death_save`, `short_rest`, `long_rest`, `drop_concentration`,
+`start_rage`, `end_rage`, `start_reckless`, `end_reckless`, `second_wind`,
+`action_surge`, `flurry_of_blows`, `hunters_mark`, `cunning_action_hide`,
+`start_uncanny_dodge`, `create_spell_slot`, `convert_to_sorcery_points`,
+`arm_metamagic`, `divine_smite`, `end_smite`, `lay_on_hands`, `divine_sense`,
+`turn_undead`, `bardic_inspiration`, `arcane_recovery`, `wild_shape`,
+`end_wild_shape`, `breath_weapon`, `gain_expertise`. **No** tiene
+`spawn_monster`, `roll_initiative`, `end_combat`, `set_scene`,
+`establish_fact`, `level_up`, `apply_condition` — un PC **actúa**, no
 **arbitra**. `make_attack`/`cast_spell` llevan `max_retries: 3`.
 
 ### Instrucción por turno (`pc_agent.instruction/3`)

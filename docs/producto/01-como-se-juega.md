@@ -73,6 +73,13 @@ motor que corresponde (`cast_spell`). El motor tira los dados, calcula, aplica e
 daño al `World`, y devuelve el resultado. El DM lo traduce a narración. La
 naración llega al feed y el turno pasa al siguiente combatiente.
 
+El motor entiende el grueso del repertorio 5e, así que las declaraciones pueden
+aprovecharlo: *"lo lanzo con una casilla de nivel 3"* (upcasting RAW), *"me
+escondo tras el barril"*, *"gasto 1 ki en ráfaga de golpes"*, *"activo mi
+aliento de dragón"* — furia, smite, curación por pool, metamagia, Forma
+salvaje, rasgos raciales… El agente elige la herramienta y el motor valida
+clase, nivel y recursos antes de resolver.
+
 Si es el turno de un **PC IA** o del **DM** (monstruos), no hay input humano: el
 sistema lo resuelve solo y narra. El humano puede **activar el auto-play 🤖** en
 su propio personaje para que la IA lo juegue cuando le toque.

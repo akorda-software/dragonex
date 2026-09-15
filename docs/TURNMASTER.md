@@ -68,7 +68,7 @@ barato/rápido).
 
 **Invariante preservado (crítico)**: solo el participante que tiene el turno
 accede a las tools de resolución (`make_attack`, `cast_spell`, …). El guardia
-`assert_controls` / `controlled_by?` (`tools.ex:341`, `world.ex:128`) **no se
+`assert_controls` / `controlled_by?` (`tools.ex:1087`, `world.ex:202`) **no se
 toca**. TurnMaster decide a quién se entrega; a partir de ahí el flujo es el
 mismo de hoy.
 

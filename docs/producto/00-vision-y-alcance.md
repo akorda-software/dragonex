@@ -22,8 +22,9 @@ Dragonex resuelve eso con un DM por IA que:
 - **No olleta.** El estado del mundo (HP, condiciones, hechos establecidos, slots
   de hechizo) vive en un `World` durable, no en la memoria del LLM. Lo que pasó,
   quedó. (`D16`, `D19`.)
-- **Sigue el turno.** Quién actúa lo impone el motor leyendo el `World`, no el
-  capricho del modelo. (`TurnPolicy.WorldDriven`.)
+- **Sigue el turno.** Quién actúa lo decide un orquestador dedicado (el
+  TurnMaster) y lo impone el motor leyendo el `World`, no el capricho del
+  modelo. (`D25`; `TurnPolicy.WorldDriven` es el fallback determinista.)
 
 ## Para quién
 
@@ -63,22 +64,30 @@ Dragonex resuelve eso con un DM por IA que:
 - Subida de nivel milestone (RAW: no cura; ASI en `[4,8,12,16,19]`; hechizos nuevos).
 - Partidas de 1 a N participantes: humanos (teclado) y PCs IA (auto-play), más
   monstruos dirigidos por el DM.
-- Combate 5e: iniciativa, ataques, hechizos (attack/save/automatic), daño,
-  críticos, ventaja/desventaja, condiciones, death saves, spell slots, descansos.
+- Combate 5e: iniciativa, ataques, hechizos (attack/save/automatic) con
+  **upcasting RAW** por casilla superior, daño, críticos,
+  ventaja/desventaja, condiciones, death saves, spell slots (incl. Pact Magic),
+  descansos, concentración, puntos de golpe temporales y
+  resistencia/vulnerabilidad/inmunidad a daño.
+- **Recursos de clase y raza** (lote D35–D77): furia (con usos) y Reckless
+  Attack, Second Wind, Action Surge, estilos de combate, Castigo divino, Manos
+  impositoras, Sentido divino, Expulsar no-muertos, auras de paladín, ki y
+  Ráfaga de golpes, Fuente de magia y Metamagia, Recuperación arcana,
+  Inspiración bárdica, sneak attack, Marca del cazador, Astucia de pícaro
+  (esconderse), Esquiva asombrosa, Expertise, Forma salvaje del druida, y
+  rasgos raciales (Lucky, Resistencia implacable, Savage Attacks, Aliento de
+  dragón, Astucia gnoma, resistencia enana al veneno).
 - Narración streaming token-a-token, dado modal (2D/3D), feed agrupado por turnos.
 - Multiplayer con sala de espera y slots abiertos.
 - Robustez del agente: retries con backoff, circuit breaker, guardrails
   anti-puppet/anti-loop/anti-repetición, combate fantasma forzado por el motor.
 - Durabilidad total: rehidrata tras kill del proceso.
+- Mesa responsive (≤720px: feed+input, ficha en drawer).
 
 ## Fuera de alcance / no implementado (ver [`../progress.md`](../progress.md) § 🔴)
 
-- **Concentración** de hechizos (no se modela; no se rompe al recibir daño).
-- **Resistencias / vulnerabilidades / inmunidades** de daño.
-- **Iniciativa individual por monstruo** (hoy colapsados al turno del DM).
-- **Reacciones / "preparar acción".**
+- **Reacciones / "preparar acción."**
 - **Dotes** (fuera; ASI estrictamente +2). `D13`.
-- **Mobile responsive** de la mesa.
 - **Multi-nodo** (Horde) — pausado. `D24`.
 
 > Estas limitaciones son **deliberadas o asumidas**, no bugs. Si una entra en

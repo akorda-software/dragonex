@@ -14,8 +14,8 @@ Un **Dungeon Master por IA** para D&D 5e. El jugador crea una partida, elige un
 escenario (o la arena de pruebas), y uno o varios personajes (controlados por
 humano o por IA) viven una aventura narrada y arbitrada por el modelo LLM.
 
-- **Stack**: Elixir + Phoenix LiveView. Motor de agentes: `ExAgent` (framework
-  propio en `../exAgent`).
+- **Stack**: Elixir + Phoenix LiveView. Motor de agentes: `ExAgent` (dep GitHub
+  `kukapu/exagent`; sibling local con `DRAGONEX_LOCAL_DEPS=1`, D26).
 - **Modelo DM**: `deepseek/deepseek-v4-flash` vía OpenRouter (configurable por
   env). Sumarizador de compacción: `google/gemini-3.1-flash-lite`.
 - **Persistencia**: Postgres. Una fila `games` por partida + un log append-only
@@ -194,7 +194,7 @@ reconstruye TODA la línea temporal desde `game_events` como `[Message.t()]` y l
 pasa como `:message_history` (override del `state.history` del `Server`). Así el
 DM lee lo que narró Vex, y Lyra ve el resultado del ataque de Thane.
 
-### Formato de cada evento (`history.ex:121`)
+### Formato de cada evento (`history.ex:131`)
 - `:turn` (start) → **no genera mensaje**; se pliega como header
   `[R3 · combate · Turno de Vex]` en la siguiente narración.
 - `:narration` → mensaje `assistant` con etiqueta `[actor]:`.
@@ -204,8 +204,8 @@ DM lee lo que narró Vex, y Lyra ve el resultado del ataque de Thane.
 
 ### Atribución y compresión
 - Las **12 narraciones más recientes** van verbatim (`@recent_narrations_kept 12`,
-  `history.ex:54`). Las anteriores se truncan a la primera frase (~180 chars).
-- `coalesce_assistant_runs` (`history.ex:224`) colapsa mensajes `Response`
+  `history.ex:61`). Las anteriores se truncan a la primera frase (~180 chars).
+- `coalesce_assistant_runs` (`history.ex:237`) colapsa mensajes `Response`
   consecutivos **solo si son del mismo actor** (parsea la etiqueta `[actor]:`
   vía `narration_actor/1`). Runs del mismo actor (DM mid-beat + DM final) se
   funden para ahorrar tokens; runs de actores distintos quedan como turnos
@@ -238,7 +238,7 @@ la raíz de la incoherencia de la partida de prueba. Ya resueltos:
 
 ### DM — `lib/dragonex/dm.ex`
 Un único agent que narra el mundo, da voz a monstruos/PNJ, arbitra y controla
-el ritmo. **System prompt de 16 reglas** (`dm.ex:149`), con la story bible
+el ritmo. **System prompt de 16 reglas** (`dm.ex:154`), con la story bible
 horneada al final (prefijo cacheable). Críticas:
 - **#3** quién actúa (turno de jugador vs turno del DM; las herramientas de
   escena como `roll_initiative`/`spawn_monster` están exentas).
@@ -254,25 +254,37 @@ horneada al final (prefijo cacheable). Críticas:
 
 ### PCAgent — `lib/dragonex/pc_agent.ex`
 Un agent por personaje IA, con personalidad derivada de su clase
-(`pc_agent.ex:277`). Tools restringidas (atacar, conjurar, checks, descansos):
-NO puede spawnear, tirar iniciativa, terminar combate ni subir nivel. Reglas
-clave:
+(`pc_agent.ex:514`). Tools restringidas (31, `pc_agent.ex:48`): además de lo
+básico (`make_attack`, `cast_spell`, `ability_check`, `make_death_save`,
+descansos, `drop_concentration`), cada PC gestiona SUS recursos de clase y
+raza — furia/Reckless, Second Wind, Action Surge, Ráfaga de golpes (ki),
+Marca del cazador, Esconderse (Astucia), Esquiva asombrosa, Fuente de magia
+(crear/convertir casillas), Metamagia, Castigo divino, Manos impositoras,
+Sentido divino, Expulsar no-muertos, Inspiración bárdica, Recuperación
+arcana, Forma salvaje (`wild_shape`/`end_wild_shape`), Aliento de dragón
+(racial dragontina) y Expertise (`gain_expertise`). NO puede spawnear, tirar
+iniciativa, terminar combate ni subir nivel. Reglas clave:
 - **#3** solo objetivos válidos listados en la instrucción.
 - **#4** exploración sin enemigos → actúa en personaje sin tool.
 - **#5** proactividad + **ANTIBUCLE** (no repetir intención; tomar acción).
 - **#10/#11** formato y no stats.
 
 ### Instruction por turno
-- `PCAgent.instruction/3` (`pc_agent.ex:182`): adapta al estado. Caído → solo
-  `make_death_save`. Combate con enemigos → lista objetivos válidos + armas.
-  Exploración → actúa en personaje, sin forzar tool.
+- `PCAgent.instruction/3` (`pc_agent.ex:194`): adapta al estado. Caído → solo
+  `make_death_save`; muerto → nada. Combate con enemigos → lista objetivos
+  válidos + armas + upcasting (`cast_level` en `cast_spell`) y las líneas de
+  clase/nivel que apliquen (oleada, ráfaga, inspiración, esconderse, esquema
+  asombrosa, aliento, marca, fuente de magia, metamagia armada, forma
+  salvaje — recuerda que en forma de bestia NO se puede conjurar).
+  Exploración → actúa en personaje, sin forzar tool; Expertise pendiente para
+  pícaro/bardo.
 - `Brief.turn_prompt/5` (`brief.ex`): `world_brief` + instruction.
 
 ---
 
 ## 9. El `world_brief` — lo que el agente "ve"
 
-`dm.ex:204`. Snapshot compacto del mundo que se inyecta en cada turno:
+`brief.ex:24`. Snapshot compacto del mundo que se inyecta en cada turno:
 - línea de fase (`Combate -- ronda 2 (iniciativa: goblin → Thane)` o `Exploración`),
 - de quién es el turno (y si es DM, qué monstruos controla),
 - línea de control (quién es IA auto vs quién espera input humano),
@@ -293,12 +305,25 @@ clave:
 `lib/dragonex/tools.ex`. Cada `deftool` propone un cambio vía `SharedState` tras
 pasar el guard de control (`assert_controls`). Las herramientas de resolución
 (`make_attack`, `cast_spell`, `ability_check`, `make_death_save`, `heal`,
-`roll_initiative`) tienen `max_retries: 3` (`dm.ex:27`, `pc_agent.ex:34`): si el
+`roll_initiative`) tienen `max_retries: 3` (`dm.ex:32`, `pc_agent.ex:54`): si el
 modelo propone como actor equivocado, el guard devuelve un error directivo y hay
 margen para autocorregirse.
 
-La matemática vive en `Dragonex.Rules.Combat` y `Dragonex.Actions`. Las
-herramientas son puentes: nunca calculan números, solo proponen el change.
+La matemática vive en `Dragonex.Rules.*` (`Combat`, `Ability`, `Skills`,
+`Conditions`, `Upcast`) y `Dragonex.Actions`. Las herramientas son puentes:
+nunca calculan números, solo proponen el change.
+
+Además de la resolución genérica, el set cubre los recursos de clase/raza del
+lote D35–D77: pools y posturas (ki, puntos de hechicería, furia con usos,
+metamagia, wild shape, uncanny dodge, aliento de dragón, expertise),
+upcasting (`cast_spell` acepta `cast_level`; escalado RAW vía `Rules.Upcast`) y
+condiciones (`hidden` para el pícaro, marcado de `hunters_mark`). El daño
+entrante pasa por capas fijas en `World.apply_damage/3-4` (`world.ex:326`):
+Esquiva asombrosa mitiga el daño entrante y consume la postura
+(D64) → resistencias/inmunidades D38 (incl. resistencia racial al veneno
+enana D76 y overlay de furia B/P/S D42) → `temp_hp` (D36) → `hp` →
+auto-revert de Forma salvaje (D63) → Furia implacable (salva CON, D72) →
+Resistencia implacable (semi-orco, hp 0 → 1, D67).
 
 ---
 
@@ -313,12 +338,16 @@ herramientas son puentes: nunca calculan números, solo proponen el change.
    consecutivos. `World.current_combatant` nombra el slot; `can_act?`
    admite al controlador (`"dm"` o el PC).
 3. **Resolución**: `make_attack`/`cast_spell` resuelven por reglas, persisten
-   `:dice` (modal en vivo) y aplican daño.
-4. **Fin automático** (`maybe_end_combat`, `game.ex:1159`): cuando
+   `:dice` (modal en vivo) y aplican daño (capas: uncanny → resistencias →
+   temp_hp → hp → revert → relentless, §10). `cast_spell` acepta `cast_level`
+   para upcasting RAW (D74) y consume/aplica metamagia armada (D65); un
+   objetivo `hidden` otorga ventaja al atacante oculto y se revela al
+   impactar (D57); `hunters_mark` suma +1d6 contra la presa (D55).
+4. **Fin automático** (`maybe_end_combat`, `game/combat.ex:21`): cuando
    `World.combat_over?` (≤1 lado con conscientes), el motor cambia a
    `:exploration` y emite `[sistema]: ⚔ El combate termina.`. No depende de que
    el DM lo recuerde.
-5. **Avance de ronda** (`maybe_advance_round`, `game.ex:1179`): cuando el último
+5. **Avance de ronda** (`maybe_advance_round`, `game/combat.ex:110`): cuando el último
    del ciclo actúa, `world.round` sube.
 
 ---
@@ -326,7 +355,7 @@ herramientas son puentes: nunca calculan números, solo proponen el change.
 ## 12. Auto-play
 
 Un humano puede togglear auto-play (`enable_auto_play/disable_auto_play`,
-`game.ex:133`). Al activarlo se crea un `PCAgent` para ese personaje y, si está
+`game.ex:252`). Al activarlo se crea un `PCAgent` para ese personaje y, si está
 en su turno `:waiting`, se flipea a `:running` para que el bot juegue ya. El
 toggle se refleja en el snapshot (`auto_humans`) y sobrevive a recargas.
 
@@ -362,7 +391,7 @@ toggle se refleja en el snapshot (`auto_humans`) y sobrevive a recargas.
 ## 14. Sanitización — `Text.scrub`  (`lib/dragonex/text.ex`)
 
 Cuello de botella central y determinístico: se aplica ANTES de persistir
-cualquier narración (`events.ex:65`) y al reconstruir el history compartido. Una
+cualquier narración (`events.ex:64`) y al reconstruir el history compartido. Una
 sola regla cubre todos los puntos de consumo (cajas, history, summarización) sin
 depender de que el modelo obedezca el prompt.
 
@@ -401,7 +430,7 @@ el modelo filtra cuando desobedece las reglas #15/#16.
 
 ## 15. Robustez del bucle
 
-### 15.1 Reintentos y fallback (`game.ex:664`, `handle_beat_result`)
+### 15.1 Reintentos y fallback (`game/settlement.ex:34`, `handle_beat_result`)
 Dos presupuestos de retry **independientes** por beat:
 - **max_tokens**: si el modelo se corta a mitad, reintenta UNA vez con un
   preamble "SÉ BREVE" (`brief_retry_instruction`).
@@ -645,9 +674,15 @@ tópico `dragonex:game:<id>` y re-fetch del snapshot al recibir
 4. Pausar/reanudar cuando haga falta. Logs: `docker logs -f dragonex-app`.
 
 ## Tests
-- `MIX_ENV=test mix test` → suite verde (**941** actualmente).
+- `MIX_ENV=test mix test` → suite verde (**1511 passed / 3 excluded**
+  actualmente).
 - Tests aislados por bug: `game_retry_test` (incluye circuit breaker),
   `ghost_combat_test`, `pc_anti_loop_test`, `dm_puppet_pc_test`,
   `exploration_limbo_test`, `text_test` (scrub/2 + bold + stats + leak + meta +
   tool-calls), `history_test`, `dm_anti_repeat_test` (incluye anti-inglés),
   `world_facts_test`.
+- Tests por mecánica del lote D35–D77: `rage_test`, `rage_uses_test`,
+  `flurry_of_blows_test`, `font_of_magic_test`, `metamagic_test`,
+  `wild_shape_test`, `uncanny_dodge_test`, `indomitable_savage_test`,
+  `breath_gnome_test`, `expertise_test`, `upcast_test`, `hunters_mark_test`,
+  `evasion_test` (entre otros; ver `docs/tecnico/10-auditoria-motor.md`).

@@ -109,7 +109,7 @@ Reglas de la dirección:
 | Una pantalla / evento de la LiveView | S1 | `lib/dragonex_web/live/` |
 | El bucle de la partida, pausa, reanuda | S2 | `Dragonex.Game` (`game.ex`) |
 | De quién es el turno | S3/S6 | `TurnMaster` (principal) + `WorldDriven` (fallback) |
-| Una regla 5e (tirada, daño, salvación) | S4 | `Dragonex.Rules.Combat`, `Rules.Ability` |
+| Una regla 5e (tirada, daño, salvación) | S4 | `Dragonex.Rules.Combat`, `Rules.Ability`, `Rules.Skills`, `Rules.Upcast`, `Rules.Conditions` |
 | El puente intent→world de una acción | S4 | `Dragonex.Actions` |
 | La estructura/estado del mundo | S4 | `Dragonex.World` |
 | Una herramienta que el LLM puede llamar | S5 | `Dragonex.Tools` |

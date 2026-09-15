@@ -91,6 +91,27 @@ Dragonex.Character (character.ex)  — Ecto embedded schema
 ├─ arcane_recovery_used: boolean   Recuperación arcana gastada; default false (D51)
 ├─ divine_sense_uses: integer      Sentido divino restantes; default 0 (D52)
 ├─ channel_divinity_used: boolean  Canalizar divinidad gastada; default false (D53)
+├─ ki:                integer      puntos de ki del monje L2+; default 0 (D54)
+├─ sorcery_points:    integer      puntos de hechicería (Fuente de magia); default 0 (D56)
+├─ wild_shape_uses:   integer      usos de Forma salvaje (2/descanso); default 0 (D63)
+├─ wild_shape:        map | nil    forma activa: %{beast, orig_str/dex/con,
+│                                    orig_hp/max_hp/ac, orig_weapons} — claves
+│                                    átomo en memoria, strings en Codec (D63)
+├─ uncanny_dodge:     boolean      Esquiva asombrosa armada; default false (D64)
+├─ relentless_endurance_used: boolean Resistencia implacable gastada (semi-orco,
+│                                    1/descanso largo); default false (D67)
+├─ indomitable_used: boolean       Indomitable gastado (guerrero, 1/descanso
+│                                    largo); default false (D68)
+├─ metamagic:         map | nil    opción armada %{option: empowered|heightened|
+│                                    twinned, target} — átomo/memoria,
+│                                    strings en Codec (D65)
+├─ breath_weapon_used: boolean     Aliento de dragón gastado (dragontino,
+│                                    1/descanso); default false (D70)
+├─ rage_uses_used:    integer      furias gastadas (bárbaro, por descanso
+│                                    largo); default 0 (D72)
+├─ relentless_rage_successes: integer éxitos de Furia implacable acumulados
+│                                    (sube la CD del siguiente intento);
+│                                    default 0 (D72)
 ├─ damage_resistances / damage_vulnerabilities / damage_immunities
 │                 [String]         tipos 5e; default [] (D38)
 ├─ atributos: str/dex/con/int/wis/cha
@@ -100,8 +121,11 @@ Dragonex.Character (character.ex)  — Ecto embedded schema
 ├─ inventory: [Dragonex.Item]     {:array, :map}
 ├─ conditions:        [%{condition: name}]
 ├─ death_saves:       %{successes: integer, fails: integer}
-└─ saving_proficiencies, skill_proficiencies, languages, racial_traits,
-   class_features, background_feature
+├─ saving_proficiencies, skill_proficiencies, languages, racial_traits,
+│   class_features, background_feature
+└─ expertise:         [String]     skills con competencia DOBLADA (pícaro/bardo,
+                                     subconjunto de skill_proficiencies);
+                                     default [] (D73)
 
 Weapon  (weapon.ex)  — struct plana: name, dice, damage_type, attack_ability, finesse, ranged
 Spell   (spell.ex)   — struct plana: name, level, kind (:save/:attack/:automatic),
@@ -129,12 +153,20 @@ al jsonb gracias al `Codec`**. Sin él volverían como mapas sin `__struct__`.
   las claves `"1"`, `"2"` (strings tras el jsonb) harían que `has_slot?/3` (que
   mira por integer) reportase cero slots → los casters no podrían conjurar tras un
   rehydrate. Bug real que ya pasó.
+- **`wild_shape` y `metamagic`** re-atomizan sus claves y devuelven `nil` ante
+  jsonb viejo/ausente/malformado (D63/D65); `metamagic` además valida que la
+  `option` sea `empowered|heightened|twinned`.
+- **Contadores defensivos**: `decode_ki`, `decode_sorcery_points`,
+  `decode_wild_shape_uses`, `decode_rage_uses_used`,
+  `decode_relentless_rage_successes`… → cualquier valor no-entero-negativo cae a
+  0 (patrón por campo del lote D54–D72); `expertise` ausente → `[]` (D73).
 - `decode(nil)` → `%World{}` (un `games.world` nullable no crashea el rehydrate).
 
 > **Patrón recurrente y duro:** cualquier campo que a nivel runtime tenga **claves
 > atom o integer** se corrompe al pasar por Jason/jsonb (se vuelven strings).
-> `spell_slots` y `conditions` son los casos vivos. Si añades uno así, normalízalo
-> en `Codec.decode` y **añade un test de round-trip por Jason**.
+> `spell_slots`, `conditions`, `wild_shape` y `metamagic` son los casos vivos. Si
+> añades uno así, normalízalo en `Codec.decode` y **añade un test de round-trip
+> por Jason**.
 
 ## Invariantes de datos (no se rompen)
 

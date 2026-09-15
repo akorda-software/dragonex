@@ -33,15 +33,17 @@ warnings; `mix format` limpio.
 
 | Capa | Qué | Dónde | Modo |
 |---|---|---|---|
-| **L1 — Motor puro** | `Rules.Ability`/`Rules.Combat`/`Rules.Conditions`, `Actions`, `World`, `Dice`, `SpellSlots` (mecánicas `M1`–`M23`) | `test/dragonex/rules/`, `test/dragonex/{actions,world,conditions,spell_slots,rest,world_facts,ghost_combat,healing_and_bestiary}_test.exs` | `async: true`, rollers fijos |
+| **L1 — Motor puro** | `Rules.Ability`/`Rules.Combat`/`Rules.Conditions`/`Rules.Skills`/`Rules.Upcast`, `Actions`, `World`, `Dice`, `SpellSlots` (mecánicas `M1`–`M60`) | `test/dragonex/rules/`, `test/dragonex/{actions,world,conditions,spell_slots,rest,world_facts,ghost_combat,healing_and_bestiary}_test.exs` | `async: true`, rollers fijos |
 | **L2 — Builder/catálogos** | `Heroes.build`, catálogos SRD, `LevelUp`, validaciones, custom content mechanics | `test/dragonex/heroes/*`, `test/dragonex/accounts/level_up_test.exs` | `async: true` sin DB (D9) |
 | **L3 — Bucle y persistencia** | `Game` GenServer, beat completo con TestModel, retries/breaker, rehidratación, sync level-up, multiplayer, codec round-trip | `test/dragonex/{game_*,multi_level,persistence,turn_master*}_test.exs`, `test/dragonex/flows/*` | DB sandbox (ECTO Sandbox) |
 | **L4 — Web** | LiveViews (mesa, wizard, level-up, custom content), auth | `test/dragonex_web/*` | `conn_case` + LiveViewTest |
 | **L5 — Smoke LLM** | Un beat con `TestModel` (offline) por cada flujo de agente tocado | junto al flow que toca | offline |
 | **L6 — Integración live** | Narración real contra proveedor | `flows/live_*_test.exs` | `--include integration`, opt-in |
 
-Censo aproximado por área: heroes ~170 · motor/game+flows ~310 · web ~39 ·
-rules ~25 · accounts ~22.
+Censo aproximado por área (bloques `test` estáticos; los 1511 casos de la suite
+incluyen además los generados dinámicamente por comprensión, p. ej.
+`srd_golden_test`): motor/game+flows (raíz, `game/`, `flows/`) ~1080 ·
+heroes ~200 · rules ~44 · web ~42 · accounts ~22.
 
 ---
 

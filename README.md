@@ -24,7 +24,7 @@ que el DM narre de verdad. Sin ella, los beats usan el `TestModel`.
 ## Comandos
 
 ```sh
-MIX_ENV=test mix test                     # suite verde (543 passed)
+MIX_ENV=test mix test                     # suite verde (1511 passed / 3 excluded)
 mix format                                # antes de commit
 docker logs -f dragonex-app               # logs del server
 ```
