@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **1486 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **1500 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -27,8 +27,8 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   `level_up`.
 - `Rules.Conditions` — tabla M06: condición → ventaja/desventaja/auto-fallo
   en ataque, salvación y chequeo (cancelación 5e).
-- Rasgos raciales y de clase automáticos (D66/D67/D68/D69/D71, pasivas
-   sin tool — el motor lee `Character.race`/`class` del builder D52): Lucky
+- Rasgos raciales y de clase automáticos (D66/D67/D68/D69/D71/D76, pasivas
+    sin tool — el motor lee `Character.race`/`class` del builder D52): Lucky
    del mediano M50 (d20 efectivo 1 en ataque/salvación/chequeo → un reroll
    y se usa el nuevo; etiqueta "(Lucky: 1→N)" en el desglose; variantes
    `*_tagged` en `Rules.Combat` mantienen las firmas públicas), Resistencia
@@ -44,8 +44,12 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
    INT/SAB/CAR contra magia — equivalencia: toda salvación de `cast_spell`
    :save y `turn_undead`; inyectada como fuente extra en
    `Conditions.save_mode/4`, `combine/2` la cancela contra Heightened
-   D65/condiciones; etiqueta "(Astucia gnoma: ventaja)"; sin campos ni
-    rests). Aliento de dragón del dragontino D70/M54: rasgo racial CON tool
+    D65/condiciones; etiqueta "(Astucia gnoma: ventaja)"; sin campos ni
+     rests) y Resistencia enana del enano M60 (D76: mitad floor del
+     daño "poison" en la capa D38 de `incoming_damage` — apilable con
+     Uncanny Dodge D64: cuarto — y ventaja en la salvación :save de
+     hechizos con `damage_type "poison"` vía fuente `dwarf_advantage:`
+     en `Conditions.save_mode/4`; sin campos ni rests). Aliento de dragón del dragontino D70/M54: rasgo racial CON tool
     y campo `breath_weapon_used` — ver `Actions.breath_weapon` y la tool
     `breath_weapon` más abajo. Usos de Furia + Furia implacable del
     bárbaro D72/M56: `start_rage` gasta (`rage_uses_used`, tope
@@ -505,9 +509,29 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
       + línea condicional pícaro/bardo (sólo con cupo > elegidos) +
       línea DM. Sin Expertise en tools/instrumentos, picks 2024,
       integración con level-up choices, feats, multiclase.
-   - ✅ XP 5e en partida (D43): `World.grant_xp/2` + tool `grant_xp` (DM).
-  Suma XP; no auto-level-up. Subida explícita (ficha / `level_up`).
-  D10 SUPERSEDED. Sin calculadora CR/encuentro.
+    - ✅ XP 5e en partida (D43): `World.grant_xp/2` + tool `grant_xp` (DM).
+   Suma XP; no auto-level-up. Subida explícita (ficha / `level_up`).
+   D10 SUPERSEDED. Sin calculadora CR/encuentro.
+    - ✅ Araña gigante + Resistencia enana (D75/D76, M59/M60): la
+       araña (`Monsters.giant_spider/1`, key `"giant_spider"`, CR 1
+       RAW: STR 15/DES 16/CON 12/INT 2/SAB 12/CAR 7, CA 14, 26 pg) es
+       la PRIMERA fuente real de daño de veneno del motor — su mordida
+       total es "3d8+3 poison" (dados "3d8" + mod DES +3 que el motor
+       suma; simplificación ADR D75 del 1d8+3 perforante + 2d8 veneno
+       con salvación CON de RAW, sin la salvación intermedia), +5 al
+       ataque (DES), sin telaraña ni trepar. Con ella, la Resistencia
+       enana (D76) deja de ser dead code: sin campos ni tools —
+       (1) resistencia: un enano (`race == "dwarf"`) recibe la MITAD
+       (floor) del daño "poison" en la capa D38 de
+       `Character.incoming_damage/3` que `World.apply_damage/3-4`
+       aplica tras Uncanny Dodge D64 (se apilan multiplicativamente:
+       enano pícaro = cuarto, RAW; las simulaciones de concentración y
+       multi-golpe quedan coherentes); (2) ventaja en la salvación de
+       la rama :save de `cast_spell` cuando `damage_type == "poison"`
+       (fuente `dwarf_advantage:` en `Conditions.save_mode/4`, patrón
+       D71, cancelable; etiqueta "(Resistencia enana: ventaja)"; hoy
+       el único hechizo así del catálogo es cloudkill del SRD).
+       Tests `poison_test.exs` (14).
 
 ---
 
@@ -519,7 +543,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 | `spells_known` | `nil` (sin cap estricto por clase) | D14 |
 | Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 (+ usos/Furia implacable D72) + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + Fighting Style D48 + Lay on Hands D49 + Bardic Inspiration D50 + Arcane Recovery D51 + Divine Sense D52 + Turn Undead D53 + Ki/Flurry of Blows D54 + Hunter's Mark D55 + Font of Magic D56 + Cunning Action Hide D57 + Danger Sense D58 + Evasión D59 + Jack of All Trades D60 + Aura of Protection D61 + Aura of Courage D62 + Wild Shape D63 + Uncanny Dodge D64 + Metamagic D65 + Indomitable D68 + Expertise D73 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47, D48, D49, D50, D51, D52, D53, D54, D55, D56, D57, D58, D59, D60, D61, D62, D63, D64, D65, D68, D72, D73 |
 | Upcasting | Tabla curada RAW 2014 (`Rules.Upcast`, D74): dados extra al lanzar con casilla superior vía `cast_level` en `cast_spell` — 13 hechizos escalan; multi-objetivo, multi-rayo, no-dados y no-modelados (heal/mass_cure/sleep) fuera | D74 |
-| Rasgos raciales | Lucky D66 + Resistencia implacable D67 + Savage Attacks D69 + Astucia gnoma D71 (automáticos, sin tool) + Aliento de dragón D70 (tool racial); Brave, Halfling Nimbleness, Darkvision y demás 🟡 | D66, D67, D69, D70, D71 |
+| Rasgos raciales | Lucky D66 + Resistencia implacable D67 + Savage Attacks D69 + Astucia gnoma D71 + Resistencia enana D76 (automáticos, sin tool) + Aliento de dragón D70 (tool racial); Brave, Halfling Nimbleness, Darkvision y demás 🟡 | D66, D67, D69, D70, D71, D76 |
 | Empate iniciativa | DEX score desc, luego nombre; sin roll-off extra | D39 |
 | Banner level-up in-game | Eliminado (D33); subida desde la ficha | D33 |
 | Stub legado en `Tools` | `attack`/`roll`/`spawn_character`/`next_round` mantenidos para tests del framework exAgent | `tools.ex:31-72` |

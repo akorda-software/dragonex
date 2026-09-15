@@ -8,7 +8,7 @@ defmodule Dragonex.Monsters do
     * CR 0:   cat
     * CR 1/4: goblin, kobold, bandit, skeleton, wolf
     * CR 1/2: orc, hobgoblin, black bear
-    * CR 1:   ogre
+    * CR 1:   ogre, giant spider (D75 — the engine's only poison source)
 
   The beast keys with CR ≤ 1/2 are also the Wild Shape catalogue (D63):
   see `wild_shape_beasts/0`.
@@ -34,6 +34,7 @@ defmodule Dragonex.Monsters do
       "orc" => &orc/1,
       "hobgoblin" => &hobgoblin/1,
       "ogre" => &ogre/1,
+      "giant_spider" => &giant_spider/1,
       # Practice targets — inert dummies/stumps/dummies with HP and a low AC so
       # PCs can roll attacks against them in a training arena without inventing
       # phantoms. They have no weapons, so when their turn comes up the DM just
@@ -228,6 +229,39 @@ defmodule Dragonex.Monsters do
     )
   end
 
+  @doc """
+  Giant spider (CR 1, D75): the classic venomous beast — the engine's first
+  real POISON damage source, so resistances like Dwarven Resilience (D76)
+  have a measurable effect. RAW bite is 1d8+3 piercing PLUS 2d8 poison
+  (CON save DC 11 for half); the engine models ONE damage type per weapon,
+  so it is combined into a single "3d8+3 poison" total (documented
+  simplification, ADR D75). The dice stay bare "3d8" because
+  `Combat.damage_roll` adds the DEX modifier (+3) on top — weapon dice
+  only parse `NdM` — and DEX also gives the RAW +5 to hit (prof 2 + 3).
+  No web or wall-crawling (out of scope: no positioning).
+  """
+  @spec giant_spider(opts()) :: Character.t()
+  def giant_spider(opts \\ []) do
+    base(
+      opts,
+      "beast",
+      "giant spider",
+      "A horse-sized spider with venom-dripping fangs.",
+      26,
+      14,
+      30,
+      str: 15,
+      dex: 16,
+      con: 12,
+      int: 2,
+      wis: 12,
+      cha: 7,
+      weapons: [spider_bite()],
+      inventory: [],
+      saves: ["dex"]
+    )
+  end
+
   # ------------------------------------------------------------- base builder
 
   defp base(opts, race, default_name, backstory, hp, ac, speed, stats) do
@@ -344,6 +378,11 @@ defmodule Dragonex.Monsters do
 
   defp bear_bite,
     do: %Weapon{name: "bite", dice: "1d8+3", damage_type: "piercing", attack_ability: :str}
+
+  # D75: bare "3d8" + the DEX modifier the engine adds = "3d8+3" poison
+  # total (see `giant_spider/1`). Weapon dice only parse NdM.
+  defp spider_bite,
+    do: %Weapon{name: "bite", dice: "3d8", damage_type: "poison", attack_ability: :dex}
 
   defp greataxe,
     do: %Weapon{name: "greataxe", dice: "1d12", damage_type: "slashing", attack_ability: :str}

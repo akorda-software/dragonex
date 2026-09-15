@@ -2000,6 +2000,76 @@ compañía no escalan: consumen la casilla pedida sin dados extra).
 
 ---
 
+### D75 — Araña gigante: primera fuente real de daño de veneno
+Estado: **Aceptada** — 2026-09-15.
+
+Hasta hoy NADA en el motor hacía daño de veneno (ningún arma de
+bestiario ni hechizo del catálogo usaba "poison"), así que cualquier
+resistencia al veneno habría sido dead code. Se añade la bestia
+venenosa clásica (giant spider, CR 1) al bestiario — con ella la
+Resistencia enana (D76) y las inmunidades existentes (skeleton, D38)
+tienen contraparte medible. Sin campos, sin tools, sin mecánica nueva.
+
+- **Builder**: `Monsters.giant_spider/1` (opts `name`/`backstory` como
+  los demás), key `"giant_spider"` en `Monsters.catalog/0`, raza
+  "beast", side "enemy", stats RAW CR 1: STR 15, DEX 16, CON 12,
+  INT 2, WIS 12, CHA 7; CA 14; 26 pg; velocidad 30; salvación DES.
+  Añadida a las enumeraciones de `spawn_monster` (prompt DM,
+  guardrails y escenario arena) para que sea descubrible.
+- **Mordida venenosa**: arma `bite`, dados `"3d8"`, `attack_ability:
+  :dex`, melee. El TOTAL queda en "3d8+3 poison" porque el motor suma
+  el mod de aptitud (DES +3) sobre dados de arma `NdM` — los dados de
+  arma NO aceptan modificador plano (`Combat.parse_dice` solo parsea
+  `NdM`; escribir "3d8+3" en `dice` haría crash en `damage_roll`, como
+  el `bear_bite` latente). DEX también da el +5 al ataque RAW
+  (prof 2 + 3). **Simplificación documentada**: RAW es 1d8+3
+  perforante MÁS 2d8 veneno (salvación CON CD 11 para mitad); el motor
+  modela UN tipo de daño por arma → se combina en un solo total
+  "3d8+3 poison" (equivalente numérico aproximado) SIN la salvación
+  CON intermedia.
+- **Fuera**: telaraña (Web), trepar paredes (sin posicionamiento),
+  poison de otros tipos, más armas/traits, entrar en Wild Shape
+  (CR 1 > tope 1/2 de D63). M59 en el catálogo.
+
+### D76 — Resistencia enana (Dwarven Resilience)
+Estado: **Aceptada** — 2026-09-15.
+
+El rasgo racial del enano 5e, en sus dos mitades RAW, sin campo nuevo
+(se deriva de `race == "dwarf"`), sin tools, sin prompts, sin rests.
+
+- **Resistencia al daño de veneno**: un enano recibe la MITAD (floor)
+  del daño `type == "poison"`. Vive en la capa D38
+  (`Character.incoming_damage/3` → `resistant_to?/2`, mismo sitio que
+  la resistencia infernal del tieflino), que `World.apply_damage/3-4`
+  aplica en su pipeline — NO como capa ad-hoc en World, para que las
+  simulaciones que también consultan `incoming_damage` (DC de
+  concentración `max(10, daño/2)`, tracking multi-golpe de
+  `resolve_swings`) queden coherentes con la mutación real del world.
+- **Orden de capas (fijado, actualiza el comentario del pipeline)**:
+  Uncanny Dodge D64 (mitiga cualquier amount, primero) → resistencias
+  D38 incluida la enana de veneno (mitiga poison) → temp_hp D36 →
+  hp → auto-revert Wild Shape D63 → Furia implacable D72 →
+  Resistencia implacable D67 → death saves. Dodge y resistencia se
+  apilan multiplicativamente (un enano pícaro: mitad × mitad = cuarto,
+  RAW correcto; `floor(floor(d/2)/2)`).
+- **Ventaja en salvaciones contra veneno**: en la rama :save de
+  `cast_spell`, si `spell.damage_type == "poison"` y el objetivo es
+  enano → fuente extra de ventaja `dwarf_advantage:` en
+  `Conditions.save_mode/4` (patrón gnome_advantage D71: `combine/2`
+  la cancela contra Heightened D65 o desventaja de condición;
+  etiqueta "(Resistencia enana: ventaja)" cuando condujo el modo; el
+  reroll de Indomitable D68 conserva el modo). Aplica a CUALQUIER
+  aptitud de salvación (RAW 2014: "saving throws against poison").
+- **Nota de cobertura**: el catálogo tiene exactamente UN hechizo así
+  hoy (cloudkill del SRD: CON, 5d8 poison, nivel 5) — el hook es
+  correcto y futuro-prueba; los tests lo ejercitan con un fixture con
+  esos mismos datos.
+- **Fuera**: demás traits enanos (darkvision, speed, dwarven combat
+  training, stonecunning), veneno de otros tipos, INMUNIDAD (no
+  resistencia) de no-muertos, feats, multiclase. M60 en el catálogo.
+
+---
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,

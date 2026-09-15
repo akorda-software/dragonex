@@ -130,7 +130,7 @@ defmodule Dragonex.Scenarios do
             "• DESCANSOS: short_rest (gastar hit die) y long_rest (recuperar todo HP y casillas de hechizo).\n" <>
             "• PROGRESIÓN: grant_xp para otorgar experiencia (sin subir de nivel) y level_up cuando puedan subir.\n" <>
             "• TÁCTICO: roll_initiative para iniciar combate, spawn_monster para refuerzos " <>
-            "(probar cada CR: goblin, kobold, bandit, skeleton, wolf, orc, hobgoblin, ogre), end_combat para terminar.\n" <>
+            "(probar cada CR: goblin, kobold, bandit, skeleton, wolf, orc, hobgoblin, ogre, giant_spider), end_combat para terminar.\n" <>
             "Empieza preguntando al jugador qué mecánica quiere probar primero.",
         tone:
           "experimental y didáctico, sin stakes narrativos — lo que importa es ejercitar mecánicas, no la historia",

@@ -229,7 +229,7 @@ defmodule Dragonex.Game.Guardrails do
     "⚠️ HOSTIL SIN SPAWN ⚠️ En tu última narración describiste que un hostil aparece, " <>
       "pero NO existe en el mundo (no llamaste spawn_monster). ESTE TURNO DEBES materializarlo " <>
       "con spawn_monster(\"<kind>\", \"<nombre>\") — kinds disponibles: goblin, kobold, bandit, " <>
-      "skeleton, wolf, orc, hobgoblin, ogre, training_dummy, archery_target — y el motor " <>
+      "skeleton, wolf, orc, hobgoblin, ogre, giant_spider, training_dummy, archery_target — y el motor " <>
       "tirará iniciativa automáticamente. Si NO quieres combate real, NO narres que un hostil " <>
       "aparece: describe solo el entorno o un PNJ no hostil.\n\n" <> base
   end

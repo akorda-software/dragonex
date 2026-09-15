@@ -465,8 +465,23 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
   resolver (mismo RollLog, mitad de :save sobre el total escalado,
   crit dobla los extra, Empowered D65 sobre los combinados); CD y
   concentración sin cambios (RAW). Errores no mutan (< base, > 9, no
-  entero, truco, sin casilla del nivel pedido). Excluidos (ADR): heal,
-  mass_cure_wounds, sleep, multi-objetivo/multi-rayo, 2024. M58.
+   entero, truco, sin casilla del nivel pedido). Excluidos (ADR): heal,
+   mass_cure_wounds, sleep, multi-objetivo/multi-rayo, 2024. M58.
+- **Araña gigante + Resistencia enana (D75/D76)**: **entregado.** La
+   araña (`Monsters.giant_spider/1`, key `"giant_spider"`, CR 1 RAW,
+   en las enumeraciones de `spawn_monster`) es la primera fuente REAL
+   de daño de veneno del motor: mordida "3d8+3 poison" total (dados
+   "3d8" + DES +3 que el motor suma; simplificación ADR del 1d8+3
+   perforante + 2d8 veneno con salvación CON de RAW), +5 al ataque,
+   sin telaraña/trepar. Con ella, la Resistencia enana (D76) tiene
+   efecto medible: sin campos ni tools — mitad (floor) del daño
+   "poison" en la capa D38 (`Character.incoming_damage/3`), apilable
+   multiplicativamente con Uncanny Dodge D64 (enano pícaro = cuarto,
+   RAW), + ventaja en la salvación :save de hechizos con
+   `damage_type "poison"` (fuente `dwarf_advantage:` en
+   `Conditions.save_mode/4`, patrón D71, etiqueta "(Resistencia
+   enana: ventaja)"; único hechizo así hoy: cloudkill del SRD).
+   M59–M60. Tests `poison_test.exs` (14).
 - **Multiclase**: fuera del builder actual por diseño; implicaría rehacer
   progression.
 - **Marketplace de contenido custom** (D22): compartir entre usuarios.

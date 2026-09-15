@@ -324,8 +324,11 @@ defmodule Dragonex.Character do
   Resistance and vulnerability to the same type cancel. Resistance alone
   halves (`div/2`); vulnerability alone doubles. Floor 0.
   Tiefling `hellish_resistance` counts as fire resistance without duplicating
-  the type in `damage_resistances`. Rage (D42) overlays bludgeoning/piercing/
-  slashing resistance while `c.raging` without mutating the persisted lists.
+  the type in `damage_resistances`. Dwarven Resilience (D76) counts as poison
+  resistance — derived from `race == "dwarf"`, no trait or field — so every
+  dwarf (Heroes, tests, custom content) gets it. Rage (D42) overlays
+  bludgeoning/piercing/slashing resistance while `c.raging` without mutating
+  the persisted lists.
   """
   @spec incoming_damage(t(), integer(), String.t() | nil) :: integer()
   def incoming_damage(%__MODULE__{} = c, amount, type) when is_integer(amount) do
@@ -355,8 +358,18 @@ defmodule Dragonex.Character do
   defp resistant_to?(%__MODULE__{} = c, type) do
     type in list(c.damage_resistances) or
       (type == "fire" and "hellish_resistance" in list(c.racial_traits)) or
+      (type == "poison" and dwarf?(c)) or
       (c.raging == true and type in @rage_resist)
   end
+
+  # D76 Dwarven Resilience: every dwarf resists poison damage. Derived from
+  # `race` alone (no trait list, no new field), riding the D38 resistance
+  # layer that `World.apply_damage/3-4` applies right AFTER Uncanny Dodge
+  # (D64) — the two stack multiplicatively (half × half = quarter, RAW).
+  defp dwarf?(%__MODULE__{race: race}) when is_binary(race),
+    do: String.downcase(race) == "dwarf"
+
+  defp dwarf?(_), do: false
 
   defp list(nil), do: []
   defp list(xs) when is_list(xs), do: xs

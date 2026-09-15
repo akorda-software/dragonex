@@ -72,6 +72,11 @@ defmodule Dragonex.Rules.Conditions do
   source for mental saves (INT/WIS/CHA against magic — the cast_spell and
   turn_undead sites inject it); it cancels against any disadvantage
   (Heightened D65, conditions) through the same `combine/2`.
+
+  Dwarven Resilience (D76): `dwarf_advantage: true` adds one more
+  advantage source for saves against poison (the cast_spell :save branch
+  injects it when the spell's damage_type is "poison" and the target is
+  a dwarf — any save ability); same `combine/2` cancellation.
   """
   @spec save_mode(Character.t(), atom(), mode(), keyword()) :: save_outcome()
   def save_mode(%Character{} = target, ability, requested \\ :normal, opts \\ []) do
@@ -82,7 +87,8 @@ defmodule Dragonex.Rules.Conditions do
     else
       advantage? =
         requested == :advantage or danger_sense?(target, ability) or
-          Keyword.get(opts, :gnome_advantage) == true
+          Keyword.get(opts, :gnome_advantage) == true or
+          Keyword.get(opts, :dwarf_advantage) == true
 
       disadvantage? =
         requested == :disadvantage or (ability == :dex and "restrained" in conds)

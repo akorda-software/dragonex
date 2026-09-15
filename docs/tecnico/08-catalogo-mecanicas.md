@@ -953,6 +953,49 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   multi-objetivo y multi-rayo (scorching_ray), variantes 2024.
 - **Tests**: `upcast_test.exs`.
 
+### M59 — Araña gigante (bestiario, D75)
+- **Dónde**: `Monsters.giant_spider/1`, key `"giant_spider"` en
+  `Monsters.catalog/0` (CR 1 junto al ogre). Stats RAW: STR 15,
+  DEX 16, CON 12, INT 2, WIS 12, CHA 7; CA 14; 26 pg; velocidad 30;
+  salvación DES; raza "beast", side "enemy". Enumerada en las listas
+  de `spawn_monster` (prompt DM, guardrails, escenario arena).
+- **5e / simplificación (ADR D75)**: RAW la mordida es 1d8+3 perforante
+  MÁS 2d8 veneno (salvación CON CD 11 para mitad); el motor modela UN
+  tipo por arma → total "3d8+3 poison": dados `"3d8"` + mod DES +3 que
+  `Combat.damage_roll` suma (los dados de arma solo parsean `NdM` — un
+  "3d8+3" literal crashearía, cf. `bear_bite` latente), y
+  DES da el +5 al ataque RAW (prof 2 + 3). Sin salvación CON
+  intermedia. **Primera fuente real de daño "poison" del motor** —
+  da efecto medible a la Resistencia enana (M60) y al skeleton
+  inmune (M25).
+- **Fuera**: telaraña, trepar (sin posicionamiento), Wild Shape
+  (CR 1 > tope 1/2 de M47).
+- **Tests**: `poison_test.exs`.
+
+### M60 — Resistencia enana (pasiva racial, D76)
+- **Dónde**: sin campos ni tools. (1) RESISTENCIA: capa D38 en
+  `Character.incoming_damage/3` → `resistant_to?/2` (mismo sitio que
+  la resistencia infernal del tieflino), derivada de
+  `race == "dwarf"`: daño `type == "poison"` → mitad (floor). La
+  aplica `World.apply_damage/3-4` en su pipeline, con orden de capas
+  fijado: Uncanny Dodge D64 → resistencias D38 (enana de veneno) →
+  temp_hp D36 → hp → revert M47 → Furia implacable M56 → Resistencia
+  implacable M51 → death saves; dodge × resistencia se apilan
+  multiplicativamente (enano pícaro: cuarto, RAW). Vivir en la capa
+  D38 (y no ad-hoc en World) mantiene coherentes las simulaciones que
+  consultan `incoming_damage` (DC de concentración, tracking
+  multi-golpe). (2) VENTAJA: rama :save de `cast_spell` con
+  `spell.damage_type == "poison"` y objetivo enano → fuente extra
+  `dwarf_advantage:` en `Conditions.save_mode/4` (patrón gnome_advantage
+  M55/D71, combinada vía `combine/2`, etiqueta "(Resistencia enana:
+  ventaja)"; cualquier aptitud de salvación). Cobertura: hoy el
+  catálogo tiene UN hechizo así (cloudkill SRD: CON, 5d8 poison);
+  tests con fixture de esos datos.
+- **Fuera**: demás traits enanos (darkvision, speed, combat training,
+  stonecunning), veneno de otros tipos, inmunidad de no-muertos,
+  feats, multiclase.
+- **Tests**: `poison_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -974,8 +1017,10 @@ Uncanny Dodge: **D64 / M48**. Metamagic: **D65 / M49**.
 XP en partida: **D43 / M27**.
 Rasgos raciales automáticos: Lucky **D66 / M50**, Resistencia
 implacable **D67 / M51**, Savage Attacks **D69 / M53**, Astucia gnoma
-**D71 / M55**; Aliento de dragón del dragontino **D70 / M54** (tool
-racial). Brave, Halfling Nimbleness, Darkvision y demás siguen fuera.
+**D71 / M55**, Resistencia enana (veneno) **D76 / M60**; Aliento de
+dragón del dragontino **D70 / M54** (tool racial). Brave, Halfling
+Nimbleness, Darkvision y demás siguen fuera.
+Daño de veneno en el bestiario: araña gigante **D75 / M59**.
 Indomitable del guerrero: **D68 / M52**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
@@ -992,7 +1037,8 @@ enfermedad/veneno con Lay on Hands (gastar 5) sigue fuera.
   **D73 / M57** (sólo skills, no tools/instrumentos). Upcasting de
   hechizos (dados extra con casilla superior) entró en **D74 / M58**
   (tabla curada; multi-objetivo/multi-rayo y escalados no-dados siguen
-  fuera).
+  fuera). Veneno real en el motor (araña gigante + Resistencia enana)
+  entró en **D75/D76 / M59–M60**.
 
 Para que una de estas entre: ADR nuevo + mecánica `M44+` en este catálogo +
 tests.

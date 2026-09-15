@@ -121,7 +121,7 @@ Stubs legacy (sólo para tests del framework exAgent): `attack/2`, `roll/1`,
 | `Dragonex.Dice` | RNG vía `dic_ex`; `roll_expr/2` (parser NdM±K); `always/1` (test) |
 | `Dragonex.RollLog` | `Agent` por beat que graba cada dado en grupos y publica en vivo |
 | `Dragonex.Character` / `Weapon` / `Spell` / `Item` | Structs (la "forma" congelada, `D4`) |
-| `Dragonex.Monsters` | Bestiario: 8 SRD + 2 dianas de entrenamiento |
+| `Dragonex.Monsters` | Bestiario: 9 SRD + 2 dianas de entrenamiento |
 | `Dragonex.Archetypes` | 3 PCs hardcoded (fighter Thane, wizard Lyra, rogue Vex) — fallback del roster |
 | `Dragonex.Roster` | Catálogo de seleccionables para el wizard |
 | `Dragonex.Scenarios` | 6 story scenarios (taberna, cripta, asedio, torre, bosque, arena) — cada uno una story bible |

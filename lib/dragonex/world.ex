@@ -59,12 +59,15 @@ defmodule Dragonex.World do
            (`%{option, target}`, ONE at a time): arming spends sorcery
            points (`Actions.arm_metamagic/4`); `Actions.spell/5` applies
            and consumes it when the spell qualifies; rests never touch it,
-         * Relentless Endurance (D67) is a half-orc passive in
-           `apply_damage/3`: damage-layering order is Uncanny Dodge halves
-           the incoming amount (D64) → temp_hp (D36) → hp → Wild Shape
-           auto-revert (D63) → Relentless Endurance (hp 0 → 1, once per
-           long rest; `relentless_endurance_used`); `long_rest` recharges
-           it, `short_rest` does not,
+          * Relentless Endurance (D67) is a half-orc passive in
+            `apply_damage/3`: damage-layering order is Uncanny Dodge halves
+            the incoming amount (D64) → the D38 resistance layer in
+            `Character.incoming_damage/3` (incl. D76 Dwarven Resilience: a
+            dwarf halves poison — stacks multiplicatively with D64) →
+            temp_hp (D36) → hp → Wild Shape auto-revert (D63) → Relentless
+            Endurance (hp 0 → 1, once per long rest;
+            `relentless_endurance_used`); `long_rest` recharges
+            it, `short_rest` does not,
          * Rage uses (D72): a barbarian gets `Progression.rage_count/1`
            rages per long rest; `start_rage/1` spends one on entry
            (`rage_uses_used`) and refuses when the pool is empty;
@@ -328,10 +331,12 @@ defmodule Dragonex.World do
 
         %Character{} = c ->
           # D64 Uncanny Dodge: an armed rogue halves ANY incoming damage
-          # (floor) at the entry point — before resistances (D38), temp_hp
-          # (D36) and hp — and the flag is consumed. amount <= 0 never
-          # consumes it. The D63 auto-revert flow below runs after, with the
-          # already-mitigated damage.
+          # (floor) at the entry point — before the D38 resistance layer
+          # below (which includes D76 dwarf poison resistance: a dwarf
+          # halves poison there, so a dwarf rogue stacks half × half =
+          # quarter, RAW), temp_hp (D36) and hp — and the flag is
+          # consumed. amount <= 0 never consumes it. The D63 auto-revert
+          # flow below runs after, with the already-mitigated damage.
           dodge? = c.uncanny_dodge == true and amount > 0
           amount = if dodge?, do: div(amount, 2), else: amount
           c = if dodge?, do: %{c | uncanny_dodge: false}, else: c

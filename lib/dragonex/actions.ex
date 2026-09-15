@@ -2295,12 +2295,18 @@ defmodule Dragonex.Actions do
     # D71 Gnome Cunning: a gnome's mental save enters as an extra
     # advantage source — combine/2 cancels it against Heightened or a
     # condition's disadvantage (normal).
+    # D76 Dwarven Resilience: a dwarf's save against a POISON spell
+    # enters as an extra advantage source (same combination semantics).
     gnome? = gnome_cunning?(t, spell.save_ability)
+    dwarf? = dwarven_resilience?(t, spell)
     requested = if heightened?, do: :disadvantage, else: :normal
     height_tag = if heightened?, do: " (Metamagia: Heightened)", else: ""
     emp_tag = metamagic_tag(emp)
 
-    case Conditions.save_mode(t, spell.save_ability, requested, gnome_advantage: gnome?) do
+    case Conditions.save_mode(t, spell.save_ability, requested,
+           gnome_advantage: gnome?,
+           dwarf_advantage: dwarf?
+         ) do
       :auto_fail ->
         {r2, close_dmg} =
           RollLog.open(
@@ -2401,13 +2407,15 @@ defmodule Dragonex.Actions do
         lucky_b = lucky_suffix(lucky)
         indom_b = indom_suffix(indom)
 
-        # D71: when the gnome's advantage shaped the mode, its tag
+        # D71/D76: when a racial advantage shaped the mode, its tag
         # replaces the generic "(ventaja)" — a cancelled advantage
         # (Heightened/condition) leaves the plain mode_tag (normal = "").
         mode_b =
-          if gnome? and save_mode == :advantage,
-            do: " (Astucia gnoma: ventaja)",
-            else: mode_tag(save_mode)
+          cond do
+            gnome? and save_mode == :advantage -> " (Astucia gnoma: ventaja)"
+            dwarf? and save_mode == :advantage -> " (Resistencia enana: ventaja)"
+            true -> mode_tag(save_mode)
+          end
 
         verdict =
           cond do
@@ -2513,6 +2521,20 @@ defmodule Dragonex.Actions do
   end
 
   defp gnome_cunning?(_, _), do: false
+
+  # D76 Dwarven Resilience: advantage on saving throws against poison.
+  # Engine equivalence (ADR D76): every :save spell with
+  # damage_type "poison" counts as "against poison" regardless of the
+  # save ability (RAW 2014 wording). Injected only from cast_spell's
+  # :save branch. NOTE: today the catalog has exactly one such spell
+  # (SRD cloudkill, CON save 5d8 poison) — usable E2E, but rare; the
+  # hook is future-proof for any poison spell that arrives.
+  defp dwarven_resilience?(%Character{race: race}, %{damage_type: "poison"})
+       when is_binary(race) do
+    String.downcase(race) == "dwarf"
+  end
+
+  defp dwarven_resilience?(_, _), do: false
 
   # D74: the dart count rides the dice expression (3d4+3 → 3; 4d4+4 → 4 when
   # upcast), so the verb always reports the real number of darts.
