@@ -152,6 +152,12 @@ defmodule DragonexWeb.GameLive.Show do
         {:error, :already_joined} ->
           {:noreply, assign(socket, join_error: "Ya estás en esta partida.")}
 
+        {:error, :already_started} ->
+          {:noreply, assign(socket, join_error: "La partida ya ha empezado.")}
+
+        {:error, :no_open_slots} ->
+          {:noreply, assign(socket, join_error: "La partida no tiene plazas libres.")}
+
         {:error, _} ->
           {:noreply, assign(socket, join_error: "No se pudo unir a la partida.")}
       end

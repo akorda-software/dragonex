@@ -114,4 +114,114 @@ defmodule Dragonex.GamesContextSmokeTest do
     assert {:ok, _} = Games.join_game(game, joiner, sheet)
     assert {:error, :already_joined} = Games.join_game(Games.get_game(game.id), joiner, sheet)
   end
+
+  describe "join_game guarda de estado" do
+    setup do
+      {:ok, owner} =
+        Dragonex.Accounts.register(%{
+          email: "owner#{System.unique_integer([:positive])}@t.test",
+          password: "password123",
+          display_name: "Owner"
+        })
+
+      {:ok, joiner} =
+        Dragonex.Accounts.register(%{
+          email: "join#{System.unique_integer([:positive])}@t.test",
+          password: "password123",
+          display_name: "Joiner"
+        })
+
+      {:ok, sheet} =
+        Dragonex.Heroes.build(%{
+          name: "Nara",
+          race: "human",
+          class: "fighter",
+          background: "soldier"
+        })
+
+      {:ok, game} =
+        Games.create_game(
+          title: "open",
+          scene: "x",
+          user_id: owner.id,
+          open_slots: 2,
+          roster: [{Archetypes.fighter(), :human}]
+        )
+
+      %{owner: owner, joiner: joiner, sheet: sheet, game: game}
+    end
+
+    test "join tras arrancar la partida → {:error, :already_started}", %{
+      joiner: joiner,
+      sheet: sheet,
+      game: game
+    } do
+      assert game.status == :configuring
+      assert {:ok, _} = Games.start_game(game.id)
+
+      assert {:error, :already_started} =
+               Games.join_game(Games.get_game(game.id), joiner, sheet)
+    end
+
+    test "join con sala llena (aún :configuring) → {:error, :no_open_slots}", %{
+      joiner: joiner,
+      sheet: sheet,
+      game: game
+    } do
+      {:ok, other} =
+        Dragonex.Accounts.register(%{
+          email: "other#{System.unique_integer([:positive])}@t.test",
+          password: "password123",
+          display_name: "Other"
+        })
+
+      {:ok, other_sheet} =
+        Dragonex.Heroes.build(%{
+          name: "Bram",
+          race: "human",
+          class: "fighter",
+          background: "soldier"
+        })
+
+      assert game.open_slots == 2
+
+      # Dos joins llenan las 2 plazas (la partida sigue :configuring).
+      assert {:ok, _} = Games.join_game(game, joiner, sheet)
+
+      full = Games.get_game(game.id)
+      assert full.status == :configuring
+      assert full.open_slots == 1
+      assert {:ok, _} = Games.join_game(full, other, other_sheet)
+
+      # La tercera, con la sala llena y la partida aún sin arrancar:
+      {:ok, latecomer} =
+        Dragonex.Accounts.register(%{
+          email: "late#{System.unique_integer([:positive])}@t.test",
+          password: "password123",
+          display_name: "Late"
+        })
+
+      assert {:error, :no_open_slots} =
+               Games.join_game(Games.get_game(game.id), latecomer, sheet)
+    end
+
+    test "start_game zeroa open_slots", %{game: game} do
+      assert game.open_slots == 2
+      assert {:ok, started} = Games.start_game(game.id)
+      assert started.status == :running
+      assert started.open_slots == 0
+    end
+
+    test "open_games solo lista partidas :configuring (no arrancadas)", %{
+      joiner: joiner,
+      game: game
+    } do
+      # El lobby excluye los juegos propios → perspectiva del joiner.
+      assert [g] = Games.open_games(joiner)
+      assert g.id == game.id
+
+      {:ok, _} = Games.start_game(game.id)
+      assert Games.open_games(joiner) == []
+    end
+  end
 end

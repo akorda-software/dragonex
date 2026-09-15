@@ -346,13 +346,21 @@ defmodule Dragonex.Games do
   end
 
   @doc """
-  A human player joins an open slot: creates a participant (linked to their
-  user), adds the character to the live world (if running), and decrements
-  `open_slots`. Returns `{:ok, game}` or `{:error, reason}`.
+  A human player joins an open slot of a game STILL IN CONFIGURATION (the
+  waiting room): creates a participant (linked to their user), adds the
+  character to the live world (if running), and decrements `open_slots`.
+  Returns `{:ok, game}` or `{:error, reason}` — `{:error, :already_started}`
+  once the partida has started (start_game closes the door), `:already_joined`
+  for a repeat join, `:no_open_slots` when the room is full.
   """
   @spec join_game(Game.t(), Dragonex.Accounts.User.t(), Dragonex.Character.t(), keyword()) ::
           {:ok, Game.t()} | {:error, term()}
   def join_game(game, user, sheet, opts \\ [])
+
+  # A started partida (running/paused/waiting/ended) takes no joiners — even
+  # with residual open_slots (start_game zeroes them; this is the guard).
+  def join_game(%Game{status: status}, _user, _sheet, _opts) when status != :configuring,
+    do: {:error, :already_started}
 
   def join_game(
         %Game{id: game_id, open_slots: open} = game,
@@ -368,7 +376,7 @@ defmodule Dragonex.Games do
     end
   end
 
-  def join_game(%Game{open_slots: 0}, _user, _sheet, _opts), do: {:error, :no_open_slots}
+  def join_game(%Game{}, _user, _sheet, _opts), do: {:error, :no_open_slots}
 
   defp already_joined?(%Game{} = game, user) do
     game
@@ -456,20 +464,28 @@ defmodule Dragonex.Games do
 
   def can_access?(_, _), do: false
 
-  @doc "Start a game from the waiting room: flip status to :running."
+  @doc """
+  Start a game from the waiting room: flip status to :running and close the
+  lobby — `open_slots` goes to 0 so no residual slot can list/join a partida
+  that already started.
+  """
   @spec start_game(term()) :: {:ok, Game.t()} | {:error, term()}
   def start_game(game_id) do
     {:ok, _} = set_status(game_id, :running)
+    {_, _} = Repo.update_all(from(g in Game, where: g.id == ^game_id), set: [open_slots: 0])
     {:ok, get_game(game_id)}
   end
 
-  @doc "Games with open slots, excluding those owned by the user."
+  @doc """
+  Joinable games in the lobby: still `:configuring` (waiting room) with open
+  slots, excluding those owned by the user. Running/paused partidas never
+  list here — even with residual slots.
+  """
   @spec open_games(Dragonex.Accounts.User.t()) :: [Game.t()]
   def open_games(%Dragonex.Accounts.User{id: uid}) do
     Repo.all(
       from(g in Game,
-        where:
-          g.open_slots > 0 and g.user_id != ^uid and g.status in ^[:running, :waiting, :paused],
+        where: g.open_slots > 0 and g.user_id != ^uid and g.status == :configuring,
         order_by: [desc: g.inserted_at],
         preload: [:participants]
       )
