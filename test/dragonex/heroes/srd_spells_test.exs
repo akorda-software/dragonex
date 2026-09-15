@@ -64,6 +64,9 @@ defmodule Dragonex.Heroes.SRDSpellsTest do
         assert true
       else
         assert length(SRDSpells.all()) > 200
+        # AC-4.2: la cuenta EXACTA de hechizos SRD 5.1 cargados. Si el
+        # importer cambia el JSON, este número se actualiza a propósito.
+        assert length(SRDSpells.all()) == 319
         assert length(Spells.all()) > 200
       end
     end

@@ -147,7 +147,7 @@ Partida con slots abiertos arranca en **sala de espera**: link compartido,
 otros usuarios se unen con su héroe, el creador pulsa **Empezar**.
 
 - AC-12.1: `join_game` valida slot libre y añade participante
-  (`multi_participant_test.exs` en flows).
+  (`games_context_smoke_test.exs`; las guardas de estado en el mismo archivo).
 - AC-12.2: la partida no arranca hasta "Empezar"; tras arrancar no se admiten
   uniones.
 

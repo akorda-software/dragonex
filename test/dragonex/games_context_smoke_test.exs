@@ -151,6 +151,30 @@ defmodule Dragonex.GamesContextSmokeTest do
       %{owner: owner, joiner: joiner, sheet: sheet, game: game}
     end
 
+    test "join ok: valida slot libre, añade participante + ficha y decrementa slots", %{
+      joiner: joiner,
+      sheet: sheet,
+      game: game
+    } do
+      assert game.open_slots == 2
+
+      assert {:ok, joined} = Games.join_game(game, joiner, sheet)
+
+      # AC-12.1: el slot se consume…
+      assert joined.open_slots == 1
+
+      # …el participante queda vinculado al usuario (humano, bando pc)…
+      reloaded = Games.get_game(game.id)
+      participant = Enum.find(reloaded.participants, &(&1.user_id == joiner.id))
+      assert participant != nil
+      assert participant.name == sheet.name
+      assert participant.kind == :human
+      assert participant.side == "pc"
+
+      # …y la partida guarda SU copia de la ficha.
+      assert Enum.any?(reloaded.characters, &(&1.name == sheet.name and &1.kind == :human))
+    end
+
     test "join tras arrancar la partida → {:error, :already_started}", %{
       joiner: joiner,
       sheet: sheet,
