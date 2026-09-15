@@ -16,17 +16,24 @@ defmodule Dragonex.Heroes.SRDSpellsTest do
 
   # El builtin SIEMPRE está, hagan o no SRD.
   describe "builtin preservado (con o sin SRD)" do
-    test "Spells.all incluye los 42 hechizos builtin curados" do
+    test "Spells.all incluye los 44 hechizos builtin curados" do
       names = Enum.map(Spells.builtin(), & &1.name)
       assert "fire bolt" in names
       assert "magic missile" in names
       assert "cure wounds" in names
-      assert length(Spells.builtin()) == 42
+      assert length(Spells.builtin()) == 44
     end
 
     test "la mecánica del builtin gana sobre el SRD (magic missile lleva dado)" do
       # el SRD de open5e trae magic missile sin damage_roll; nuestro builtin lo corrige
       assert %{dice: "3d4+3"} = Spells.get("magic missile")
+    end
+
+    test "el builtin corrige los dados null del SRD (spiritual weapon, prayer of healing)" do
+      # El SRD trae dice: null en ambos; el motor trataba nil como 0
+      # (ataque sin daño / cura nula). El builtin los fija RAW.
+      assert %{dice: "1d8", kind: :attack, damage_type: "force"} = Spells.get("spiritual weapon")
+      assert %{dice: "2d8", kind: :automatic} = Spells.get("prayer of healing")
     end
 
     test "all/0 nunca duplica por nombre (builtin wins)" do

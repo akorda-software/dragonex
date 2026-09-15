@@ -202,6 +202,121 @@ defmodule Dragonex.HealingAndBestiaryTest do
     end
   end
 
+  describe "builtin overrides del SRD (dados null)" do
+    # El SRD trae dice: null en espiritual weapon / prayer of healing; sin
+    # override, el motor los resolvía como 0 (ataque sin daño, cura nula).
+    test "spiritual weapon: builtin 1d8 force — impacto hace >0 daño" do
+      assert %{dice: "1d8", kind: :attack, damage_type: "force"} =
+               Dragonex.Heroes.Spells.get("spiritual weapon")
+
+      cleric =
+        Character.new(
+          name: "Elder",
+          class: "cleric",
+          level: 3,
+          hp: 20,
+          max_hp: 20,
+          ac: 16,
+          wis: 16,
+          side: "pc",
+          spells: [
+            Dragonex.Heroes.Spells.to_character_spell(
+              Dragonex.Heroes.Spells.get("spiritual weapon"),
+              :wis
+            )
+          ]
+        )
+
+      gob =
+        Character.new(name: "gob", class: "monster", hp: 20, max_hp: 20, ac: 12, side: "enemy")
+
+      {:ok, w} = World.add_character(cleric).(World.new())
+      {:ok, w} = World.add_character(gob).(w)
+      w = World.init_spell_slots(w)
+
+      # Ataque mágico: prof 2 + SAB 3 = 5. d20 15 → 20 vs CA 12: impacta;
+      # 1d8 con el mismo roller fijo 15 = 15 de daño force (> 0).
+      {:ok, msg, change} = Actions.spell(w, "Elder", "spiritual weapon", "gob", fixed(15))
+
+      assert msg =~ "impacta"
+      {:ok, w2} = change.(w)
+      assert w2.characters["gob"].hp == 20 - 15
+      assert w2.spell_slots["Elder"][2] == 1
+    end
+
+    test "prayer of healing: builtin 2d8 — cura >0 a nivel base" do
+      assert %{dice: "2d8", kind: :automatic} = Dragonex.Heroes.Spells.get("prayer of healing")
+
+      cleric =
+        Character.new(
+          name: "Elder",
+          class: "cleric",
+          level: 3,
+          hp: 20,
+          max_hp: 20,
+          ac: 16,
+          wis: 16,
+          side: "pc",
+          spells: [
+            Dragonex.Heroes.Spells.to_character_spell(
+              Dragonex.Heroes.Spells.get("prayer of healing"),
+              :wis
+            )
+          ]
+        )
+
+      ally = Character.new(name: "Thane", class: "fighter", hp: 2, max_hp: 20, ac: 16, side: "pc")
+
+      {:ok, w} = World.add_character(cleric).(World.new())
+      {:ok, w} = World.add_character(ally).(w)
+      w = World.init_spell_slots(w)
+
+      # 2d8 con roller 4 = 8 + SAB 3 = 11 de curación (single-target:
+      # simplificación asumida).
+      {:ok, msg, change} = Actions.spell(w, "Elder", "prayer of healing", "Thane", fixed(4))
+
+      assert msg =~ "se cura"
+      {:ok, w2} = change.(w)
+      assert w2.characters["Thane"].hp == 2 + 11
+      assert w2.spell_slots["Elder"][2] == 1
+    end
+
+    test "prayer of healing a 3º suma 1d8 (2d8 + 1d8 = 3d8)" do
+      cleric =
+        Character.new(
+          name: "Elder",
+          class: "cleric",
+          level: 5,
+          hp: 20,
+          max_hp: 20,
+          ac: 16,
+          wis: 16,
+          side: "pc",
+          spells: [
+            Dragonex.Heroes.Spells.to_character_spell(
+              Dragonex.Heroes.Spells.get("prayer of healing"),
+              :wis
+            )
+          ]
+        )
+
+      ally = Character.new(name: "Thane", class: "fighter", hp: 2, max_hp: 30, ac: 16, side: "pc")
+
+      {:ok, w} = World.add_character(cleric).(World.new())
+      {:ok, w} = World.add_character(ally).(w)
+      w = World.init_spell_slots(w)
+
+      # 3d8 con roller 4 = 12 + SAB 3 = 15.
+      {:ok, msg, change} =
+        Actions.spell(w, "Elder", "prayer of healing", "Thane", fixed(4), nil, 3)
+
+      assert msg =~ "(nivel 3)"
+      {:ok, w2} = change.(w)
+      assert w2.characters["Thane"].hp == 2 + 15
+      assert w2.spell_slots["Elder"][3] == 1
+    end
+  end
+
   describe "bestiary" do
     test "all 8 combat monsters are available" do
       keys = Monsters.keys()

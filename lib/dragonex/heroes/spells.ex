@@ -541,6 +541,34 @@ defmodule Dragonex.Heroes.Spells do
         damage_type: "acid",
         effect: "An orb of energy; choose acid/cold/fire/lightning/poison/thunder.",
         classes: ~w(sorcerer wizard)
+      },
+      # --- 2nd level ---
+      # SRD trae dice: null; sin override el motor resolvía 0 daño (kind
+      # :attack → impacto sin daño). 1d8 force RAW; sin mod de conjuro
+      # (simplificación documentada).
+      %{
+        name: "spiritual weapon",
+        level: 2,
+        kind: :attack,
+        save_ability: nil,
+        dice: "1d8",
+        damage_type: "force",
+        effect:
+          "A floating spectral weapon; bonus-action melee spell attack each turn while concentrated.",
+        classes: ~w(cleric)
+      },
+      # SRD trae dice: null; sin override la cura era 0. 2d8 RAW
+      # (single-target en vez de 6 criaturas: simplificación asumida);
+      # el escalado vive en Rules.Upcast (+1d8/nivel).
+      %{
+        name: "prayer of healing",
+        level: 2,
+        kind: :automatic,
+        save_ability: nil,
+        dice: "2d8",
+        damage_type: nil,
+        effect: "Restore 2d8 + casting modifier HP to creatures near you.",
+        classes: ~w(cleric)
       }
     ]
   end
