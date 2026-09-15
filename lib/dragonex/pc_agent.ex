@@ -254,7 +254,10 @@ defmodule Dragonex.PCAgent do
       spell_line =
         if spells != "" and c.wild_shape == nil,
           do:
-            "- Conjurar: cast_spell(\"#{c.name}\", \"<hechizo>\", \"<objetivo de la lista>\") — hechizos: #{spells}.\n",
+            "- Conjurar: cast_spell(\"#{c.name}\", \"<hechizo>\", \"<objetivo de la lista>\") — hechizos: #{spells}.\n" <>
+              "- Subir hechizo (upcasting): si te quedan casillas de nivel superior, añade cast_level — " <>
+              "cast_spell(\"#{c.name}\", \"<hechizo>\", \"<objetivo>\", <nivel>) lanza el hechizo con esa casilla " <>
+              "(más daño/curación en los que escalan: fireball, burning hands, magic missile, cure wounds…).\n",
           else: ""
 
       surge_line =

@@ -1932,6 +1932,72 @@ elegidas (pícaro L1, bardo L3).
 integración con las choices de level-up (la tool cubre el momento),
 feats, multiclase. M57 en el catálogo.
 
+### D74 — Upcasting 5e RAW con tabla curada de escalado
+Estado: **Aceptada** — 2026-09-15.
+
+`cast_spell` gana `cast_level` opcional (nil = nivel base, compat hacia
+atrás): lanzar un hechizo con una casilla superior aplica el escalado
+EXACTO de cada hechizo (RAW 2014) desde una tabla curada EN CÓDIGO, y
+consume UNA casilla del nivel pedido (M58).
+
+- **Tabla curada en `Rules.Upcast`** (no en `Actions`): es datos de
+  reglas, no orquestación (D1 — el motor es fuente de verdad), y evita
+  inflar `Actions` con tablas estáticas. El JSON del SRD NO trae el
+  bloque "A niveles superiores" estructurado, así que cada entrada se
+  auditó contra la descripción RAW 2014. Helper público
+  `extra_dice(spell, base, cast_level) -> "2d6" | nil` +
+  `scaled_spell/2` (combina base+extra en UNA expresión de dados).
+  Hechizos ausentes de la tabla no escalan (comportamiento previo).
+- **Tabla**: burning_hands +1d6/nivel s/1º; thunderwave +1d8/n s/1º;
+  shatter +1d8/n s/2º; fireball +1d6/n s/3º; lightning_bolt +1d6/n
+  s/3º; blight +1d8/n s/4º; flame_strike +1d6/n s/5º; vampiric_touch
+  +1d6/n s/3º; spiritual_weapon +1d8 cada DOS niveles s/2º (3º/5º no
+  añaden); magic_missile +1 dardo (+1d4+1)/nivel s/1º; cure_wounds
+  +1d8/n s/1º; healing_word +1d4/n s/1º; prayer_of_healing +1d8/n
+  s/2º.
+  - **Erratas del borrador del spec, resueltas hacia RAW**: (1) magic
+    missile "3º = 4 dardos" era off-by-one — RAW es +1 dardo/nivel
+    sobre los 3 base: 2º = 4, 3º = 5; (2) vampiric_touch NO es "cada
+    dos niveles": RAW 2014 es +1d6 por cada nivel de casilla sobre 3º
+    (4º = 4d6, 5º = 5d6…). Verificados contra el texto PHB/SRD.
+- **Reglas de escalado**: el dado extra se combina con la expresión
+  base (`"8d6"+"1d6" → "9d6"`) ANTES de resolver, de modo que entra al
+  mismo RollLog (misma etiqueta, total combinado), la mitad en :save se
+  calcula sobre el TOTAL escalado, el crit (:attack) dobla también los
+  extra (el motor ya dobla la base), y Empowered (D65) boostea los
+  dados combinados de forma natural. CD de salvación y concentración
+  SIN cambios (RAW). flame_strike: RAW añade +1d6 fuego Y +1d6
+  radiante; el motor modela 4d6 fuego único → escala +1d6 al total
+  (simplificación documentada).
+- **Validaciones (errores NO mutan)**: las existentes; cast_level
+  entero entre `spell.level` y 9 (menor que la base → error claro; > 9
+  → error; no entero → error directivo — la tool coacciona strings
+  numéricos del modelo); trucos no se pueden lanzar a nivel superior;
+  `World.has_slot?(who, cast_level)` con mensaje que cita el nivel
+  PEDIDO. Éxito: `compose_slot_consumption` con cast_level (warlocks
+  siguen gastando su casilla de pacto vía `slot_level_for`, RAW).
+- **Mensaje ES**: "(nivel N)" justo tras el nombre del hechizo cuando
+  cast_level > base ("Lyra conjura fireball (nivel 4); …"), cubre todas
+  las ramas (save/attack/automatic/heal/utility) y el outer de
+  Twinned. Magic missile reporta el número REAL de dardos (del conteo
+  de dados: 4d4+4 → "4 dardos de fuerza").
+- **PCAgent**: una línea tras la de conjurar explicando cast_level con
+  ejemplos cortos. Guards DM/PC sin cambios.
+
+**Fuera**: tabla completa de los 319 (sólo la curada), escalados
+multi-objetivo ("+1 objetivo": hold_person, invisibility…), multi-rayo
+(scorching_ray), variantes 2024, feats, multiclase.
+
+**Excluidos de la tabla (verificados contra el JSON del SRD)**:
+`heal` (70 pg planos, sin dados en el motor — el escalado +10 pg/nivel
+quedaría sobre un efecto no resuelto con dados); `mass_cure_wounds`
+(SRD `dice: null` → el motor no lo resuelve con dados reales);
+`sleep` (el motor lo modela como curación automática de 5d8 al
+objetivo, no como pool de pg — escalar eso amplificaría un
+mal-modelo; la descripción del JSON además no trae el bloque de
+escalado); escalados de DURACIÓN o no-dados (shield of faith y
+compañía no escalan: consumen la casilla pedida sin dados extra).
+
 ---
 
 ## Pendientes de decisión (abiertas)

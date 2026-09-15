@@ -8,8 +8,8 @@ defmodule Dragonex.SpellSlots do
   Non-casters get no slots.
 
   Mystic Arcanum (6th–9th, 1/long rest) is out of v1 — warlock `max_spell_level`
-  caps at 5. Damage upcasting (extra magic-missile darts, etc.) is not modeled;
-  the slot spent is still the pact slot.
+  caps at 5. Damage upcasting (extra magic-missile darts, etc.) is modeled by
+  `Dragonex.Rules.Upcast` (D74); the slot spent is still the pact slot.
 
   ## Table (full casters)
 

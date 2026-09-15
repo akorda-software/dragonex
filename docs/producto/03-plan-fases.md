@@ -113,7 +113,8 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
 - **Feats** (D13): catálogo + integración en ASI (elección feat vs +2).
 - **Pact Magic del warlock** (D40): **entregado.** Tabla PHB 5.1 (huecos
   1º–5º del mismo nivel); consume el hueco de pacto; short rest restaura
-  solo al brujo. Sin Mystic Arcanum ni upcast de daño.
+  solo al brujo. Sin Mystic Arcanum (el upcast de daño llegó en D74 para
+  todos los conjuradores, warlocks vía hueco de pacto).
 - **Sneak Attack del rogue** (D41): **entregado.** `div(level+1, 2)` d6;
   arma finesse o ranged; advantage o aliado consciente; disadvantage
   bloquea; primer hit de `Actions.attack`; crítico 2N d6. Sin grid ni
@@ -434,8 +435,7 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
     éxitos. Orden de capas: Uncanny Dodge → resist → temp_hp → hp →
     revert → Furia implacable → RE. Sin duración, bonus action, Paths,
     Persistent Rage L20, feats, multiclase.
-- **Expertise de pícaro y bardo** (D73): **entregado.** Cierra el
-   subsistema de skills (D60 aplicó prof simple): duplica el bonus de
+- **Expertise de pícaro y bardo** (D73): **entregado.** Cierra el   subsistema de skills (D60 aplicó prof simple): duplica el bonus de
    competencia en skills entrenadas elegidas (pícaro L1: 2, L6: 4;
    bardo L3: 2, L10: 4 — `Progression.expertise_count/2`). Decisión
    clave (ADR): la elección vive en una TOOL (`gain_expertise(who,
@@ -452,6 +452,21 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
    doblan. Permanente (sin rests); allowlist PCAgent + línea
    condicional con cupo pendiente + línea DM. Sin tools/instrumentos,
    picks 2024, integración con level-up choices, feats, multiclase.
+- **Upcasting 5e RAW** (D74): **entregado.** `cast_spell` gana
+  `cast_level` opcional (nil = nivel base, compat hacia atrás): gasta
+  UNA casilla del nivel pedido y aplica el escalado EXACTO de una tabla
+  curada EN CÓDIGO (`Rules.Upcast`, auditada contra RAW 2014 — el JSON
+  del SRD no trae "A niveles superiores" estructurado): fireball
+  +1d6/nivel s/3º, cure_wounds +1d8/n s/1º, magic_missile +1 dardo/n
+  s/1º (mensaje con el nº real de dardos), spiritual_weapon +1d8 cada
+  dos niveles, vampiric_touch +1d6/n, y burning_hands, thunderwave,
+  shatter, lightning_bolt, blight, flame_strike, healing_word,
+  prayer_of_healing. El dado extra se combina con la base antes de
+  resolver (mismo RollLog, mitad de :save sobre el total escalado,
+  crit dobla los extra, Empowered D65 sobre los combinados); CD y
+  concentración sin cambios (RAW). Errores no mutan (< base, > 9, no
+  entero, truco, sin casilla del nivel pedido). Excluidos (ADR): heal,
+  mass_cure_wounds, sleep, multi-objetivo/multi-rayo, 2024. M58.
 - **Multiclase**: fuera del builder actual por diseño; implicaría rehacer
   progression.
 - **Marketplace de contenido custom** (D22): compartir entre usuarios.

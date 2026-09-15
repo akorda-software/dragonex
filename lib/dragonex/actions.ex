@@ -22,6 +22,7 @@ defmodule Dragonex.Actions do
     Rules.Combat,
     Rules.Conditions,
     Rules.Skills,
+    Rules.Upcast,
     SpellSlots,
     Weapon,
     World
@@ -177,10 +178,33 @@ defmodule Dragonex.Actions do
     * `:automatic` — always hits (e.g. magic missile); full dice damage.
     * `:attack`    — spell attack vs AC (nat 20 auto-hits, nat 1 auto-misses).
     * `:save`      — target saves vs DC; success halves the damage (5e default).
+
+  Upcasting (D74, M58): `cast_level` (optional, `nil` = the spell's base
+  level — backwards compatible) spends ONE slot of that exact level and scales
+  the spell with the curated RAW table in `Rules.Upcast` (`fireball` with a
+  4th-level slot rolls 9d6). Spells absent from the table never scale (the
+  slot is still the requested one). Save DC and concentration are unchanged
+  (RAW). Errors mutate nothing: `cast_level` below the base level, above 9,
+  non-integer, upcast cantrip, or no slot left of the REQUESTED level.
   """
-  @spec spell(World.t(), String.t(), String.t(), String.t(), roller(), RollLog.t() | nil) ::
-          result()
-  def spell(world, caster_name, spell_name, target_name, roller, roll_log \\ nil) do
+  @spec spell(
+          World.t(),
+          String.t(),
+          String.t(),
+          String.t(),
+          roller(),
+          RollLog.t() | nil,
+          non_neg_integer() | nil
+        ) :: result()
+  def spell(
+        world,
+        caster_name,
+        spell_name,
+        target_name,
+        roller,
+        roll_log \\ nil,
+        cast_level \\ nil
+      ) do
     cond do
       is_nil(World.character(world, caster_name)) ->
         {:error, "no existe el conjurador: #{caster_name}"}
@@ -207,37 +231,96 @@ defmodule Dragonex.Actions do
             {:error, "#{caster_name} no conoce #{spell_name}"}
 
           spell ->
-            # Check spell slot for leveled spells (cantrips are free)
-            if spell.level > 0 and not World.has_slot?(world, caster_name, spell.level) do
-              {:error,
-               "a #{caster_name} no le quedan casillas de hechizo de nivel #{spell.level} " <>
-                 "(debe descansar para recuperarlas). Los trucos siempre están disponibles."}
-            else
-              result =
-                case twinned_target(world, c, caster_name, target_name) do
-                  nil ->
-                    resolve_spell(world, c, caster_name, t, target_name, spell, roller, roll_log)
+            with {:ok, cast_level} <- validate_cast_level(spell, cast_level) do
+              # Check a slot of the REQUESTED level for leveled spells
+              # (cantrips are free; D74 upcasting spends the asked slot).
+              if spell.level > 0 and not World.has_slot?(world, caster_name, cast_level) do
+                {:error,
+                 "a #{caster_name} no le quedan casillas de hechizo de nivel #{cast_level} " <>
+                   "(debe descansar para recuperarlas). Los trucos siempre están disponibles."}
+              else
+                # D74: one combined dice expression (base + extra) rides the
+                # normal resolution paths — same roll log, same halving on a
+                # save, crit doubles the extra dice too.
+                scaled = Upcast.scaled_spell(spell, cast_level)
 
-                  twin_name ->
-                    resolve_twinned(
-                      world,
-                      c,
-                      caster_name,
-                      target_name,
-                      twin_name,
-                      spell,
-                      roller,
-                      roll_log
-                    )
-                end
+                result =
+                  case twinned_target(world, c, caster_name, target_name) do
+                    nil ->
+                      resolve_spell(
+                        world,
+                        c,
+                        caster_name,
+                        t,
+                        target_name,
+                        scaled,
+                        roller,
+                        roll_log
+                      )
 
-              result
-              |> compose_slot_consumption(caster_name, spell.level)
-              |> compose_concentration(caster_name, spell)
+                    twin_name ->
+                      resolve_twinned(
+                        world,
+                        c,
+                        caster_name,
+                        target_name,
+                        twin_name,
+                        scaled,
+                        roller,
+                        roll_log
+                      )
+                  end
+
+                result
+                |> compose_slot_consumption(caster_name, cast_level)
+                |> compose_concentration(caster_name, spell)
+                |> tag_upcast_level(caster_name, spell, cast_level)
+              end
             end
         end
     end
   end
+
+  # D74: validate the requested cast level against the spell's base. nil →
+  # base (backwards compat). Cantrips never upcast (they cost no slot). All
+  # errors leave the world untouched.
+  defp validate_cast_level(%{level: 0}, nil), do: {:ok, 0}
+
+  defp validate_cast_level(%{level: 0}, cast_level)
+       when is_integer(cast_level) and cast_level >= 1,
+       do: {:error, "los trucos (nivel 0) no se pueden lanzar a nivel superior"}
+
+  defp validate_cast_level(%{level: base}, nil) when base > 0, do: {:ok, base}
+
+  defp validate_cast_level(%{level: base}, cast_level) do
+    cond do
+      not is_integer(cast_level) ->
+        {:error,
+         "nivel de lanzamiento inválido (cast_level): #{inspect(cast_level)} " <>
+           "— debe ser un entero entre #{base} y 9"}
+
+      cast_level < base ->
+        {:error,
+         "no se puede lanzar a nivel #{cast_level}: el nivel mínimo de este hechizo es #{base}"}
+
+      cast_level > 9 ->
+        {:error, "nivel de lanzamiento inválido: #{cast_level} (máximo 9)"}
+
+      true ->
+        {:ok, cast_level}
+    end
+  end
+
+  # D74: "X conjura Y (nivel N); …" — one tag right after the spell name,
+  # covering every resolution branch (save/attack/automatic/heal/utility and
+  # the Twinned outer message).
+  defp tag_upcast_level({:ok, msg, change}, caster_name, spell, cast_level)
+       when is_integer(cast_level) and cast_level > 0 and cast_level > spell.level do
+    prefix = "#{caster_name} conjura #{spell.name}"
+    {:ok, String.replace_prefix(msg, prefix, prefix <> " (nivel #{cast_level})"), change}
+  end
+
+  defp tag_upcast_level(result, _caster_name, _spell, _cast_level), do: result
 
   # Wrap a spell result's change_fn to also consume a spell slot.
   # Cantrips (level 0) pass through unchanged.
@@ -2430,6 +2513,13 @@ defmodule Dragonex.Actions do
   end
 
   defp gnome_cunning?(_, _), do: false
+
+  # D74: the dart count rides the dice expression (3d4+3 → 3; 4d4+4 → 4 when
+  # upcast), so the verb always reports the real number of darts.
+  defp spell_damage_verb(%{name: "magic missile", dice: dice}, _dmg) when is_binary(dice) do
+    {count, _sides, _mod} = parse_dice_expr(dice)
+    " (#{count} dardos de fuerza)"
+  end
 
   defp spell_damage_verb(%{name: "magic missile"}, _dmg), do: " (3 dardos de fuerza)"
   defp spell_damage_verb(_spell, _dmg), do: ""

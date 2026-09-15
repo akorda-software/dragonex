@@ -922,6 +922,37 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   `passive_perception` fuera (DC de hide sin cambios).
 - **Tests**: `expertise_test.exs`.
 
+### M58 — Upcasting 5e RAW (D74)
+- **Dónde**: tabla curada `Rules.Upcast` (`extra_dice/3` +
+  `scaled_spell/2`) consumida por `Actions.spell/7` vía el parámetro
+  opcional `cast_level` (nil = nivel base, compat hacia atrás; tool
+  `cast_spell` con 4º parámetro, coacciona strings numéricos). El dado
+  extra se COMBINA con la expresión base antes de resolver
+  (`"8d6"+"1d6" → "9d6"`): mismo RollLog (misma etiqueta, total
+  combinado), mitad en :save sobre el TOTAL escalado, crit dobla los
+  extra, Empowered (M49) boostea los combinados. CD y concentración
+  sin cambios (RAW). Warlocks gastan su casilla de pacto (D40,
+  `slot_level_for`).
+- **Tabla (RAW 2014, auditada contra cada descripción)**:
+  burning_hands +1d6/n s/1º · thunderwave +1d8/n s/1º · shatter
+  +1d8/n s/2º · fireball +1d6/n s/3º · lightning_bolt +1d6/n s/3º ·
+  blight +1d8/n s/4º · flame_strike +1d6/n s/5º (simplificación: RAW
+  reparte fuego+radiante, el motor modela 4d6 fuego único) ·
+  vampiric_touch +1d6/n s/3º · spiritual_weapon +1d8 cada dos niveles
+  s/2º · magic_missile +1 dardo (+1d4+1)/n s/1º (mensaje con el nº
+  real de dardos) · cure_wounds +1d8/n s/1º · healing_word +1d4/n
+  s/1º · prayer_of_healing +1d8/n s/2º (SRD sin `dice` — sube sobre
+  base sin modelar). Ausentes de la tabla: no escalan (consumen la
+  casilla pedida sin dados extra).
+- **Validaciones (NO mutan)**: cast_level entero entre nivel base y 9;
+  menor que la base → error claro; > 9 → error; truco a nivel superior
+  → error; `has_slot?` del nivel PEDIDO (mensaje lo cita). Mensaje ES:
+  "(nivel N)" tras el nombre cuando cast_level > base.
+- **Excluidos (ADR D74)**: heal (70 pg planos), mass_cure_wounds y
+  sleep (motor sin dados reales / mal-modelado), escalados
+  multi-objetivo y multi-rayo (scorching_ray), variantes 2024.
+- **Tests**: `upcast_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -956,9 +987,12 @@ enfermedad/veneno con Lay on Hands (gastar 5) sigue fuera.
   fuera. Dash / Disengage siguen fuera (sin grid ni ataques de
   oportunidad no tienen efecto mecánico — D57); Uncanny Dodge entró en
   **D64 / M48**. Metamagic (Quickened/Distant/Extended/Subtle/Careful y
-  compañía) entró en **D65 / M49** con las tres opciones con efecto real
+  compañía) entró en   **D65 / M49** con las tres opciones con efecto real
   en este motor. Expertise (doble prof de skill) entró en
-  **D73 / M57** (sólo skills, no tools/instrumentos).
+  **D73 / M57** (sólo skills, no tools/instrumentos). Upcasting de
+  hechizos (dados extra con casilla superior) entró en **D74 / M58**
+  (tabla curada; multi-objetivo/multi-rayo y escalados no-dados siguen
+  fuera).
 
 Para que una de estas entre: ADR nuevo + mecánica `M44+` en este catálogo +
 tests.

@@ -122,8 +122,22 @@ defmodule Dragonex.Tools do
     end
   end
 
-  @doc "Resolve a spell cast by `caster` onto `target` by the rules."
-  deftool cast_spell(ctx, caster :: String.t(), spell :: String.t(), target :: String.t()) do
+  @doc """
+  Resolve a spell cast by `caster` onto `target` by the rules. Optional
+  `cast_level` (integer): the spell-slot level to spend when UPCASTING a
+  scaling spell — e.g. `cast_spell(who, "fireball", target, 4)` casts it with
+  a 4th-level slot (9d6 instead of 8d6) and spends a 4th-level slot. Omit it
+  (or pass the spell's base level) for a normal cast. Only spells with a
+  curated scaling table scale (fireball, cure wounds, magic missile, …);
+  others just spend the requested slot.
+  """
+  deftool cast_spell(
+            ctx,
+            caster :: String.t(),
+            spell :: String.t(),
+            target :: String.t(),
+            cast_level :: integer()
+          ) do
     with :ok <- assert_controls(ctx, caster),
          {:ok, msg, change} <-
            Dragonex.Actions.spell(
@@ -132,12 +146,28 @@ defmodule Dragonex.Tools do
              spell,
              target,
              ctx.deps.roller,
-             ctx.deps[:roll_log]
+             ctx.deps[:roll_log],
+             parse_cast_level(cast_level)
            ),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
     end
   end
+
+  # D74: the model sometimes sends numbers as strings — coerce a clean
+  # integer string and let anything odd hit Actions' clear validation error.
+  defp parse_cast_level(nil), do: nil
+
+  defp parse_cast_level(n) when is_integer(n), do: n
+
+  defp parse_cast_level(s) when is_binary(s) do
+    case Integer.parse(String.trim(s)) do
+      {n, ""} -> n
+      _ -> s
+    end
+  end
+
+  defp parse_cast_level(other), do: other
 
   @doc "Make a death saving throw for a down `character`."
   deftool make_death_save(ctx, character :: String.t()) do
