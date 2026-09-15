@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **1377 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **1409 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -27,27 +27,35 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
   `level_up`.
 - `Rules.Conditions` — tabla M06: condición → ventaja/desventaja/auto-fallo
   en ataque, salvación y chequeo (cancelación 5e).
-- Rasgos raciales y de clase automáticos (D66/D67/D68/D69, pasivas sin
-  tool — el motor lee `Character.race`/`class` del builder D52): Lucky del
-  mediano M50 (d20 efectivo 1 en ataque/salvación/chequeo → un reroll y se
-  usa el nuevo; etiqueta "(Lucky: 1→N)" en el desglose; variantes
-  `*_tagged` en `Rules.Combat` mantienen las firmas públicas), Resistencia
-  implacable del semi-orco M51 (hook en `World.apply_damage/3` tras el
-  auto-revert D63: hp 0 → 1 una vez por descanso largo; `long_rest`
-  recarga, `short_rest` no), Indomitable del guerrero L9+ M52 (reroll de
-  una salvación fallida —hechizo :save, turn_undead SAB, concentración
-  CON— una vez por descanso largo, se usa el nuevo resultado; etiqueta
-  "(Indomitable: X→Y)"; `long_rest` recarga) y Savage Attacks del semi-orco
-  M53 (en `Combat.damage_roll`, crítico melee de arma → UN dado del tamaño
-  del arma extra, " (+N Savage)" en el desglose; distancia y hechizos no).
+- Rasgos raciales y de clase automáticos (D66/D67/D68/D69/D71, pasivas
+   sin tool — el motor lee `Character.race`/`class` del builder D52): Lucky
+   del mediano M50 (d20 efectivo 1 en ataque/salvación/chequeo → un reroll
+   y se usa el nuevo; etiqueta "(Lucky: 1→N)" en el desglose; variantes
+   `*_tagged` en `Rules.Combat` mantienen las firmas públicas), Resistencia
+   implacable del semi-orco M51 (hook en `World.apply_damage/3` tras el
+   auto-revert D63: hp 0 → 1 una vez por descanso largo; `long_rest`
+   recarga, `short_rest` no), Indomitable del guerrero L9+ M52 (reroll de
+   una salvación fallida —hechizo :save, turn_undead SAB, concentración
+   CON, aliento D70— una vez por descanso largo, se usa el nuevo resultado;
+   etiqueta "(Indomitable: X→Y)"; `long_rest` recarga), Savage Attacks del
+   semi-orco M53 (en `Combat.damage_roll`, crítico melee de arma → UN dado
+   del tamaño del arma extra, " (+N Savage)" en el desglose; distancia y
+   hechizos no) y Astucia gnoma del gnomo M55 (ventaja en salvaciones
+   INT/SAB/CAR contra magia — equivalencia: toda salvación de `cast_spell`
+   :save y `turn_undead`; inyectada como fuente extra en
+   `Conditions.save_mode/4`, `combine/2` la cancela contra Heightened
+   D65/condiciones; etiqueta "(Astucia gnoma: ventaja)"; sin campos ni
+   rests). Aliento de dragón del dragontino D70/M54: rasgo racial CON tool
+   y campo `breath_weapon_used` — ver `Actions.breath_weapon` y la tool
+   `breath_weapon` más abajo.
  - `Actions` — puente intent→world (`attack` con Extra Attack 5e / D35,
        Sneak Attack D41, Rage D42 y Divine Smite D46, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57, Danger Sense D58 y Evasión D59 (pasivas del motor en salvaciones), auras de paladín D61/D62 (pasivas: +CHA a salvaciones del side, inmunidad al miedo), Uncanny Dodge D64 (postura armable que mitiga el próximo daño), Metamagic D65 (armable: Empowered/Heightened/Twinned aplicadas y consumidas por el próximo hechizo que califique), `spell` automatic/attack/save + consumo de slot, False Life → temp_hp D36,
     concentración D37, resist/vuln/immune D38, `initiative`, `death_save`, `heal`,
-     `second_wind`, `action_surge`, `flurry_of_blows`, `create_spell_slot`, `convert_to_sorcery_points`, `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`,       `arcane_recovery`, `wild_shape`, `end_wild_shape`, `start_uncanny_dodge`, `short_rest`, `long_rest`, `check` — acepta skills con prof de ficha + JoaT D60). Con `RollLog` para dados estructurados.
+     `second_wind`, `action_surge`, `flurry_of_blows`, `create_spell_slot`, `convert_to_sorcery_points`, `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`,       `arcane_recovery`, `wild_shape`, `end_wild_shape`, `start_uncanny_dodge`, `breath_weapon` (D70: aliento racial del dragontino con salvación DES y daño de fuego por nivel, 1/descanso — short y long recargan), `short_rest`, `long_rest`, `check` — acepta skills con prof de ficha + JoaT D60). Con `RollLog` para dados estructurados.
  - `Tools` — `deftool`s que el LLM invoca: `make_attack`, `cast_spell`,
     `roll_initiative`, `make_death_save`, `heal`, `grant_temp_hp`, `grant_xp`, `drop_concentration`, `start_rage`, `end_rage`, `start_reckless`, `end_reckless`,    `second_wind`, `action_surge`, `flurry_of_blows`, `hunters_mark`, `cunning_action_hide`, `create_spell_slot`, `convert_to_sorcery_points`, `divine_smite`, `end_smite`, `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`, `arcane_recovery`, `ability_check`, `end_combat`,
    `short_rest`, `long_rest`, `spawn_monster`, `apply_condition`,
-   `remove_condition`, `set_scene`, `establish_fact`, `level_up`, `roll_dice`, `wild_shape`, `end_wild_shape`, `start_uncanny_dodge`, `arm_metamagic`.
+   `remove_condition`, `set_scene`, `establish_fact`, `level_up`, `roll_dice`, `wild_shape`, `end_wild_shape`, `start_uncanny_dodge`, `arm_metamagic`, `breath_weapon`.
 - `TurnPolicy.WorldDriven` — turno leído del World; un beat por monstruo
   (D34); el LLM no puede saltar/reordenar.
 - `Codec` + `Store.Coded` — `World ↔ jsonb` simétrico (D8).
@@ -441,7 +449,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 | Dotes | Fuera; ASI = +2 fijo | D13 |
 | `spells_known` | `nil` (sin cap estricto por clase) | D14 |
 | Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + Fighting Style D48 + Lay on Hands D49 + Bardic Inspiration D50 + Arcane Recovery D51 + Divine Sense D52 + Turn Undead D53 + Ki/Flurry of Blows D54 + Hunter's Mark D55 + Font of Magic D56 + Cunning Action Hide D57 + Danger Sense D58 + Evasión D59 + Jack of All Trades D60 + Aura of Protection D61 + Aura of Courage D62 + Wild Shape D63 + Uncanny Dodge D64 + Metamagic D65 + Indomitable D68 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47, D48, D49, D50, D51, D52, D53, D54, D55, D56, D57, D58, D59, D60, D61, D62, D63, D64, D65, D68 |
-| Rasgos raciales | Lucky D66 + Resistencia implacable D67 + Savage Attacks D69 (automáticos, sin tool); Brave, Halfling Nimbleness, Darkvision y demás 🟡 | D66, D67, D69 |
+| Rasgos raciales | Lucky D66 + Resistencia implacable D67 + Savage Attacks D69 + Astucia gnoma D71 (automáticos, sin tool) + Aliento de dragón D70 (tool racial); Brave, Halfling Nimbleness, Darkvision y demás 🟡 | D66, D67, D69, D70, D71 |
 | Empate iniciativa | DEX score desc, luego nombre; sin roll-off extra | D39 |
 | Banner level-up in-game | Eliminado (D33); subida desde la ficha | D33 |
 | Stub legado en `Tools` | `attack`/`roll`/`spawn_character`/`next_round` mantenidos para tests del framework exAgent | `tools.ex:31-72` |

@@ -1734,6 +1734,92 @@ percepción modelada), feats, multiclase. M53 en el catálogo.
 
 ---
 
+### D70 — Aliento de dragón del dragontino 5e
+Estado: **Aceptada** — 2026-09-15.
+
+Rasgo racial CON TOOL (patrón turn_undead/second_wind): el dragontino
+(`race == "dragonborn"`, cualquier clase/nivel) exhala su aliento sobre
+un objetivo. El LLM decide cuándo; el motor resuelve todo.
+
+- **Tool** `breath_weapon(who, target)`: DM cualquiera; PC sólo sí
+  mismo (guarda patrón divine_smite). Allowlist PCAgent + línea de
+  prompt para dragontino con uso disponible (chequeo por RAZA, no
+  clase) + una línea en el prompt del DM.
+- **Campo**: `Character.breath_weapon_used` (boolean, default false;
+  true = gastado). Codec `== true` en ambas direcciones → jsonb
+  viejo/ausente → false (D8). Builder/monstruos lo heredan de
+  `Character.new` (patrón D67/D68).
+- **Daño**: dado por nivel en `Progression.breath_dice/1` — L1–4 "2d6",
+  L5–10 "3d6", L11–16 "4d6", L17+ "5d6". Tipo **"fire" fijo**: no
+  modelamos ascendencia dracónica (simplificación documentada aquí; el
+  rasgo `breath_weapon` del builder D52 queda como string de ficha).
+- **Resolución** (patrón spell :save): salvación de DES del objetivo
+  contra CD = `8 + mod CON del dragontino + Ability.proficiency(level)`.
+  Éxito → mitad del daño (floor); fallo → daño completo. Pasa por el
+  MISMO stack de sitio de salvación que los hechizos: `Conditions.save_mode`
+  (Danger Sense D58, auto-fails), Lucky D66, aura D61, inspiración
+  bárdica D50, Indomitable D68 (reroll con mismo modo), Evasión D59
+  (RAW cubre cualquier efecto de salvación DES con mitad de daño, no
+  sólo hechizos) y chequeo de concentración del objetivo si concentra
+  (`with_conc_damage`). Roller determinista + RollLog.
+- **Combate permitido. 1 uso por descanso**: short Y long recargan
+  (`compose_rest`, patrón ki D54 — RAW "regain after a short or long
+  rest"). El uso se gasta SIEMPRE que se resuelve (salve o no el
+  objetivo: es un área que se lanza).
+- **Errores (NO mutan)**: who no existe; who caído; no dragontino; ya
+  usado este descanso; target no existe. **Target caído PERMITIDO**
+  (el aliento puede golpear a un caído; el daño fletea a 0 pg como
+  siempre en `apply_damage`).
+- **No es hechizo**: no consume casillas, no fija concentración, no
+  interactúa con Metamagic D65, y un dragontino druida en Forma salvaje
+  D63 PUEDE usarlo (rasgo racial, no `cast_spell` — RAW).
+
+**Fuera**: elegir ascendencia/tipo de daño (fuego fijo), área de 15
+pies/cono (motor single-target), reacción, segundo aliento, Dragon
+Fear/Dragon Wings, feats, multiclase. M54 en el catálogo.
+
+---
+
+### D71 — Astucia gnoma 5e
+Estado: **Aceptada** — 2026-09-15.
+
+Rasgo racial AUTOMÁTICO (D1): el gnomo (`race == "gnome"`) tiene
+ventaja en salvaciones de INT/SAB/CAR contra MAGIA. Sin tool, sin
+prompt, sin campos, sin rests.
+
+- **Equivalencia engine (fijada aquí)**: TODA salvación que sale de
+  `cast_spell` (rama `:save`) y de `turn_undead` (divina = mágica) es
+  "magia". No existen hoy rutas de salvación no mágicas con dado en el
+  motor (el aliento D70 salva DES — fuera del alcance mental —, los
+  ability checks y death saves no son salvaciones de ability, y la
+  concentración es CON). Si algún día entra una salvación no mágica
+  mental, el sitio debe NO inyectar la ventaja.
+- **Implementación**: en esos dos sitios, si el objetivo es gnomo y la
+  ability es `:int/:wis/:cha`, se inyecta `gnome_advantage: true` como
+  fuente EXTRA de ventaja en `Conditions.save_mode/4` (firma nueva con
+  opts opcionales; `save_mode/3` intacta). `combine/2` la combina:
+  con desventaja de condición → normal; con Heightened D65
+  (desventaja) → normal. Danger Sense D58 no interactúa (es DES).
+- **Turn_undead**: la inyección está (contrato), pero hoy es
+  inalcanzable en la práctica — el objetivo de Expulsar no-muertos
+  exige `race == "undead"` y la raza es un campo único, así que ningún
+  gnomo puede ser expulsado. Queda por simetría del contrato.
+- **Etiqueta**: "(Astucia gnoma: ventaja)" en el desglose del hechizo
+  cuando la ventaja del gnomo drove el modo (patrón tags D65/D66). Si
+  se cancela (Heightened/condición → normal), no hay etiqueta — el
+  modo final es normal y así se lee.
+- **NO aplica a**: ability checks, death saves, concentración (CON —
+  fuera del alcance mental, correcto RAW), salvaciones DES/CON/FUE.
+- **Indomitable D68**: el reroll usa el MISMO modo → la ventaja gnoma
+  se mantiene en el reroll (automático: la ventaja entró en
+  `save_mode` antes del primer intento).
+
+**Fuera**: demás rasgos raciales del gnomo (Darkvision, Gnome
+Cunning no modela salvaciones no mágicas porque no existen), feats,
+multiclase. M55 en el catálogo.
+
+---
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,

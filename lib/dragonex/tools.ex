@@ -680,6 +680,29 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
+  Breath Weapon (5e, D70). Dragonborn only (any class/level): spends the
+  racial use (1/rest — short AND long recharge) and the engine resolves a
+  DEX save for `target` vs the dragonborn's DC (8 + CON + proficiency);
+  failure takes the full fire damage of `Progression.breath_dice/1`,
+  success takes half. Not a spell (no slot, works in Wild Shape). The
+  DM may use it for any dragonborn; a PC may only use it as themselves.
+  """
+  deftool breath_weapon(ctx, who :: String.t(), target :: String.t()) do
+    with :ok <- assert_breath_self(ctx, who),
+         {:ok, msg, change} <-
+           Dragonex.Actions.breath_weapon(
+             world(ctx),
+             who,
+             target,
+             ctx.deps.roller,
+             ctx.deps[:roll_log]
+           ),
+         {:ok, _} <- propose(ctx, change) do
+      {:ok, msg}
+    end
+  end
+
+  @doc """
   Resolve a non-combat ability check: the DM sets the `dc` (5/10/15/20 by 5e
   difficulty), the engine rolls d20 + the ability modifier for `who`.
   Pass a SKILL name when the check maps to one (`"stealth"`,
@@ -987,6 +1010,18 @@ defmodule Dragonex.Tools do
     else
       {:error,
        "RECHAZADO — solo puedes usar Forma salvaje en ti mismo (#{proposer}), no en #{who}."}
+    end
+  end
+
+  # Breath Weapon (D70): self guard (divine_smite pattern).
+  defp assert_breath_self(ctx, who) do
+    proposer = ctx.deps.state.participant_id
+
+    if proposer == "dm" or proposer == who do
+      :ok
+    else
+      {:error,
+       "RECHAZADO — solo puedes usar tu propio aliento de dragón (#{proposer}), no el de #{who}."}
     end
   end
 

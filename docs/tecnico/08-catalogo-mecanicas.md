@@ -563,8 +563,10 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   incapacitación (RAW 5e14): mismo `@auto_fail_saves` que D58 — el
   pícaro incapacitado auto-falla DES en `save_mode` y nunca llega a la
   rama que aplica Evasión. No aplica a saves no-DES ni a daño sin save
-  (ni a `:attack`), ni a daños no-HECHIZO (aliento/trampas). Sin
-  Uncanny Dodge, Indomitable, Jack of All Trades, feats, multiclase.
+  (ni a `:attack`); el aliento de dragón (D70) SÍ aplica (mismo helper
+  `evasion?/2` con un mapa `save_ability: :dex` — RAW: cualquier efecto
+  de salvación DES con mitad de daño). Sin Uncanny Dodge, Indomitable,
+  Jack of All Trades, feats, multiclase.
 - **Tests**: `evasion_test.exs`.
 
 ### M44 — Proficiency de skills en checks + Jack of All Trades (`ability_check`, D60)
@@ -821,6 +823,45 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   weapon attack RAW).
 - **Tests**: `indomitable_savage_test.exs`.
 
+### M54 — Aliento de dragón (tool racial, D70)
+- **Dónde**: `Progression.breath_dice/1` (L1–4 "2d6", L5–10 "3d6",
+  L11–16 "4d6", L17+ "5d6"), campo `Character.breath_weapon_used`
+  (Codec tolerante a jsonb viejo, patrón D67/D68), `World.set_breath_weapon_used/2`,
+  recarga en `compose_rest` (short Y long, patrón ki D54) y
+  `Actions.breath_weapon/5` con tool `breath_weapon(who, target)`
+  (DM cualquiera; PC sólo sí mismo). Allowlist PCAgent + línea de
+  prompt dragontino (por RAZA) + una línea en el prompt del DM.
+- **Cuándo**: `race == "dragonborn"` + uso disponible → salvación de
+  DES del objetivo vs CD `8 + CON mod + proficiency` del dragontino;
+  éxito → mitad (floor), fallo → completo. Daño SIEMPRE "fire"
+  (sin ascendencia dracónica — ADR D70). Pasa por el stack completo de
+  sitio de salvación (Danger Sense D58, Lucky D66, aura D61,
+  inspiración D50, Indomitable D68, Evasión D59) y por el chequeo de
+  concentración del objetivo (`with_conc_damage`). Roller + RollLog
+  (patrón spell :save). El uso se gasta SIEMPRE que se resuelve;
+  errores (who/target inexistentes, who caído, no dragontino, ya
+  usado) no mutan. Combate permitido; target caído permitido; no es
+  hechizo (sin casillas/concentración, funciona en Forma salvaje
+  D63, no interactúa con Metamagic D65).
+- **Tests**: `breath_gnome_test.exs`.
+
+### M55 — Astucia gnoma (pasiva racial, D71)
+- **Dónde**: `Conditions.save_mode/4` (opts opcional
+  `gnome_advantage:` — `save_mode/3` intacta) + inyección en los DOS
+  sitios de salvación mágica de `Actions`: rama `:save` de
+  `resolve_save_spell` y SAB de `turn_undead` (divina = mágica; hoy
+  inalcanzable en la práctica porque el objetivo de Expulsar exige
+  `race == "undead"` y la raza es un campo único). Sin tool, sin
+  campos, sin rests: el motor lee `Character.race`.
+- **Cuándo**: `race == "gnome"` + ability `:int/:wis/:cha` en una
+  salvación de `cast_spell`(:save)/`turn_undead` → fuente EXTRA de
+  ventaja que `combine/2` combina: con desventaja de condición o
+  Heightened D65 → normal. Etiqueta "(Astucia gnoma: ventaja)" cuando
+  drove el modo (cancelada → sin etiqueta). NO aplica a checks, death
+  saves, concentración (CON) ni DES. Indomitable D68 conserva la
+  ventaja en el reroll (mismo modo). Danger Sense D58 no interactúa.
+- **Tests**: `breath_gnome_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -840,9 +881,10 @@ Aura of Courage: **D62 / M46**. Wild Shape: **D63 / M47**.
 Uncanny Dodge: **D64 / M48**. Metamagic: **D65 / M49**.
 XP en partida: **D43 / M27**.
 Rasgos raciales automáticos: Lucky **D66 / M50**, Resistencia
-implacable **D67 / M51**, Savage Attacks **D69 / M53**; Brave, Halfling
-Nimbleness, Darkvision y demás siguen fuera. Indomitable del guerrero:
-**D68 / M52**.
+implacable **D67 / M51**, Savage Attacks **D69 / M53**, Astucia gnoma
+**D71 / M55**; Aliento de dragón del dragontino **D70 / M54** (tool
+racial). Brave, Halfling Nimbleness, Darkvision y demás siguen fuera.
+Indomitable del guerrero: **D68 / M52**.
 Iniciativa individual por monstruo: **D34**.
 `temp_hp`: **D36 / M23**. Concentración: **D37 / M24**. Resistencias:
 **D38 / M25**. Cupo de Rage/día y segundo uso de Action Surge a L17

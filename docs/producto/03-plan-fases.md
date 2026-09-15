@@ -88,8 +88,8 @@ por nivel salvo Extra Attack D35, Pact Magic D40, Sneak Attack D41,
     Inspiration D50, Arcane Recovery D51, Divine Sense D52, Turn Undead
     D53, Ki/Flurry of Blows D54, Hunter's Mark D55, Font of Magic D56,
     Indomitable D68 y spellcasting paladín/ranger L2, `spells_known`,
-    rasgos raciales salvo Lucky D66, Resistencia implacable D67 y Savage
-    Attacks D69) quedan en 🟡.
+    rasgos raciales salvo Lucky D66, Resistencia implacable D67, Savage
+    Attacks D69, Aliento de dragón D70 y Astucia gnoma D71) quedan en 🟡.
 
 ---
 
@@ -387,6 +387,34 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
    no-críticos; apila con sneak/smite/mark/rage; el golpe sin armas de
    Flurry D54 también aplica (melee weapon attack RAW); desglose
    " (+N Savage)" en el swing. Sin Darkvision, feats, multiclase.
+- **Aliento de dragón del dragontino** (D70): **entregado.** Rasgo
+   racial CON tool: `breath_weapon(who, target)` (DM cualquiera, PC
+   sólo sí mismo), campo `Character.breath_weapon_used` (Codec
+   tolerante a jsonb viejo), dado por nivel en
+   `Progression.breath_dice/1` (L1–4 2d6, L5–10 3d6, L11–16 4d6, L17+
+   5d6), daño "fire" FIJO (sin ascendencia dracónica, ADR),
+   salvación de DES vs CD `8 + CON + prof` del dragontino (éxito →
+   mitad floor), 1 uso por descanso con short Y long recargando
+   (`compose_rest`, patrón ki D54), uso gastado SIEMPRE que se
+   resuelve; mismo stack de sitio de salvación que los hechizos
+   (Danger Sense, Lucky, aura D61, inspiración, Indomitable D68,
+   Evasión D59, concentración del objetivo); target caído permitido;
+   no es hechizo (sin casillas, funciona en Forma salvaje D63, sin
+   Metamagic). Allowlist PCAgent + línea de prompt dragontino (por
+   raza) + línea DM. Sin ascendencia/cono de 15 pies/reacción/segundo
+   aliento/Dragon Fear/Wings, feats, multiclase.
+- **Astucia gnoma** (D71): **entregado.** Pasiva racial sin tool,
+   campos ni rests: ventaja en salvaciones INT/SAB/CAR contra "magia"
+   (equivalencia engine: toda salvación de `cast_spell` rama :save y
+   `turn_undead`; DES/CON y checks/death saves fuera), inyectada como
+   fuente extra `gnome_advantage:` en `Conditions.save_mode/4` (opts
+   opcional, `save_mode/3` intacta) para que `combine/2` la combine —
+   con Heightened D65 o desventaja de condición → normal; etiqueta
+   "(Astucia gnoma: ventaja)" cuando drove el modo; Indomitable D68
+   conserva la ventaja en el reroll (mismo modo); rama turn_undead
+   inyectada por contrato (hoy inalcanzable: el objetivo de Expulsar
+   exige `race == "undead"`). Sin Darkvision, demás rasgos, feats,
+   multiclase.
 - **Multiclase**: fuera del builder actual por diseño; implicaría rehacer
   progression.
 - **Marketplace de contenido custom** (D22): compartir entre usuarios.

@@ -574,6 +574,25 @@ defmodule Dragonex.World do
   end
 
   @doc """
+  Set `who`'s Breath Weapon used flag (5e, D70). The breath site in
+  `Actions` sets it when a dragonborn exhales (hit or save — the use is
+  spent on resolution); BOTH rests recharge it (`false`), like ki D54.
+  """
+  @spec set_breath_weapon_used(String.t(), boolean()) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def set_breath_weapon_used(name, used) when is_boolean(used) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          {:ok, put_char(w, name, %{c | breath_weapon_used: used})}
+      end
+    end
+  end
+
+  @doc """
   Set `who`'s armed Metamagic option (5e, D65). `nil` clears (consumed);
   armed = `%{option: String.t(), target: String.t() | nil}` with atom keys.
   Does not check class/level/points — `Actions.arm_metamagic/4` does.

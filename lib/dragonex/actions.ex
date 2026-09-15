@@ -588,7 +588,11 @@ defmodule Dragonex.Actions do
   defp turn_undead_target?(_), do: false
 
   defp turn_undead_save_success?(world, target, dc, roller, roll_log) do
-    case Conditions.save_mode(target, :wis) do
+    # D71 Gnome Cunning: divine magic counts (ADR D71). Today no turn_undead
+    # target can be a gnome (race must be "undead"), but the contract holds.
+    case Conditions.save_mode(target, :wis, :normal,
+           gnome_advantage: gnome_cunning?(target, :wis)
+         ) do
       # No die was rolled — Indomitable (D68) never rerolls an auto-fail.
       :auto_fail ->
         {false, nil}
@@ -1406,6 +1410,186 @@ defmodule Dragonex.Actions do
   defp metamagic_es(opt), do: opt
 
   @doc """
+  Breath Weapon (5e, D70): a dragonborn exhales dragon breath at `target`.
+
+  Damage dice by level (`Progression.breath_dice/1`), type "fire" (no
+  draconic ancestry in the engine — ADR D70). `target` rolls a DEX save
+  vs DC `8 + CON mod + proficiency` of the dragonborn: success halves
+  the damage (floor), failure takes it all. The use is spent on EVERY
+  resolution (save or not — it is an area breath, D70); errors (missing
+  who/target, downed who, not a dragonborn, already used) mutate
+  nothing. Combat allowed; a downed target may be hit. Not a spell: no
+  slot, no concentration set, works in Wild Shape (racial, RAW).
+  """
+  @spec breath_weapon(World.t(), String.t(), String.t(), roller(), RollLog.t() | nil) ::
+          result()
+  def breath_weapon(world, who, target, roller, roll_log \\ nil) do
+    cond do
+      is_nil(World.character(world, who)) ->
+        {:error, "no existe el personaje: #{who}"}
+
+      is_nil(World.character(world, target)) ->
+        {:error, "no existe el objetivo: #{target}"}
+
+      (World.character(world, who).hp || 0) <= 0 ->
+        {:error, "#{who} está caído (0 pg) y no puede usar su aliento"}
+
+      not dragonborn?(World.character(world, who)) ->
+        {:error, "#{who} no es dragontino y no tiene aliento de dragón"}
+
+      World.character(world, who).breath_weapon_used == true ->
+        {:error, "#{who} ya ha usado su aliento de dragón (se recarga con un descanso)"}
+
+      true ->
+        resolve_breath_weapon(world, who, target, roller, roll_log)
+    end
+  end
+
+  defp resolve_breath_weapon(world, who, target_name, roller, roll_log) do
+    source = World.character(world, who)
+    t = World.character(world, target_name)
+    level = source.level || 1
+    dice = Progression.breath_dice(level)
+    # CD pattern of spells, keyed on the dragonborn's CON (D70).
+    dc = 8 + Ability.proficiency(level) + Character.modifier(source, :con)
+    # D61: the aura covers this save (RAW — all saves) and the target's
+    # concentration saves triggered by the breath damage.
+    aura = aura_save_bonus(world, target_name)
+
+    case Conditions.save_mode(t, :dex) do
+      :auto_fail ->
+        {r, close_dmg} =
+          RollLog.open(roll_log, roller, who, :damage, "daño de aliento de dragón (fire)")
+
+        full = Dice.roll_expr(dice, r)
+        RollLog.close(close_dmg, total: full, against: nil, outcome: nil)
+
+        {:ok, msg, change} =
+          with_conc_damage(
+            "#{who} exhala aliento de dragón (fuego, usos restantes: 0): " <>
+              "#{target_name} falla automáticamente la salvación de Destreza vs CD #{dc} — " <>
+              "#{full} de daño fire.",
+            target_name,
+            full,
+            roller,
+            roll_log,
+            t,
+            "fire",
+            aura
+          )
+
+        {:ok, msg, compose_breath_spend(who, change)}
+
+      {:roll, save_mode} ->
+        {r, close_save} =
+          RollLog.open(
+            roll_log,
+            roller,
+            target_name,
+            :save,
+            "salvación de Destreza contra aliento de dragón"
+          )
+
+        inspired? = t.inspired == true
+
+        {d20, stotal, _success?, lucky} =
+          Combat.saving_throw_tagged(t, :dex, dc, r, save_mode)
+
+        stotal = stotal + aura
+        {stotal, success?, bardic} = apply_inspired_vs_dc(t, stotal, dc, r)
+
+        # D68 Indomitable: same save-site stack as spells — the reroll
+        # rides the same mode (Danger Sense/conditions) and re-applies
+        # the aura.
+        {d20, stotal, success?, indom} =
+          maybe_indomitable(t, :dex, dc, r, save_mode, {d20, stotal, success?}, aura)
+
+        t = if indom, do: %{t | indomitable_used: true}, else: t
+
+        RollLog.close(close_save,
+          total: stotal,
+          against: {:dc, dc},
+          outcome: if(success?, do: :success, else: :failure)
+        )
+
+        {r2, close_dmg} =
+          RollLog.open(roll_log, roller, who, :damage, "daño de aliento de dragón (fire)")
+
+        full = Dice.roll_expr(dice, r2)
+        RollLog.close(close_dmg, total: full, against: nil, outcome: nil)
+
+        # D59 Evasión: RAW covers any DEX-save half-damage effect, spell or
+        # not — the breath qualifies (ADR D70).
+        evasion? = evasion?(t, %{save_ability: :dex})
+
+        dmg =
+          cond do
+            success? and evasion? -> 0
+            success? -> div(full, 2)
+            evasion? -> div(full, 2)
+            true -> full
+          end
+
+        bardic_bit = if bardic != 0, do: " +#{bardic} inspiración", else: ""
+        aura_b = aura_bit(aura)
+        lucky_b = lucky_suffix(lucky)
+        indom_b = indom_suffix(indom)
+
+        verdict =
+          cond do
+            success? and evasion? ->
+              "supera la salvación de Destreza (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)} (Evasión: sin daño)"
+
+            success? ->
+              "supera la salvación de Destreza (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}, mitad de daño"
+
+            evasion? ->
+              "falla la salvación de Destreza (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)} (Evasión: mitad)"
+
+            true ->
+              "falla la salvación de Destreza (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}"
+          end
+
+        {:ok, msg, change} =
+          with_conc_damage(
+            "#{who} exhala aliento de dragón (fuego, usos restantes: 0): #{target_name} #{verdict} — #{dmg} de daño fire.",
+            target_name,
+            dmg,
+            roller,
+            roll_log,
+            t,
+            "fire",
+            aura
+          )
+
+        {:ok, msg,
+         compose_breath_spend(
+           who,
+           compose_indomitable_mark(
+             target_name,
+             indom,
+             compose_inspired_clear(target_name, inspired?, change)
+           )
+         )}
+    end
+  end
+
+  # D70: the use is spent on every resolution (save or not) — composed
+  # last so errors above never reach it.
+  defp compose_breath_spend(who, change) do
+    fn w ->
+      with {:ok, w} <- change.(w) do
+        World.set_breath_weapon_used(who, true).(w)
+      end
+    end
+  end
+
+  defp dragonborn?(%Character{race: race}) when is_binary(race),
+    do: String.downcase(race) == "dragonborn"
+
+  defp dragonborn?(_), do: false
+
+  @doc """
   A short rest: the character spends hit dice to recover HP.
 
   At level 1, a character has 1 hit die. The heal is `roll(hit_die) + con_mod`.
@@ -1932,11 +2116,15 @@ defmodule Dragonex.Actions do
     dc = Combat.spell_save_dc(c, spell)
     # D65 Heightened: the armed target's save enters as requested
     # disadvantage (combines with conditions/Danger Sense via save_mode).
+    # D71 Gnome Cunning: a gnome's mental save enters as an extra
+    # advantage source — combine/2 cancels it against Heightened or a
+    # condition's disadvantage (normal).
+    gnome? = gnome_cunning?(t, spell.save_ability)
     requested = if heightened?, do: :disadvantage, else: :normal
     height_tag = if heightened?, do: " (Metamagia: Heightened)", else: ""
     emp_tag = metamagic_tag(emp)
 
-    case Conditions.save_mode(t, spell.save_ability, requested) do
+    case Conditions.save_mode(t, spell.save_ability, requested, gnome_advantage: gnome?) do
       :auto_fail ->
         {r2, close_dmg} =
           RollLog.open(
@@ -2037,19 +2225,27 @@ defmodule Dragonex.Actions do
         lucky_b = lucky_suffix(lucky)
         indom_b = indom_suffix(indom)
 
+        # D71: when the gnome's advantage shaped the mode, its tag
+        # replaces the generic "(ventaja)" — a cancelled advantage
+        # (Heightened/condition) leaves the plain mode_tag (normal = "").
+        mode_b =
+          if gnome? and save_mode == :advantage,
+            do: " (Astucia gnoma: ventaja)",
+            else: mode_tag(save_mode)
+
         verdict =
           cond do
             success? and evasion? ->
-              "supera la salvación (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag} (Evasión: sin daño)"
+              "supera la salvación (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_b}#{height_tag} (Evasión: sin daño)"
 
             success? ->
-              "supera la salvación (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag}, mitad de daño"
+              "supera la salvación (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_b}#{height_tag}, mitad de daño"
 
             evasion? ->
-              "falla la salvación (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag} (Evasión: mitad)"
+              "falla la salvación (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_b}#{height_tag} (Evasión: mitad)"
 
             true ->
-              "falla la salvación (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}#{height_tag}"
+              "falla la salvación (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_b}#{height_tag}"
           end
 
         {:ok, msg, change} =
@@ -2131,6 +2327,16 @@ defmodule Dragonex.Actions do
   end
 
   defp evasion?(_target, _spell), do: false
+
+  # D71 Gnome Cunning: advantage on INT/WIS/CHA saves against MAGIC. Engine
+  # equivalence (ADR D71): every save that comes out of cast_spell's :save
+  # branch and turn_undead (divine = magic) is "magic"; concentration (CON)
+  # and DEX saves are out of the mental scope either way.
+  defp gnome_cunning?(%Character{race: race}, ability) when ability in [:int, :wis, :cha] do
+    is_binary(race) and String.downcase(race) == "gnome"
+  end
+
+  defp gnome_cunning?(_, _), do: false
 
   defp spell_damage_verb(%{name: "magic missile"}, _dmg), do: " (3 dardos de fuerza)"
   defp spell_damage_verb(_spell, _dmg), do: ""
@@ -2861,7 +3067,8 @@ defmodule Dragonex.Actions do
            {:ok, w} <- World.set_action_surge_used(name, false).(w),
            {:ok, w} <- World.set_channel_divinity_used(name, false).(w),
            {:ok, w} <- World.restore_ki(name).(w),
-           {:ok, w} <- World.restore_wild_shape_uses(name).(w) do
+           {:ok, w} <- World.restore_wild_shape_uses(name).(w),
+           {:ok, w} <- World.set_breath_weapon_used(name, false).(w) do
         {:ok, w}
       end
     end

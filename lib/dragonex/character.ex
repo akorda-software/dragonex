@@ -67,6 +67,9 @@ defmodule Dragonex.Character do
     # (claves átomo en memoria; strings en Codec; jsonb viejo/ausente → nil).
     # Se consume en Actions.spell/5 cuando el hechizo califica.
     field(:metamagic, :map)
+    # D70 Breath Weapon: true = ya usado desde el último descanso (short Y
+    # long recargan, como ki D54; Actions.breath_weapon lo gasta).
+    field(:breath_weapon_used, :boolean, default: false)
     field(:damage_resistances, {:array, :string}, default: [])
     field(:damage_vulnerabilities, {:array, :string}, default: [])
     field(:damage_immunities, {:array, :string}, default: [])
@@ -138,6 +141,7 @@ defmodule Dragonex.Character do
         :relentless_endurance_used,
         :indomitable_used,
         :metamagic,
+        :breath_weapon_used,
         :damage_resistances,
         :damage_vulnerabilities,
         :damage_immunities,
@@ -234,6 +238,7 @@ defmodule Dragonex.Character do
       relentless_endurance_used: false,
       indomitable_used: false,
       metamagic: nil,
+      breath_weapon_used: false,
       damage_resistances: [],
       damage_vulnerabilities: [],
       damage_immunities: [],

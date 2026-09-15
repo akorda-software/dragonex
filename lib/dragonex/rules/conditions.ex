@@ -67,15 +67,22 @@ defmodule Dragonex.Rules.Conditions do
   via `combine/2` — a condition's disadvantage, e.g. restrained, cancels
   to normal). Incapacitating conditions never reach this advantage: the
   auto-fail set short-circuits DEX saves first.
+
+  Gnome Cunning (D71): `gnome_advantage: true` adds one more advantage
+  source for mental saves (INT/WIS/CHA against magic — the cast_spell and
+  turn_undead sites inject it); it cancels against any disadvantage
+  (Heightened D65, conditions) through the same `combine/2`.
   """
-  @spec save_mode(Character.t(), atom(), mode()) :: save_outcome()
-  def save_mode(%Character{} = target, ability, requested \\ :normal) do
+  @spec save_mode(Character.t(), atom(), mode(), keyword()) :: save_outcome()
+  def save_mode(%Character{} = target, ability, requested \\ :normal, opts \\ []) do
     conds = Character.condition_names(target)
 
     if ability in [:str, :dex] and Enum.any?(conds, &(&1 in @auto_fail_saves)) do
       :auto_fail
     else
-      advantage? = requested == :advantage or danger_sense?(target, ability)
+      advantage? =
+        requested == :advantage or danger_sense?(target, ability) or
+          Keyword.get(opts, :gnome_advantage) == true
 
       disadvantage? =
         requested == :disadvantage or (ability == :dex and "restrained" in conds)

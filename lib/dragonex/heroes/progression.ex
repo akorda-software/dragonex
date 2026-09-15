@@ -252,6 +252,20 @@ defmodule Dragonex.Heroes.Progression do
   def martial_arts_die(level) when is_integer(level) and level >= 1, do: "1d4"
 
   @doc """
+  Dados del Aliento de dragón del dragontino según nivel (D70).
+
+  Tabla 5e (sin ascendencia dracónica — fuego fijo, ver ADR); el motor
+  es fuente de verdad (D1):
+
+    * L1–4 → "2d6"; L5–10 → "3d6"; L11–16 → "4d6"; L17–20 → "5d6"
+  """
+  @spec breath_dice(pos_integer()) :: String.t()
+  def breath_dice(level) when is_integer(level) and level >= 17, do: "5d6"
+  def breath_dice(level) when is_integer(level) and level >= 11, do: "4d6"
+  def breath_dice(level) when is_integer(level) and level >= 5, do: "3d6"
+  def breath_dice(level) when is_integer(level) and level >= 1, do: "2d6"
+
+  @doc """
   Puntos de ki máximos según clase y nivel (D54). Tabla 5e; el motor es
   fuente de verdad (D1):
 
