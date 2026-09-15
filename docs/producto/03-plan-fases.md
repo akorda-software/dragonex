@@ -430,10 +430,28 @@ Cada uno cierra una simplificación declarada (`02-requisitos` R09/R28):
    (`World.aura_save_bonus/2`, movida de Actions); éxito → 1 pg,
    siguientes CD +5, nota en el world log (sin RollLog ahí — la nota
    es el registro); fallo → cae a la RE racial D67 si semi-orco (ambas
-   capas; el éxito de clase no consume la racial); `long_rest` resetea
-   éxitos. Orden de capas: Uncanny Dodge → resist → temp_hp → hp →
-   revert → Furia implacable → RE. Sin duración, bonus action, Paths,
-   Persistent Rage L20, feats, multiclase.
+    capas; el éxito de clase no consume la racial); `long_rest` resetea
+    éxitos. Orden de capas: Uncanny Dodge → resist → temp_hp → hp →
+    revert → Furia implacable → RE. Sin duración, bonus action, Paths,
+    Persistent Rage L20, feats, multiclase.
+- **Expertise de pícaro y bardo** (D73): **entregado.** Cierra el
+   subsistema de skills (D60 aplicó prof simple): duplica el bonus de
+   competencia en skills entrenadas elegidas (pícaro L1: 2, L6: 4;
+   bardo L3: 2, L10: 4 — `Progression.expertise_count/2`). Decisión
+   clave (ADR): la elección vive en una TOOL (`gain_expertise(who,
+   skill)`), NO en el builder ni en level-up — mismo patrón que el
+   resto de features: el LLM decide, el motor valida y persiste
+   (clase, nivel del primer cupo, skill conocida/normalizada,
+   entrenada, duplicada, cupo; errores no mutan). Campo
+   `Character.expertise` (array, Codec tolerante a jsonb viejo) +
+   `World.add_expertise/2`; resolución en
+   `Combat.check_proficiency/3` (parámetro opcional `skill`, kind
+   `:expert` → `prof × 2`) consumida por `Actions.check` ("prof 4
+   (experto)") y `cunning_action_hide` (Sigilo doblado); JoaT nunca
+   aplica a una expertised; ability cruda y passive perception nunca
+   doblan. Permanente (sin rests); allowlist PCAgent + línea
+   condicional con cupo pendiente + línea DM. Sin tools/instrumentos,
+   picks 2024, integración con level-up choices, feats, multiclase.
 - **Multiclase**: fuera del builder actual por diseño; implicaría rehacer
   progression.
 - **Marketplace de contenido custom** (D22): compartir entre usuarios.

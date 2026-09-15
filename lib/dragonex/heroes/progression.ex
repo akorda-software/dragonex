@@ -320,6 +320,24 @@ defmodule Dragonex.Heroes.Progression do
 
   def sorcery_slot_cost(_), do: nil
 
+  @doc """
+  Cupo de Expertise (skills con doble competencia) según clase y nivel
+  (D73). Tabla 5e-2014; el motor es fuente de verdad (D1):
+
+    * rogue: L1+ → 2; L6+ → 4
+    * bard:  L3+ → 2; L10+ → 4; L1–2 → 0
+    * resto → 0
+  """
+  @spec expertise_count(String.t() | atom(), pos_integer()) :: non_neg_integer()
+  def expertise_count(class, level) when is_integer(level) and level >= 1 do
+    case class_name(class) do
+      :rogue -> if(level >= 6, do: 4, else: 2)
+      :bard when level >= 10 -> 4
+      :bard when level >= 3 -> 2
+      _ -> 0
+    end
+  end
+
   # ------------------------------------------------------------ helpers
 
   defp class_name(class) when is_atom(class), do: class

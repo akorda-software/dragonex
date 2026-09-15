@@ -154,6 +154,7 @@ defmodule Dragonex.Codec do
       "death_saves" => encode_saves(c.death_saves),
       "saving_proficiencies" => c.saving_proficiencies,
       "skill_proficiencies" => c.skill_proficiencies || [],
+      "expertise" => c.expertise || [],
       "languages" => c.languages || [],
       "racial_traits" => c.racial_traits || [],
       "class_features" => c.class_features || [],
@@ -218,6 +219,8 @@ defmodule Dragonex.Codec do
       death_saves: decode_saves(c["death_saves"]),
       saving_proficiencies: c["saving_proficiencies"] || [],
       skill_proficiencies: c["skill_proficiencies"] || [],
+      # D73: jsonb viejo/ausente/malformado → [] (patrón arrays del codec).
+      expertise: c["expertise"] || [],
       languages: c["languages"] || [],
       racial_traits: c["racial_traits"] || [],
       class_features: c["class_features"] || [],

@@ -106,6 +106,10 @@ defmodule Dragonex.Character do
     #   class_features      — características de clase a nivel 1
     #   background_feature  — la característica del trasfondo
     field(:skill_proficiencies, {:array, :string}, default: [])
+    # D73 Expertise: skills con el bonus de competencia DOBLADO en los
+    # checks (pícaro/bardo). Siempre un subconjunto de skill_proficiencies;
+    # se elige vía la tool `gain_expertise`, no en el builder.
+    field(:expertise, {:array, :string}, default: [])
     field(:languages, {:array, :string}, default: [])
     field(:racial_traits, {:array, :string}, default: [])
     field(:class_features, {:array, :string}, default: [])
@@ -170,6 +174,7 @@ defmodule Dragonex.Character do
         :death_saves,
         :saving_proficiencies,
         :skill_proficiencies,
+        :expertise,
         :languages,
         :racial_traits,
         :class_features,
@@ -270,6 +275,7 @@ defmodule Dragonex.Character do
       death_saves: %{successes: 0, fails: 0},
       saving_proficiencies: [],
       skill_proficiencies: [],
+      expertise: [],
       languages: [],
       racial_traits: [],
       class_features: [],

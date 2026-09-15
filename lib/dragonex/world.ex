@@ -736,6 +736,32 @@ defmodule Dragonex.World do
   end
 
   @doc """
+  Add `skill` to `who`'s Expertise list (5e, D73). Does not check
+  class/level/training/cupo — `Actions.gain_expertise/3` does.
+  Idempotent-ish: re-adding a skill is a no-op (the Actions layer
+  rejects duplicates first).
+  """
+  @spec add_expertise(String.t(), String.t()) ::
+          (t() -> {:ok, t()} | {:error, String.t()})
+  def add_expertise(name, skill) when is_binary(skill) do
+    fn w ->
+      case character(w, name) do
+        nil ->
+          {:error, "no such character: #{name}"}
+
+        %Character{} = c ->
+          list = c.expertise || []
+
+          if skill in list do
+            {:ok, w}
+          else
+            {:ok, put_char(w, name, %{c | expertise: list ++ [skill]})}
+          end
+      end
+    end
+  end
+
+  @doc """
   Set `who`'s Second Wind used flag (5e, D45). Does not heal — `second_wind/2`
   does. Idempotent.
   """

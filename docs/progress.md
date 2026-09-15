@@ -4,7 +4,7 @@ Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
 hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
 histórico (`docs/historical/`) discrepan con esto, manda este doc.
 
-- Verde de referencia: **1429 tests passed** (`MIX_ENV=test mix test`), compile
+- Verde de referencia: **1465 tests passed** (`MIX_ENV=test mix test`), compile
   limpio sin warnings.
 - **Qué falta y en qué orden** → [`producto/03-plan-fases.md`](producto/03-plan-fases.md)
   (backlog F6/F7 accionable). **El contrato de requisitos** (con criterios de
@@ -51,16 +51,18 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
     bárbaro D72/M56: `start_rage` gasta (`rage_uses_used`, tope
     `Progression.rage_count/1`, recarga sólo en long rest) y al caer a
     0 pg en furia un bárbaro L11+ salva CON vs `10 + 5 × éxitos`
-    (`relentless_rage_successes`, aura D61 suma) para quedarse a 1 —
-    ver más abajo.
+     (`relentless_rage_successes`, aura D61 suma) para quedarse a 1 —
+     ver más abajo. Expertise de pícaro y bardo D73/M57: tool
+     `gain_expertise` (cupo por clase/nivel, doble competencia en los
+     checks de skills elegidas) — ver más abajo.
  - `Actions` — puente intent→world (`attack` con Extra Attack 5e / D35,
        Sneak Attack D41, Rage D42 y Divine Smite D46, Hunter's Mark D55, Font of Magic D56, Cunning Action Hide D57, Danger Sense D58 y Evasión D59 (pasivas del motor en salvaciones), auras de paladín D61/D62 (pasivas: +CHA a salvaciones del side, inmunidad al miedo), Uncanny Dodge D64 (postura armable que mitiga el próximo daño), Metamagic D65 (armable: Empowered/Heightened/Twinned aplicadas y consumidas por el próximo hechizo que califique), `spell` automatic/attack/save + consumo de slot, False Life → temp_hp D36,
     concentración D37, resist/vuln/immune D38, `initiative`, `death_save`, `heal`,
-     `second_wind`, `action_surge`, `flurry_of_blows`, `create_spell_slot`, `convert_to_sorcery_points`, `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`,       `arcane_recovery`, `wild_shape`, `end_wild_shape`, `start_uncanny_dodge`, `breath_weapon` (D70: aliento racial del dragontino con salvación DES y daño de fuego por nivel, 1/descanso — short y long recargan), `short_rest`, `long_rest`, `check` — acepta skills con prof de ficha + JoaT D60). Con `RollLog` para dados estructurados.
+     `second_wind`, `action_surge`, `flurry_of_blows`, `create_spell_slot`, `convert_to_sorcery_points`, `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`,       `arcane_recovery`, `wild_shape`, `end_wild_shape`, `start_uncanny_dodge`, `breath_weapon` (D70: aliento racial del dragontino con salvación DES y daño de fuego por nivel, 1/descanso — short y long recargan), `gain_expertise` (D73: Expertise de pícaro/bardo), `short_rest`, `long_rest`, `check` — acepta skills con prof de ficha + JoaT D60, duplicada con Expertise D73). Con `RollLog` para dados estructurados.
  - `Tools` — `deftool`s que el LLM invoca: `make_attack`, `cast_spell`,
     `roll_initiative`, `make_death_save`, `heal`, `grant_temp_hp`, `grant_xp`, `drop_concentration`, `start_rage`, `end_rage`, `start_reckless`, `end_reckless`,    `second_wind`, `action_surge`, `flurry_of_blows`, `hunters_mark`, `cunning_action_hide`, `create_spell_slot`, `convert_to_sorcery_points`, `divine_smite`, `end_smite`, `lay_on_hands`, `divine_sense`, `turn_undead`, `bardic_inspiration`, `arcane_recovery`, `ability_check`, `end_combat`,
    `short_rest`, `long_rest`, `spawn_monster`, `apply_condition`,
-   `remove_condition`, `set_scene`, `establish_fact`, `level_up`, `roll_dice`, `wild_shape`, `end_wild_shape`, `start_uncanny_dodge`, `arm_metamagic`, `breath_weapon`.
+    `remove_condition`, `set_scene`, `establish_fact`, `level_up`, `roll_dice`, `wild_shape`, `end_wild_shape`, `start_uncanny_dodge`, `arm_metamagic`, `breath_weapon`, `gain_expertise`.
 - `TurnPolicy.WorldDriven` — turno leído del World; un beat por monstruo
   (D34); el LLM no puede saltar/reordenar.
 - `Codec` + `Store.Coded` — `World ↔ jsonb` simétrico (D8).
@@ -460,9 +462,30 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
          siguiente check (RE racial D67 si semi-orco: ambas capas, el
          éxito de clase no consume la racial); orden de capas fijado
          Uncanny Dodge → resist → temp_hp → hp → revert → Furia
-         implacable → RE. Sin duración/reloj, bonus action, Paths,
-         Persistent Rage L20, feats, multiclase.
-  - ✅ XP 5e en partida (D43): `World.grant_xp/2` + tool `grant_xp` (DM).
+          implacable → RE. Sin duración/reloj, bonus action, Paths,
+          Persistent Rage L20, feats, multiclase.
+   - ✅ Expertise de pícaro y bardo (D73 / M57): `Character.expertise`
+      (array de skills, default `[]`, Codec tolerante a jsonb viejo) +
+      cupo `Progression.expertise_count/2` (rogue L1+ 2 / L6+ 4; bard
+      L3+ 2 / L10+ 4; resto 0) + tool `gain_expertise(who, skill)` (DM
+      cualquiera, PC sólo sí mismo, errores NO mutan en orden: who
+      inexistente, caído, clase sin Expertise, nivel insuficiente para
+      el primer cupo —bardo L1–2—, skill desconocida, skill sin
+      competencia, duplicada, cupo agotado con el cupo actual y la
+      lista). Elección modelada como TOOL, no en el builder/level-up
+      (ADR D73: el LLM decide, el motor valida y persiste); skill
+      normalizada vía `Rules.Skills`; permanente (sin rests). La
+      resolución dobla la prof en `Combat.check_proficiency/3` (3er
+      parámetro opcional `skill`, nueva kind `:expert`), hilvanado por
+      `ability_check/7`/`ability_check_tagged/7` y consumido por las
+      DOS rutas de checks con skill: `Actions.check` ("prof 4
+      (experto)") y `cunning_action_hide` (D57: Sigilo doblado, "+4
+      (experto)"). JoaT nunca aplica a una expertised; ability cruda
+      sin skill y `passive_perception` nunca doblan. Allowlist PCAgent
+      + línea condicional pícaro/bardo (sólo con cupo > elegidos) +
+      línea DM. Sin Expertise en tools/instrumentos, picks 2024,
+      integración con level-up choices, feats, multiclase.
+   - ✅ XP 5e en partida (D43): `World.grant_xp/2` + tool `grant_xp` (DM).
   Suma XP; no auto-level-up. Subida explícita (ficha / `level_up`).
   D10 SUPERSEDED. Sin calculadora CR/encuentro.
 
@@ -474,7 +497,7 @@ histórico (`docs/historical/`) discrepan con esto, manda este doc.
 |---|---|---|
 | Dotes | Fuera; ASI = +2 fijo | D13 |
 | `spells_known` | `nil` (sin cap estricto por clase) | D14 |
-| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 (+ usos/Furia implacable D72) + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + Fighting Style D48 + Lay on Hands D49 + Bardic Inspiration D50 + Arcane Recovery D51 + Divine Sense D52 + Turn Undead D53 + Ki/Flurry of Blows D54 + Hunter's Mark D55 + Font of Magic D56 + Cunning Action Hide D57 + Danger Sense D58 + Evasión D59 + Jack of All Trades D60 + Aura of Protection D61 + Aura of Courage D62 + Wild Shape D63 + Uncanny Dodge D64 + Metamagic D65 + Indomitable D68 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47, D48, D49, D50, D51, D52, D53, D54, D55, D56, D57, D58, D59, D60, D61, D62, D63, D64, D65, D68, D72 |
+| Features por nivel | Extra Attack D35 + Sneak Attack D41 + Rage D42 (+ usos/Furia implacable D72) + Reckless Attack D44 + Second Wind D45 + Divine Smite D46 + Action Surge D47 + Fighting Style D48 + Lay on Hands D49 + Bardic Inspiration D50 + Arcane Recovery D51 + Divine Sense D52 + Turn Undead D53 + Ki/Flurry of Blows D54 + Hunter's Mark D55 + Font of Magic D56 + Cunning Action Hide D57 + Danger Sense D58 + Evasión D59 + Jack of All Trades D60 + Aura of Protection D61 + Aura of Courage D62 + Wild Shape D63 + Uncanny Dodge D64 + Metamagic D65 + Indomitable D68 + Expertise D73 + spellcasting paladín/ranger L2; el resto 🟡 | D35, D41, D42, D44, D45, D46, D47, D48, D49, D50, D51, D52, D53, D54, D55, D56, D57, D58, D59, D60, D61, D62, D63, D64, D65, D68, D72, D73 |
 | Rasgos raciales | Lucky D66 + Resistencia implacable D67 + Savage Attacks D69 + Astucia gnoma D71 (automáticos, sin tool) + Aliento de dragón D70 (tool racial); Brave, Halfling Nimbleness, Darkvision y demás 🟡 | D66, D67, D69, D70, D71 |
 | Empate iniciativa | DEX score desc, luego nombre; sin roll-off extra | D39 |
 | Banner level-up in-game | Eliminado (D33); subida desde la ficha | D33 |

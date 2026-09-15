@@ -593,7 +593,7 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   `Heroes.Translations`.
 - **Sin campos nuevos ni Codec**. `cunning_action_hide` (M41/D57) no
   cambia (ya suma prof de stealth; sin multiclase JoaT no le aplica).
-- Sin Expertise (doble prof), prof de tools/instrumentos, checks
+- Sin Expertise (entró en **D73 / M57**), prof de tools/instrumentos, checks
   pasivos distintos de perception, Reliable Talent, feats, multiclase.
 - **Tests**: `skill_checks_test.exs`.
 
@@ -897,6 +897,31 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   (D72)** → Resistencia implacable (D67) → death saves.
 - **Tests**: `rage_uses_test.exs`.
 
+### M57 — Expertise de pícaro y bardo (tool elegida, D73)
+- **Dónde**: campo `Character.expertise` (array de skills, default `[]`,
+  Codec tolerante a jsonb viejo — patrón arrays) + cupo
+  `Progression.expertise_count/2` (rogue L1+ 2 / L6+ 4; bard L3+ 2 /
+  L10+ 4; resto 0) + tool `gain_expertise(who, skill)` (DM cualquiera,
+  PC sólo sí mismo; `World.add_expertise/2` muta sin validar — la
+  validación vive en `Actions.gain_expertise/3`) + resolución en
+  `Combat.check_proficiency/3` (nuevo 3er parámetro opcional `skill`,
+  nueva kind `:expert`: entrenado + expertised → `prof × 2`), hilvanado
+  por `ability_check/7`/`ability_check_tagged/7` y consumido por las
+  DOS rutas de checks con skill: `Actions.check` (desglose
+  "prof 4 (experto)") y `cunning_action_hide` (D57: "+4 (experto)").
+  Elección modelada como TOOL, no en el builder/level-up (ADR D73).
+- **Cuándo**: pícaro (L1+) o bardo (L3+) elige una skill ENTRENADA una
+  vez, en cualquier momento una vez elegible; sin rests (permanente).
+  Errores (NO mutan), en orden: who inexistente, caído, clase sin
+  Expertise ("sólo pícaros y bardos"), nivel insuficiente para el
+  primer cupo (bardo L1–2), skill desconocida (directiva, ejemplos),
+  skill sin competencia, skill ya elegida, cupo agotado (con el cupo
+  actual por nivel y la lista). Éxito: "X profundiza su dominio de
+  Sigilo (Expertise 1/2).". JoaT (M44) nunca aplica a una expertised
+  (ya competente); ability cruda sin skill nunca dobla;
+  `passive_perception` fuera (DC de hide sin cambios).
+- **Tests**: `expertise_test.exs`.
+
 ---
 
 ## Declarado NO implementado (no son bugs — R28)
@@ -927,13 +952,13 @@ Iniciativa individual por monstruo: **D34**.
 con él); el segundo uso de Action Surge a L17 sigue fuera.
 Protection / TWF / GWF siguen fuera. Curar
 enfermedad/veneno con Lay on Hands (gastar 5) sigue fuera.
- Channel Divinity / Turn the Unholy / Improved Divine Sense siguen
-fuera. Dash / Disengage siguen fuera (sin grid ni ataques de
-oportunidad no tienen efecto mecánico — D57); Uncanny Dodge entró en
- **D64 / M48**. Metamagic (Quickened/Distant/Extended/Subtle/Careful y
-compañía) entró en **D65 / M49** con las tres opciones con efecto real
-en este motor. Expertise
-(doble prof de skill) sigue fuera.
+  Channel Divinity / Turn the Unholy / Improved Divine Sense siguen
+  fuera. Dash / Disengage siguen fuera (sin grid ni ataques de
+  oportunidad no tienen efecto mecánico — D57); Uncanny Dodge entró en
+  **D64 / M48**. Metamagic (Quickened/Distant/Extended/Subtle/Careful y
+  compañía) entró en **D65 / M49** con las tres opciones con efecto real
+  en este motor. Expertise (doble prof de skill) entró en
+  **D73 / M57** (sólo skills, no tools/instrumentos).
 
 Para que una de estas entre: ADR nuevo + mecánica `M44+` en este catálogo +
 tests.

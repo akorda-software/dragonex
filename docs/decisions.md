@@ -1880,6 +1880,60 @@ catálogo.
 
 ---
 
+### D73 — Expertise 5e de pícaro y bardo
+Estado: **Aceptada** — 2026-09-15.
+
+Cierra el último hueco del subsistema de skills (D60 aplicó prof
+simple y JoaT): Expertise duplica el bonus de competencia en skills
+elegidas (pícaro L1, bardo L3).
+
+- **Tool en vez de builder**: la elección NO vive en el flujo de UI del
+  draft de nivel 1 ni en la subida de nivel — se modela como TOOL
+  elegida una vez (`gain_expertise(who, skill)`), el mismo patrón que
+  todas las features del motor: el LLM decide, el motor valida y
+  persiste (D1). La tool cubre cualquier momento una vez elegible
+  (creación, tras subir de nivel, en partida) — nada de integración con
+  level-up.
+- **Campo**: `Character.expertise`, array de strings (skills), default
+  `[]`; Codec tolerante a jsonb viejo/ausente (patrón arrays). Siempre
+  un subconjunto de `skill_proficiencies` (el motor lo exige).
+- **Cupo por clase y nivel** — `Progression.expertise_count/2` (tabla
+  5e-2014): rogue L1+ → 2, L6+ → 4; bard L3+ → 2, L10+ → 4; demás
+  clases → 0. La tabla vive en `Progression` (fuente de verdad, patrón
+  `rage_count/1`).
+- **Tool `gain_expertise(who, skill)`** (DM cualquiera; PC sólo sí
+  mismo, guard patrón divine_smite). `skill` normalizado vía
+  `Rules.Skills` (D60: "Animal Handling"/"animal-handling" →
+  `animal_handling`). Errores (NO mutan), en orden: who no existe; who
+  caído; clase sin Expertise ("sólo pícaros y bardos"); nivel
+  insuficiente para el PRIMER cupo (bardo L1–2: "llega a nivel 3");
+  skill desconocida (error directivo con ejemplos); skill NO está en
+  `skill_proficiencies` ("no tienes competencia en X"); skill ya en
+  `expertise`; cupo agotado ("ya has elegido tus N expertises" con el
+  cupo actual por nivel y la lista elegida). Éxito: añade la skill y
+  mensaje ES "X profundiza su dominio de Sigilo (Expertise 1/2).".
+  Mutador `World.add_expertise/2` (sin validación — la vive Actions).
+- **Resolución (doble prof)**: `Combat.check_proficiency/3` gana un 3er
+  parámetro opcional `skill` (default nil) y una 4ª.kind `:expert` —
+  entrenado + expertised → `prof × 2`; `ability_check/7` y
+  `ability_check_tagged/7` lo hilvan (firmas compatibles con defaults).
+  Lo consumen las DOS rutas de checks con skill: `Actions.check`
+  (desglose "prof 4 (experto)") y `cunning_action_hide` (D57: Sigilo
+  doblado, desglose "+4 (experto)"). JoaT NUNCA aplica a una
+  expertised (ya es competente — la cond-order lo garantiza). NO
+  aplica a ability cruda sin skill ni a checks de bardo sin skill
+  nombrada; `passive_perception` fuera (las DC de hide no cambian).
+- **Sin rests** (elección permanente), **sin prompts** salvo: allowlist
+  PCAgent + una línea condicional pícaro/bardo (sólo si class/level
+  dan cupo > elegidos) + una línea en el prompt del DM.
+- **Sin cambios** en Weapon/Spell/Item; campo nuevo sólo `expertise`.
+
+**Fuera**: Expertise en tools/instrumentos, picks extra de reglas 2024,
+integración con las choices de level-up (la tool cubre el momento),
+feats, multiclase. M57 en el catálogo.
+
+---
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,

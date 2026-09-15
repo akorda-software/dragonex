@@ -704,6 +704,22 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
+  Expertise (5e, D73). Rogue (L1+) / bard (L3+): doubles the proficiency
+  bonus of ONE trained skill (2 choices; 4 from rogue L6 / bard L10).
+  `skill` must be in the character's trained skills — the engine
+  validates class, level, training, duplicates and cupo. Choose once per
+  skill, any moment once eligible. The DM may choose for anyone; a PC
+  may only choose for themselves.
+  """
+  deftool gain_expertise(ctx, who :: String.t(), skill :: String.t()) do
+    with :ok <- assert_gain_expertise_self(ctx, who),
+         {:ok, msg, change} <- Dragonex.Actions.gain_expertise(world(ctx), who, skill),
+         {:ok, _} <- propose(ctx, change) do
+      {:ok, msg}
+    end
+  end
+
+  @doc """
   Resolve a non-combat ability check: the DM sets the `dc` (5/10/15/20 by 5e
   difficulty), the engine rolls d20 + the ability modifier for `who`.
   Pass a SKILL name when the check maps to one (`"stealth"`,
@@ -1023,6 +1039,18 @@ defmodule Dragonex.Tools do
     else
       {:error,
        "RECHAZADO — solo puedes usar tu propio aliento de dragón (#{proposer}), no el de #{who}."}
+    end
+  end
+
+  # Expertise (D73): self guard (divine_smite pattern).
+  defp assert_gain_expertise_self(ctx, who) do
+    proposer = ctx.deps.state.participant_id
+
+    if proposer == "dm" or proposer == who do
+      :ok
+    else
+      {:error,
+       "RECHAZADO — solo puedes elegir tu propio Expertise (#{proposer}), no el de #{who}."}
     end
   end
 

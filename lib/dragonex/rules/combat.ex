@@ -9,7 +9,7 @@ defmodule Dragonex.Rules.Combat do
   """
 
   alias Dragonex.{Character, Spell, Weapon}
-  alias Dragonex.Rules.Ability
+  alias Dragonex.Rules.{Ability, Skills}
 
   @type roller :: (pos_integer() -> pos_integer())
   @type ability :: :str | :dex | :con | :int | :wis | :cha
@@ -173,7 +173,9 @@ defmodule Dragonex.Rules.Combat do
   `Actions.check` derives it from the sheet's `skill_proficiencies` when the
   caller names a skill (D60). When not proficient, a bard of level 2+ adds
   half proficiency instead (Jack of All Trades, D60) — never both: RAW JoaT
-  only covers checks that don't already include the bonus.
+  only covers checks that don't already include the bonus. `skill` (default
+  nil) is the check's canonical skill key: when trained AND expertised (D73)
+  the bonus doubles instead.
   """
   @spec ability_check(
           Character.t(),
@@ -181,12 +183,21 @@ defmodule Dragonex.Rules.Combat do
           integer(),
           roller(),
           boolean(),
-          :normal | :advantage | :disadvantage
+          :normal | :advantage | :disadvantage,
+          String.t() | nil
         ) ::
           {pos_integer(), integer(), boolean()}
-  def ability_check(%Character{} = c, ability, dc, roller, proficient \\ false, mode \\ :normal) do
+  def ability_check(
+        %Character{} = c,
+        ability,
+        dc,
+        roller,
+        proficient \\ false,
+        mode \\ :normal,
+        skill \\ nil
+      ) do
     {d20, total, _success?, _lucky} =
-      ability_check_tagged(c, ability, dc, roller, proficient, mode)
+      ability_check_tagged(c, ability, dc, roller, proficient, mode, skill)
 
     {d20, total, total >= dc}
   end
@@ -194,7 +205,8 @@ defmodule Dragonex.Rules.Combat do
   @doc """
   Tagged ability check (D66 Lucky): `ability_check/6` plus the Lucky reroll
   tag (`nil` when it didn't fire) as a fourth element — see
-  `attack_roll_tagged/5`.
+  `attack_roll_tagged/5`. `skill` (D73) rides through to
+  `check_proficiency/3` for the Expertise doubling.
   """
   @spec ability_check_tagged(
           Character.t(),
@@ -202,7 +214,8 @@ defmodule Dragonex.Rules.Combat do
           integer(),
           roller(),
           boolean(),
-          :normal | :advantage | :disadvantage
+          :normal | :advantage | :disadvantage,
+          String.t() | nil
         ) ::
           {pos_integer(), integer(), boolean(), String.t() | nil}
   def ability_check_tagged(
@@ -211,34 +224,52 @@ defmodule Dragonex.Rules.Combat do
         dc,
         roller,
         proficient \\ false,
-        mode \\ :normal
+        mode \\ :normal,
+        skill \\ nil
       ) do
     {d20, lucky} = maybe_lucky(c, roll_d20(roller, mode), roller)
-    {prof, _kind} = check_proficiency(c, proficient)
+    {prof, _kind} = check_proficiency(c, proficient, skill)
     total = d20 + Character.modifier(c, ability) + prof
     {d20, total, total >= dc, lucky}
   end
 
   @doc """
-  Proficiency bonus added to an ability check, with its kind (D60).
+  Proficiency bonus added to an ability check, with its kind (D60, D73).
 
+    * `{:doubled, :expert}` — trained (`proficient` true) AND expertised
+      in `skill` (D73): the bonus DOUBLED. JoaT never applies (already
+      proficient).
     * `{:full, :prof}` — trained (`proficient` true): the whole bonus.
     * `{:half, :joat}` — untrained but bard L2+ (Jack of All Trades):
       `div(proficiency, 2)`, floored.
     * `{:none, 0}` — anything else, as in v1.
 
+  `skill` (default nil) is the canonical skill key when the check names
+  one — Expertise only applies on that route (never to a raw ability).
   Public so `Actions.check` renders the same breakdown the roll used.
   """
-  @spec check_proficiency(Character.t(), boolean()) :: {integer(), :prof | :joat | :none}
-  def check_proficiency(%Character{} = c, proficient) do
+  @spec check_proficiency(Character.t(), boolean(), String.t() | nil) ::
+          {integer(), :expert | :prof | :joat | :none}
+  def check_proficiency(%Character{} = c, proficient, skill \\ nil) do
     prof = Ability.proficiency(c.level)
 
     cond do
+      proficient and expertised?(c, skill) -> {prof * 2, :expert}
       proficient -> {prof, :prof}
       joat?(c) -> {div(prof, 2), :joat}
       true -> {0, :none}
     end
   end
+
+  # D73 Expertise: the check's skill is in the sheet's `expertise` list
+  # (normalized membership — custom/legacy data may differ in case or
+  # separators, same as skill_trained? in Actions).
+  defp expertised?(%Character{expertise: list}, skill)
+       when is_binary(skill) and is_list(list) do
+    Enum.any?(list, fn e -> is_binary(e) and Skills.normalize(e) == skill end)
+  end
+
+  defp expertised?(_, _), do: false
 
   # Jack of All Trades (D60): bard L2+ adds half proficiency to ability
   # checks that don't already include it. Reached only when not proficient.

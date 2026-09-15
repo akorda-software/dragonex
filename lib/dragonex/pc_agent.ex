@@ -15,6 +15,7 @@ defmodule Dragonex.PCAgent do
   """
 
   alias Dragonex.{Character, Events, Tools, World}
+  alias Dragonex.Heroes.Progression
   alias ExAgent.{Compaction, Message}
 
   @doc """
@@ -34,7 +35,9 @@ defmodule Dragonex.PCAgent do
   Cunning Action (rogue), arm themselves with Uncanny Dodge
   (rogue L5+), transform themselves with Wild Shape
   (druid L2+: `wild_shape` / `end_wild_shape`), and breathe their racial
-  Breath Weapon as themselves (dragonborn, D70: `breath_weapon`).
+  Breath Weapon as themselves (dragonborn, D70: `breath_weapon`). Rogues
+  (L1+) and bards (L3+) may also choose their Expertise (D73:
+  `gain_expertise`, doubled proficiency on a trained skill).
   They CANNOT:
   set the scene, spawn monsters, roll initiative, end combat, level up, or
   apply conditions (the DM and the engine handle those).
@@ -42,7 +45,7 @@ defmodule Dragonex.PCAgent do
   @spec tools() :: [term()]
   def tools do
     pc_tools =
-      ~w(make_attack cast_spell ability_check make_death_save short_rest long_rest drop_concentration start_rage end_rage start_reckless end_reckless second_wind action_surge flurry_of_blows hunters_mark cunning_action_hide start_uncanny_dodge create_spell_slot convert_to_sorcery_points arm_metamagic divine_smite end_smite lay_on_hands divine_sense turn_undead bardic_inspiration arcane_recovery wild_shape end_wild_shape breath_weapon)
+      ~w(make_attack cast_spell ability_check make_death_save short_rest long_rest drop_concentration start_rage end_rage start_reckless end_reckless second_wind action_surge flurry_of_blows hunters_mark cunning_action_hide start_uncanny_dodge create_spell_slot convert_to_sorcery_points arm_metamagic divine_smite end_smite lay_on_hands divine_sense turn_undead bardic_inspiration arcane_recovery wild_shape end_wild_shape breath_weapon gain_expertise)
 
     Tools.tools()
     |> Enum.filter(fn tool -> to_string(tool.name) in pc_tools end)
@@ -312,6 +315,7 @@ defmodule Dragonex.PCAgent do
         wizard_recovery_line(c) <>
         turn_undead_line(c) <>
         wild_shape_line(c) <>
+        expertise_line(c) <>
         "SOLO llama a una herramienta si intentas algo con riesgo real de fallo " <>
         "(forzar una puerta, persuadir a un PNJ, detectar una trampa, etc.): " <>
         "ability_check(\"#{c.name}\", \"<skill o característica>\", <DC>) — pasa el NOMBRE DE SKILL cuando aplique " <>
@@ -411,6 +415,25 @@ defmodule Dragonex.PCAgent do
   end
 
   defp wild_shape_line(_), do: ""
+
+  # D73 Expertise: rogue (L1+) / bard (L3+) with picks left — suggest the
+  # choice only while the class/level cupo exceeds what's already chosen.
+  defp expertise_line(%Character{class: class, name: name} = c)
+       when class in ["rogue", "bard"] do
+    cap = Progression.expertise_count(c.class, c.level)
+    chosen = length(c.expertise || [])
+
+    if cap > chosen do
+      "- Expertise (duplica tu bonus de competencia en una skill entrenada; " <>
+        "elecciones pendientes #{chosen}/#{cap}): " <>
+        "gain_expertise(\"#{name}\", \"<skill que ya tengas entrenada>\") — " <>
+        "el motor valida clase, nivel, entrenamiento y cupo.\n"
+    else
+      ""
+    end
+  end
+
+  defp expertise_line(_), do: ""
 
   # Font of Magic (D56): sorcerer L2+ converts points ↔ slots. Create line
   # only when they can pay the cheapest slot (2 points); convert line only

@@ -1082,7 +1082,8 @@ defmodule Dragonex.Actions do
   Cunning Action: Hide (5e, D57): a rogue of level 2+ attempts to hide.
 
   The engine rolls the check — `1d20 + DEX mod (+ proficiency when "stealth"
-  is in `skill_proficiencies`)`, mode from `Conditions.check_mode/3` —
+  is in `skill_proficiencies`, DOUBLED with stealth Expertise D73)`, mode from
+  `Conditions.check_mode/3` —
   against the highest passive perception among conscious enemies
   (`side != who.side`, hp > 0): `10 + WIS mod (+ proficiency when
   "perception" is trained)`. With no conscious enemy the DC is 10 (RAW
@@ -1124,8 +1125,9 @@ defmodule Dragonex.Actions do
     {r, close} =
       RollLog.open(roll_log, roller, who, :check, "Sigilo para esconderse")
 
+    # D73: stealth expertise doubles the proficiency in this roll too.
     {d20, total, success?, lucky} =
-      Combat.ability_check_tagged(rogue, :dex, dc, r, stealth?, mode)
+      Combat.ability_check_tagged(rogue, :dex, dc, r, stealth?, mode, "stealth")
 
     RollLog.close(close,
       total: total,
@@ -1134,12 +1136,18 @@ defmodule Dragonex.Actions do
     )
 
     dex_mod = Character.modifier(rogue, :dex)
-    prof = if stealth?, do: Ability.proficiency(rogue.level), else: 0
+    {prof, prof_kind} = Combat.check_proficiency(rogue, stealth?, "stealth")
 
     breakdown =
       ["1d20(#{d20})"]
       |> then(fn p -> if dex_mod != 0, do: p ++ ["#{signed(dex_mod)}"], else: p end)
-      |> then(fn p -> if prof != 0, do: p ++ ["+#{prof}"], else: p end)
+      |> then(fn p ->
+        cond do
+          prof == 0 -> p
+          prof_kind == :expert -> p ++ ["+#{prof} (experto)"]
+          true -> p ++ ["+#{prof}"]
+        end
+      end)
       |> Enum.join("")
 
     verdict = if success?, do: "oculto", else: "falla y sigue a la vista"
@@ -1181,6 +1189,83 @@ defmodule Dragonex.Actions do
          "#{who} se prepara para esquivar (Uncanny Dodge armado: el próximo daño se reduce a la mitad).",
          World.set_uncanny_dodge(who, true)}
     end
+  end
+
+  @doc """
+  Expertise (5e, D73): a rogue (L1+) or bard (L3+) deepens ONE trained
+  skill — recorded in `Character.expertise`, doubled by the check routes
+  (`check/7` and `cunning_action_hide` via `Combat.check_proficiency/3`).
+
+  Cupo por clase y nivel (`Progression.expertise_count/2`: rogue 2 desde
+  L1 y 4 desde L6; bard 2 desde L3 y 4 desde L10; resto 0). Se elige una
+  vez por skill, en cualquier momento una vez elegible (la tool cubre el
+  momento — nada de integración con level-up). JoaT (D60) nunca aplica a
+  una skill con Expertise (ya es competente). Errors (NO mutan): who
+  inexistente, caído, clase sin Expertise, nivel insuficiente para el
+  PRIMER cupo (bardo L1–2), skill desconocida, skill sin competencia,
+  skill ya elegida, cupo agotado.
+  """
+  @spec gain_expertise(World.t(), String.t(), atom() | String.t()) :: result()
+  def gain_expertise(world, who, skill) do
+    c = World.character(world, who)
+
+    cond do
+      is_nil(c) ->
+        {:error, "no existe el personaje: #{who}"}
+
+      (c.hp || 0) <= 0 ->
+        {:error, "#{who} está caído (0 pg) y no puede elegir Expertise"}
+
+      c.class not in ["rogue", "bard"] ->
+        {:error, "#{who} no puede elegir Expertise (sólo pícaros y bardos)"}
+
+      not expertise_eligible_level?(c) ->
+        {:error, "#{who} aún no tiene Expertise (llega a nivel 3)"}
+
+      not Skills.known?(skill) ->
+        {:error, unknown_expertise_error(skill)}
+
+      not skill_trained?(c, Skills.normalize(skill)) ->
+        {:error,
+         "#{who} no tiene competencia en #{Translations.skill(Skills.normalize(skill))} " <>
+           "(Expertise sólo aplica a skills entrenadas)"}
+
+      skill_expertised?(c, Skills.normalize(skill)) ->
+        {:error, "#{who} ya tiene Expertise en #{Translations.skill(Skills.normalize(skill))}"}
+
+      length(c.expertise || []) >= Progression.expertise_count(c.class, c.level) ->
+        {:error,
+         "#{who} ya ha elegido sus #{Progression.expertise_count(c.class, c.level)} " <>
+           "expertises (" <>
+           Enum.map_join(c.expertise || [], ", ", &Translations.skill/1) <> ")"}
+
+      true ->
+        normalized = Skills.normalize(skill)
+        cap = Progression.expertise_count(c.class, c.level)
+        position = length(c.expertise || []) + 1
+
+        {:ok,
+         "#{who} profundiza su dominio de #{Translations.skill(normalized)} " <>
+           "(Expertise #{position}/#{cap}).", World.add_expertise(who, normalized)}
+    end
+  end
+
+  # Bardo L1–2: sin cupo aún (el pícaro lo tiene desde L1, las demás
+  # clases ya se cortaron arriba).
+  defp expertise_eligible_level?(%Character{class: "bard", level: level}),
+    do: is_integer(level) and level >= 3
+
+  defp expertise_eligible_level?(_), do: true
+
+  defp skill_expertised?(%Character{expertise: list}, skill) when is_list(list) do
+    Enum.any?(list, fn e -> is_binary(e) and Skills.normalize(e) == skill end)
+  end
+
+  defp skill_expertised?(_, _), do: false
+
+  defp unknown_expertise_error(skill) do
+    "skill desconocida: #{inspect(skill)} — usa un skill entrenado " <>
+      "(#{Skills.examples()}, …)"
   end
 
   # DC: the highest passive perception among conscious enemies; 10 when
@@ -1676,6 +1761,9 @@ defmodule Dragonex.Actions do
   Trades (bard L2+, half proficiency) on untrained checks — the `proficient`
   argument is ignored in that branch. A raw ability keeps the caller's
   `proficient` flag (backwards compatible). Unknown input → directive error.
+  Expertise (D73): a trained skill in the sheet's `expertise` DOUBLES the
+  proficiency bonus ("prof N (experto)"); never on a raw ability, and JoaT
+  never stacks with it (already proficient).
   """
   @spec check(
           World.t(),
@@ -1717,7 +1805,7 @@ defmodule Dragonex.Actions do
             RollLog.open(roll_log, roller, who, :check, "chequeo de #{label}")
 
           {d20, total, _success?, lucky} =
-            Combat.ability_check_tagged(c, ability, dc, r, prof?, effective_mode)
+            Combat.ability_check_tagged(c, ability, dc, r, prof?, effective_mode, skill)
 
           inspired? = c.inspired == true
           {total, success?, bardic} = apply_inspired_vs_dc(c, total, dc, r)
@@ -1729,7 +1817,7 @@ defmodule Dragonex.Actions do
           )
 
           mod = Character.modifier(c, ability)
-          {prof_bonus, prof_kind} = Combat.check_proficiency(c, prof?)
+          {prof_bonus, prof_kind} = Combat.check_proficiency(c, prof?, skill)
           verdict = if success?, do: "éxito", else: "fallo"
 
           parts = check_parts(d20, mod, ability, prof_bonus, prof_kind, bardic, skill, lucky)
@@ -1778,7 +1866,8 @@ defmodule Dragonex.Actions do
     do: "#{Translations.skill(skill)} (#{Translations.ability_short(ability)})"
 
   # Breakdown parts. A named skill gets the D60 format
-  # ("1d20(11) + DES 3 + prof 2" / "+ JoaT 1"); a raw ability keeps the v1
+  # ("1d20(11) + DES 3 + prof 2" / "+ JoaT 1"; D73 expertise →
+  # "prof 4 (experto)"); a raw ability keeps the v1
   # format ("d20 11 + +3 (dex) + 2 (competencia)") for backwards compat.
   # The Lucky reroll tag (D66) rides right after the die value.
   defp check_parts(d20, mod, ability, prof_bonus, prof_kind, bardic, nil, lucky) do
@@ -1802,6 +1891,7 @@ defmodule Dragonex.Actions do
     |> then(fn p -> if mod != 0, do: p ++ ["#{abbr} #{mod}"], else: p end)
     |> then(fn p ->
       case prof_kind do
+        :expert -> p ++ ["prof #{prof_bonus} (experto)"]
         :prof -> p ++ ["prof #{prof_bonus}"]
         :joat -> p ++ ["JoaT #{prof_bonus}"]
         :none -> p
