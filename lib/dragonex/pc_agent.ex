@@ -73,12 +73,19 @@ defmodule Dragonex.PCAgent do
       model: model,
       instructions: system_prompt(sheet),
       tools: tools(),
-      model_settings: [
-        max_tokens: max_tokens,
-        temperature: 0.8
-      ],
+      model_settings: [max_tokens: max_tokens, temperature: 0.8] |> put_request_extra(),
       capabilities: caps
     )
+  end
+
+  # Provider knobs (reasoning effort + OpenRouter provider order) ride in
+  # ModelSettings.extra, the same channel the DM uses — merged top-level into
+  # the request body by exAgent's OpenAIChat.
+  defp put_request_extra(settings) do
+    case Dragonex.Models.request_extra() do
+      nil -> settings
+      extra -> Keyword.put(settings, :extra, extra)
+    end
   end
 
   # PC bots now read the SAME shared history as the DM (Dragonex.Game

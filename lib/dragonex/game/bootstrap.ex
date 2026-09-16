@@ -61,9 +61,9 @@ defmodule Dragonex.Game.Bootstrap do
         story_bible: game.story_bible || %{},
         summarizer: summarizer,
         max_tokens: Dragonex.Models.dm_max_tokens(),
-        # Reasoning effort override (nil unless the Ajustes modal set one). Rides
-        # in ModelSettings.extra → the provider's reasoning knob.
-        reasoning: Dragonex.Models.reasoning_extra(),
+        # Request extras (reasoning effort + OpenRouter provider order). Ride
+        # in ModelSettings.extra → top-level body knobs at the gateway.
+        reasoning: Dragonex.Models.request_extra(),
         # With shared-history reconstruction from game_events, the history
         # reflects the partida's full timeline (not just the DM's). Cap at
         # 250k tokens — most modern long-context models (1M window) handle

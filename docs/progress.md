@@ -564,6 +564,12 @@ Cierre de los hallazgos de la auditoría de producto+técnica (informes A y B).
   (AC-1.2), cuenta exacta SRD 319 (AC-4.2), story bible por escenario
   (AC-10.1) y join con slot/participante (AC-12.1) — recitas verificadas en
   `02-requisitos.md`.
+- **Orden de providers OpenRouter vía env** (2026-09-16): nueva env
+  `OPENROUTER_PROVIDER_ORDER` (CSV de slugs, `models.ex`
+  `parse_provider_order/openrouter_provider_extra/request_extra`) fija el
+  routing upstream (`provider.order` + `allow_fallbacks: true`, sólo con
+  `DRAGONEX_PROVIDER=openrouter`) en DM, PC bots y TurnMaster; vacío/unset =
+  routing default. Tests `models_provider_order_test.exs`.
 
 ---
 

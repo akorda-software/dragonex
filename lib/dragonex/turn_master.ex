@@ -32,14 +32,20 @@ defmodule Dragonex.TurnMaster do
       model: model,
       instructions: system_prompt(),
       tools: tools(),
-      model_settings: [
-        max_tokens: max_tokens,
-        temperature: 0.3
-      ],
+      model_settings: [max_tokens: max_tokens, temperature: 0.3] |> put_request_extra(),
       # No Events capability: TurnMaster does not narrate. The Game appends a
       # short :system line when it applies the decision.
       capabilities: []
     )
+  end
+
+  # Provider knobs (reasoning effort + OpenRouter provider order) ride in
+  # ModelSettings.extra, the same channel the DM uses.
+  defp put_request_extra(settings) do
+    case Dragonex.Models.request_extra() do
+      nil -> settings
+      extra -> Keyword.put(settings, :extra, extra)
+    end
   end
 
   @doc "Stable system contract (cacheable prefix)."

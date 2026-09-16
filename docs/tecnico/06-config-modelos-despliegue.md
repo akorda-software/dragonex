@@ -37,6 +37,7 @@ y lo mete en `System.put_env`. Los valores del entorno real **ganan** sobre `.en
 | Var | Default | Para qué |
 |---|---|---|
 | `OPENROUTER_API_KEY` | — | API key del provider OpenRouter. Sin ella → `TestModel` |
+| `OPENROUTER_PROVIDER_ORDER` | — | CSV de slugs de upstream providers de OpenRouter (orden = preferencia, minúsculas; vacío → routing default). Sólo con `DRAGONEX_PROVIDER=openrouter`; llega como objeto top-level `provider` (`order` + `allow_fallbacks: true`) vía `ModelSettings.extra` en DM, PC bots y TurnMaster (`models.ex`) |
 | `OPENCODE_API_KEY` | — | API key del provider OpenCode (Zen/Go) |
 | `OPENCODE_PLAN` | `go` | Plan de OpenCode (`go`/`zen`) |
 | `DRAGONEX_PROVIDER` | `openrouter` | Provider activo (`openrouter`/`opencode`) |

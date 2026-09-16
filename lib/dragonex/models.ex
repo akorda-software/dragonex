@@ -211,6 +211,71 @@ defmodule Dragonex.Models do
   end
 
   # ---------------------------------------------------------------------------
+  # OpenRouter upstream provider routing — OPENROUTER_PROVIDER_ORDER
+  # ---------------------------------------------------------------------------
+  # In multi-provider models (DeepSeek V4 Flash, GLM 5.3 Flash…) the upstream
+  # provider changes speed, price and uptime. OpenRouter accepts a top-level
+  # `provider` object in the Chat Completions body; it rides in
+  # `ModelSettings.extra` (merged by exAgent's OpenAIChat) exactly like the
+  # reasoning knob above.
+
+  @doc """
+  Parse `OPENROUTER_PROVIDER_ORDER` (CSV of provider slugs) into the ordered
+  preference list: split on `,`, trim, downcase, drop empties.
+  `"DeepInfra, Relace,,Wafer"` → `["deepinfra", "relace", "wafer"]`.
+  """
+  @spec parse_provider_order(String.t() | nil) :: [String.t()]
+  def parse_provider_order(nil), do: []
+
+  def parse_provider_order(csv) when is_binary(csv) do
+    for part <- String.split(csv, ","),
+        slug = part |> String.trim() |> String.downcase(),
+        slug != "",
+        do: slug
+  end
+
+  @doc """
+  The `ModelSettings.extra` fragment carrying OpenRouter upstream provider
+  routing, or `nil` when it must not be sent:
+
+    * unset/blank `OPENROUTER_PROVIDER_ORDER` → `nil` (OpenRouter's default
+      routing),
+    * active provider other than `:openrouter` → `nil` (OpenCode doesn't
+      understand the object).
+
+  When a list exists, `allow_fallbacks: true` always rides along: if every
+  listed provider is down, OpenRouter may route elsewhere (uptime first).
+  """
+  @spec openrouter_provider_extra() :: map() | nil
+  def openrouter_provider_extra do
+    case {parse_provider_order(System.get_env("OPENROUTER_PROVIDER_ORDER")), provider()} do
+      {[], _} ->
+        nil
+
+      {_order, :opencode} ->
+        nil
+
+      {order, :openrouter} ->
+        %{"provider" => %{"order" => order, "allow_fallbacks" => true}}
+    end
+  end
+
+  @doc """
+  The full `ModelSettings.extra` map for engine requests (DM beats, PC bots,
+  TurnMaster): reasoning effort + OpenRouter provider routing merged. `nil`
+  when both are unset — nothing is sent and the gateway uses its defaults.
+  """
+  @spec request_extra() :: map() | nil
+  def request_extra do
+    case {reasoning_extra(), openrouter_provider_extra()} do
+      {nil, nil} -> nil
+      {nil, provider} -> provider
+      {reasoning, nil} -> reasoning
+      {reasoning, provider} -> Map.merge(reasoning, provider)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # UI helpers (provider catalogue + live model discovery)
   # ---------------------------------------------------------------------------
 
