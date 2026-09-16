@@ -23,6 +23,13 @@ defmodule Dragonex.ModelsProviderOrderTest do
     cfg = ModelConfig.get()
     ModelConfig.clear()
 
+    # Hermético: el suite puede arrancar con .env.dev ya cargado por
+    # runtime.exs (test_helper lo neutraliza, pero este archivo no debe
+    # depender de eso). Los tests que asumen "nada seteado" parten de env
+    # limpio; on_exit restaura el original.
+    System.delete_env("DRAGONEX_PROVIDER")
+    System.delete_env("OPENROUTER_PROVIDER_ORDER")
+
     on_exit(fn ->
       Enum.each(env, fn
         {k, nil} -> System.delete_env(k)
