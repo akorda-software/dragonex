@@ -212,6 +212,17 @@ defmodule Dragonex.Game.Beats do
 
   # --------------------------------------------------------------- TurnMaster
 
+  # The orchestration tools that record a `Decision` — the events that can end
+  # a TM beat early (D79: primera decisión válida = terminal).
+  @tm_decision_tools ~w(give_turn_to cut_in react pass_to_dm end_scene)
+
+  # Grace a captured run gets to conclude on its own before we cancel it: a
+  # fast (scripted/offline) run finishes in microseconds — letting it settle
+  # naturally integrates its final model state and a clean history on the TM
+  # server — while a live LLM looping past its decision (the playtest case)
+  # blows straight through the window and gets aborted.
+  @tm_capture_grace_ms 100
+
   def run_turnmaster_beat(
         state,
         turn_id,
@@ -235,11 +246,9 @@ defmodule Dragonex.Game.Beats do
       Task.Supervisor.async_nolink(ExAgent.TaskSupervisor, fn ->
         {:ok, recorder} = Decision.start()
 
-        # Failure evidence: subscribe to the TM server's PubSub topic so a beat
-        # that errors can report what the model actually did each step (tool
-        # name + args) without the (dead) run store. Events broadcast during the
-        # run queue up in this Task's mailbox while it blocks on Server.chat;
-        # drain_last_tool_calls/0 flushes them after the reply lands.
+        # Subscribe to the TM server's PubSub topic for TWO jobs: capture the
+        # first valid decision tool-call (termination, D79) and keep failure
+        # evidence (tool name + args per step) for beats that error out.
         topic = ExAgent.Event.agent_topic(Bootstrap.turnmaster_agent_id(state.game_id))
         _ = ExAgent.PubSub.subscribe(ExAgent.PubSub.normalize(:local), topic)
 
@@ -249,14 +258,16 @@ defmodule Dragonex.Game.Beats do
           participants: names
         }
 
-        result =
-          case Server.chat(state.turnmaster, prompt, deps: deps, stream_text: false) do
-            {:ok, %{usage: usage}} ->
-              {:ok, Decision.get(recorder), usage}
+        # Server.chat blocks until the run finishes, so it runs in a nested
+        # task: this beat Task stays free to consume the run's PubSub events
+        # and cut the run short at the FIRST valid decision instead of waiting
+        # for a final-text response the prompt cannot always obtain.
+        chat =
+          Task.async(fn ->
+            Server.chat(state.turnmaster, prompt, deps: deps, stream_text: false)
+          end)
 
-            {:error, reason} ->
-              {:error, reason, drain_last_tool_calls()}
-          end
+        result = watch_tm_run(chat, recorder, state.turnmaster, [])
 
         Decision.stop(recorder)
         result
@@ -285,22 +296,95 @@ defmodule Dragonex.Game.Beats do
   defp stream_text_for(%ExAgent.Models.Test{}), do: false
   defp stream_text_for(_), do: true
 
-  # Flush the PubSub run events that queued up while the beat Task blocked on
-  # `Server.chat`, keeping the tool calls (name + args, most recent last).
-  # Non-tool events are dropped; the subscription dies with the Task. Bounded:
-  # only the last @tm_trace_limit calls are kept for the warning.
-  @tm_trace_limit 5
+  # Watch a TurnMaster run through its PubSub events. Three exits:
+  #
+  #   * first valid decision tool-call finished → the decision is recorded;
+  #     settle the beat with it (settle_captured_run/4),
+  #   * the chat call concludes on its own → classic short path: success with
+  #     whatever the recorder holds (nil = soft WorldDriven fallback) or the
+  #     run error plus the accumulated tool-call trace for the warning,
+  #   * the chat caller dies → treat as a crashed beat.
+  #
+  # The `tool_call_started` payloads are kept (most recent last, bounded) as
+  # failure evidence — the loop consumes every event, so there is nothing left
+  # for a post-hoc mailbox drain.
+  defp watch_tm_run(%Task{} = chat, recorder, server, trace) do
+    %Task{ref: chat_ref, pid: chat_pid} = chat
 
-  defp drain_last_tool_calls(acc \\ []) do
     receive do
+      {:exagent_event,
+       %ExAgent.Event{type: :tool_call_finished, payload: %{tool_name: tool, success: true}}}
+      when tool in @tm_decision_tools ->
+        if Decision.get(recorder) do
+          settle_captured_run(chat_ref, chat_pid, recorder, server)
+        else
+          # A decision tool that finished without recording: invalid target,
+          # combat-only tool outside combat… keep watching — the model may
+          # still correct itself within its step budget.
+          watch_tm_run(chat, recorder, server, trace)
+        end
+
       {:exagent_event, %ExAgent.Event{type: :tool_call_started, payload: payload}} ->
-        drain_last_tool_calls([payload | acc])
+        watch_tm_run(chat, recorder, server, [payload | trace])
 
       {:exagent_event, %ExAgent.Event{}} ->
-        drain_last_tool_calls(acc)
-    after
-      0 -> acc |> Enum.reverse() |> Enum.take(-@tm_trace_limit)
+        watch_tm_run(chat, recorder, server, trace)
+
+      {^chat_ref, {:ok, %{usage: usage}}} ->
+        {:ok, Decision.get(recorder), usage}
+
+      {^chat_ref, {:error, reason}} ->
+        {:error, reason, finalize_tm_trace(trace)}
+
+      {:DOWN, _, :process, ^chat_pid, reason} ->
+        {:error, {:crashed, reason}, finalize_tm_trace(trace)}
     end
+  end
+
+  # The first valid decision is terminal (D79): whatever the rest of the run
+  # was going to do is waste. Give a fast run a short grace to conclude on its
+  # own (natural completion integrates the mutated model — script position for
+  # the offline Test model — and a clean history on the TM server); past the
+  # grace, cancel the run server-side and settle with the captured decision.
+  defp settle_captured_run(chat_ref, chat_pid, recorder, server) do
+    decision = Decision.get(recorder)
+
+    receive do
+      {^chat_ref, {:ok, %{usage: usage}}} ->
+        {:ok, decision, usage}
+
+      {^chat_ref, _chat_error} ->
+        {:ok, decision, nil}
+
+      {:DOWN, _, :process, ^chat_pid, _reason} ->
+        {:ok, decision, nil}
+    after
+      @tm_capture_grace_ms ->
+        _ = Server.abort(server)
+
+        receive do
+          {^chat_ref, {:ok, %{usage: usage}}} ->
+            {:ok, decision, usage}
+
+          {^chat_ref, _chat_error} ->
+            {:ok, decision, nil}
+
+          {:DOWN, _, :process, ^chat_pid, _reason} ->
+            {:ok, decision, nil}
+        after
+          # Liveness valve: the abort reply should land in milliseconds; never
+          # hang the beat on a wedged server when the decision is in hand.
+          5_000 -> {:ok, decision, nil}
+        end
+    end
+  end
+
+  # Bounded, oldest-first tool-call trace for the failure warning: only the
+  # last @tm_trace_limit calls are kept.
+  @tm_trace_limit 5
+
+  defp finalize_tm_trace(trace) do
+    trace |> Enum.reverse() |> Enum.take(-@tm_trace_limit)
   end
 
   defp wait_for_human?(state, participant, world) do

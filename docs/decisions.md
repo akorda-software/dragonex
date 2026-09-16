@@ -2154,7 +2154,7 @@ motor omitía.
 ---
 
 ### D79 — Tope de pasos del TurnMaster y evidencia en el fallo del beat
-Estado: **Aceptada** — 2026-09-16.
+Estado: **Aceptada** — 2026-09-16 (ampliada el mismo día: terminación por captura).
 
 Hallazgo de playtest (game 10053): el segundo beat del TurnMaster con LLM real
 loopeó hasta el `max_steps: 50` por defecto de `ExAgent.new` (~50 s de stall +
@@ -2179,10 +2179,43 @@ ese agente.
   nombre canónico del roster en la decisión, para que `Session.handoff/2`
   reciba un id real y no un near-miss que caería al fallback. `"dm"` sigue
   siendo siempre válido; los no-participantes se siguen rechazando.
-  Tests: `turn_master_test.exs` (cap, override, normalización, fallo a
-  exactamente 3 pasos con contador de llamadas), `turn_master_loop_test.exs`
-  (loop con tool-calls válidos → warning con `{:max_steps_exceeded, 3}` +
-  evidencia, y la partida sigue vía WorldDriven).
+
+**Ampliación — la primera decisión válida es terminal (terminación por
+captura)**. Segundo playtest (game 10790): con el cap a 3 el TM ya no loopea
+50 pasos, pero cada beat sano aún quemaba 3 llamadas y ~20-30 s antes de caer
+al fallback: el modelo acertaba la tool en el paso 1 y seguía emitiendo
+tools porque el prompt ("UNA tool… sin texto libre") peleaba con la
+terminación del runtime (exAgent sólo finaliza con texto final). El fix:
+
+- **Captura temprana** (`Beats.run_turnmaster_beat/4`): `Server.chat` corre en
+  una task anidada y el beat consume los RunEvents del run en vivo. La
+  PRIMERA `tool_call_finished` con éxito de una tool de decisión
+  (`give_turn_to`/`cut_in`/`react`/`pass_to_dm`/`end_scene`) con decisión
+  grabada en el recorder cierra el beat: la decisión se aplica por el camino
+  de siempre (el Game lee el `Decision` recorder; single-writer D6 intacto).
+- **Cancelación con gracia**: tras capturar, el beat espera hasta 100 ms a
+  que el run concluya solo — un run rápido (scripted/offline) termina en
+  microsegundos y su modelo final (posición de script del TestModel) e
+  history se integran limpiamente en el Server; un LLM live que loopea pasa
+  de la ventana y se cancela con `Server.abort/1` (mecanismo limpio del
+  Server: mata la task del run, no integra nada, idempotente si ya acabó).
+  Con la decisión en la mano, cualquier conclusión posterior del chat
+  (éxito, error propio o `:aborted`) da igual: el beat settlea con esa
+  decisión.
+- **Contrato de prompt**: la regla 1 del system_prompt ahora exige que tras
+  la tool-call el modelo responda el texto exacto «listo» — un modelo
+  obediente termina el run solo en 2 pasos con history limpio; uno que no
+  (el caso playtest) lo rescata la captura.
+- **`max_steps: 3` se queda** como red de seguridad: las tools inválidas
+  (target inexistente) no graban decisión, no hay captura, y el run sigue
+  quemando su presupuesto hasta el warning con evidencia + WorldDriven
+  (comportamiento pre-captura, intacto).
+
+Tests: `turn_master_test.exs` (cap, override, normalización, fallo a
+exactamente 3 pasos con contador de llamadas), `turn_master_loop_test.exs`
+(modelo que loopea tools válidas → éxito con la primera decisión, sin warning
+ni fallback; sólo tools inválidas → warning con evidencia y la partida sigue
+vía WorldDriven; tool válida + «listo» → camino corto clásico).
 
 ---
 

@@ -121,12 +121,13 @@ defmodule Dragonex.TurnMasterLoopTest do
     assert Game.status(pid) in [:waiting, :running]
   end
 
-  # Playtest 2026-09-16: a real LLM kept emitting valid tool calls every step
-  # and never the final text — the TM beat spun to exAgent's default
-  # max_steps of 50 (~50s stall, ~50 burnt calls) before the fallback. Now the
-  # beat fails at 3 steps and the warning carries the last tool calls as
-  # evidence (no run store survives the process).
-  test "looping TM model fails fast at 3 steps with evidence; WorldDriven keeps the partida going" do
+  # Playtest 2026-09-16 (game 10790): a real LLM kept emitting valid tool calls
+  # every step and never the final text — the TM beat spun to max_steps (3
+  # calls, ~20-30s) before the WorldDriven fallback. Now the FIRST valid
+  # decision is terminal (D79): the beat captures it via the run's PubSub
+  # events, cancels the rest of the run and settles successfully — no warning,
+  # no fallback.
+  test "looping TM model settles on the first valid decision without warning or fallback" do
     {:ok, game} =
       Games.create_game(
         title: "tm maxsteps",
@@ -153,19 +154,128 @@ defmodule Dragonex.TurnMasterLoopTest do
               ]}}
           )
 
+        # The captured decision is applied: the floor goes to the DM and the
+        # partida keeps flowing instead of stalling on a failed beat.
+        assert :ok ==
+                 Game.await(
+                   pid,
+                   fn s ->
+                     Enum.any?(s.events, fn e ->
+                       e.actor == "turnmaster" and e.type == :system and
+                         (e.payload["note"] || "") =~ "El turno pasa a dm"
+                     end)
+                   end,
+                   15_000
+                 )
+
+        assert Game.status(pid) in [:waiting, :running]
+      end)
+
+    # The beat settled via capture: no max_steps failure at all…
+    refute log =~ "turnmaster beat failed"
+    refute log =~ "max_steps_exceeded"
+
+    events = Games.list_events(game.id)
+
+    # …the decision was the TurnMaster's (system note), not WorldDriven's…
+    assert Enum.any?(events, fn e ->
+             e.actor == "turnmaster" and e.type == :system and
+               (e.payload["note"] || "") =~ "El turno pasa a dm"
+           end)
+
+    refute Enum.any?(events, fn e -> (e.payload["note"] || "") =~ "relevo" end)
+    # …and the DM actually narrated after the handoff.
+    assert Enum.any?(events, fn e -> e.actor == "dm" and e.type == :narration end)
+  end
+
+  # Companion of the capture test: a model whose calls NEVER record a decision
+  # (bogus participant every step) gets no capture — the run burns its step
+  # budget, the warning carries the tool-call evidence and WorldDriven keeps
+  # the partida going (pre-capture behaviour, unchanged).
+  test "TM model with only invalid targets still fails with evidence; WorldDriven keeps the partida going" do
+    {:ok, game} =
+      Games.create_game(
+        title: "tm invalid loop",
+        scene: "a torchlit ruin",
+        roster: [{Archetypes.fighter(), :human}, {Monsters.goblin(), :ai}],
+        initiative: ["goblin", "Thane"]
+      )
+
+    invalid_tm = %Test{
+      script:
+        List.duplicate(tool_calls([call("give_turn_to", %{"participant" => "merluzo"})]), 12)
+    }
+
+    log =
+      capture_log(fn ->
+        pid =
+          start_supervised!(
+            {Dragonex.Game,
+             {game.id,
+              [
+                model: %Test{script: dm_script() ++ [text("ok")]},
+                turnmaster_model: invalid_tm,
+                roller: hit_roller()
+              ]}}
+          )
+
         assert :ok == Game.await(pid, waiting_on("Thane"), 15_000)
         # Soft fallback must not trip the pause circuit.
         assert Game.status(pid) in [:waiting, :running]
       end)
 
-    # Failed fast at the 3-step cap…
-    assert log =~ "turnmaster beat failed: {:max_steps_exceeded, 3}"
+    assert log =~ "turnmaster beat failed"
     # …and the warning names what the model actually called (PubSub evidence).
     assert log =~ "give_turn_to"
-    assert log =~ ~s("participant" => "dm")
+    assert log =~ "merluzo"
 
     events = Games.list_events(game.id)
     assert Enum.any?(events, fn e -> e.type == :system end)
+  end
+
+  # The prompt contract (rule 1): after the decision tool-call the model
+  # answers the exact text «listo», so well-behaved runs conclude on their own
+  # — the classic short path, equivalent to a capture that arrived second.
+  test "valid decision followed by the «listo» text settles the beat through the short path" do
+    {:ok, game} =
+      Games.create_game(
+        title: "tm listo",
+        scene: "a torchlit ruin",
+        roster: [{Archetypes.fighter(), :human}, {Monsters.goblin(), :ai}],
+        initiative: ["goblin", "Thane"]
+      )
+
+    tm =
+      %Test{
+        script:
+          [
+            tool_calls([call("give_turn_to", %{"participant" => "dm"})]),
+            text("listo")
+          ] ++ tm_script_give("Thane") ++ tm_script_give("dm")
+      }
+
+    log =
+      capture_log(fn ->
+        pid =
+          start_supervised!(
+            {Dragonex.Game,
+             {game.id,
+              [model: %Test{script: dm_script()}, turnmaster_model: tm, roller: hit_roller()]}}
+          )
+
+        assert :ok == Game.await(pid, waiting_on("Thane"), 15_000)
+      end)
+
+    refute log =~ "turnmaster beat failed"
+
+    events = Games.list_events(game.id)
+
+    assert Enum.any?(events, fn e ->
+             e.actor == "turnmaster" and e.type == :system and
+               (e.payload["note"] || "") =~ "El turno pasa a dm"
+           end)
+
+    refute Enum.any?(events, fn e -> (e.payload["note"] || "") =~ "relevo" end)
   end
 
   test "mute TM at exploration start passes to the DM without relevo" do

@@ -61,7 +61,7 @@ defmodule Dragonex.TurnMaster do
     Eres el TurnMaster de una partida de D&D 5e. Tu ÚNICA salida es decidir quién actúa a continuación llamando a UNA herramienta. Nunca narras ficción, nunca resuelves tiradas, nunca escribes prosa para el jugador.
 
     REGLAS:
-    1. Llama exactamente a UNA tool por beat. Sin texto libre.
+    1. Llama exactamente a UNA tool por beat; a continuación responde únicamente el texto exacto «listo» (sin más tool-calls, sin prosa). Si la tool devuelve un error, corrige con otra tool válida y responde «listo» después de ella.
     2. COMBATE: sigue el `initiative_order` del brief. Cede a cada combatiente consciente una vez por ronda (`give_turn_to`). Excepciones solo con `cut_in` / `react` cuando el contexto las justifica (ataque de oportunidad, acción preparada, interrupción dramática). Los mini-turnos de cut_in/react NO gastan el turno principal del reactor.
      3. EXPLORACIÓN: el default DESPUÉS de un PC es `pass_to_dm` (el mundo/PNJ responde). No des el siguiente PC hasta que el DM haya narrado la consecuencia. Usa `give_turn_to` a otro PC solo si reacciona a algo que no necesita al DM. Evita el ping-pong PC↔PC.
      4. Equidad: no repitas al mismo actor sin motivo; no dejes a nadie sin turno en una ronda de combate.
@@ -104,7 +104,7 @@ defmodule Dragonex.TurnMaster do
       interrupt,
       pending_line,
       nudge_line,
-      "Decide quién actúa ahora. Una sola tool-call."
+      "Decide quién actúa ahora. Una sola tool-call y luego responde «listo»."
     ]
     |> Enum.reject(&(&1 == ""))
     |> Enum.join("\n")
