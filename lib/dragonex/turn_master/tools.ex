@@ -15,9 +15,9 @@ defmodule Dragonex.TurnMaster.Tools do
 
   @doc "Entrega el turno / la palabra al participante (herramienta por defecto)."
   deftool give_turn_to(ctx, participant :: String.t()) do
-    with :ok <- validate_target(ctx, participant),
-         :ok <- record(ctx, %{action: :give_turn_to, to: participant}) do
-      {:ok, "turno entregado a #{participant}"}
+    with {:ok, to} <- resolve_target(ctx, participant),
+         :ok <- record(ctx, %{action: :give_turn_to, to: to}) do
+      {:ok, "turno entregado a #{to}"}
     end
   end
 
@@ -28,9 +28,9 @@ defmodule Dragonex.TurnMaster.Tools do
   """
   deftool cut_in(ctx, participant :: String.t()) do
     with :ok <- require_combat(ctx),
-         :ok <- validate_target(ctx, participant),
-         :ok <- record(ctx, %{action: :cut_in, to: participant}) do
-      {:ok, "#{participant} interrumpe"}
+         {:ok, to} <- resolve_target(ctx, participant),
+         :ok <- record(ctx, %{action: :cut_in, to: to}) do
+      {:ok, "#{to} interrumpe"}
     end
   end
 
@@ -40,9 +40,9 @@ defmodule Dragonex.TurnMaster.Tools do
   """
   deftool react(ctx, participant :: String.t()) do
     with :ok <- require_combat(ctx),
-         :ok <- validate_target(ctx, participant),
-         :ok <- record(ctx, %{action: :react, to: participant}) do
-      {:ok, "#{participant} reacciona"}
+         {:ok, to} <- resolve_target(ctx, participant),
+         :ok <- record(ctx, %{action: :react, to: to}) do
+      {:ok, "#{to} reacciona"}
     end
   end
 
@@ -80,43 +80,61 @@ defmodule Dragonex.TurnMaster.Tools do
     end
   end
 
-  defp validate_target(ctx, name) when is_binary(name) do
+  # Validate the chosen target AND canonicalize it: LLMs happily emit
+  # `"thane"`, `" thane "` or `"THANE"` for the participant `"Thane"`. We match
+  # case-insensitively (trim included) and record the roster's canonical name,
+  # so the Game's `Session.handoff/2` always receives a real participant id
+  # instead of a near-miss that would fall through to WorldDriven.
+  defp resolve_target(ctx, name) when is_binary(name) do
     name = String.trim(name)
     world = world(ctx)
     roster = participants(ctx)
-    known? = name in roster or Map.has_key?(world.characters, name)
+    down = String.downcase(name)
+
+    canonical =
+      roster
+      |> Kernel.++(Map.keys(world.characters))
+      # "dm" is always a valid target (prompt rule 5), even in unit tests that
+      # pass no roster.
+      |> Kernel.++(["dm"])
+      |> Enum.uniq()
+      |> Enum.find(&(String.downcase(&1) == down))
 
     cond do
       name == "" ->
         {:error, "participante vacío"}
 
-      name == "dm" ->
-        :ok
+      canonical != nil ->
+        check_vitality(world, canonical)
 
-      not known? and roster != [] ->
+      roster != [] ->
         {:error, "#{name} no es un participante de esta partida"}
-
-      Map.has_key?(world.characters, name) ->
-        cond do
-          World.dead?(world, name) ->
-            {:error, "#{name} está muerto — elige a otro"}
-
-          World.down?(world, name) and world.phase == :combat ->
-            # Downed PCs still take death-save turns; enemies at 0 are skipped.
-            case World.character(world, name) do
-              %{side: "pc"} -> :ok
-              _ -> {:error, "#{name} está caído — elige a otro"}
-            end
-
-          true ->
-            :ok
-        end
-
-      name in roster ->
-        :ok
 
       true ->
         {:error, "#{name} no existe en la escena"}
+    end
+  end
+
+  defp resolve_target(_ctx, name), do: {:error, "#{inspect(name)} no es un participante válido"}
+
+  defp check_vitality(world, name) do
+    cond do
+      not Map.has_key?(world.characters, name) ->
+        # Roster-only participant (e.g. "dm") — nothing to vitality-check.
+        {:ok, name}
+
+      World.dead?(world, name) ->
+        {:error, "#{name} está muerto — elige a otro"}
+
+      World.down?(world, name) and world.phase == :combat ->
+        # Downed PCs still take death-save turns; enemies at 0 are skipped.
+        case World.character(world, name) do
+          %{side: "pc"} -> {:ok, name}
+          _ -> {:error, "#{name} está caído — elige a otro"}
+        end
+
+      true ->
+        {:ok, name}
     end
   end
 

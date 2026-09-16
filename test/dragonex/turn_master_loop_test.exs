@@ -7,6 +7,7 @@ defmodule Dragonex.TurnMasterLoopTest do
   use ExUnit.Case, async: false
 
   import Dragonex.Test.Harness
+  import ExUnit.CaptureLog
 
   alias Dragonex.{Archetypes, Codec, Games, Game, Monsters, World}
   alias ExAgent.Models.Test
@@ -118,6 +119,53 @@ defmodule Dragonex.TurnMasterLoopTest do
 
     # Soft fallback must not trip the pause circuit.
     assert Game.status(pid) in [:waiting, :running]
+  end
+
+  # Playtest 2026-09-16: a real LLM kept emitting valid tool calls every step
+  # and never the final text — the TM beat spun to exAgent's default
+  # max_steps of 50 (~50s stall, ~50 burnt calls) before the fallback. Now the
+  # beat fails at 3 steps and the warning carries the last tool calls as
+  # evidence (no run store survives the process).
+  test "looping TM model fails fast at 3 steps with evidence; WorldDriven keeps the partida going" do
+    {:ok, game} =
+      Games.create_game(
+        title: "tm maxsteps",
+        scene: "a torchlit ruin",
+        roster: [{Archetypes.fighter(), :human}, {Monsters.goblin(), :ai}],
+        initiative: ["goblin", "Thane"]
+      )
+
+    # Valid `give_turn_to dm` calls forever — never a final text response.
+    looping_tm = %Test{
+      script: List.duplicate(tool_calls([call("give_turn_to", %{"participant" => "dm"})]), 12)
+    }
+
+    log =
+      capture_log(fn ->
+        pid =
+          start_supervised!(
+            {Dragonex.Game,
+             {game.id,
+              [
+                model: %Test{script: dm_script() ++ [text("ok")]},
+                turnmaster_model: looping_tm,
+                roller: hit_roller()
+              ]}}
+          )
+
+        assert :ok == Game.await(pid, waiting_on("Thane"), 15_000)
+        # Soft fallback must not trip the pause circuit.
+        assert Game.status(pid) in [:waiting, :running]
+      end)
+
+    # Failed fast at the 3-step cap…
+    assert log =~ "turnmaster beat failed: {:max_steps_exceeded, 3}"
+    # …and the warning names what the model actually called (PubSub evidence).
+    assert log =~ "give_turn_to"
+    assert log =~ ~s("participant" => "dm")
+
+    events = Games.list_events(game.id)
+    assert Enum.any?(events, fn e -> e.type == :system end)
   end
 
   test "mute TM at exploration start passes to the DM without relevo" do

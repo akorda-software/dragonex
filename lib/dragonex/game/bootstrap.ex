@@ -92,7 +92,7 @@ defmodule Dragonex.Game.Bootstrap do
     {:ok, turnmaster} =
       Server.start_link(
         agent: tm_agent,
-        agent_id: "game-#{game_id}-turnmaster",
+        agent_id: turnmaster_agent_id(game_id),
         pubsub: :local
       )
 
@@ -147,6 +147,14 @@ defmodule Dragonex.Game.Bootstrap do
       {:error, _} -> :ok
     end
   end
+
+  @doc """
+  Agent id of the game's TurnMaster server. Also the key for its PubSub topic
+  (`ExAgent.Event.agent_topic/1`) — `Beats` subscribes there to capture what a
+  failed TM beat actually did (tool name + args) for the failure warning.
+  """
+  @spec turnmaster_agent_id(term()) :: String.t()
+  def turnmaster_agent_id(game_id), do: "game-#{game_id}-turnmaster"
 
   # --------------------------------------------------------------- models
 

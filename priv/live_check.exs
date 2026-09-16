@@ -4,7 +4,7 @@
 # Verifies the DM adjudicates a non-combat action through ability_check: the DM
 # sets the DC, the engine rolls d20 + WIS modifier, the DM narrates the result.
 
-alias Dragonex.{Archetypes, Brief, World}
+alias Dragonex.{Archetypes, Brief, DM, World}
 alias ExAgent.{Models, Server, Session}
 alias ExAgent.Session.{Participant, SharedState}
 
@@ -20,22 +20,37 @@ model =
 {:ok, dm} = Server.start_link(agent: DM.new(model), agent_id: "dm-check", pubsub: :local)
 
 world =
-  [World.add_character(Archetypes.fighter()), World.set_scene("a stone corridor; one flagstone looks slightly raised")]
-  |> Enum.reduce(World.new(), fn ch, w -> {:ok, nw} = ch.(w); nw end)
+  [
+    World.add_character(Archetypes.fighter()),
+    World.set_scene("a stone corridor; one flagstone looks slightly raised")
+  ]
+  |> Enum.reduce(World.new(), fn ch, w ->
+    {:ok, nw} = ch.(w)
+    nw
+  end)
 
 {:ok, game} =
   Session.start_link(
     shared_state: world,
     policy: {Dragonex.TurnPolicy.WorldDriven, dm: "dm"},
-    participants: [Participant.new(id: "dm", kind: :agent), Participant.new(id: "Thane", kind: :human)],
+    participants: [
+      Participant.new(id: "dm", kind: :agent),
+      Participant.new(id: "Thane", kind: :human)
+    ],
     session_id: "check-#{:erlang.unique_integer([:positive])}"
   )
 
 {:ok, _} = Session.start(game)
-{:ok, _} = Session.end_turn(game, "dm")  # Thane's turn
+# Thane's turn
+{:ok, _} = Session.end_turn(game, "dm")
 
 {:ok, roll_log} = Agent.start_link(fn -> [] end)
-roller = fn sides -> v = :rand.uniform(sides); Agent.update(roll_log, fn l -> l ++ [{sides, v}] end); v end
+
+roller = fn sides ->
+  v = :rand.uniform(sides)
+  Agent.update(roll_log, fn l -> l ++ [{sides, v}] end)
+  v
+end
 
 prompt =
   Brief.turn_prompt(

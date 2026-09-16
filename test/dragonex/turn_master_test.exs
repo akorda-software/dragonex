@@ -65,6 +65,19 @@ defmodule Dragonex.TurnMasterTest do
       caps = Map.get(agent, :capabilities) || []
       refute Enum.any?(List.wrap(caps), fn c -> match?(%{__struct__: Dragonex.Events}, c) end)
     end
+
+    test "new/2 caps max_steps at 3 by default (one decision + one retry + margin)" do
+      agent = TurnMaster.new(%Test{label: "ok"})
+      # Reaches ExAgent: the struct IS the agent the Server will run, and its
+      # drive loop stops at agent.max_steps (playtest 2026-09-16: default 50
+      # let a looping LLM stall the beat ~50s before the fallback).
+      assert agent.max_steps == 3
+    end
+
+    test "new/2 max_steps is overridable" do
+      agent = TurnMaster.new(%Test{label: "ok"}, max_steps: 8)
+      assert agent.max_steps == 8
+    end
   end
 
   describe "tools record decisions" do
@@ -94,6 +107,40 @@ defmodule Dragonex.TurnMasterTest do
       assert {:error, msg} = Tools.give_turn_to(ctx, "Nobody")
       assert msg =~ "no"
       assert Decision.get(rec) == nil
+      Decision.stop(rec)
+    end
+
+    test "give_turn_to canonicalizes case/space near-misses of a participant" do
+      for raw <- ["thane", " thane ", "THANE"] do
+        {:ok, rec} = Decision.start()
+        ctx = %{deps: deps(world_with_party(), rec)}
+
+        assert {:ok, _} = Tools.give_turn_to(ctx, raw)
+        # The canonical roster name is recorded, not the model's near-miss —
+        # Session.handoff/2 must receive a real participant id.
+        assert Decision.get(rec) == %{action: :give_turn_to, to: "Thane"}
+        Decision.stop(rec)
+      end
+    end
+
+    test "give_turn_to still rejects a case-variant of a nonexistent participant" do
+      {:ok, rec} = Decision.start()
+      ctx = %{deps: deps(world_with_party(), rec)}
+
+      assert {:error, msg} = Tools.give_turn_to(ctx, " nobody ")
+      assert msg =~ "no es un participante"
+      assert Decision.get(rec) == nil
+      Decision.stop(rec)
+    end
+
+    test "cut_in canonicalizes the target too" do
+      world = world_with_party()
+      {:ok, combat} = World.begin_combat(["Thane", "goblin"]).(world)
+      {:ok, rec} = Decision.start()
+      ctx = %{deps: deps(combat, rec)}
+
+      assert {:ok, _} = Tools.cut_in(ctx, "Thane ")
+      assert Decision.get(rec) == %{action: :cut_in, to: "Thane"}
       Decision.stop(rec)
     end
 
@@ -181,6 +228,35 @@ defmodule Dragonex.TurnMasterTest do
                )
 
       assert Decision.get(rec) == %{action: :give_turn_to, to: "Thane"}
+      Decision.stop(rec)
+    end
+
+    test "a model that never stops calling tools fails at 3 steps, not 50" do
+      world = world_with_party()
+      {:ok, rec} = Decision.start()
+      {:ok, counter} = Agent.start_link(fn -> 0 end)
+
+      # Playtest 2026-09-16 shape: every step emits a VALID tool call and the
+      # model never produces the final text — the agentic loop used to spin to
+      # exAgent's default max_steps of 50 before erroring out.
+      endless =
+        for _ <- 1..50,
+            do: fn ->
+              Agent.update(counter, &(&1 + 1))
+              tool_calls([call("give_turn_to", %{"participant" => "dm"})])
+            end
+
+      agent = TurnMaster.new(%Test{script: endless})
+
+      server =
+        start_supervised!(
+          {Server, agent: agent, agent_id: "tm-loop-#{System.unique_integer([:positive])}"}
+        )
+
+      assert {:error, {:max_steps_exceeded, 3}} =
+               Server.chat(server, "decide", deps: deps(world, rec), stream_text: false)
+
+      assert Agent.get(counter, & &1) == 3
       Decision.stop(rec)
     end
   end

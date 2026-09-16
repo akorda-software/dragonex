@@ -23,15 +23,21 @@ defmodule Dragonex.TurnMaster do
 
   Options:
     * `:max_tokens` — output cap (default 256; one tool-call, no prose).
+    * `:max_steps`  — agentic loop cap (default 3: one decision + one retry +
+      margin). A healthy TM decides in a single tool-call; the exAgent default
+      of 50 let a looping LLM stall the beat ~50s and burn ~50 calls before
+      the WorldDriven fallback kicked in (playtest 2026-09-16).
   """
   @spec new(term(), keyword()) :: ExAgent.t()
   def new(model, opts \\ []) do
     max_tokens = Keyword.get(opts, :max_tokens, 256)
+    max_steps = Keyword.get(opts, :max_steps, 3)
 
     ExAgent.new(
       model: model,
       instructions: system_prompt(),
       tools: tools(),
+      max_steps: max_steps,
       model_settings: [max_tokens: max_tokens, temperature: 0.3] |> put_request_extra(),
       # No Events capability: TurnMaster does not narrate. The Game appends a
       # short :system line when it applies the decision.

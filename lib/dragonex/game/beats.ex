@@ -11,7 +11,7 @@ defmodule Dragonex.Game.Beats do
   """
 
   alias Dragonex.{Brief, Games, Intents}
-  alias Dragonex.Game.{Beat, Instructions, Participants, Persistence}
+  alias Dragonex.Game.{Beat, Bootstrap, Instructions, Participants, Persistence}
   alias Dragonex.TurnMaster
   alias Dragonex.TurnMaster.Decision
   alias ExAgent.Server
@@ -235,6 +235,14 @@ defmodule Dragonex.Game.Beats do
       Task.Supervisor.async_nolink(ExAgent.TaskSupervisor, fn ->
         {:ok, recorder} = Decision.start()
 
+        # Failure evidence: subscribe to the TM server's PubSub topic so a beat
+        # that errors can report what the model actually did each step (tool
+        # name + args) without the (dead) run store. Events broadcast during the
+        # run queue up in this Task's mailbox while it blocks on Server.chat;
+        # drain_last_tool_calls/0 flushes them after the reply lands.
+        topic = ExAgent.Event.agent_topic(Bootstrap.turnmaster_agent_id(state.game_id))
+        _ = ExAgent.PubSub.subscribe(ExAgent.PubSub.normalize(:local), topic)
+
         deps = %{
           decision: recorder,
           world: world,
@@ -247,7 +255,7 @@ defmodule Dragonex.Game.Beats do
               {:ok, Decision.get(recorder), usage}
 
             {:error, reason} ->
-              {:error, reason}
+              {:error, reason, drain_last_tool_calls()}
           end
 
         Decision.stop(recorder)
@@ -276,6 +284,24 @@ defmodule Dragonex.Game.Beats do
   # forever. Anything that isn't the Test model gets the live-preview path.
   defp stream_text_for(%ExAgent.Models.Test{}), do: false
   defp stream_text_for(_), do: true
+
+  # Flush the PubSub run events that queued up while the beat Task blocked on
+  # `Server.chat`, keeping the tool calls (name + args, most recent last).
+  # Non-tool events are dropped; the subscription dies with the Task. Bounded:
+  # only the last @tm_trace_limit calls are kept for the warning.
+  @tm_trace_limit 5
+
+  defp drain_last_tool_calls(acc \\ []) do
+    receive do
+      {:exagent_event, %ExAgent.Event{type: :tool_call_started, payload: payload}} ->
+        drain_last_tool_calls([payload | acc])
+
+      {:exagent_event, %ExAgent.Event{}} ->
+        drain_last_tool_calls(acc)
+    after
+      0 -> acc |> Enum.reverse() |> Enum.take(-@tm_trace_limit)
+    end
+  end
 
   defp wait_for_human?(state, participant, world) do
     world.phase == :exploration and Participants.ai_pc?(state, participant) and

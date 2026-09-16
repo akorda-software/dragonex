@@ -184,11 +184,23 @@ defmodule Dragonex.Game.Settlement do
       phase: beat_phase
     } = state.busy
 
-    # Decision was stashed on busy via the beat Task return value.
+    ctx = %{
+      phase: beat_phase,
+      instruction: beat_instruction,
+      turn_id: beat_turn_id,
+      max_token_retries: beat_max_token_retries,
+      transient_retries: beat_transient_retries
+    }
+
+    # Decision was stashed on busy via the beat Task return value. Failed beats
+    # carry the last tool calls (PubSub evidence) for the warning; crashed
+    # tasks ({:error, {:crashed, _}} from :DOWN) have none.
     {decision, result} =
       case result do
         {:ok, decision, usage} -> {decision, {:ok, usage}}
-        other -> {nil, other}
+        {:error, reason, trace} when is_list(trace) -> {nil, {:error, reason, trace}}
+        {:error, reason} -> {nil, {:error, reason, []}}
+        other -> {nil, {:error, other, []}}
       end
 
     state = %{state | busy: nil}
@@ -204,41 +216,57 @@ defmodule Dragonex.Game.Settlement do
         if next_status == :running, do: send(self(), :advance)
         %{state | status: next_status}
 
-      {:error, reason} ->
-        cond do
-          Beat.transient_provider_error?(reason) and
-              beat_transient_retries < @max_transient_retries ->
-            schedule_transient_retry(
-              state,
-              "turnmaster",
-              beat_phase,
-              beat_instruction,
-              beat_turn_id,
-              beat_transient_retries,
-              beat_max_token_retries,
-              reason
-            )
+      {:error, reason, trace} ->
+        if Beat.transient_provider_error?(reason) and
+             ctx.transient_retries < @max_transient_retries do
+          schedule_transient_retry(
+            state,
+            "turnmaster",
+            ctx.phase,
+            ctx.instruction,
+            ctx.turn_id,
+            ctx.transient_retries,
+            ctx.max_token_retries,
+            reason
+          )
+        else
+          Logger.warning(
+            "dragonex game #{state.game_id} turnmaster beat failed: #{inspect(reason)}" <>
+              tm_trace_suffix(trace)
+          )
 
-          true ->
-            Logger.warning(
-              "dragonex game #{state.game_id} turnmaster beat failed: #{inspect(reason)}"
-            )
+          # Provider hard faults (after transient retries exhausted) trip the
+          # circuit. Model-behavior quirks (empty TestModel, exhausted script,
+          # "Please respond") are soft — same as "no decision".
+          reason_tag =
+            if Beat.transient_provider_error?(reason), do: :tm_error, else: :no_decision
 
-            # Provider hard faults (after transient retries exhausted) trip the
-            # circuit. Model-behavior quirks (empty TestModel, exhausted script,
-            # "Please respond") are soft — same as "no decision".
-            reason_tag =
-              if Beat.transient_provider_error?(reason), do: :tm_error, else: :no_decision
-
-            state = Turnmaster.fallback_world_driven(state, reason_tag)
-            next_status = Turnmaster.tm_next_status(state)
-            state = %{state | loop_phase: :actor, tm_nudge: nil, tm_reeval: false}
-            Persistence.persist(state, next_status)
-            Persistence.broadcast_updated(state)
-            if next_status == :running, do: send(self(), :advance)
-            %{state | status: next_status}
+          state = Turnmaster.fallback_world_driven(state, reason_tag)
+          next_status = Turnmaster.tm_next_status(state)
+          state = %{state | loop_phase: :actor, tm_nudge: nil, tm_reeval: false}
+          Persistence.persist(state, next_status)
+          Persistence.broadcast_updated(state)
+          if next_status == :running, do: send(self(), :advance)
+          %{state | status: next_status}
         end
     end
+  end
+
+  # Diagnostics suffix for a failed TurnMaster beat: what the model actually
+  # called in its last steps, so a looping beat can be diagnosed from the log
+  # alone (the run store dies with the process). Empty when the beat produced
+  # no tool calls or the evidence channel was unavailable.
+  defp tm_trace_suffix([]), do: ""
+
+  defp tm_trace_suffix(calls) do
+    rendered =
+      Enum.map_join(calls, "; ", fn call ->
+        name = Map.get(call, :tool_name) || Map.get(call, "tool_name") || "?"
+        args = Map.get(call, :args) || Map.get(call, "args") || %{}
+        "#{name}(#{inspect(args)})"
+      end)
+
+    " — últimas llamadas: " <> rendered
   end
 
   defp handle_non_max_token_error(state, current, beat_phase, beat_turn_id, reason) do

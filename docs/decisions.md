@@ -2153,6 +2153,39 @@ motor omitía.
 
 ---
 
+### D79 — Tope de pasos del TurnMaster y evidencia en el fallo del beat
+Estado: **Aceptada** — 2026-09-16.
+
+Hallazgo de playtest (game 10053): el segundo beat del TurnMaster con LLM real
+loopeó hasta el `max_steps: 50` por defecto de `ExAgent.new` (~50 s de stall +
+~50 llamadas quemadas) antes de que el fallback WorldDriven recuperara la
+partida. Un TM sano decide en UN tool-call; 50 pasos no tienen sentido para
+ese agente.
+
+- **Cap por defecto**: `TurnMaster.new/2` pasa `max_steps: 3` a `ExAgent.new`
+  (una decisión + un reintento + margen), sobreescribible por opts. NO se
+  toca el default de exAgent ni el de DM/PCAgent — ellos sí necesitan margen
+  para tool-loops de combate (resolución + narración + compaction).
+  El bucle offline nunca lo vio porque TestModel responde con label fijo.
+- **Evidencia sin store**: el error `{:max_steps_exceeded, n}` de exAgent no
+  arrastra las steps falladas y el store muere con el proceso. Canal que SÍ
+  expone exAgent: los RunEvents por PubSub (`Server` arrancado con
+  `pubsub: :local`). El beat Task del TM se suscribe al topic del agente
+  (`Bootstrap.turnmaster_agent_id/1`), y al fallar el beat el warning del
+  Game incluye las últimas 5 `tool_call_started` (tool + args). Sin tocar
+  exAgent.
+- **Normalización canónica del target**: las tools del TM aceptan
+  case-insensitive + trim (`"thane"`, `" thane "` → `"Thane"`) y graban el
+  nombre canónico del roster en la decisión, para que `Session.handoff/2`
+  reciba un id real y no un near-miss que caería al fallback. `"dm"` sigue
+  siendo siempre válido; los no-participantes se siguen rechazando.
+  Tests: `turn_master_test.exs` (cap, override, normalización, fallo a
+  exactamente 3 pasos con contador de llamadas), `turn_master_loop_test.exs`
+  (loop con tool-calls válidos → warning con `{:max_steps_exceeded, 3}` +
+  evidencia, y la partida sigue vía WorldDriven).
+
+---
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,
