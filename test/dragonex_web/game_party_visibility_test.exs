@@ -165,6 +165,36 @@ defmodule DragonexWeb.GamePartyVisibilityTest do
     assert [_, _] = nodes(view, ".mobile-combat-tracker .death-pips .pips-fail i.on")
   end
 
+  test "the scene strip says where the party is, for how long and who else is there",
+       %{conn: conn, user: user} do
+    goblin = %{Dragonex.Monsters.goblin() | hp: 0}
+    scene = "El cruce del molino, con la noria chapoteando en la acequia."
+
+    {view, _game} =
+      table(conn, user, party(), extra: [goblin], world: [scene: scene, elapsed_seconds: 41_535])
+
+    assert has_element?(view, "#scene-strip .scene-full", scene)
+    assert has_element?(view, "#scene-strip .scene-clock", "11 h 32 min")
+    assert has_element?(view, "#scene-strip .scene-who.side-enemy.is-down", goblin.name)
+    refute has_element?(view, "#scene-strip .scene-who", "Aina")
+  end
+
+  test "the default placeholder scene shows no strip", %{conn: conn, user: user} do
+    {view, _game} = table(conn, user, party(), world: [scene: %World{}.scene])
+    refute has_element?(view, "#scene-strip")
+  end
+
+  test "a player's own sheet stands alone on the left and every companion on the right",
+       %{conn: conn, user: user} do
+    {view, _game} = table(conn, user, party())
+
+    assert [_] = nodes(view, ".game-rail-left .card")
+    assert has_element?(view, ".game-rail-left .card.detail", "Zuria")
+
+    for name <- ~w(Aina Bran Cira Dara Eira),
+        do: assert(has_element?(view, ".game-rail-right > .sheet .card-name", name))
+  end
+
   defp party do
     for name <- ["Aina", "Bran", "Cira", "Dara", "Eira", "Zuria"],
         do: %{Archetypes.fighter() | name: name}
@@ -176,7 +206,7 @@ defmodule DragonexWeb.GamePartyVisibilityTest do
     roster = [{viewer, :human} | Enum.map(others, &{&1, :ai})]
 
     {:ok, game} = Games.create_game(title: "El grupo completo", user_id: user.id, roster: roster)
-    world = Games.load_world(game)
+    world = game |> Games.load_world() |> Map.merge(Map.new(Keyword.get(opts, :world, [])))
 
     world =
       if name = opts[:absent] do

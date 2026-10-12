@@ -11,8 +11,8 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 
 ## Último estado — 2026-10-12
 
-- **Gates:** 3073 passed / 3 excluded en local (Hex: 3071 en el commit
-  anterior, sin cambio de deps),
+- **Gates:** 3076 passed / 3 excluded en local (Hex: 3071 dos commits
+  antes, sin cambio de deps),
   `--warnings-as-errors` limpio, formato limpio.
 - **Dependencias:** dev usa `../exAgent` 2.1 y `../dic_ex` 0.3; prod, las
   mismas versiones de Hex (D237). **Sin desplegar** desde ese cambio.
@@ -81,7 +81,11 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
    de un PC caído se ven en el rastreador y en las fichas del grupo.
    En combate, la ficha y el aviso de turno marcan acción, adicional y
    reacción disponibles o gastadas (`TurnBudget.remaining/2`).
-   Pendiente: franja de escena/hora/PNJ.
+   Sobre la crónica, una franja plegable con la escena confirmada, el tiempo
+   transcurrido y quién más está presente; el jugador tiene su ficha sola a
+   la izquierda y a todos sus compañeros a la derecha. Pendiente: detalles
+   menores (rótulo salir/Salir, contraste de botones desactivados, «dm» en
+   la sala de espera, título del creador a 375 px).
 8. **Limpieza intermitente de tests** (Postgrex/owner): en seguimiento, sin
    reaparecer en los gates de 2026-10-12.
 

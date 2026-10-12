@@ -410,6 +410,60 @@ defmodule DragonexWeb.GameLive.Components do
   end
 
   attr(:world, :any, required: true)
+
+  # Where the party is, how long the adventure has run and who else is there:
+  # the scene the DM confirmed (every agent already reads it), folded to one
+  # line so the chronicle keeps the room.
+  def scene_strip(%{world: %World{scene: scene} = w} = assigns) when is_binary(scene) do
+    others =
+      if w.phase == :combat,
+        do: [],
+        else:
+          for(
+            {name, c} <- Enum.sort_by(World.present_characters(w), &elem(&1, 0)),
+            c.side != "pc",
+            do: {name, c.side, c.hp <= 0}
+          )
+
+    assigns =
+      assign(assigns,
+        scene: scene,
+        others: others,
+        clock: elapsed_label(w.elapsed_seconds || 0),
+        show: String.trim(scene) != "" and scene != %World{}.scene
+      )
+
+    ~H"""
+    <details :if={@show} id="scene-strip" class="scene-strip" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
+      <summary>
+        <i class="px px-torch" aria-hidden="true"></i>
+        <span class="scene-lead">{@scene}</span>
+        <span class="scene-clock" title={dgettext("ui", "Tiempo transcurrido en la partida")}>{@clock}</span>
+      </summary>
+      <p class="scene-full">{@scene}</p>
+      <p :if={@others != []} class="scene-present">
+        <span>{dgettext("ui", "En escena")}</span>
+        <span :for={{name, side, down} <- @others} class={"scene-who side-#{side}#{if down, do: " is-down", else: ""}"}>{name}<i :if={down} class="px px-skull" aria-label={dgettext("ui", "caído")}></i></span>
+      </p>
+    </details>
+    """
+  end
+
+  def scene_strip(assigns), do: ~H""
+
+  defp elapsed_label(seconds) when seconds < 60, do: dgettext("ui", "%{s} s", s: seconds)
+
+  defp elapsed_label(seconds) when seconds < 3600,
+    do: dgettext("ui", "%{m} min", m: div(seconds, 60))
+
+  defp elapsed_label(seconds) when seconds < 86_400,
+    do: dgettext("ui", "%{h} h %{m} min", h: div(seconds, 3600), m: div(rem(seconds, 3600), 60))
+
+  defp elapsed_label(seconds),
+    do:
+      dgettext("ui", "%{d} d %{h} h", d: div(seconds, 86_400), h: div(rem(seconds, 86_400), 3600))
+
+  attr(:world, :any, required: true)
   attr(:name, :string, required: true)
 
   # Combat only: which of action, bonus action and reaction are still there,
@@ -559,11 +613,17 @@ defmodule DragonexWeb.GameLive.Components do
     """
   end
 
+  # A player keeps their full sheet alone on the left and the companions on the
+  # right; the DM view, with no sheet of its own, splits the party evenly.
+  defp left_rail?(true, card, _index, viewer), do: card.name == viewer
+  defp left_rail?(false, _card, index, _viewer), do: rem(index, 2) == 0
+
   # The full table, rendered once the viewer has claimed a seat.
   def table(assigns) do
     ~H"""
     <% cards = sheets(@world, @viewer) %>
     <% companions = Enum.filter(cards, &(&1.side == "pc" and &1.name != @viewer)) %>
+    <% own_rail = @viewer not in [nil, "dm"] and Enum.any?(cards, &(&1.name == @viewer)) %>
     <% can_act = @viewer != "dm" and @my_turn and @status == :waiting and not @busy %>
     <% pc_names = if @world, do: for({name, %{side: "pc"}} <- @world.characters, do: name), else: [] %>
     <% character_names = if @world, do: Map.keys(@world.characters), else: [] %>
@@ -610,7 +670,7 @@ defmodule DragonexWeb.GameLive.Components do
       <%= if @world != nil and @world.phase == :combat do %>
         <.combat_tracker world={@world} current={@current} round={@round} viewer={@viewer} />
       <% else %>
-        <%= for {card, index} <- Enum.with_index(cards), rem(index, 2) == 0 do %>
+        <%= for {card, index} <- Enum.with_index(cards), left_rail?(own_rail, card, index, @viewer) do %>
           <.detail_sheet :if={card.name == @viewer} card={card} world={@world} />
           <div :if={card.name != @viewer} class="sheet">
             <.sheet world={@world} card={card} active={active_card?(@world, card, @current)} />
@@ -620,6 +680,7 @@ defmodule DragonexWeb.GameLive.Components do
     </aside>
 
     <section class="game-center">
+      <.scene_strip world={@world} />
       <div class="game-log" id="log" phx-hook="AutoScroll">
         <p :if={@history_limited} class="msg msg-system history-limit">
           {dgettext("ui", "Has alcanzado el límite del historial visible. La crónica completa sigue guardada.")}
@@ -724,7 +785,7 @@ defmodule DragonexWeb.GameLive.Components do
         <div :if={@world != nil and @viewer != "dm" and @world.characters[@viewer] != nil} class="mobile-player-sheet">
           <.detail_sheet card={@world.characters[@viewer]} world={@world} />
         </div>
-        <div :for={{card, index} <- Enum.with_index(cards)} :key={card.name} :if={rem(index, 2) == 1 or @world.phase == :combat} class="sheet">
+        <div :for={{card, index} <- Enum.with_index(cards)} :key={card.name} :if={@world.phase == :combat or not left_rail?(own_rail, card, index, @viewer)} class="sheet">
           <.sheet world={@world} card={card} active={active_card?(@world, card, @current)} mine={card.name == @viewer} />
         </div>
       <% end %>
