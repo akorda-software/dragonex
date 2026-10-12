@@ -38,6 +38,8 @@ dragones-*.tar
 !/priv/static/assets/dragonex.css
 !/priv/static/assets/game.css
 !/priv/static/assets/wizard.css
+!/priv/static/assets/favicon.svg
+!/priv/static/assets/wordmark.svg
 !/priv/static/assets/fonts/
 !/priv/static/assets/sprites/
 
@@ -46,5 +48,6 @@ dragones-*.tar
 
 # Python bytecode
 __pycache__/
-*.pyc.impeccable/
+*.pyc
+.impeccable/
 .hex_graph/
