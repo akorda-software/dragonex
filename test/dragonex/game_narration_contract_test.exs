@@ -150,6 +150,21 @@ defmodule Dragonex.GameNarrationContractTest do
     refute_received {:text_delta, _, _, _, _}
   end
 
+  test "blank intermediate speech publishes nothing and cannot exhaust the turn (19463)",
+       %{game: game, world: before} do
+    blanks =
+      for text <- ["", "  ", "\n", "", " "],
+          do: response([call("narrate", %{"text" => text})])
+
+    pid = boot(game, %Test{script: blanks ++ [response([final()])]})
+    assert :ok == Game.resume(pid)
+    finish(pid)
+    assert :ok == Game.pause(pid)
+    assert [%{payload: %{"text" => @public, "complete" => true}}] = narration(game)
+    refute Enum.any?(Games.list_events(game.id), &(&1.payload["kind"] == "turn_failed"))
+    assert Game.world(pid).characters == before.characters
+  end
+
   test "a mixed output is retried without executing its omitted world tool", %{
     game: game,
     world: before

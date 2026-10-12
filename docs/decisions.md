@@ -7869,6 +7869,36 @@ cambio procede (eso sigue siendo del DM). Tampoco garantiza que el recibo
 corresponda al objeto correcto ni evita un `grant_item` duplicado: la guía
 lo prohíbe, pero el motor no lo comprueba.
 
+## D240 — Sin doble concesión de objetos y `narrate` vacío sin coste
+
+**Estado:** Aceptada. **Fecha:** 2026-10-12.
+
+**Contexto:** D239 obliga a registrar el inventario, pero no evita registrarlo
+dos veces. En 19457 el DM concedió el libro de cuentas al revelarlo en el
+arcón y otra vez cuando Thane lo cogió: ×2. Aparte, en 19463 el proveedor
+envió `narrate` con texto vacío hasta agotar los reintentos de la tool y el
+turno entero falló, aunque la narración intermedia es opcional.
+
+**Decisión:**
+- `World.grant_item/4` rechaza conceder un objeto que el PC ya tiene (misma
+  clave canónica) salvo `additional: true`, argumento opcional de
+  `grant_item` para unidades nuevas de una pila (flechas, monedas). El
+  rechazo cita el stock real y propone `confirm_inventory_unchanged`.
+  `false`, `null` y omitido comparten clave de replay.
+- `narrate` con texto en blanco no publica nada y responde `{:ok, …}`
+  pidiendo seguir con las tools o cerrar con `final_result`. El resto de
+  validaciones (longitud, UTF-8, requisitos pendientes, voz humana) sigue
+  reintentando. `text` ausente o `null` lo rechaza antes el esquema de
+  exAgent.
+
+**Verificación:** tests de World (rechazo, `additional`, nueva concesión
+tras entregar) y de partida (cinco `narrate` vacíos seguidos cierran el turno;
+sin el cambio, reproduce el fallo de 19463).
+
+**Límites:** el modelo puede marcar `additional: true` sin motivo; el motor
+no sabe qué objetos son únicos. Un objeto concedido demasiado pronto (al
+revelarlo) sigue siendo una sola unidad, no un error detectado.
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,

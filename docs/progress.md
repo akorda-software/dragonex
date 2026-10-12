@@ -57,11 +57,11 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
    confirmación del usuario.
 2. **Inventario de objetos de misión:** D239 exige comprobante de inventario
    antes de publicar el cierre del DM; en la tanda 19462–64 las 4 recogidas o
-   entregas reales cambiaron el stock. Queda abierto: el motor no impide un
-   `grant_item` duplicado (19457 acabó con el libro ×2).
+   entregas reales cambiaron el stock. D240 rechaza conceder otra vez un
+   objeto ya poseído salvo `additional: true`. Falta medirlo en vivo.
 3. **Fiabilidad del proveedor:** argumentos de tool inválidos (DM y TM),
-   retención de 4 KiB (19447), `narrate` vacío hasta agotar reintentos
-   (19463) y caídas. Medir con `dragonex.playtest --games N`
+   retención de 4 KiB (19447) y caídas. El `narrate` vacío de 19463 ya no
+   tumba el turno (D240). Medir con `dragonex.playtest --games N`
    antes de corregir.
 4. **Narración en vivo (R16, D234):** decidir el proveedor por defecto; Decart
    entrega los argumentos de golpe y fireworks sí los trocea.

@@ -21,6 +21,16 @@ defmodule Dragonex.Rules.Inventory do
     |> Base.encode16(case: :lower)
   end
 
+  @doc "The descriptive gear stack already holding `item`, or nil."
+  def held(items, item) when is_list(items) do
+    case Enum.find(items, &(key(&1.name) == key(item))) do
+      %Item{kind: :gear, qty: qty} = stack when is_integer(qty) and qty > 0 -> stack
+      _ -> nil
+    end
+  end
+
+  def held(_, _), do: nil
+
   def key(value) do
     case name(value) do
       {:ok, clean} -> String.downcase(clean)

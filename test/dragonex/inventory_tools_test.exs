@@ -17,14 +17,14 @@ defmodule Dragonex.InventoryToolsTest do
 
     assert {:ok, "dm"} = Session.start(session)
     ctx = %{deps: %{state: SharedState.new(session, "dm")}}
-    assert {:ok, _} = Tools.grant_item(ctx, "Mara", "botón de latón", 2)
+    assert {:ok, _} = Tools.grant_item(ctx, "Mara", "botón de latón", 2, nil)
     assert [%{qty: 2}] = Session.read_state(session).characters["Mara"].inventory
     assert {:ok, _} = Tools.remove_item(ctx, "Mara", "botón de latón", 1)
     saved = Session.read_state(session)
     assert [%{qty: 1}] = saved.characters["Mara"].inventory
     assert {:ok, "Mara"} = Session.handoff(session, "Mara")
     pc = %{deps: %{state: SharedState.new(session, "Mara")}}
-    assert {:error, _} = Tools.grant_item(pc, "Mara", "botón", 1)
+    assert {:error, _} = Tools.grant_item(pc, "Mara", "botón", 1, nil)
     assert {:error, _} = Tools.remove_item(pc, "Mara", "botón de latón", 1)
     assert Session.read_state(session) == saved
   end

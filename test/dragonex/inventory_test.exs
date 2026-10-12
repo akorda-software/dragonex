@@ -25,9 +25,26 @@ defmodule Dragonex.InventoryTest do
     assert Codec.decode(Codec.encode(after_world)) == after_world
   end
 
+  test "an object already held is not granted again unless the units are additional (D240)" do
+    {:ok, one} = World.grant_item("Mara", "libro de cuentas", 1).(world())
+
+    assert {:error, message} = World.grant_item("Mara", " Libro de Cuentas ", 1).(one)
+    assert message =~ "libro de cuentas ×1"
+    assert message =~ "confirm_inventory_unchanged"
+    assert {:error, _} = World.grant_item("Mara", "libro de cuentas", 1, false).(one)
+    assert {:error, _} = World.grant_item("Mara", "libro de cuentas", 1, nil).(one)
+
+    assert {:ok, two} = World.grant_item("Mara", "libro de cuentas", 1, true).(one)
+    assert [%Item{qty: 2}] = two.characters["Mara"].inventory
+
+    # Once handed over, a new pickup of the same object is a fresh grant.
+    {:ok, none} = World.remove_item("Mara", "libro de cuentas", 1).(one)
+    assert {:ok, _} = World.grant_item("Mara", "libro de cuentas", 1).(none)
+  end
+
   test "NFC case and spacing share a stack while arithmetic remains in the engine" do
     {:ok, one} = World.grant_item("Mara", "botón de latón", 1).(world())
-    {:ok, three} = World.grant_item("Mara", "  BOTO\u0301N   DE LATO\u0301N ", 2).(one)
+    {:ok, three} = World.grant_item("Mara", "  BOTO\u0301N   DE LATO\u0301N ", 2, true).(one)
     assert [%Item{name: "botón de latón", qty: 3}] = three.characters["Mara"].inventory
     assert {:ok, two} = World.remove_item("Mara", " BOTÓN DE LATÓN ", 1).(three)
     assert [%Item{qty: 2}] = two.characters["Mara"].inventory
@@ -77,7 +94,7 @@ defmodule Dragonex.InventoryTest do
     items = for i <- 1..80, do: %Item{name: "objeto #{i}", qty: 1, kind: :gear}
     full = put_in(before.characters["Mara"].inventory, items)
     assert {:error, _} = World.grant_item("Mara", "objeto nuevo", 1).(full)
-    assert {:ok, more} = World.grant_item("Mara", "objeto 1", 1).(full)
+    assert {:ok, more} = World.grant_item("Mara", "objeto 1", 1, true).(full)
     assert length(more.characters["Mara"].inventory) == 80
   end
 

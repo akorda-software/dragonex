@@ -340,8 +340,36 @@ defmodule Dragonex.World do
 
   # ---------------------------------------------------------- change functions
 
-  @doc "DM-confirmed descriptive inventory addition; exploration and present PCs only."
-  def grant_item(who, item, quantity), do: inventory_change(who, item, quantity, :grant)
+  @doc """
+  DM-confirmed descriptive inventory addition; exploration and present PCs
+  only. An object the PC already holds is not granted again unless
+  `additional` says these are new, separate units (D240).
+  """
+  def grant_item(who, item, quantity, additional \\ false) do
+    change = inventory_change(who, item, quantity, :grant)
+
+    fn world ->
+      held =
+        case present_character(world, who) do
+          %{side: "pc", inventory: items} -> Dragonex.Rules.Inventory.held(items, item)
+          _ -> nil
+        end
+
+      if is_struct(held) and additional != true and world.phase == :exploration,
+        do:
+          {:error,
+           dgettext(
+             "engine",
+             "%{who} ya tiene %{item} ×%{held} en su inventario: no lo concedas otra vez. " <>
+               "Si no cambia nada, usa confirm_inventory_unchanged; si de verdad recibe " <>
+               "unidades nuevas y distintas (más flechas, monedas), repite grant_item con additional: true.",
+             who: who,
+             item: held.name,
+             held: held.qty
+           )},
+        else: change.(world)
+    end
+  end
 
   @doc "Remove an owned quantity of descriptive gear without negative stock."
   def remove_item(who, item, quantity), do: inventory_change(who, item, quantity, :remove)

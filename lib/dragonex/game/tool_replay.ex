@@ -81,6 +81,7 @@ defmodule Dragonex.Game.ToolReplay do
   end
 
   defp canonical_args(_ctx, name, args) when name in ["grant_item", "remove_item"] do
+    args = if args["additional"] == true, do: args, else: Map.delete(args, "additional")
     args |> Map.update("item", nil, &Dragonex.Rules.Inventory.key/1) |> without_nulls()
   end
 

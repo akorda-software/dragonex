@@ -48,7 +48,9 @@ defmodule Dragonex.AgentWorldRefreshTest do
     assert SharedState.read(shared) == committed
     assert snapshots(original.messages) == []
 
-    assert {:ok, _} = SharedState.propose_change(shared, World.grant_item("Thane", "farol", 1))
+    assert {:ok, _} =
+             SharedState.propose_change(shared, World.grant_item("Thane", "farol", 1, true))
+
     updated = AgentInstructions.before_model_request(AgentInstructions, projected)
     assert [%{"content" => current}] = snapshots(updated.request_messages)
     assert current =~ "farol ×2"

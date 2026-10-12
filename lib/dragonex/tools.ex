@@ -20,6 +20,7 @@ defmodule Dragonex.Tools do
 
         properties =
           schema.properties
+          |> optional_additional(name)
           |> Map.update!(
             "item",
             &Map.merge(&1, %{minLength: 1, maxLength: Dragonex.Rules.Inventory.max_name()})
@@ -29,7 +30,8 @@ defmodule Dragonex.Tools do
             &Map.merge(&1, %{minimum: 1, maximum: Dragonex.Rules.Inventory.max_quantity()})
           )
 
-        %{tool | parameters_json_schema: %{schema | properties: properties}}
+        required = schema.required -- ["additional"]
+        %{tool | parameters_json_schema: %{schema | properties: properties, required: required}}
 
       %{name: "record_npc_statement"} = tool ->
         schema = tool.parameters_json_schema
@@ -147,6 +149,11 @@ defmodule Dragonex.Tools do
       }
     end)
   end
+
+  defp optional_additional(properties, "grant_item"),
+    do: Map.update!(properties, "additional", &Map.put(&1, :type, ["boolean", "null"]))
+
+  defp optional_additional(properties, _), do: properties
 
   # 19451/26–30: a declared attack on a narrated creature without a sheet led
   # the manual resolver to retry spawn_monster until the turn failed.
@@ -360,10 +367,16 @@ defmodule Dragonex.Tools do
       else: {:error, dgettext("engine", "%{who} no está presente en la escena.", who: who)}
   end
 
-  @doc "DM only, exploration: MUST call before narrating descriptive gear actually collected or handed to a present PC, including an NPC returning an object into their hand. Adds quantity to the canonical inventory stack. A pending request/plan alone does not transfer stock; when the NPC agrees and actually hands it over, this tool is required. Never equip weapons/armor or grant mechanical effects. Copy the canonical item name when adding to a stack; name a new scene object exactly as narrated, in the language of the game (e.g. \"ledger\" / \"libro de cuentas\"), never translated."
-  deftool grant_item(ctx, who :: String.t(), item :: String.t(), quantity :: integer()) do
+  @doc "DM only, exploration: MUST call before narrating descriptive gear actually collected or handed to a present PC, including an NPC returning an object into their hand. Adds quantity to the canonical inventory stack. A pending request/plan alone does not transfer stock; when the NPC agrees and actually hands it over, this tool is required. Never equip weapons/armor or grant mechanical effects. Copy the canonical item name when adding to a stack; name a new scene object exactly as narrated, in the language of the game (e.g. \"ledger\" / \"libro de cuentas\"), never translated. An object already in their inventory is rejected: omit additional (or false) for a single object; set additional true only for genuinely new, separate units of a stack (more arrows, coins)."
+  deftool grant_item(
+            ctx,
+            who :: String.t(),
+            item :: String.t(),
+            quantity :: integer(),
+            additional :: boolean()
+          ) do
     with :ok <- assert_inventory_dm(ctx),
-         {:ok, _} <- propose(ctx, Dragonex.World.grant_item(who, item, quantity)) do
+         {:ok, _} <- propose(ctx, Dragonex.World.grant_item(who, item, quantity, additional)) do
       {:ok,
        dgettext("engine", "%{who} recibe %{quantity} × %{item} en su inventario.",
          who: who,
