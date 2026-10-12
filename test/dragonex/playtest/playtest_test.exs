@@ -40,6 +40,27 @@ defmodule Dragonex.PlaytestTest do
     assert Dragonex.Games.get_game(result.game_id).status == :paused
   end
 
+  test "señala recogidas declaradas que no cambian el inventario" do
+    lines = ["Cojo el libro de cuentas del arcón.", "Miro alrededor."]
+    {:ok, agent} = Agent.start_link(fn -> lines end)
+
+    player = fn _ ->
+      {:ok, Agent.get_and_update(agent, fn [h | t] -> {h, t ++ [h]} end)}
+    end
+
+    result =
+      Playtest.run(
+        companions: [],
+        turns: 2,
+        minutes: 1,
+        player: player,
+        game_opts: [model: %Dragonex.Test.Narrator{}]
+      )
+
+    assert [%{kind: :pickup, changed: false, text: "Cojo el libro de cuentas del arcón."}] =
+             result.inventory_checks
+  end
+
   test "un fallo del jugador bot detiene el arnés con su motivo" do
     result =
       Playtest.run(

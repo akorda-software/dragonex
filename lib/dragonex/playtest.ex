@@ -82,24 +82,39 @@ defmodule Dragonex.Playtest do
         System.monotonic_time(:millisecond) + round(Keyword.get(opts, :minutes, 15) * 60_000),
       declarations: 0,
       resumes: 0,
+      pending_check: nil,
+      inventory_checks: [],
       on_event: Keyword.get(opts, :on_event, fn _ -> :ok end)
     }
 
     {stop, final} = loop(loop_state)
     _ = Game.pause(pid)
+    final = close_check(final, Game.world(pid))
 
     %{
       game_id: game.id,
       declarations: final.declarations,
       resumes: final.resumes,
       stop: stop,
-      metrics: Metrics.analyze(Games.list_events(game.id), [human])
+      metrics: Metrics.analyze(Games.list_events(game.id), [human]),
+      inventory_checks: Enum.reverse(final.inventory_checks)
     }
   end
 
   # ------------------------------------------------------------ bucle
 
-  defp loop(%{declarations: n, turns: n} = s), do: {:turns_reached, s}
+  # Tras la última declaración, deja que la mesa la resuelva antes de parar:
+  # pausar con el beat en vuelo descartaría la respuesta del mundo.
+  defp loop(%{declarations: n, turns: n} = s) do
+    settled =
+      Game.await(
+        s.pid,
+        &(&1.status in [:paused, :ended] or (&1.status == :waiting and &1.current == s.human)),
+        max(s.deadline - System.monotonic_time(:millisecond), 0)
+      )
+
+    {if(settled == :ok, do: :turns_reached, else: :deadline), s}
+  end
 
   defp loop(s) do
     if System.monotonic_time(:millisecond) > s.deadline do
@@ -121,6 +136,8 @@ defmodule Dragonex.Playtest do
   end
 
   defp step(%{status: :waiting, current: human, events: events} = snap, %{human: human} = s) do
+    s = close_check(s, snap.world)
+
     context = %{
       name: human,
       locale: s.locale,
@@ -133,6 +150,7 @@ defmodule Dragonex.Playtest do
     case s.player.(context) do
       {:ok, text} ->
         s.on_event.({:declare, human, text})
+        s = open_check(s, text, snap.world)
         {:ok, _} = Game.declare(s.pid, human, text)
         wait_until_not_current(s)
         loop(%{s | declarations: s.declarations + 1})
@@ -145,6 +163,34 @@ defmodule Dragonex.Playtest do
   defp step(_snap, s) do
     Process.sleep(@poll_ms)
     loop(s)
+  end
+
+  # Recogidas y entregas declaradas: ¿cambió el inventario del humano antes de
+  # volver a tener la palabra? El motor no deja rastro del cambio en eventos,
+  # así que se compara el stock al declarar con el del siguiente turno propio.
+  defp open_check(s, text, world) do
+    case Dragonex.InventoryDeclaration.kind(text, s.locale) do
+      nil -> s
+      kind -> %{s | pending_check: %{text: text, kind: kind, before: inventory(world, s.human)}}
+    end
+  end
+
+  defp close_check(%{pending_check: nil} = s, _world), do: s
+
+  defp close_check(%{pending_check: check} = s, world) do
+    after_ = inventory(world, s.human)
+    result = %{text: check.text, kind: check.kind, changed: after_ != check.before, after: after_}
+    %{s | pending_check: nil, inventory_checks: [result | s.inventory_checks]}
+  end
+
+  defp inventory(world, who) do
+    case Map.get(world.characters, who) do
+      %{inventory: items} when is_list(items) ->
+        items |> Enum.map(&{Map.get(&1, :name), Map.get(&1, :qty)}) |> Enum.sort()
+
+      _ ->
+        []
+    end
   end
 
   # Tras declarar, el Game puede tardar un instante en marcar el beat.

@@ -67,7 +67,7 @@ defmodule Mix.Tasks.Dragonex.Playtest do
 
         Mix.shell().info(
           "Partida #{result.game_id} · parada: #{inspect(result.stop)} · declaraciones #{result.declarations} · reanudaciones #{result.resumes}\n" <>
-            Metrics.format(result.metrics)
+            Metrics.format(result.metrics) <> format_inventory(result.inventory_checks)
         )
 
         result
@@ -80,6 +80,15 @@ defmodule Mix.Tasks.Dragonex.Playtest do
         "\n=== Total (#{length(results)} partidas) ===\n" <> Metrics.format(merged)
       )
     end
+  end
+
+  defp format_inventory([]), do: "  recogidas/entregas declaradas: ninguna\n"
+
+  defp format_inventory(checks) do
+    unchanged = Enum.reject(checks, & &1.changed)
+
+    "  recogidas/entregas declaradas: #{length(checks)} · sin cambio de inventario: #{length(unchanged)}\n" <>
+      Enum.map_join(unchanged, "", &"    [#{&1.kind}] #{String.slice(&1.text, 0, 140)}\n")
   end
 
   defp print_event({:declare, who, text}), do: Mix.shell().info("  > #{who}: #{text}")
