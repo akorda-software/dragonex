@@ -3,7 +3,7 @@
 FROM hexpm/elixir:1.20.2-erlang-29.0.2-alpine-3.24.1
 
 # build-base: compilar NIFs (bcrypt_elixir). inotify-tools: file watching live reload.
-# git: deps exagent/dic_ex desde GitHub.
+# Los paquetes propios se montan desde sus carpetas hermanas.
 RUN apk add --no-cache build-base inotify-tools git
 
 WORKDIR /app

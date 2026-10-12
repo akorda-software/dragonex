@@ -13,6 +13,18 @@ defmodule Dragonex.Games.Game do
   """
 
   use Ecto.Schema
+  import Ecto.Changeset
+
+  @title_limit 255
+  def title_limit, do: @title_limit
+
+  @doc "Validate creation metadata before it reaches database string limits."
+  def creation_changeset(game, attrs) do
+    game
+    |> cast(attrs, [:title, :story_bible, :dm_style, :dice_engine, :user_id, :open_slots, :locale])
+    |> validate_inclusion(:locale, ~w(es en))
+    |> validate_length(:title, max: @title_limit, count: :codepoints)
+  end
 
   @type status :: :configuring | :running | :paused | :waiting | :ended
 
@@ -21,6 +33,7 @@ defmodule Dragonex.Games.Game do
     field(:story_bible, :map, default: %{})
     field(:dm_style, :string, default: "vivid but brief")
     field(:dice_engine, :string, default: "2d")
+    field(:locale, :string, default: "es")
     field(:world, :map)
 
     field(:status, Ecto.Enum,

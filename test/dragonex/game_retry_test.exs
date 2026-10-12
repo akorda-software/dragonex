@@ -1,13 +1,12 @@
 # A model that fails the first N requests with a chosen `RequestError`, then
-# returns `recovery` (text). The failure counter lives in an external Agent so
+# returns `recovery` through final_result. The counter lives in an external Agent so
 # it survives the Server not re-integrating the model after an error — important
 # because `Dragonex.Game` only reuses the mutated model on success. Defined
 # before the test module so its struct is in scope at compile time.
 defmodule Dragonex.GameRetryTest.FlakyModel do
   @behaviour ExAgent.Model
 
-  alias ExAgent.Message, as: Msg
-  alias ExAgent.Message.{Part, Response, Usage}
+  alias ExAgent.Message.Response
 
   defstruct [:counter, :error, :recovery]
 
@@ -16,7 +15,7 @@ defmodule Dragonex.GameRetryTest.FlakyModel do
     if dec(counter) do
       {:error, m.error}
     else
-      {:ok, text_response(m.recovery), m}
+      {:ok, Dragonex.Test.Harness.narration_response(m.recovery), m}
     end
   end
 
@@ -26,24 +25,17 @@ defmodule Dragonex.GameRetryTest.FlakyModel do
       {:error, error} ->
         [{:error, error}]
 
-      {:ok, resp, _} ->
+      {:ok, resp, updated} ->
         text = Response.text(resp)
 
         Stream.concat([
           Stream.map(word_chunks(text), fn c -> {:text_delta, c} end),
-          [{:response, resp}]
+          [Dragonex.Test.Harness.stream_response(resp, updated)]
         ])
     end
   end
 
   defp word_chunks(text), do: String.split(text, ~r/(?<=\s)/, include_captures: true)
-
-  defp text_response(text) do
-    Msg.new_response([%Part.Text{content: text}],
-      usage: %Usage{input_tokens: 1, output_tokens: 1},
-      model_name: "flaky"
-    )
-  end
 
   # Returns true while failures remain (and decrements); false once exhausted.
   defp dec(counter) do
@@ -58,13 +50,13 @@ defmodule Dragonex.GameRetryTest.FlakyModel do
   @impl true
   def system(_), do: "flaky"
   @impl true
-  def profile(_), do: %ExAgent.ModelProfile{}
+  def profile(_), do: %ExAgent.ModelProfile{supports_tools: true}
 end
 
 defmodule Dragonex.GameRetryTest do
   @moduledoc """
   Bug #1: transient provider errors (503 / rate limit / timeouts / connection
-  drops) must be retried with backoff before falling back to the soft narration.
+  drops) must be retried with backoff; a turn that still fails pauses (D228).
   A real DeepSeek outage used to chain 5+ fallbacks in a row; now each beat gets
   up to `@max_transient_retries` retries.
 
@@ -76,6 +68,7 @@ defmodule Dragonex.GameRetryTest do
   """
 
   use ExUnit.Case, async: false
+  @moduletag :capture_log
 
   import ExUnit.CaptureLog
 
@@ -84,8 +77,7 @@ defmodule Dragonex.GameRetryTest do
   alias ExAgent.RequestError
 
   setup do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(Dragonex.Repo)
-    Ecto.Adapters.SQL.Sandbox.mode(Dragonex.Repo, {:shared, self()})
+    Dragonex.Test.Sandbox.start_shared!()
 
     # Shrink backoff to milliseconds so retries resolve instantly instead of
     # sleeping through real seconds.
@@ -123,8 +115,8 @@ defmodule Dragonex.GameRetryTest do
     {counter, model}
   end
 
-  # The recovery beat produced once the provider stops failing: a plain
-  # narration line (no tool call) is enough — we only care that the beat
+  # The recovery beat uses the same explicit narration output as production;
+  # we care that the beat
   # completed and the turn advanced.
   @recovery "El goblin se reacomoda y gruñe, midiendo al enemigo."
 
@@ -134,9 +126,7 @@ defmodule Dragonex.GameRetryTest do
   defp run_until_thane_waits(game_id, model) do
     capture_log(fn ->
       pid =
-        ExUnit.Callbacks.start_supervised!(
-          {Dragonex.Game, {game_id, [model: model, roller: hit_roller()]}}
-        )
+        Dragonex.Test.GameFixture.start!({Game, {game_id, [model: model, roller: hit_roller()]}})
 
       assert :ok == Game.await(pid, waiting_on("Thane"), 8_000)
     end)
@@ -145,6 +135,36 @@ defmodule Dragonex.GameRetryTest do
   defp failed_turn?(log) do
     log =~ "el turno falló"
   end
+
+  defp start_until_paused(game_id, model) do
+    parent = self()
+
+    log =
+      capture_log(fn ->
+        pid =
+          Dragonex.Test.GameFixture.start!(
+            {Game, {game_id, [model: model, roller: hit_roller()]}}
+          )
+
+        assert :ok == Game.await(pid, &(&1.status == :paused), 8_000)
+        send(parent, {:paused_game, pid})
+      end)
+
+    assert_received {:paused_game, pid}
+    {pid, log}
+  end
+
+  defp run_until_paused(game_id, model), do: game_id |> start_until_paused(model) |> elem(1)
+
+  defp retained_notes(game_id) do
+    Games.list_events(game_id)
+    |> Enum.filter(&(&1.type == :system and &1.payload["kind"] == "turn_retained"))
+  end
+
+  # The opening narration written by create_game has no turn_id.
+  defp narrations(game_id),
+    do:
+      Enum.filter(Games.list_events(game_id), &(&1.type == :narration and &1.payload["turn_id"]))
 
   defp system_failure_events(game_id) do
     Games.list_events(game_id)
@@ -178,6 +198,40 @@ defmodule Dragonex.GameRetryTest do
     assert system_failure_events(game.id) == []
   end
 
+  test "a parked retry exposes its own stage and pause/resume cannot turn it into narration" do
+    Application.put_env(:dragonex, :transient_backoffs, [60_000])
+
+    {:ok, game} =
+      Games.create_game(
+        title: "Espera de reintento",
+        scene: "El patio.",
+        roster: [{Archetypes.fighter(), :human}]
+      )
+
+    before = %{Games.load_world(game) | scene_refresh_pending: false}
+    {:ok, _} = Games.save_state(game.id, before, "dm", before.round, :paused)
+
+    {_counter, model} =
+      flaky(1, %RequestError{provider: :openrouter, reason: :timeout}, "Thane, ¿qué haces?")
+
+    pid = Dragonex.Test.GameFixture.start!({Game, {game.id, [model: model]}})
+    assert :ok = Game.resume(pid)
+    assert :ok = Game.await(pid, &(Map.get(&1, :busy_stage) == :retrying), 2_000)
+    pending = :sys.get_state(pid).busy
+    assert %Dragonex.Game.PendingRetry{} = pending
+    assert Game.world(pid) == before
+    events = Games.list_events(game.id)
+    assert :ok = Game.pause(pid)
+    assert Game.snapshot(pid).busy_stage == nil
+    assert :ok = Game.resume(pid)
+    assert Game.snapshot(pid).busy_stage == :retrying
+    assert Games.list_events(game.id) == events
+    send(pid, {:retry_beat, pending.turn_id})
+    assert :ok = Game.await(pid, waiting_on("Thane"), 2_000)
+    assert Game.snapshot(pid).busy_stage == nil
+    assert :ok = Game.pause(pid)
+  end
+
   test "a transient timeout is retried as well (transport-level error)" do
     game = new_game()
 
@@ -195,10 +249,10 @@ defmodule Dragonex.GameRetryTest do
     assert system_failure_events(game.id) == []
   end
 
-  test "exhausting transient retries falls back to the soft narration" do
+  test "exhausting transient retries pauses the same turn instead of inventing prose" do
     game = new_game()
 
-    # Fails forever: the 3-retry budget is exhausted on every beat that runs.
+    # Fails forever: the 3-retry budget is exhausted on the first beat.
     {_counter, model} =
       flaky(
         99,
@@ -211,21 +265,23 @@ defmodule Dragonex.GameRetryTest do
         @recovery
       )
 
-    log = run_until_thane_waits(game.id, model)
+    log = run_until_paused(game.id, model)
 
-    # All three retries fired before giving up...
+    # All three retries fired before giving up, then the turn was retained.
     assert log =~ "retry 3/3"
-    # ...and then the soft fallback narration took over.
     assert failed_turn?(log)
     assert system_failure_events(game.id) != []
+    assert [note] = retained_notes(game.id)
+    assert note.payload["note"] =~ "el proveedor no respondió tras varios intentos"
+    assert narrations(game.id) == []
   end
 
-  test "a non-transient 400 falls back immediately without retrying" do
+  test "a non-transient 400 pauses immediately and resume reruns the same turn" do
     game = new_game()
 
     {_counter, model} =
       flaky(
-        99,
+        1,
         %RequestError{
           provider: :openrouter,
           status: 400,
@@ -235,13 +291,22 @@ defmodule Dragonex.GameRetryTest do
         @recovery
       )
 
-    log = run_until_thane_waits(game.id, model)
+    {pid, log} = start_until_paused(game.id, model)
 
     # A 400 is a client error — retrying won't help, so NO backoff retry fires.
     refute log =~ "retry 1/3"
-    # The beat falls straight through to the soft fallback.
-    assert failed_turn?(log)
-    assert system_failure_events(game.id) != []
+    assert [%{payload: %{"turn_id" => turn} = note}] = retained_notes(game.id)
+    assert note["note"] =~ "el proveedor rechazó la petición"
+    assert note["note"] =~ "Reanuda"
+    assert narrations(game.id) == []
+
+    assert :ok == Game.resume(pid)
+    assert :ok == Game.await(pid, waiting_on("Thane"), 8_000)
+
+    events = Games.list_events(game.id)
+    assert Enum.count(events, &(&1.type == :turn and &1.payload["turn_id"] == turn)) == 1
+    assert Enum.any?(events, &(&1.type == :narration and &1.payload["turn_id"] == turn))
+    refute Enum.any?(events, &(&1.payload["kind"] == "turn_skipped"))
   end
 
   test "a provider 'rate limit' body is treated as transient" do
@@ -266,9 +331,8 @@ defmodule Dragonex.GameRetryTest do
     refute failed_turn?(log)
   end
 
-  test "the loop PAUSES after a streak of fallback beats (circuit breaker)" do
-    # Roster with two AI agents that auto-act (no human :waiting to stop the
-    # loop), so fallbacks can pile up: round-robin is dm → Thane(ai) → goblin(ai).
+  test "a persistently failing provider pauses each turn once and skips it on a second failure" do
+    # Two AI agents that auto-act: no human :waiting stops the loop.
     {:ok, game} =
       Games.create_game(
         title: "breaker",
@@ -276,9 +340,7 @@ defmodule Dragonex.GameRetryTest do
         roster: [{Archetypes.fighter(), :ai}, {Monsters.goblin(), :ai}]
       )
 
-    # Always fails with a 400 (non-transient) → every beat falls straight to the
-    # soft fallback. After @max_fallback_streak consecutive fallbacks the loop
-    # must PAUSE instead of feeding another round of "X titubea".
+    # Always fails with a non-transient 400.
     {_counter, model} =
       flaky(
         99,
@@ -292,33 +354,28 @@ defmodule Dragonex.GameRetryTest do
       )
 
     pid =
-      ExUnit.Callbacks.start_supervised!(
-        {Dragonex.Game, {game.id, [model: model, roller: hit_roller()]}}
-      )
+      Dragonex.Test.GameFixture.start!({Game, {game.id, [model: model, roller: hit_roller()]}})
 
-    assert :ok == Game.await(pid, fn s -> s.status == :paused end, 15_000),
-           "the partida should auto-pause after a streak of fallback beats"
+    assert :ok == Game.await(pid, &(&1.status == :paused), 15_000)
+    assert [%{payload: %{"turn_id" => first}}] = retained_notes(game.id)
 
-    assert Game.status(pid) == :paused
+    # Resume reruns that turn; its second failure skips it, and the next
+    # actor's first failure pauses the table again.
+    assert :ok == Game.resume(pid)
+
+    assert :ok ==
+             Game.await(
+               pid,
+               fn s -> s.status == :paused and length(retained_notes(game.id)) == 2 end,
+               15_000
+             )
 
     events = Games.list_events(game.id)
 
-    assert Enum.any?(
-             events,
-             fn e ->
-               e.type == :system and (e.payload["note"] || "") =~ "pausado automáticamente"
-             end
-           ),
-           "a system note should explain the auto-pause"
+    assert [%{payload: %{"turn_id" => ^first}}] =
+             Enum.filter(events, &(&1.payload["kind"] == "turn_skipped"))
 
-    # And the fallback streak did NOT run away: only @max_fallback_streak
-    # "titubea" narrations should have landed, not dozens.
-    titubea_count =
-      Enum.count(events, fn e ->
-        e.type == :narration and (e.payload["text"] || "") =~ "titubea"
-      end)
-
-    assert titubea_count <= 6
+    assert narrations(game.id) == []
   end
 
   # d20 always 15 (a hit), every other die 1 (minimal damage) — combat-safe.

@@ -10,12 +10,14 @@
 # Internamente la app escucha en el puerto estándar 4000 (forzado por environment),
 # y el host publica 4035 -> contenedor 4000.
 
+name: dragonex
+
 services:
   postgres:
     image: postgis/postgis:17-3.5-alpine
     container_name: dragonex-postgres
     ports:
-      - "5455:5432"
+      - "127.0.0.1:5455:5432"
     environment:
       POSTGRES_DB: dragonex_dev
       POSTGRES_USER: postgres
@@ -35,7 +37,7 @@ services:
       dockerfile: Dockerfile.dev
     container_name: dragonex-app
     ports:
-      - "4035:4000"
+      - "127.0.0.1:4035:4000"
     environment:
       # Dentro de la red de compose la app apunta al servicio `postgres:5432`
       # (no a 127.0.0.1) y bindea 0.0.0.0 para ser alcanzable desde el host.
@@ -45,11 +47,15 @@ services:
       DB_PORT: "5432"
       PHX_BIND_IP: "0.0.0.0"
       PORT: "4000"
+      MIX_ENV: dev
+      DRAGONEX_DEPS_ROOT: /workspace
     env_file:
       - path: .env.dev
         required: false
     volumes:
       - .:/app
+      - ../exAgent:/workspace/exAgent:ro
+      - ../dic_ex:/workspace/dic_ex:ro
       - deps:/app/deps
       - _build:/app/_build
     depends_on:

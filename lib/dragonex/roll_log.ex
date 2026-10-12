@@ -34,6 +34,7 @@ defmodule Dragonex.RollLog do
   @type die :: {pos_integer(), pos_integer()}
 
   @type entry :: %{
+          optional(:raw_total) => number(),
           who: String.t() | nil,
           kind: atom(),
           reason: String.t(),
@@ -43,28 +44,63 @@ defmodule Dragonex.RollLog do
           outcome: atom() | nil
         }
 
-  defstruct base: nil, recorder: nil
+  defstruct base: nil, recorder: nil, execution: nil
 
   @type t :: %__MODULE__{
           base: (pos_integer() -> pos_integer()) | nil,
-          recorder: pid() | nil
+          recorder: pid() | nil,
+          execution: reference() | nil
         }
 
   @doc """
   Start a per-beat recorder. Link it to the caller (the beat Task) so it dies
   with it. Optional `:on_close` callback is invoked with each finalized entry —
-  used by `Dragonex.Game` to persist + broadcast every roll the moment it lands.
+  used for standalone groups. `for_tool/2` defers a tool execution's groups
+  until Game has saved them with its effect or successful result.
   """
   @spec start(keyword()) :: Agent.on_start()
   def start(opts \\ []) do
     Agent.start_link(fn ->
-      %{groups: %{}, entries: [], on_close: Keyword.get(opts, :on_close)}
+      %{groups: %{}, entries: [], deferred: %{}, on_close: Keyword.get(opts, :on_close)}
     end)
   end
 
   @doc "All closed groups this beat, in the order they were closed."
   @spec entries(pid()) :: [entry()]
   def entries(recorder), do: Agent.get(recorder, & &1.entries)
+
+  @doc "Buffer this tool's groups until Game commits their effect or successful result."
+  def for_tool(nil, _execution), do: nil
+
+  def for_tool(%{__struct__: __MODULE__} = log, execution),
+    do: Map.put(log, :execution, execution)
+
+  @doc "Closed groups awaiting this execution's durable commit."
+  def pending(%__MODULE__{recorder: recorder, execution: execution})
+      when is_reference(execution),
+      do: Agent.get(recorder, &Map.get(Map.get(&1, :deferred, %{}), execution, []))
+
+  def pending(_log), do: []
+
+  @doc "Remove only the committed prefix, preserving any later groups."
+  def acknowledge(%__MODULE__{recorder: recorder, execution: execution}, entries)
+      when is_reference(execution) do
+    Agent.update(recorder, fn state ->
+      pending = Map.get(state, :deferred, %{})
+      remaining = Enum.drop(Map.get(pending, execution, []), length(entries))
+
+      deferred =
+        if remaining == [],
+          do: Map.delete(pending, execution),
+          else: Map.put(pending, execution, remaining)
+
+      Map.put(state, :deferred, deferred)
+    end)
+  catch
+    :exit, _ -> :ok
+  end
+
+  def acknowledge(_log, _entries), do: :ok
 
   @doc "Stop the recorder (called when the beat finishes)."
   def stop(recorder), do: Agent.stop(recorder)
@@ -74,7 +110,8 @@ defmodule Dragonex.RollLog do
 
     * `roller` — a `(sides -> value)` bound to THIS group; pass it to
       `Rules.Combat` / `Dice`. Each die it rolls is recorded here.
-    * `closer` — `close.(opts)` finalizes the group with `:total`, `:against`
+    * `closer` — `close.(opts)` finalizes the group with `:total`, optional
+      `:raw_total` before a damage minimum, `:against`
       and `:outcome`, appending it to the log.
 
   Pass `nil` for `log` (no recorder) and a fallback roller to get uniform,
@@ -85,12 +122,25 @@ defmodule Dragonex.RollLog do
   def open(nil, fallback_roller, _who, _kind, _reason),
     do: {fallback_roller, fn _opts -> nil end}
 
-  def open(%__MODULE__{base: base, recorder: rec}, _fallback, who, kind, reason) do
+  def open(
+        %__MODULE__{base: base, recorder: rec} = log,
+        _fallback,
+        who,
+        kind,
+        reason
+      ) do
     id = System.unique_integer([:positive])
+    execution = Map.get(log, :execution)
 
     :ok =
       Agent.update(rec, fn s ->
-        put_in(s.groups[id], %{who: who, kind: kind, reason: reason, dice: []})
+        put_in(s.groups[id], %{
+          who: who,
+          kind: kind,
+          reason: reason,
+          dice: [],
+          execution: execution
+        })
       end)
 
     roller = fn sides ->
@@ -109,7 +159,7 @@ defmodule Dragonex.RollLog do
     {roller, closer}
   end
 
-  @doc "Finalize a group's closer with `:total` / `:against` / `:outcome`."
+  @doc "Finalize a group's closer with `:total` / `:against` / `:outcome` and optional `:raw_total`."
   @spec close((keyword() -> entry() | nil), keyword()) :: entry() | nil
   def close(closer, opts) when is_function(closer, 1), do: closer.(opts)
 
@@ -125,7 +175,7 @@ defmodule Dragonex.RollLog do
             {{nil, nil}, s}
 
           g ->
-            extra = opts |> Enum.into(%{}) |> Map.take([:total, :against, :outcome])
+            extra = opts |> Enum.into(%{}) |> Map.take([:total, :raw_total, :against, :outcome])
 
             # Store a JSON-safe entry (the timeline persists it as jsonb): dice as
             # [[sides, value]] and `against` as ["ac"|"dc", n] — no tuples.
@@ -139,8 +189,22 @@ defmodule Dragonex.RollLog do
               outcome: extra[:outcome]
             }
 
-            {{entry, s.on_close},
-             %{s | groups: Map.delete(s.groups, id), entries: s.entries ++ [entry]}}
+            entry = Map.merge(entry, Map.take(extra, [:raw_total]))
+
+            next = %{s | groups: Map.delete(s.groups, id), entries: s.entries ++ [entry]}
+
+            execution = Map.get(g, :execution)
+
+            if is_reference(execution) do
+              deferred =
+                Map.update(Map.get(next, :deferred, %{}), execution, [entry], &(&1 ++ [entry]))
+
+              next = Map.put(next, :deferred, deferred)
+
+              {{entry, nil}, next}
+            else
+              {{entry, s.on_close}, next}
+            end
         end
       end)
 

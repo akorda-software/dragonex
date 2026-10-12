@@ -233,7 +233,7 @@ defmodule Dragonex.BreathGnomeTest do
       assert msg ==
                "Draco exhala aliento de dragón (fuego, usos restantes: 0): " <>
                  "Goblin supera la salvación de Destreza (d20 15: 17 vs CD 12), " <>
-                 "mitad de daño — 4 de daño fire."
+                 "mitad de daño — 4 de daño de fuego."
 
       assert consumed?()
 
@@ -249,7 +249,7 @@ defmodule Dragonex.BreathGnomeTest do
       assert {:ok, msg, change} = Actions.breath_weapon(w, "Draco", "Goblin", seq([5, 4, 6]))
 
       assert msg =~ "falla la salvación de Destreza (d20 5: 7 vs CD 12)"
-      assert msg =~ "— 10 de daño fire"
+      assert msg =~ "— 10 de daño de fuego"
 
       {:ok, w2} = change.(w)
       assert w2.characters["Goblin"].hp == 10
@@ -263,7 +263,7 @@ defmodule Dragonex.BreathGnomeTest do
                Actions.breath_weapon(w, "Draco", "Goblin", seq([10, 2, 2, 2]))
 
       assert msg =~ "vs CD 13"
-      assert msg =~ "— 6 de daño fire"
+      assert msg =~ "— 6 de daño de fuego"
       assert consumed?()
 
       {:ok, w2} = change.(w)
@@ -277,7 +277,7 @@ defmodule Dragonex.BreathGnomeTest do
       assert {:ok, msg, _change} =
                Actions.breath_weapon(w, "Draco", "Goblin", seq([10, 2, 2, 2, 2]))
 
-      assert msg =~ "— 8 de daño fire"
+      assert msg =~ "— 8 de daño de fuego"
       assert consumed?()
     end
 
@@ -289,7 +289,7 @@ defmodule Dragonex.BreathGnomeTest do
                Actions.breath_weapon(w, "Draco", "Goblin", seq([10, 2, 2, 2, 2, 2]))
 
       assert msg =~ "vs CD 16"
-      assert msg =~ "— 10 de daño fire"
+      assert msg =~ "— 10 de daño de fuego"
       assert consumed?()
     end
 
@@ -340,7 +340,7 @@ defmodule Dragonex.BreathGnomeTest do
       w = world([dragonborn(hp: 0), goblin()])
 
       assert {:error, reason} = Actions.breath_weapon(w, "Draco", "Goblin", seq([]))
-      assert reason == "Draco está caído (0 pg) y no puede usar su aliento"
+      assert reason == "Draco está caído (0 pg) y no puede actuar"
     end
 
     test "who o target inexistentes son error" do
@@ -387,13 +387,13 @@ defmodule Dragonex.BreathGnomeTest do
       # Salva (15+2=17 ≥ 12) → Evasión: sin daño (el daño 2d6 se tira igual).
       assert {:ok, msg, _change} = Actions.breath_weapon(w, "Draco", "Vex", seq([15, 4, 4]))
       assert msg =~ "supera la salvación de Destreza (d20 15: 17 vs CD 12) (Evasión: sin daño)"
-      assert msg =~ "— 0 de daño fire"
+      assert msg =~ "— 0 de daño de fuego"
 
       # Falla (5+2=7 < 12) → Evasión: mitad (8 → 4).
       assert {:ok, msg2, change2} = Actions.breath_weapon(w, "Draco", "Vex", seq([5, 4, 4]))
 
       assert msg2 =~ "falla la salvación de Destreza (d20 5: 7 vs CD 12) (Evasión: mitad)"
-      assert msg2 =~ "— 4 de daño fire"
+      assert msg2 =~ "— 4 de daño de fuego"
 
       {:ok, w2} = change2.(w)
       assert w2.characters["Vex"].hp == 26
@@ -415,7 +415,7 @@ defmodule Dragonex.BreathGnomeTest do
       assert {:ok, msg, change} =
                Actions.breath_weapon(w, "Draco", "Goblin", seq([5, 3, 5, 3]))
 
-      assert msg =~ "Goblin pierde la concentración en bless"
+      assert msg =~ "Goblin pierde la concentración en Bendición"
       assert consumed?()
 
       {:ok, w2} = change.(w)
@@ -431,7 +431,7 @@ defmodule Dragonex.BreathGnomeTest do
                Actions.breath_weapon(w, "Draco", "Goblin", seq([1, 15, 3, 3]))
 
       assert msg =~ "(d20 15: 17 vs CD 12) (ventaja)"
-      assert msg =~ "— 3 de daño fire"
+      assert msg =~ "— 3 de daño de fuego"
       assert consumed?()
     end
 
@@ -443,7 +443,7 @@ defmodule Dragonex.BreathGnomeTest do
                Actions.breath_weapon(w, "Draco", "Goblin", seq([1, 18, 3, 5]))
 
       assert msg =~ "(d20 18 (Lucky: 1→18): 20 vs CD 12)"
-      assert msg =~ "— 4 de daño fire"
+      assert msg =~ "— 4 de daño de fuego"
       assert consumed?()
     end
 
@@ -456,7 +456,7 @@ defmodule Dragonex.BreathGnomeTest do
                Actions.breath_weapon(w, "Draco", "Goblin", seq([5, 6, 4, 4]))
 
       assert msg =~ "(d20 5: 13 vs CD 12 +6 inspiración)"
-      assert msg =~ "— 4 de daño fire"
+      assert msg =~ "— 4 de daño de fuego"
       assert consumed?()
 
       {:ok, w2} = change.(w)
@@ -472,7 +472,7 @@ defmodule Dragonex.BreathGnomeTest do
                Actions.breath_weapon(w, "Draco", "Aliado", seq([9, 4, 4]))
 
       assert msg =~ "Aliado supera la salvación de Destreza (d20 9: 14 vs CD 12 +3 aura)"
-      assert msg =~ "— 4 de daño fire"
+      assert msg =~ "— 4 de daño de fuego"
       assert consumed?()
     end
 
@@ -484,7 +484,7 @@ defmodule Dragonex.BreathGnomeTest do
                Actions.breath_weapon(w, "Draco", "Goblin", seq([5, 15, 4, 4]))
 
       assert msg =~ "(d20 15 (Indomitable: 6→16): 16 vs CD 12)"
-      assert msg =~ "— 4 de daño fire"
+      assert msg =~ "— 4 de daño de fuego"
       assert consumed?()
 
       {:ok, w2} = change.(w)
@@ -585,7 +585,7 @@ defmodule Dragonex.BreathGnomeTest do
 
       assert msg =~
                "Bim supera la salvación (d20 14: 14 vs CD 13) (Astucia gnoma: ventaja), " <>
-                 "mitad de daño — 2 de daño psychic"
+                 "mitad de daño — 2 de daño psíquico"
 
       assert consumed?()
 
@@ -611,7 +611,7 @@ defmodule Dragonex.BreathGnomeTest do
       assert {:ok, msg, _change} = Actions.spell(w, "mage", "mind sliver", "Bim", seq([8, 15, 4]))
 
       assert msg =~ "(d20 15: 15 vs CD 13) (Astucia gnoma: ventaja)"
-      assert msg =~ "— 2 de daño psychic"
+      assert msg =~ "— 2 de daño psíquico"
       assert consumed?()
     end
 
@@ -623,7 +623,7 @@ defmodule Dragonex.BreathGnomeTest do
                Actions.spell(w, "mage", "word of fear", "Bim", seq([2, 16, 6]))
 
       assert msg =~ "(d20 16: 16 vs CD 13) (Astucia gnoma: ventaja)"
-      assert msg =~ "— 3 de daño psychic"
+      assert msg =~ "— 3 de daño psíquico"
       assert consumed?()
     end
 
@@ -662,7 +662,7 @@ defmodule Dragonex.BreathGnomeTest do
 
       assert msg =~
                "Bim supera la salvación (d20 15 (Indomitable: 5→15): 15 vs CD 13) " <>
-                 "(Astucia gnoma: ventaja), mitad de daño — 3 de daño psychic"
+                 "(Astucia gnoma: ventaja), mitad de daño — 3 de daño psíquico"
 
       assert consumed?()
 
@@ -689,7 +689,7 @@ defmodule Dragonex.BreathGnomeTest do
       assert {:ok, msg, _change} =
                Actions.spell(w, "mage", "acid splash", "Bim", seq([14, 4, 12]))
 
-      assert msg =~ "Bim mantiene la concentración en bless (d20 12: 13 vs CD 10)"
+      assert msg =~ "Bim mantiene la concentración en Bendición (d20 12: 13 vs CD 10)"
       refute msg =~ "Astucia gnoma"
       assert consumed?()
     end

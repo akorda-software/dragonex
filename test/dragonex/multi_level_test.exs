@@ -144,7 +144,7 @@ defmodule Dragonex.MultiLevelTest do
       assert hero.hp == 12
     end
 
-    test "refreshes spell slots for casters" do
+    test "grows caster capacity while preserving expended slots" do
       wizard =
         Character.new(
           name: "Lyra",
@@ -170,9 +170,9 @@ defmodule Dragonex.MultiLevelTest do
       {:ok, w} = World.consume_slot("Lyra", 1).(w)
       assert w.spell_slots["Lyra"][1] == 0
 
-      # Level up → slots refresh to level 2 (3×1)
+      # Level 2 has capacity 3×1; the two expended slots stay spent.
       {:ok, w2} = World.level_up("Lyra").(w)
-      assert w2.spell_slots["Lyra"][1] == 3
+      assert w2.spell_slots["Lyra"][1] == 1
     end
 
     test "refuses level 20" do
@@ -182,7 +182,7 @@ defmodule Dragonex.MultiLevelTest do
       {:ok, w} = World.add_character(hero).(World.new())
 
       assert {:error, msg} = World.level_up("max").(w)
-      assert msg =~ "max level"
+      assert msg =~ "nivel máximo"
     end
   end
 

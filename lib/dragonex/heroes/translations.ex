@@ -206,6 +206,8 @@ defmodule Dragonex.Heroes.Translations do
   @spells %{
     # cantrips
     "fire bolt" => %{es: "Rayo ígneo", en: "Fire Bolt"},
+    # Legacy preset key; the label never rewrites the stored spell name.
+    "firebolt" => %{es: "Rayo ígneo", en: "Fire Bolt"},
     "ray of frost" => %{es: "Rayo de escarcha", en: "Ray of Frost"},
     "acid splash" => %{es: "Salpicadura de ácido", en: "Acid Splash"},
     "sacred flame" => %{es: "Llama sagrada", en: "Sacred Flame"},
@@ -305,7 +307,8 @@ defmodule Dragonex.Heroes.Translations do
     "scroll case" => %{es: "Estuche de pergaminos", en: "Scroll Case"},
     "winter blanket" => %{es: "Manta de invierno", en: "Winter Blanket"},
     "staff" => %{es: "Bastón", en: "Staff"},
-    "hunting trap" => %{es: "Trampa de caza", en: "Hunting Trap"}
+    "hunting trap" => %{es: "Trampa de caza", en: "Hunting Trap"},
+    "torch" => %{es: "Antorcha", en: "Torch"}
   }
 
   @doc "Etiqueta de un objeto de equipo según la locale."

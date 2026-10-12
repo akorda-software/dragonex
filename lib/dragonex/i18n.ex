@@ -18,26 +18,66 @@ defmodule Dragonex.I18n do
     * Cambiar toda la app de idioma es cambiar `locale/0` (o la config) y tener
       las traducciones del otro idioma disponibles.
 
-  ## Persistencia de locale
+  ## Locale por partida
 
-  Hoy la locale es fija (`:es`). En el futuro podrá venir de:
-
-    * config (`config :dragonex, :locale, :es`),
-    * preferencia del usuario en DB,
-    * `assigns` del LiveView.
-
-  `with_locale/2` permite aislar un bloque (útil para tests o render con una
-  locale distinta a la global).
+  Cada partida guarda su idioma (`games.locale`). El proceso de la partida,
+  sus beats, las herramientas y la LiveView de la mesa fijan esa locale con
+  `put_locale/1`, que es local al proceso: dos mesas en idiomas distintos
+  conviven sin pisarse. Sin locale de proceso rige la configurada
+  (`config :dragonex, :locale`) y, por defecto, `:es`.
   """
 
   @locales [:es, :en]
   @default_locale :es
 
-  @doc "Locale activa."
+  @process_key {__MODULE__, :locale}
+
+  @doc """
+  Locale activa: la del proceso (`put_locale/1`), si no la configurada y, por
+  defecto, `:es`. Cada partida fija la suya en sus procesos, así que dos mesas
+  en idiomas distintos no se pisan.
+  """
   @spec locale() :: atom()
   def locale do
-    Application.get_env(:dragonex, :locale, @default_locale)
+    Process.get(@process_key) || Application.get_env(:dragonex, :locale, @default_locale)
   end
+
+  @doc "Fija la locale de este proceso; `nil` vuelve a la configurada."
+  @spec put_locale(atom() | String.t() | nil) :: atom() | nil
+  def put_locale(nil) do
+    Gettext.put_locale(Dragonex.Gettext, Atom.to_string(configured()))
+    Process.delete(@process_key)
+  end
+
+  def put_locale(locale) do
+    locale = normalize(locale)
+    Process.put(@process_key, locale)
+    # The message catalog follows the same per-process locale.
+    Gettext.put_locale(Dragonex.Gettext, Atom.to_string(locale))
+    locale
+  end
+
+  defp configured, do: Application.get_env(:dragonex, :locale, @default_locale)
+
+  @doc """
+  Adopta la locale que viaja en los `deps` de un beat. Las herramientas y
+  capacidades del agente corren en procesos de exAgent que no heredan la del
+  proceso de la partida.
+  """
+  @spec adopt(map() | term()) :: :ok
+  def adopt(%{locale: locale}) when not is_nil(locale) do
+    put_locale(locale)
+    :ok
+  end
+
+  def adopt(_deps), do: :ok
+
+  @doc "Locale válida a partir de un átomo o texto («en», :es…); si no, la por defecto."
+  @spec normalize(term()) :: atom()
+  def normalize(locale) when locale in @locales, do: locale
+  def normalize("en"), do: :en
+  def normalize("es"), do: :es
+  def normalize(_), do: @default_locale
 
   @doc "Locales soportadas."
   @spec supported() :: [atom()]
@@ -69,24 +109,20 @@ defmodule Dragonex.I18n do
   end
 
   @doc """
-  Ejecuta `fun` con una locale distinta a la global. Útil para tests o para
-  renderizar contenido en el idioma de un participante concreto.
+  Ejecuta `fun` con otra locale solo en este proceso. Útil para tests o para
+  renderizar contenido en el idioma de una partida concreta.
 
       I18n.with_locale(:en, fn -> Catalog.races(:en) end)
   """
   @spec with_locale(atom(), (-> term())) :: term()
   def with_locale(locale, fun) when locale in @locales and is_function(fun, 0) do
-    prev = Application.get_env(:dragonex, :locale)
-    Application.put_env(:dragonex, :locale, locale)
+    prev = Process.get(@process_key)
+    put_locale(locale)
 
     try do
       fun.()
     after
-      if prev do
-        Application.put_env(:dragonex, :locale, prev)
-      else
-        Application.delete_env(:dragonex, :locale)
-      end
+      put_locale(prev)
     end
   end
 end

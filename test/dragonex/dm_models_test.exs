@@ -37,19 +37,32 @@ defmodule Dragonex.DMModelsTest do
     # A long conversation (many short beats) crosses a low threshold; the old
     # messages are replaced by the summarize fn's output, keeping only the recent
     # window verbatim. Uses a deterministic summarize fn (no LLM).
-    test "old history is replaced by a summary once the threshold is crossed" do
+    test "the provider projection is summarized once the threshold is crossed" do
+      owner = self()
+
+      model = %ExAgent.Models.Test{
+        script:
+          for(
+            _ <- 1..6,
+            do: fn request, _ ->
+              send(owner, {:projection, request})
+              "ok."
+            end
+          )
+      }
+
       compaction = %Compaction.Capability{
         compactor: Compaction.Summary,
         opts: [
           threshold_tokens: 5,
-          keep_recent: 2,
+          keep_recent: Dragonex.Agent.compaction_window(2),
           summarize: fn _old -> "RECAP: the goblin attacked twice and missed." end
         ]
       }
 
       agent =
         ExAgent.new(
-          model: %ExAgent.Models.Test{label: "ok."},
+          model: model,
           instructions: "Be brief.",
           capabilities: [compaction]
         )
@@ -60,14 +73,29 @@ defmodule Dragonex.DMModelsTest do
       # Several short chats build up history well past the 20-token threshold.
       for n <- 1..6, do: assert({:ok, _} = Server.chat(server, "turn #{n}"))
 
+      projections =
+        for _ <- 1..6 do
+          assert_receive {:projection, messages}
+          messages
+        end
+
       history = Server.history(server)
 
       # The summary landed in the history...
-      texts = history |> Message.parts() |> Enum.map_join("\n", &part_text/1)
+      texts = List.last(projections) |> Message.parts() |> Enum.map_join("\n", &part_text/1)
       assert texts =~ "RECAP: the goblin attacked twice"
       # ...and the history is bounded (no longer carries every old turn).
-      refute texts =~ "turn 1"
+      # v2 pins the first request carrying the system contract; its initial
+      # user part remains attached. Middle turns must leave the projection.
+      for old <- ["turn 2", "turn 3", "turn 4"], do: refute(texts =~ old)
       assert texts =~ "turn 6"
+
+      if Models.backend() == :req_llm do
+        canonical = history |> Message.parts() |> Enum.map_join("\n", &part_text/1)
+        assert canonical =~ "turn 1"
+        assert canonical =~ "turn 6"
+        refute canonical =~ "RECAP:"
+      end
     end
   end
 

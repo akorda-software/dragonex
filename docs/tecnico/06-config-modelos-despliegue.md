@@ -6,19 +6,33 @@
 
 ## Dependencias (`mix.exs`)
 
-- **`exagent`** — GitHub `kukapu/exagent`, branch `main`. El framework de agentes
-  (Session, Server, Tools, Capabilities, Compaction, Models). **Lock** en
-  `mix.lock` a un commit concreto.
-- **`dic_ex`** — GitHub `kukapu/dic_ex`, branch `main`. RNG de dados + render 2D/3D.
-  Los assets están **vendored** en `priv/static/assets/` (no hay build JS).
+- **`exagent`** — dev/test resuelve siempre `../exAgent`; prod, Hex `~> 2.1`
+  (D237). Ambos grafos ejecutan la misma API v2.
+- **`dic_ex`** — dev/test resuelve siempre `../dic_ex`; prod, Hex `~> 0.3`.
+  Endpoint sirve JS/CSS directamente del `priv/static` del `dic_ex` cargado.
+  Los builds de test Hex no pueden sobrescribir los assets de una VM local.
+  Reconstruir JS en el paquete: `mix dic_ex.build`; no hay build JS propio.
+- **Clientes Phoenix/LiveView** (D203): Endpoint sirve `phoenix.mjs` y
+  `phoenix_live_view.esm.js` desde el paquete instalado en cada VM. El layout
+  importa esas rutas locales; no hay CDN ni versión del cliente fijada aparte.
+- **Locks**: `mix.lock` para candidatos locales; `mix.hex.lock` para Hex/prod.
+  El test explícito del segundo grafo usa `DRAGONEX_DEPS_SOURCE=hex`. Prod
+  ignora rutas/flags locales; un hermano ausente en dev falla sin fallback.
 - Phoenix `~> 1.7`, LiveView, Ecto `~> 3.12`, Bandit `~> 1.5`, `bcrypt_elixir`,
-  `jason`, `lazy_html` (test), `dotenvy` (dev/test).
+  `jason`, `lazy_html` (test), `dotenvy` (también requerido por llm_db/ReqLLM).
 - Elixir `~> 1.20` (pin en `mix.exs`); Erlang/OTP 29 (entorno de dev/test actual,
   no hay pin duro en `mix.exs`).
 - **Package manager: `mix`**. **Nunca** npm/npx — no hay frontend JS que compilar.
 
-> Nota: `../exAgent` existe en disco pero **es huérfano** (mix no lo referencia);
-  la dep real es la de GitHub. (Drift documentado.)
+`bin/dev` carga `.env.dev` antes de mix; conserva MIX_ENV y los selectores
+explícitos del shell. Phoenix recarga `dragonex`, `exagent` y `dic_ex`; Compose
+dev monta ambos hermanos de solo lectura. D201 sustituye la configuración D26.
+
+Routing solicitado: DeepSeek4.1Flash→`decart`, MiMo2.6Flash→`io-net`, con
+`order`+`only`, `allow_fallbacks:false`, `require_parameters:true`. Smoke real
+de herramienta+texto pasa con DeepSeek en v2 local y MiMo en Hex1.2. MiMo en
+v2 falla antes de IO: stock ReqLLM1.26 no expone `reasoning.enabled:false`.
+No se inventa `reasoning_effort` ni se usa otro proveedor para salvar el probe.
 
 ## Ficheros de config
 

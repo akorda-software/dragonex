@@ -62,7 +62,7 @@ defmodule Dragonex.ActionsTest do
     end
 
     test "errors on unknown attacker / target / weapon", %{world: w} do
-      assert {:error, "no existe el atacante: ghost"} =
+      assert {:error, "no existe el personaje: ghost"} =
                Actions.attack(w, "ghost", "goblin", "longsword", always(10))
 
       assert {:error, "no existe el objetivo: ogre"} =
@@ -209,7 +209,7 @@ defmodule Dragonex.ActionsTest do
 
     test ":automatic spell always hits (magic missile 3d4+3, roller 2 -> 6+3=9)", %{world: w} do
       assert {:ok, msg, change} = Actions.spell(w, "Lyra", "magic missile", "goblin", always(2))
-      assert msg =~ "force"
+      assert msg =~ "fuerza"
       {:ok, w2} = change.(w)
       # 3d4 with roller 2 = 6, +3 = 9.
       assert w2.characters["goblin"].hp == 20 - 9
@@ -388,35 +388,56 @@ defmodule Dragonex.ActionsTest do
   end
 
   describe "initiative/2" do
+    defp rat, do: Character.new(name: "rata", class: "m", hp: 4, max_hp: 4, dex: 3, side: "enemy")
+
+    # 19451/33–40: rolled before the narrated rats had sheets.
+    test "refuses to open a fight without a present living hostile" do
+      down = Character.new(name: "goblin", class: "m", hp: 0, max_hp: 7, side: "enemy")
+
+      world =
+        World.new()
+        |> then_apply(World.add_character(Archetypes.fighter()))
+        |> then_apply(World.add_character(Archetypes.rogue()))
+        |> then_apply(World.add_character(down))
+
+      assert {:error, reason} = Actions.initiative(world, always(10))
+      assert reason =~ "regístralas primero con spawn_monster"
+      assert world.phase == :exploration
+    end
+
     test "orders by d20+dex desc and begins combat" do
       f = Archetypes.fighter()
       r = Archetypes.rogue()
+      foe = Character.new(name: "rata", class: "m", hp: 4, max_hp: 4, dex: 3, side: "enemy")
 
       world =
         World.new()
         |> then_apply(World.add_character(f))
         |> then_apply(World.add_character(r))
+        |> then_apply(World.add_character(foe))
 
-      # fixed roller 10: fighter dex 12 -> 11, rogue dex 16 -> 13. rogue first.
+      # fixed roller 10: fighter dex 12 -> 11, rogue dex 16 -> 13, rat dex 3 -> 6.
       assert {:ok, msg, change} = Actions.initiative(world, always(10))
       assert msg =~ "Vex"
       {:ok, w2} = change.(world)
       assert w2.phase == :combat
-      assert w2.initiative_order == ["Vex", "Thane"]
+      assert w2.initiative_order == ["Vex", "Thane", "rata"]
     end
 
     test "skips down (hp 0) combatants" do
       f = Archetypes.fighter()
+      foe = Character.new(name: "rata", class: "m", hp: 4, max_hp: 4, dex: 3, side: "enemy")
       g = Character.new(name: "goblin", class: "m", hp: 0, max_hp: 7, side: "enemy")
 
       world =
         World.new()
         |> then_apply(World.add_character(f))
         |> then_apply(World.add_character(g))
+        |> then_apply(World.add_character(foe))
 
       assert {:ok, _msg, change} = Actions.initiative(world, always(10))
       {:ok, w2} = change.(world)
-      assert w2.initiative_order == ["Thane"]
+      assert w2.initiative_order == ["Thane", "rata"]
     end
 
     test "same total, higher DEX score goes first" do
@@ -430,11 +451,12 @@ defmodule Dragonex.ActionsTest do
         World.new()
         |> then_apply(World.add_character(low))
         |> then_apply(World.add_character(high))
+        |> then_apply(World.add_character(rat()))
 
       # both mod +3, roller 10 → total 13; Zed wins on DEX 17 > 16 (not name).
       assert {:ok, _msg, change} = Actions.initiative(world, always(10))
       {:ok, w2} = change.(world)
-      assert w2.initiative_order == ["Zed", "Aldo"]
+      assert w2.initiative_order == ["Zed", "Aldo", "rata"]
     end
 
     test "same total and DEX breaks ties by name ascending" do
@@ -445,10 +467,11 @@ defmodule Dragonex.ActionsTest do
         World.new()
         |> then_apply(World.add_character(zed))
         |> then_apply(World.add_character(aldo))
+        |> then_apply(World.add_character(rat()))
 
       assert {:ok, _msg, change} = Actions.initiative(world, always(10))
       {:ok, w2} = change.(world)
-      assert w2.initiative_order == ["Aldo", "Zed"]
+      assert w2.initiative_order == ["Aldo", "Zed", "rata"]
     end
   end
 

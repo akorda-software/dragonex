@@ -37,6 +37,21 @@ defmodule Dragonex.TurnPolicy.WorldDrivenTest do
       assert id2 == "fighter"
       assert id3 == "dm"
     end
+
+    # A TurnMaster handoff moves `current` without the cursor. The next turn
+    # follows the participant who actually held it: the DM never answers
+    # itself because the cursor happened to point at it.
+    test "after a handoff the next turn follows the actual holder" do
+      w = World.new()
+      {"Thane", s} = turn(state(["Thane", "dm"]), w)
+      {:ok, s} = WorldDriven.handoff(s, "dm", ctx(w))
+      assert {"Thane", s} = turn(s, w)
+      assert {"dm", _} = turn(s, w)
+
+      {:ok, s} = WorldDriven.handoff(state(["dm", "Lyra", "Thane"]), "Lyra", ctx(w))
+      assert {"Thane", s} = turn(s, w)
+      assert {"dm", _} = turn(s, w)
+    end
   end
 
   describe "combat" do

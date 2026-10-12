@@ -6,8 +6,39 @@ defmodule DragonexWeb.GameLive.RollFormatTest do
   """
 
   use ExUnit.Case, async: true
+  import Phoenix.LiveViewTest, only: [render_component: 2]
 
   alias DragonexWeb.GameLive.RollFormat, as: RF
+
+  test "chat and modal show the actual penalty and explain the damage minimum" do
+    entry = %{kind: :damage, reason: "daño", dice: [[4, 1]], total: 0, raw_total: -1}
+
+    for payload <- [entry, Jason.decode!(Jason.encode!(entry))] do
+      assert RF.format_line(payload) == "daño d4:1 -2 = 0 (mínimo 0)"
+      assert RF.format_dice(payload) == "d4:1 -2 = 0 (mínimo 0)"
+
+      html = render_component(&DragonexWeb.GameLive.Dice.group_card/1, g: payload)
+      assert html =~ "d4:1 -2 = 0 (mínimo 0)"
+    end
+  end
+
+  test "legacy and unrelated or malformed subtotal metadata keep their original formatting" do
+    legacy = %{kind: :damage, reason: "daño", dice: [[4, 1]], total: 0}
+    assert RF.format_dice(legacy) == "d4:1 -1 = 0"
+
+    for entry <- [
+          Map.put(legacy, :raw_total, nil),
+          Map.put(legacy, :raw_total, "-1"),
+          Map.put(legacy, :raw_total, 0),
+          Map.put(legacy, :raw_total, 2),
+          %{legacy | kind: :save} |> Map.put(:raw_total, -1)
+        ] do
+      assert RF.format_dice(entry) == "d4:1 -1 = 0"
+      refute RF.format_line(entry) =~ "mínimo"
+    end
+
+    assert RF.format_dice(%{legacy | total: 2} |> Map.put(:raw_total, -1)) == "d4:1 +1 = 2"
+  end
 
   describe "format_line/1 (chat inline line)" do
     test "reason + dice + positive mod + total + against + outcome" do

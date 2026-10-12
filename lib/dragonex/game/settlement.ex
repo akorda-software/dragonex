@@ -10,10 +10,22 @@ defmodule Dragonex.Game.Settlement do
   GenServer's process (single-writer, D6) and return the mutated state.
   """
 
+  use Gettext, backend: Dragonex.Gettext
   require Logger
 
   alias Dragonex.Games
-  alias Dragonex.Game.{Beat, Beats, Combat, Persistence, PendingRetry, Turnmaster}
+
+  alias Dragonex.Game.{
+    Beat,
+    Beats,
+    Combat,
+    Conversations,
+    Participants,
+    Persistence,
+    PendingRetry,
+    Turnmaster
+  }
+
   alias ExAgent.Session
 
   # Transient provider errors (DeepSeek 503 / rate limit / connection drops /
@@ -31,6 +43,22 @@ defmodule Dragonex.Game.Settlement do
   # round of 4 participants failing is the trigger.
   @max_fallback_streak 4
 
+  def handle_beat_result(
+        state,
+        {:error, %{__struct__: ExAgent.RunError, reason: reason, partial: partial}}
+      ) do
+    log_token_usage(state.game_id, partial[:usage])
+    handle_beat_result(state, {:error, reason})
+  end
+
+  def handle_beat_result(
+        state,
+        {:error, %{__struct__: ExAgent.RunError, reason: reason, partial: partial}, trace}
+      ) do
+    log_token_usage(state.game_id, partial[:usage])
+    handle_beat_result(state, {:error, reason, trace})
+  end
+
   def handle_beat_result(%Dragonex.Game{} = state, result) do
     %Beat{kind: kind} = state.busy
 
@@ -38,11 +66,37 @@ defmodule Dragonex.Game.Settlement do
       :turnmaster -> handle_turnmaster_result(state, result)
       _ -> handle_actor_beat_result(state, result)
     end
+  catch
+    :throw, {:combat_end_commit_failed, paused} ->
+      paused
+
+    :throw, {:engine_commit_failed, _reason} ->
+      # No candidate reached Session. Keep the actor's durable receipt and
+      # original enemies so resume/restart can retry initiative without
+      # applying its spawn/return again. This beat's Task has already finished.
+      paused = %{state | busy: nil, status: :paused, loop_phase: :actor}
+      Persistence.persist(paused, :paused)
+
+      Games.append_event(state.game_id, :system, "system", "all", %{
+        note:
+          dgettext(
+            "engine",
+            "No se pudo guardar la iniciativa automática. La partida está en pausa; reanuda para volver a intentarlo."
+          )
+      })
+
+      Persistence.broadcast_updated(paused)
+      paused
   end
 
   # Actor beat (DM / PC / human): on success do NOT Session.end_turn — hand the
   # floor to the TurnMaster beat, which applies handoff (D25). Combat bookkeeping
   # still runs here so the World is honest before the TM decides.
+  defp handle_actor_beat_result(state, {:ok, narration, rolls, usage, refresh}) do
+    state = Dragonex.Game.SceneRefresh.commit(state, refresh)
+    handle_actor_beat_result(state, {:ok, narration, rolls, usage})
+  end
+
   defp handle_actor_beat_result(%Dragonex.Game{} = state, result) do
     %Beat{
       participant: current,
@@ -55,6 +109,9 @@ defmodule Dragonex.Game.Settlement do
       mini_turn: mini_turn
     } = state.busy
 
+    tool_results = state.busy.tool_results
+    wait_resolution = state.busy.wait_resolution
+    beat = state.busy
     state = %{state | busy: nil}
 
     case result do
@@ -64,6 +121,8 @@ defmodule Dragonex.Game.Settlement do
 
         state = Combat.maybe_force_combat(state, beat_enemies_before)
         state = Combat.maybe_end_combat(state)
+        state = Dragonex.Game.ToolReplay.clear(state)
+        slot = Combat.main_combatant(Session.read_state(state.session))
 
         # Main turns mark acted_this_round; mini-turns (cut_in/react) do not.
         state =
@@ -73,10 +132,7 @@ defmodule Dragonex.Game.Settlement do
             Combat.mark_actor_acted(state, current)
           end
 
-        world_before = Session.read_state(state.session)
-        slot = world_before.current_combatant
-
-        Combat.maybe_advance_round(state, current, beat_phase)
+        unless mini_turn, do: Combat.maybe_advance_round(state, current, beat_phase)
 
         last =
           if is_binary(slot) and slot != "" do
@@ -100,7 +156,10 @@ defmodule Dragonex.Game.Settlement do
             state
           end
 
-        # Exploration after a PC: the world answers (D28). Skip the TM beat so
+        state = Conversations.finish_beat(state, current, mini_turn)
+
+        # Exploration after a PC: the world answers (D28), or requested
+        # companions speak first (D120). Skip the TM beat so
         # a mute model cannot WorldDriven-skip the DM and emit «relevo».
         {state, skipped_tm?} = Turnmaster.maybe_auto_pass_after_pc(state, current, mini_turn)
 
@@ -122,16 +181,47 @@ defmodule Dragonex.Game.Settlement do
 
       {:error, reason} ->
         cond do
+          state.status == :paused and
+              (Dragonex.Narration.Contract.error?(reason) or Beat.max_tokens_error?(reason)) ->
+            pause_pending_narration(state, beat)
+
+          Dragonex.Narration.Contract.error?(reason) and beat.narration_retries < 1 ->
+            retries = %{
+              max_token_retries: beat_max_token_retries,
+              transient_retries: beat_transient_retries,
+              narration_retries: beat.narration_retries + 1,
+              tool_results: tool_results
+            }
+
+            instruction =
+              beat_instruction <> "\n\n" <> Dragonex.Narration.Contract.feedback(reason)
+
+            Beats.run_beat(
+              %{state | status: :running},
+              current,
+              instruction,
+              beat_turn_id,
+              Session.read_state(state.session),
+              retries
+            )
+
+          Dragonex.Narration.Contract.error?(reason) ->
+            pause_pending_narration(state, beat)
+
           Beat.max_tokens_error?(reason) and beat_max_token_retries < 1 ->
             Logger.info(
               "dragonex game #{state.game_id} beat hit max_tokens for #{current}; retrying with brevity nudge"
             )
 
-            Games.delete_narrations_for_turn(state.game_id, beat_turn_id)
-
             world = Session.read_state(state.session)
             brief = Beat.brief_retry_instruction(beat_instruction, current)
-            retries = %{max_token_retries: beat_max_token_retries + 1, transient_retries: 0}
+
+            retries = %{
+              max_token_retries: beat_max_token_retries + 1,
+              narration_retries: beat.narration_retries,
+              transient_retries: 0,
+              tool_results: tool_results
+            }
 
             Beats.run_beat(
               %{state | status: :running},
@@ -141,6 +231,9 @@ defmodule Dragonex.Game.Settlement do
               world,
               retries
             )
+
+          Beat.max_tokens_error?(reason) ->
+            pause_pending_narration(state, beat)
 
           Beat.transient_provider_error?(reason) and
               beat_transient_retries < @max_transient_retries ->
@@ -152,23 +245,134 @@ defmodule Dragonex.Game.Settlement do
               beat_turn_id,
               beat_transient_retries,
               beat_max_token_retries,
-              reason
+              reason,
+              tool_results,
+              beat.narration_retries
             )
 
+          wait_resolution != nil and
+              not Dragonex.Game.WaitResolution.resolved?(
+                Session.read_state(state.session),
+                wait_resolution,
+                beat_turn_id
+              ) ->
+            paused = %{state | status: :paused, loop_phase: :actor}
+            Persistence.persist(paused, :paused)
+
+            Games.append_event(state.game_id, :system, "system", "all", %{
+              note:
+                dgettext(
+                  "engine",
+                  "No se pudo registrar la espera. La partida está en pausa; reanuda para volver a intentarlo."
+                )
+            })
+
+            Persistence.broadcast_updated(paused)
+            paused
+
+          retain_failed_turns?() and not Games.turn_retained?(state.game_id, beat_turn_id) ->
+            # First hard failure of this turn (D228): pause on it and keep its
+            # checkpoint. Resume reruns the same turn_id; paid tools replay.
+            pause_failed_turn(state, beat, reason)
+
           true ->
-            # Soft fallback used to end_turn itself. Under TurnMaster we still
-            # advance past the failed actor via the TM path so the loop does not
-            # dead-lock on a broken agent.
-            state = handle_non_max_token_error(state, current, beat_phase, beat_turn_id, reason)
-            # handle_non_max_token_error may have end_turn'd — re-align to TM.
+            # The same turn failed again after resume. Recover past the actor
+            # without replaying committed tools, so a deterministic fault
+            # cannot block the table. Combat uses its canonical slots;
+            # exploration uses the policy. A spawn/return may already have
+            # committed before the provider failed: settle its initiative.
+            state = Combat.maybe_force_combat(state, beat_enemies_before)
+
+            state =
+              handle_non_max_token_error(
+                state,
+                current,
+                beat_phase,
+                beat_turn_id,
+                mini_turn,
+                reason
+              )
+
+            # Recovery already chose the next actor; avoid an empty TM hop.
             realign_after_actor_error(state, current)
         end
     end
   end
 
-  # After a soft actor failure the legacy path already advanced the cursor via
-  # end_turn. Keep loop_phase on :actor so the next participant acts without an
-  # extra empty TM hop (the cursor already moved).
+  defp pause_failed_turn(state, beat, reason) do
+    Logger.warning(
+      "dragonex game #{state.game_id} beat failed for #{beat.participant}; " <>
+        "pausing its turn: #{inspect(reason)}"
+    )
+
+    append_failure_note(state, reason)
+
+    note = %{
+      kind: "turn_retained",
+      note:
+        dgettext(
+          "engine",
+          "El turno %{owner} no pudo completarse (%{reason}). " <>
+            "La partida está en pausa; los resultados registrados se conservan. " <>
+            "Reanuda para volver a intentarlo.",
+          owner: turn_owner(beat.participant),
+          reason: Beat.failure_label(reason)
+        )
+    }
+
+    case Dragonex.Game.ToolReplay.retain_turn(state, beat, note) do
+      {:ok, paused} ->
+        paused
+
+      {:error, _} ->
+        paused = %{state | status: :paused, loop_phase: :actor}
+        Persistence.persist(paused, :paused)
+        Persistence.broadcast_updated(paused)
+        paused
+    end
+  end
+
+  # Tests of the skip path itself (combat slots, conversation handoff) turn
+  # the first-failure pause off, as they already shrink transient backoffs.
+  defp retain_failed_turns?, do: Application.get_env(:dragonex, :retain_failed_turns, true)
+
+  defp turn_owner("dm"), do: dgettext("engine", "del DM")
+  defp turn_owner(actor), do: dgettext("engine", "de %{actor}", actor: actor)
+
+  # The raw reason is persisted and later replayed in the DM history.
+  # `inspect(reason)` of a Jason.EncodeError carries the offending raw binary
+  # (invalid UTF-8 bytes included), which would then wedge every future beat
+  # when the history is re-serialized. Truncate to a short, sanitized digest
+  # and scrub it (D7) since it re-enters the shared history as model-adjacent
+  # text that could otherwise carry prompt-injection markers.
+  defp append_failure_note(state, reason) do
+    failure_note =
+      dgettext("engine", "el turno falló: %{reason}", reason: inspect(reason))
+      |> String.slice(0, 300)
+      |> Dragonex.Text.sanitize_utf8()
+      |> Dragonex.Text.scrub()
+
+    {:ok, _} =
+      Games.append_event(state.game_id, :system, "system", "dm", %{
+        note: failure_note
+      })
+  end
+
+  defp pause_pending_narration(state, beat) do
+    case Dragonex.Game.ToolReplay.retain_narration(state, beat) do
+      {:ok, paused} ->
+        paused
+
+      {:error, _} ->
+        paused = %{state | status: :paused, loop_phase: :actor}
+        Persistence.persist(paused, :paused)
+        Persistence.broadcast_updated(paused)
+        paused
+    end
+  end
+
+  # Actor recovery already selected the next floor holder. Keep loop_phase on
+  # :actor so that participant acts without an extra empty TurnMaster hop.
   defp realign_after_actor_error(state, _current) do
     %{state | loop_phase: :actor, last_actor: nil}
   end
@@ -266,54 +470,58 @@ defmodule Dragonex.Game.Settlement do
         "#{name}(#{inspect(args)})"
       end)
 
-    " — últimas llamadas: " <> rendered
+    " — last calls: " <> rendered
   end
 
-  defp handle_non_max_token_error(state, current, beat_phase, beat_turn_id, reason) do
+  defp handle_non_max_token_error(state, current, beat_phase, beat_turn_id, mini_turn, reason) do
     Logger.warning("dragonex game #{state.game_id} beat failed: #{inspect(reason)}")
 
     streak = state.fallback_streak + 1
     state = %{state | fallback_streak: streak}
 
-    # The failure note is persisted and later replayed in the shared history.
-    # `inspect(reason)` of a Jason.EncodeError carries the offending raw binary
-    # (invalid UTF-8 bytes included), which would then wedge every future beat
-    # when the history is re-serialized. Truncate to a short, sanitized digest
-    # and scrub it (D7) since it re-enters the shared history as model-adjacent
-    # text that could otherwise carry prompt-injection markers.
-    failure_note =
-      ("el turno falló: " <> inspect(reason))
-      |> String.slice(0, 300)
-      |> Dragonex.Text.sanitize_utf8()
-      |> Dragonex.Text.scrub()
+    append_failure_note(state, reason)
+
+    # Speech may already be on the timeline, and a provider failure cannot give
+    # anyone an invented gesture or imply a declaration completed. Report the
+    # skipped turn as a system note; committed rule results stay.
+    note =
+      if Participants.human?(state, current) and not Participants.ai_pc?(state, current) and
+           Games.declaration_for_turn(state.game_id, current, beat_turn_id) do
+        dgettext(
+          "engine",
+          "La declaración de %{actor} no pudo completarse. Los resultados ya registrados se conservan.",
+          actor: current
+        )
+      else
+        dgettext(
+          "engine",
+          "El turno %{owner} se omite tras volver a fallar. " <>
+            "Los resultados ya registrados se conservan.",
+          owner: turn_owner(current)
+        )
+      end
 
     {:ok, _} =
-      Games.append_event(state.game_id, :system, "system", "dm", %{
-        note: failure_note
+      Games.append_event(state.game_id, :system, "system", "all", %{
+        turn_id: beat_turn_id,
+        kind: "turn_skipped",
+        note: note
       })
 
-    # The Events capability persists narration mid-beat (after_model_request) as
-    # soon as the model produces text. If the beat then fails (e.g. the model
-    # emitted text but no valid final response / tool call after), the narration
-    # is ALREADY on the timeline — appending "X titubea y el turno pasa de largo"
-    # on top of it reads as a contradiction. So only render the soft fallback
-    # when the beat produced NO narration at all.
-    already_narrated =
-      state.game_id
-      |> Games.recent_events(10)
-      |> Enum.any?(fn e ->
-        e.type == :narration and e.payload["turn_id"] == beat_turn_id
-      end)
-
-    unless already_narrated do
-      fallback = Beat.fallback_narration(current, reason)
-      {:ok, _} = Games.append_event(state.game_id, :narration, current, "all", %{text: fallback})
-    end
-
-    {:ok, _} = Session.end_turn(state.session, current)
+    # Tools may already have committed damage and spent resources before the
+    # model failed. The failed main slot still counts as used, just as a
+    # successful beat does. Mark it while the Session still admits its actor;
+    # the next DM slot must resolve the next monster, not this one again.
+    state = if mini_turn, do: state, else: Combat.mark_actor_acted(state, current)
 
     state = Combat.maybe_end_combat(state)
-    Combat.maybe_advance_round(state, current, beat_phase)
+    state = Dragonex.Game.ToolReplay.clear(state)
+    unless mini_turn, do: Combat.maybe_advance_round(state, current, beat_phase)
+    state = Conversations.finish_beat(state, current, mini_turn)
+    {state, conversation_handoff?} = Turnmaster.maybe_handoff_conversation(state, mini_turn)
+
+    state =
+      if conversation_handoff?, do: state, else: Combat.fallback_turn(state, mini: mini_turn)
 
     # Circuit breaker: if beats keep failing, STOP instead of feeding another
     # round. A persistent provider outage (or a wedged scene every agent keeps
@@ -328,8 +536,12 @@ defmodule Dragonex.Game.Settlement do
       {:ok, _} =
         Games.append_event(state.game_id, :system, "system", "all", %{
           note:
-            "⏸ La partida se ha pausado automáticamente tras #{@max_fallback_streak} turnos fallidos seguidos. " <>
-              "Reanuda manualmente cuando quieras continuar."
+            dgettext(
+              "engine",
+              "⏸ La partida se ha pausado automáticamente tras %{count} turnos fallidos seguidos. " <>
+                "Reanuda manualmente cuando quieras continuar.",
+              count: @max_fallback_streak
+            )
         })
 
       Persistence.persist(state, :paused)
@@ -358,7 +570,9 @@ defmodule Dragonex.Game.Settlement do
          turn_id,
          transient_retries,
          max_token_retries,
-         reason
+         reason,
+         tool_results \\ %{},
+         narration_retries \\ 0
        ) do
     backoff = Beat.transient_backoff(transient_retries)
 
@@ -369,22 +583,36 @@ defmodule Dragonex.Game.Settlement do
 
     Process.send_after(self(), {:retry_beat, turn_id}, backoff)
 
-    # Keep status as :running (a retry is mid-flight), but do NOT persist/tick —
-    # the world hasn't changed and we don't want advance() to fire. busy stays
-    # populated so the loop stays parked until the retry resolves.
-    %{
+    # A provider result can arrive after pause. Keep that pause authoritative;
+    # a retry is in-flight only while the user leaves the game running. No
+    # World/event write or competing advance tick is needed, just a UI update.
+    state = %{
       state
-      | status: :running,
+      | status: if(state.status == :paused, do: :paused, else: :running),
         busy: %PendingRetry{
           participant: current,
           phase: beat_phase,
           turn_id: turn_id,
           instruction: instruction,
+          model_retry: argument_retry_feedback(reason),
+          tool_results: tool_results,
           transient_retries: transient_retries + 1,
-          max_token_retries: max_token_retries
+          max_token_retries: max_token_retries,
+          narration_retries: narration_retries
         }
     }
+
+    Persistence.broadcast_updated(state)
+    state
   end
+
+  defp argument_retry_feedback(
+         {:model_request_failed,
+          %ExAgent.RequestError{provider: :req_llm, reason: :invalid_tool_arguments}}
+       ),
+       do: :invalid_tool_arguments
+
+  defp argument_retry_feedback(_), do: nil
 
   defp log_token_usage(game_id, %{input_tokens: input} = usage) when is_integer(input) do
     cached = Dragonex.Models.cached_tokens(usage)

@@ -325,14 +325,15 @@ defmodule Dragonex.FontOfMagicTest do
     end
   end
 
-  describe "level-up no resetea puntos restantes" do
-    test "L2 con 1 punto sube a L3 y conserva 1" do
+  describe "level-up conserva puntos gastados" do
+    test "L2 con 1 punto sube a L3 con 2 por la capacidad ganada" do
       w = world([sorcerer(sorcery_points: 1)])
 
       {:ok, w2} = World.level_up("Sylas", %{}).(w)
 
       assert w2.characters["Sylas"].level == 3
-      assert w2.characters["Sylas"].sorcery_points == 1
+      # D126: sigue gastado un punto; la capacidad nueva aporta uno más.
+      assert w2.characters["Sylas"].sorcery_points == 2
     end
   end
 

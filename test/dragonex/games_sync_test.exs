@@ -16,7 +16,7 @@ defmodule Dragonex.GamesSyncTest do
     %{user: user, hero: hero, char: char}
   end
 
-  test "games_using_hero y sync_hero_level_up propagan la subida a la partida", %{
+  test "games_using_hero y sync_hero_level_up propagan la subida antes de iniciar la sala", %{
     user: user,
     hero: hero
   } do
@@ -26,6 +26,7 @@ defmodule Dragonex.GamesSyncTest do
       Games.create_game(
         title: "sync",
         scene: "una taberna",
+        open_slots: 1,
         roster: [{sheet, :human, hero.id}]
       )
 
@@ -34,7 +35,7 @@ defmodule Dragonex.GamesSyncTest do
     # El personaje en partida arranca en nivel 1 con algo de daño sufrido
     world = Games.load_world(game)
     {:ok, w2} = Dragonex.World.apply_damage("Thane", 4).(world)
-    {:ok, _} = Games.save_state(game.id, w2, nil, 1, :waiting)
+    {:ok, _} = Games.save_state(game.id, w2, nil, 1, :configuring)
     live = Games.load_world(Games.get_game(game.id)).characters["Thane"]
     assert live.level == 1
     assert live.hp == live.max_hp - 4
@@ -54,6 +55,14 @@ defmodule Dragonex.GamesSyncTest do
     # exactamente (sin ASI de CON); el daño sufrido persiste.
     assert synced.max_hp > live.max_hp
     assert synced.hp == live.hp
+    assert Games.get_game(game.id).status == :configuring
+    assert Games.get_game(game.id).open_slots == 1
+    assert is_nil(Dragonex.Game.Supervisor.whereis(game.id))
+    assert {:error, :stale_level} = Games.sync_hero_level_up(game.id, hero.id, sheet)
+    assert Games.load_world(Games.get_game(game.id)) == reloaded
+
+    assert Dragonex.Codec.decode_character(hd(Games.get_game(game.id).characters).sheet).level ==
+             2
   end
 
   test "games_using_hero devuelve [] para un héroe sin partidas", %{hero: hero} do
@@ -136,9 +145,8 @@ defmodule Dragonex.GamesSyncTest do
     assert out.death_saves == %{fails: 1, successes: 2}
     assert out.conditions == [%{condition: "poisoned"}, %{condition: "prone"}]
 
-    # Los slots del nuevo nivel se refrescan, pero el consumo previo NO se
-    # "deshace": los slots máximos a L2 son 3×1; aquí simplemente se reponen.
-    assert merged.spell_slots["X"][1] == 3
+    # La capacidad pasa de 2 a 3 y sigue gastada una casilla: quedan dos.
+    assert merged.spell_slots["X"][1] == 2
   end
 
   test "merge LOW-5: un caído (0 hp) sigue caído tras la sync" do

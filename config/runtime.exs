@@ -13,14 +13,19 @@ if config_env() in [:dev, :test] do
 
   # Override de DB desde entorno (p.ej. dentro de compose.dev.yml: DB_HOST=postgres,
   # o en host: DB_PORT=5455 vía .env.dev). Defaults que no cambian el flujo por defecto.
-  default_db = if config_env() == :test, do: "dragonex_test", else: "dragonex_dev"
+  # .env.dev names the database used by the live application. Tests must not
+  # inherit that database, even through bin/dev or an exported DB_NAME.
+  database =
+    if config_env() == :test,
+      do: System.get_env("DB_TEST_NAME", "dragonex_test"),
+      else: System.get_env("DB_NAME", "dragonex_dev")
 
   config :dragonex, Dragonex.Repo,
     hostname: System.get_env("DB_HOST", "127.0.0.1"),
     port: String.to_integer(System.get_env("DB_PORT", "5432")),
     username: System.get_env("DB_USER", "postgres"),
     password: System.get_env("DB_PASS", "postgres"),
-    database: System.get_env("DB_NAME", default_db)
+    database: database
 end
 
 if config_env() == :dev do

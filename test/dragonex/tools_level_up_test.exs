@@ -13,7 +13,12 @@ defmodule Dragonex.ToolsLevelUpTest do
   alias ExAgent.{Session, Session.SharedState}
 
   test "rechaza subir a un PC humano y se lo recuerda al DM" do
-    ctx = %{deps: %{human_pcs: MapSet.new(["Thane"])}}
+    ctx = %{
+      deps: %{
+        state: %SharedState{session: self(), participant_id: "dm"},
+        human_pcs: MapSet.new(["Thane"])
+      }
+    }
 
     assert {:ok, msg} = Tools.level_up(ctx, "Thane", %{})
     assert msg =~ "jugador humano"

@@ -9,53 +9,54 @@ defmodule Dragonex.TurnMaster.Tools do
   """
 
   use ExAgent.Tools
+  use Gettext, backend: Dragonex.Gettext
 
   alias Dragonex.TurnMaster.Decision
   alias Dragonex.World
 
-  @doc "Entrega el turno / la palabra al participante (herramienta por defecto)."
+  @doc "Give the turn / the floor to the participant (default tool)."
   deftool give_turn_to(ctx, participant :: String.t()) do
     with {:ok, to} <- resolve_target(ctx, participant),
          :ok <- record(ctx, %{action: :give_turn_to, to: to}) do
-      {:ok, "turno entregado a #{to}"}
+      {:ok, dgettext("engine", "turno entregado a %{to}", to: to)}
     end
   end
 
   @doc """
-  Interrupción dramática en combate: el participante recibe un mini-turno y el
-  flujo vuelve después al actor interrumpido. No gasta el turno principal del
-  reactor en la ronda.
+  Dramatic interruption in combat: the participant gets a mini-turn and the
+  flow then returns to the interrupted actor. It does not spend the reactor's
+  main turn in the round.
   """
   deftool cut_in(ctx, participant :: String.t()) do
     with :ok <- require_combat(ctx),
          {:ok, to} <- resolve_target(ctx, participant),
          :ok <- record(ctx, %{action: :cut_in, to: to}) do
-      {:ok, "#{to} interrumpe"}
+      {:ok, dgettext("engine", "%{to} interrumpe", to: to)}
     end
   end
 
   @doc """
-  Reacción fuera de orden (ataque de oportunidad, escudo reactivo, etc.).
-  Mini-turno; no gasta el turno principal del reactor.
+  Out-of-order reaction (opportunity attack, reactive Shield, etc.).
+  Mini-turn; it does not spend the reactor's main turn.
   """
   deftool react(ctx, participant :: String.t()) do
     with :ok <- require_combat(ctx),
          {:ok, to} <- resolve_target(ctx, participant),
          :ok <- record(ctx, %{action: :react, to: to}) do
-      {:ok, "#{to} reacciona"}
+      {:ok, dgettext("engine", "%{to} reacciona", to: to)}
     end
   end
 
-  @doc "Cede explícitamente al máster (abrir/cerrar escena, entorno, voz de PNJ)."
+  @doc "Explicitly hand over to the DM (open/close a scene, environment, NPC voice)."
   deftool pass_to_dm(ctx) do
     record(ctx, %{action: :pass_to_dm, to: "dm"})
-    {:ok, "turno entregado al DM"}
+    {:ok, dgettext("engine", "turno entregado al DM")}
   end
 
-  @doc "Cierra el encuentro/escena de combate y deja el grupo en exploración."
+  @doc "Close the combat encounter/scene and return the party to exploration."
   deftool end_scene(ctx) do
     record(ctx, %{action: :end_scene, to: "dm"})
-    {:ok, "escena cerrada — vuelve a exploración"}
+    {:ok, dgettext("engine", "escena cerrada — vuelve a exploración")}
   end
 
   # ----------------------------------------------------------------- helpers
@@ -76,7 +77,7 @@ defmodule Dragonex.TurnMaster.Tools do
   defp require_combat(ctx) do
     case world(ctx) do
       %World{phase: :combat} -> :ok
-      _ -> {:error, "cut_in/react solo en combate"}
+      _ -> {:error, dgettext("engine", "cut_in/react solo en combate")}
     end
   end
 
@@ -102,20 +103,21 @@ defmodule Dragonex.TurnMaster.Tools do
 
     cond do
       name == "" ->
-        {:error, "participante vacío"}
+        {:error, dgettext("engine", "participante vacío")}
 
       canonical != nil ->
         check_vitality(world, canonical)
 
       roster != [] ->
-        {:error, "#{name} no es un participante de esta partida"}
+        {:error, dgettext("engine", "%{name} no es un participante de esta partida", name: name)}
 
       true ->
-        {:error, "#{name} no existe en la escena"}
+        {:error, dgettext("engine", "%{name} no existe en la escena", name: name)}
     end
   end
 
-  defp resolve_target(_ctx, name), do: {:error, "#{inspect(name)} no es un participante válido"}
+  defp resolve_target(_ctx, name),
+    do: {:error, dgettext("engine", "%{name} no es un participante válido", name: inspect(name))}
 
   defp check_vitality(world, name) do
     cond do
@@ -123,14 +125,20 @@ defmodule Dragonex.TurnMaster.Tools do
         # Roster-only participant (e.g. "dm") — nothing to vitality-check.
         {:ok, name}
 
+      not World.present?(world, name) ->
+        {:error,
+         dgettext("engine", "%{name} está fuera de escena — elige un combatiente presente",
+           name: name
+         )}
+
       World.dead?(world, name) ->
-        {:error, "#{name} está muerto — elige a otro"}
+        {:error, dgettext("engine", "%{name} está muerto — elige a otro", name: name)}
 
       World.down?(world, name) and world.phase == :combat ->
         # Downed PCs still take death-save turns; enemies at 0 are skipped.
         case World.character(world, name) do
           %{side: "pc"} -> {:ok, name}
-          _ -> {:error, "#{name} está caído — elige a otro"}
+          _ -> {:error, dgettext("engine", "%{name} está caído — elige a otro", name: name)}
         end
 
       true ->

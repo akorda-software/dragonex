@@ -18,7 +18,20 @@ defmodule Dragonex.Text do
   then sanitizes UTF-8 and adds attribution tags — it does not re-scrub.
 
   Idempotent: scrubbing already-clean text is a no-op.
+
+  ## Language
+
+  Every heuristic that depends on the language of the prose (turn labels,
+  stat words, meta phrases, puppeting verbs, speech and question detection)
+  reads its vocabulary from `Dragonex.Text.Lexicon`, selected by the
+  per-process locale (`Dragonex.I18n.locale/0`): Castilian with `:es`
+  (the original behaviour), English with `:en`. Structural steps (actor
+  tags, leaked tool tokens, tables, battlemaps, UTF-8) are shared.
   """
+
+  alias Dragonex.Text.Lexicon
+
+  defp lx, do: Lexicon.current()
 
   @doc """
   Strip model-output noise and return clean prose. Order matters: the turn
@@ -42,6 +55,8 @@ defmodule Dragonex.Text do
 
   @spec scrub(binary(), binary() | nil, keyword()) :: binary()
   def scrub(text, actor, opts) when is_binary(text) and is_list(opts) do
+    names = narration_names(actor, opts)
+
     text
     |> strip_leading_actor_tags()
     |> strip_inline_actor_tags()
@@ -49,7 +64,7 @@ defmodule Dragonex.Text do
     |> strip_inline_history_headers()
     |> unwrap_markdown_emphasis()
     |> strip_orphan_emphasis()
-    |> strip_leading_self_name(actor)
+    |> maybe_strip_leading_self_name(actor, names)
     |> strip_fused_roll_label(actor)
     |> strip_leaked_tool_tokens()
     |> drop_combat_recap_blocks()
@@ -58,8 +73,8 @@ defmodule Dragonex.Text do
     |> drop_narrated_dice_syntax()
     |> drop_narrated_tool_invocations()
     |> drop_engine_meta_phrases()
-    |> maybe_strip_puppet_clauses(actor, Keyword.get(opts, :pc_names, []))
-    |> maybe_strip_pc_world_leaks(actor)
+    |> maybe_strip_puppet_clauses(actor, names)
+    |> maybe_strip_pc_world_leaks(actor, names)
     |> maybe_strip_solo_exec(actor, opts)
     |> drop_markdown_tables()
     |> drop_ascii_battlemaps()
@@ -147,7 +162,12 @@ defmodule Dragonex.Text do
   defp strip_inline_history_headers(text) do
     text
     |> String.replace(~r/\[R\d+(?:\s*·\s*[^\]]{1,60}){0,4}\]\s*:?\s*/u, "")
-    |> String.replace(~r/\[→\s*[^\]\n]{1,40}\s+decide\]\s*:?\s*/u, "")
+    |> String.replace(Lexicon.decision_marker(), "")
+    |> then(
+      &Enum.reduce(Lexicon.stray_history_labels(), &1, fn re, acc ->
+        String.replace(acc, re, "")
+      end)
+    )
   end
 
   # Dice-card leak: the model (or a glued who-chip) writes "Lyrachequeo de
@@ -157,7 +177,7 @@ defmodule Dragonex.Text do
   defp strip_fused_roll_label(text, actor) when is_binary(actor) and actor != "" do
     escaped = Regex.escape(actor)
 
-    case Regex.compile("#{escaped}(?=chequeo|ataque|tirada|salvaci[oó]n)", "iu") do
+    case Regex.compile("#{escaped}(?=#{lx().fused_roll_words()})", "iu") do
       {:ok, re} -> String.replace(text, re, "")
       {:error, _} -> text
     end
@@ -204,6 +224,15 @@ defmodule Dragonex.Text do
 
       {:error, _} ->
         text
+    end
+  end
+
+  defp maybe_strip_leading_self_name(text, actor, names) do
+    speaker = text |> String.trim_leading() |> String.replace(~r/^—\s*/u, "")
+
+    case matching_name(speaker, names.all) do
+      nil -> strip_leading_self_name(text, actor)
+      name -> if same_name?(name, names.own), do: strip_leading_self_name(text, actor), else: text
     end
   end
 
@@ -254,7 +283,8 @@ defmodule Dragonex.Text do
 
   # Inline HP/CA leaks. The rule says don't reveal stats; when the model
   # disobeys, strip the numbers so the player never sees them. We keep the
-  # surrounding sentence and just drop the offending pattern. Covered forms:
+  # surrounding sentence and just drop the offending pattern. Covered forms
+  # (see the lexicons for each language's words):
   #   * "6/13 pg", "10/10 hp"            — current/max (the X/Y form)
   #   * "(13 → 6/13 pg)" envelopes
   #   * "le quedan 7 pg", "le quedan X"
@@ -263,33 +293,18 @@ defmodule Dragonex.Text do
   #   * "7 puntos de golpe/vida"
   #   * "1 de los 7 puntos de vida originales"
   # Conservative on bare numbers: a digit only counts as HP when followed
-  # explicitly by pg/hp/p.g./puntos de (golpe|vida), so "15 de oro" or "3
-  # puertas" are left alone. "CA" is matched case-sensitively (always uppercase
-  # in stat blocks) so the Spanish syllable "ca" inside other words is safe.
-  @inline_hp_xy ~r/\b\d{1,4}\s*\/\s*\d{1,4}\s*(?:pg|hp|p\.g\.|puntos de (?:golpe|vida))\b/i
-  # Bare HP: both forms — "13 pg" (number-first) and "HP 13" (label-first).
-  @inline_bare_hp ~r/\b(?:\d{1,4}\s*(?:pg|hp|p\.g\.)|(?:pg|hp)\s*\d{1,4})\b/i
-  @inline_puntos ~r/\b\d{1,4}\s*puntos de (?:golpe|vida)\b/i
-  @inline_of_total ~r/\b\d{1,4}\s*de los\s*\d{1,4}\s*puntos de (?:golpe|vida)(?:\s*originales)?\b/i
-  # Armor class: both Spanish (CA) and English (AC) — the model leaks stats in
-  # either language.
-  @inline_ca ~r/\b(?:CA|AC)\s*(?::|=|es|de)?\s*\d{1,4}\b/
-  @inline_ca_long ~r/\bclase de armadura\s*(?::|=|es|de)?\s*\d{1,4}\b/i
-  # A whole parenthesised stat block the model sometimes drops into prose:
-  # "(AC 12, HP 13, daño 1d4+2 con tridente)" — drop the entire parenthesis.
-  @stats_parens ~r/\([^)]*(?:\b(?:CA|AC|HP|PG|pg)\b\s*(?:[:=]|\s*es\s*|\s*de\s*)?\s*\d|\d{1,4}\s*\/\s*\d{1,4})[^)]*\)/i
-
+  # explicitly by an HP unit, so "15 de oro" or "3 puertas" are left alone.
   defp drop_inline_stats(text) do
     text
-    |> String.replace(@stats_parens, "")
-    |> String.replace(@inline_of_total, "")
-    |> String.replace(@inline_hp_xy, "")
-    |> String.replace(@inline_puntos, "")
-    |> String.replace(@inline_bare_hp, "")
-    |> String.replace(@inline_ca_long, "")
-    |> String.replace(@inline_ca, "")
+    |> String.replace(lx().stats_parens(), "")
+    |> String.replace(lx().inline_of_total(), "")
+    |> String.replace(lx().inline_hp_xy(), "")
+    |> String.replace(lx().inline_points(), "")
+    |> String.replace(lx().inline_bare_hp(), "")
+    |> String.replace(lx().inline_ac_long(), "")
+    |> String.replace(lx().inline_ac(), "")
     |> String.replace(~r/\(\s*\d{1,4}\s*→\s*\)/, "")
-    |> String.replace(~r/\ble quedan\b\s*\/?\s*(?:pg|hp)?\.?/i, "")
+    |> String.replace(lx().hp_left(), "")
     |> drop_dice_notation()
   end
 
@@ -308,12 +323,9 @@ defmodule Dragonex.Text do
       "\\1"
     )
     # Orphan "N de" / "N de **" when the unit (HP/pg) was stripped
-    |> String.replace(~r/\b\d{1,4}\s+de\s*(?:\*\*)?\s*(?=\*\*|[.,;:!?…]|$)/u, "")
+    |> String.replace(lx().orphan_of(), "")
     # Dangling "queda con ." / "cae a ," / "recuperado por completo ."
-    |> String.replace(
-      ~r/\b(queda con|cae a|baja a|tiene|con|por completo)\s*(?=[.,;:!?…]|$)/iu,
-      ""
-    )
+    |> String.replace(lx().dangling_stat(), "")
     # Double spaces / space before punctuation left by removals
     |> String.replace(~r/[^\S\n]{2,}/u, " ")
     |> String.replace(~r/\s+([.,;:!?…])/u, "\\1")
@@ -352,26 +364,22 @@ defmodule Dragonex.Text do
   # prose that happens to mention a die, like "tiré un d20: salió un 15" — rare,
   # but we'd rather under-clean than mangle legitimate narration.
   defp line_looks_like_tool_leak?(line) do
-    Regex.match?(
-      ~r/\b(?:ataque|ataca|chequeo|tirada|da[nñ]o|salvaci[oó]n|iniciativa)\b/i,
-      line
-    )
+    Regex.match?(lx().tool_leak_words(), line)
   end
 
   # These appear when the model recaps HP per combatant. Drop the whole block:
   # the header line + any following list of "<name>: ... pg" / "<name> (X/Y)".
   # Accept markdown bold on either side of the colon: `**Estado del Combate:**`,
   # `**Estado del Combate**:`, `Estado del Combate:`.
-  @recap_headers ~r/^\s*\*{0,2}\s*(?:Estado del (?:Combate|Batalla)|Situación(?: actual)?|Resumen(?: del combate)?|Combate|Stats?|Batalla)\s*\*{0,2}\s*[:：]\s*\*{0,2}\s*$/i
-
   defp drop_combat_recap_blocks(text) do
     lines = String.split(text, "\n")
+    recap_headers = lx().recap_headers()
 
     {dropped, kept} =
       Enum.reduce(lines, {false, []}, fn line, {in_block, acc} ->
         cond do
           # Header opens a recap block — start dropping.
-          Regex.match?(@recap_headers, line) ->
+          Regex.match?(recap_headers, line) ->
             {true, acc}
 
           # Inside a recap block: list rows (- name: X/Y pg, - name (X/Y)) stay dropped.
@@ -399,8 +407,8 @@ defmodule Dragonex.Text do
     starts_with_bullet? = String.starts_with?(trimmed, ["-", "*", "+"])
 
     has_stats? =
-      Regex.match?(~r/\d{1,4}\s*\/\s*\d{1,4}\s*(?:pg|hp)/i, trimmed) or
-        Regex.match?(~r/\bCA\s*\d+/i, trimmed)
+      Regex.match?(lx().recap_row_hp(), trimmed) or
+        Regex.match?(lx().recap_row_ac(), trimmed)
 
     starts_with_bullet? and has_stats?
   end
@@ -412,20 +420,7 @@ defmodule Dragonex.Text do
   # These break immersion — the model is describing its own mechanics or
   # narrating the engine instead of the fiction.
   defp drop_engine_meta_phrases(text) do
-    text
-    |> String.replace(
-      ~r/el (?:sistema|motor|framework|backend)\s+(?:resuelve|decide|procesa|devuelve)[^.]*\./i,
-      ""
-    )
-    |> String.replace(
-      ~r/la (?:herramienta|tool|función)\s+(?:resuelve|devuelve|procesa)[^.]*\./i,
-      ""
-    )
-    |> String.replace(~r/la escena se resetea[^.]*\./i, "")
-    |> String.replace(~r/\blo materializo(?:\s+en el mundo)?[^.]*\./i, "")
-    |> String.replace(~r/para que (?:sea oficial|conste|quede registrado)[^.]*\./i, "")
-    |> String.replace(~r/(?:yo )?como DM[^.]*\./i, "")
-    |> String.replace(~r/\b[Ee]l [ée]xito del (?:chequeo|estudio|examen)[^.]*\./u, "")
+    Enum.reduce(lx().engine_meta(), text, &String.replace(&2, &1, ""))
   end
 
   # Tool calls the model WRITES into the prose instead of emitting as real
@@ -435,13 +430,12 @@ defmodule Dragonex.Text do
   # Both are noise the player should never see. The real tool call (if any) was
   # emitted separately and resolved by the engine; this is the model narrating
   # the invocation as text.
-  @narrated_tool_calls ~r/\b(?:establish_fact|spawn_monster|set_scene|make_attack|cast_spell|roll_initiative|ability_check|end_combat|level_up|apply_condition|remove_condition|heal|grant_temp_hp|grant_xp|drop_concentration|start_rage|end_rage|start_reckless|end_reckless|second_wind|action_surge|flurry_of_blows|hunters_mark|cunning_action_hide|start_uncanny_dodge|create_spell_slot|convert_to_sorcery_points|arm_metamagic|divine_smite|end_smite|lay_on_hands|divine_sense|turn_undead|bardic_inspiration|arcane_recovery|wild_shape|end_wild_shape|make_death_save|short_rest|long_rest)\s*\([^)]*\)/i
-  @narrated_tool_brackets ~r/\[(?:establecer )?(?:hecho|spawn|invocaci[oó]n|narraci[oó]n|acci[oó]n)\s*[:=][^\]]*\]/i
+  @narrated_tool_calls ~r/\b(?:record_npc_statement|establish_fact|spawn_monster|set_scene|make_attack|cast_spell|roll_initiative|ability_check|end_combat|level_up|apply_condition|remove_condition|heal|grant_temp_hp|grant_xp|drop_concentration|start_rage|end_rage|start_reckless|end_reckless|second_wind|action_surge|flurry_of_blows|hunters_mark|cunning_action_hide|start_uncanny_dodge|create_spell_slot|convert_to_sorcery_points|arm_metamagic|divine_smite|end_smite|lay_on_hands|divine_sense|turn_undead|bardic_inspiration|arcane_recovery|wild_shape|end_wild_shape|make_death_save|short_rest|long_rest)\s*\([^)]*\)/i
 
   defp drop_narrated_tool_invocations(text) do
     text
     |> String.replace(@narrated_tool_calls, "")
-    |> String.replace(@narrated_tool_brackets, "")
+    |> String.replace(lx().narrated_tool_brackets(), "")
   end
 
   # Markdown tables: a header row of |...|...| followed by a separator row of
@@ -522,91 +516,327 @@ defmodule Dragonex.Text do
   # clause instead of trusting the next beat.
   # ---------------------------------------------------------------------------
 
-  @puppet_action_verbs ~w(
-    ataca ataco atacar ataque
-    lanza lanzo lanzar
-    conjura conjuro conjurar
-    golpea golpeo golpear
-    dispara disparo disparar
-    desenvaina desenvainar desenfunda desenfundar
-    tensa tensar apunta apuntar
-    prepara preparar
-    carga cargo cargar
-    salta salto saltar
-    corre correr
-    persigue perseguir
-    hechiza hechizar
-    arremete arremeter
-    embiste embestir
-    invoca invocar
-    avanza avanzar
-    sube subir baja bajar
-    entra entrar sale salir
-    mueve mover
-    abre abrir cierra cerrar
-    empuja empujar tira tirar
-    agarra coge toma deja
-    gira voltea
-    examina examinar inspecciona inspeccionar
-    busca buscar registra estudia
-    dice hablar habla
-    grita susurrar susurra
-    pregunta preguntar responde responder exclama replica
-    aprovecha aprovechar
-    se_abalanza se_lanza se_agacha se_acerca se_incorpora se_prepara
-  )
+  # The vocabulary of these cuts (proactive verbs, clitics/adverbs, party
+  # subjects, implicit plural movement, environment nouns) lives in the
+  # locale lexicon; see `Dragonex.Text.Lexicon.Es` / `.En`.
+  @quoted_span ~r/((?:«[^»]*(?:»|$)|“[^”]*(?:”|$)|"[^"]*(?:"|$)))/u
 
   @doc """
   True when `text` describes a PC performing a proactive action (rule 14 leak).
   """
   @spec dm_puppets_pc?(String.t(), [String.t()]) :: boolean()
-  def dm_puppets_pc?(text, pc_names)
-      when is_binary(text) and is_list(pc_names) do
-    pc_names != [] and Regex.match?(puppet_anywhere_pattern(pc_names), text)
+  @spec dm_puppets_pc?(String.t(), [String.t()], [String.t()]) :: boolean()
+  def dm_puppets_pc?(text, pc_names, character_names \\ [])
+
+  def dm_puppets_pc?(text, pc_names, character_names)
+      when is_binary(text) and is_list(pc_names) and is_list(character_names) do
+    %{targets: targets} =
+      narration_names("dm", pc_names: pc_names, character_names: character_names)
+
+    text = unwrap_markdown_emphasis(text)
+
+    targets != [] and
+      (Regex.match?(puppet_anywhere_pattern(targets), text) or
+         Regex.match?(puppet_relative_pattern(targets), text) or
+         Enum.any?(split_puppet_clauses(text, lx().collective_heads()), fn clause ->
+           collective_action_clause?(clause) or strip_implicit_party_action(clause) != clause
+         end))
   end
 
-  def dm_puppets_pc?(_, _), do: false
+  def dm_puppets_pc?(_, _, _), do: false
+
+  @doc "Detect a proactive clause removed by roster-aware sanitization, preserving NPC invitations."
+  @spec puppets_pc?(String.t(), String.t() | nil, [String.t()], [String.t()]) :: boolean()
+  def puppets_pc?(text, actor, pc_names, character_names \\ [])
+
+  def puppets_pc?(text, actor, pc_names, character_names)
+      when is_binary(text) and is_list(pc_names) and is_list(character_names) do
+    names = narration_names(actor, pc_names: pc_names, character_names: character_names)
+    targets = names.targets
+
+    text = unwrap_markdown_emphasis(text)
+
+    if targets == [] do
+      false
+    else
+      # Compare against the same clause normalization so newlines or spaces
+      # cannot turn a legitimate scene into a false rejection.
+      original =
+        text |> split_puppet_clauses(targets ++ lx().collective_heads()) |> join_clauses()
+
+      do_strip_puppet_clauses(text, names) != original
+    end
+  end
+
+  def puppets_pc?(_, _, _, _), do: false
 
   @doc """
-  Drop clauses that start with `<PC> <action-verb>`. Passive state
+  Drop clauses that start with `<PC> <action-verb>` and bounded proactive
+  relatives (`"Miro a Lyra, que sigue hojeando..."`) and `cuando`/`mientras`
+  subordinates. Unambiguous short names share the canonical PC's ownership;
+  `scrub/3` also accepts `:character_names` to disambiguate registered NPCs.
+  Explicit party subjects and committed plural movement are also cut when
+  they act for another PC; qualified NPC groups and invitations are preserved.
+  Passive state
   (`Lyra está herida`, `Lyra cae herida`) is kept — those verbs are not
   in the action list. A mention mid-clause (`junto a Lyra, el tabernero
-  abre`) is also kept.
+  abre`) is also kept. A PC narrator passes only the names of OTHER PCs,
+  retaining its own actions and speech.
   """
   @spec strip_puppet_clauses(String.t(), [String.t()]) :: String.t()
   def strip_puppet_clauses(text, pc_names)
       when is_binary(text) and is_list(pc_names) do
-    if pc_names == [] do
-      text
-    else
-      re = puppet_subject_pattern(pc_names)
-
-      text
-      |> split_clauses()
-      |> Enum.reject(&Regex.match?(re, &1))
-      |> join_clauses()
-    end
+    do_strip_puppet_clauses(text, narration_names("dm", pc_names: pc_names))
   end
 
   def strip_puppet_clauses(text, _), do: text
 
-  defp maybe_strip_puppet_clauses(text, "dm", pc_names) when is_list(pc_names) do
-    strip_puppet_clauses(text, pc_names)
+  defp do_strip_puppet_clauses(text, %{targets: targets, all: all}) do
+    if targets == [] do
+      text
+    else
+      re = puppet_subject_pattern(targets)
+
+      {kept, _} =
+        text
+        |> strip_relative_pc_actions(targets)
+        |> strip_subordinate_pc_actions(targets)
+        |> split_puppet_clauses(targets ++ lx().collective_heads())
+        |> Enum.flat_map(&split_pc_environment_tail(&1, re))
+        |> Enum.map(&strip_implicit_party_action/1)
+        |> Enum.reduce({[], false}, fn clause, {kept, previous_pc?} ->
+          cond do
+            clause == "" ->
+              {kept, true}
+
+            Regex.match?(re, clause) ->
+              {kept, true}
+
+            collective_action_clause?(clause) ->
+              {kept, true}
+
+            quoted_pc_speech?(clause, targets, all, previous_pc?) ->
+              {kept, true}
+
+            true ->
+              {[clause | kept], false}
+          end
+        end)
+
+      kept
+      |> Enum.reverse()
+      |> join_clauses()
+    end
   end
 
-  defp maybe_strip_puppet_clauses(text, _actor, _pc_names), do: text
+  defp collective_action_clause?(clause) do
+    not String.contains?(clause, "?") and
+      Enum.any?(lx().collective_patterns(), &Regex.match?(&1, clause))
+  end
 
-  defp puppet_verb_alt do
-    @puppet_action_verbs
-    |> Enum.map(fn v -> v |> String.replace("_", "\\s+") |> then(&"(?:#{&1})") end)
-    |> Enum.join("|")
+  defp split_pc_environment_tail(clause, subject_re) do
+    if Regex.match?(subject_re, clause) do
+      # Search only outside quotations, including partial streamed quotes.
+      {index, _offset} =
+        Regex.split(@quoted_span, clause, include_captures: true)
+        |> Enum.reduce({nil, 0}, fn segment, {found, offset} ->
+          match =
+            if is_nil(found) and not String.starts_with?(segment, ["«", "“", "\""]) do
+              case Regex.run(lx().pc_environment_tail(), segment, return: :index) do
+                [{start, length}] -> {offset + start, length}
+                _ -> nil
+              end
+            end
+
+          {found || match, offset + byte_size(segment)}
+        end)
+
+      case index do
+        {start, length} ->
+          tail_start = start + length
+          tail = binary_part(clause, tail_start, byte_size(clause) - tail_start)
+
+          [
+            binary_part(clause, 0, start),
+            Regex.replace(~r/^\p{Ll}/u, tail, &String.upcase/1)
+          ]
+
+        nil ->
+          [clause]
+      end
+    else
+      [clause]
+    end
+  end
+
+  defp strip_implicit_party_action(clause) do
+    segments = Regex.split(@quoted_span, clause, include_captures: true)
+    unquoted = Enum.reject(segments, &String.starts_with?(&1, ["«", "“", "\""])) |> Enum.join()
+
+    if String.contains?(unquoted, ["¿", "?"]) or
+         Regex.match?(lx().implicit_party_plan(), unquoted) do
+      clause
+    else
+      clean =
+        segments
+        |> Enum.map_join(fn segment ->
+          if String.starts_with?(segment, ["«", "“", "\""]) do
+            segment
+          else
+            stripped =
+              segment
+              |> String.replace(lx().implicit_party_movement(), "")
+              |> String.replace(lx().implicit_party_gesture(), "")
+
+            if stripped == segment,
+              do: segment,
+              else: String.replace(stripped, ~r/\s+([,.!?…;:])/u, "\\1")
+          end
+        end)
+
+      if clean == clause do
+        clause
+      else
+        clean =
+          clean
+          |> String.replace(lx().trailing_conj(), "")
+          |> String.trim()
+          |> String.trim_trailing(",")
+
+        cond do
+          Regex.match?(~r/^[,;.!?…:]*$/u, clean) ->
+            ""
+
+          Regex.match?(lx().implicit_lead(), clause) ->
+            Regex.replace(~r/^\p{Ll}/u, clean, &String.upcase/1)
+
+          true ->
+            clean
+        end
+      end
+    end
+  end
+
+  defp maybe_strip_puppet_clauses(text, "dm", names) do
+    do_strip_puppet_clauses(text, names)
+  end
+
+  defp maybe_strip_puppet_clauses(text, actor, names)
+       when is_binary(actor) and actor not in ["", "turnmaster", "system"] do
+    do_strip_puppet_clauses(text, names)
+  end
+
+  defp maybe_strip_puppet_clauses(text, _actor, _names), do: text
+
+  # A short form is inferred only when every registered character agrees on
+  # its owner. Keep canonical names and match the longest form first, so
+  # "Lyra del Mar" never becomes another participant's "Lyra" attribution.
+  defp narration_names(actor, opts) do
+    pcs = canonical_names(Keyword.get(opts, :pc_names, []))
+
+    own =
+      if is_binary(actor) and actor not in ["", "dm", "turnmaster", "system"],
+        do: [actor],
+        else: []
+
+    registered =
+      canonical_names(pcs ++ canonical_names(Keyword.get(opts, :character_names, [])) ++ own)
+
+    actor_name = if is_binary(actor), do: String.downcase(actor), else: ""
+    targets = Enum.reject(pcs, &(String.downcase(&1) == actor_name))
+
+    ambiguous =
+      registered
+      |> Enum.group_by(&first_name/1)
+      |> Enum.filter(fn {_first, owners} -> length(owners) > 1 end)
+      |> Enum.map(&elem(&1, 0))
+
+    %{
+      targets: name_forms(targets, registered),
+      all: name_forms(registered, registered),
+      own: name_forms(own, registered),
+      ambiguous: ambiguous
+    }
+  end
+
+  defp canonical_names(names) when is_list(names) do
+    names
+    |> Enum.filter(&is_binary/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq_by(&String.downcase/1)
+  end
+
+  defp canonical_names(_), do: []
+
+  defp name_forms(names, registered) do
+    owners = Enum.frequencies_by(registered, &first_name/1)
+
+    names
+    |> Enum.flat_map(fn name ->
+      first = name |> String.split() |> hd()
+
+      if first != name and owners[String.downcase(first)] == 1 and
+           Regex.match?(~r/^\p{L}[\p{L}'’\-]{2,}$/u, first) do
+        [name, first]
+      else
+        [name]
+      end
+    end)
+    |> Enum.uniq_by(&String.downcase/1)
+    |> Enum.sort_by(&String.length/1, :desc)
+  end
+
+  defp first_name(name), do: name |> String.split() |> hd() |> String.downcase()
+
+  defp matching_name(speaker, names) do
+    Enum.find(names, fn name ->
+      Regex.match?(Regex.compile!("^#{Regex.escape(name)}(?=$|\\s|[,.:：—])", "iu"), speaker)
+    end)
+  end
+
+  defp same_name?(name, names),
+    do: is_binary(name) and Enum.any?(names, &(String.downcase(&1) == String.downcase(name)))
+
+  # The subject can be a reference within the current actor's own sentence:
+  # "Miro a Lyra, que sigue hojeando sus pergaminos." Keep the reference and
+  # the question, cutting only an immediate, bounded proactive relative.
+  # Passive relatives and verbs belonging to a later NPC remain untouched.
+  defp strip_relative_pc_actions(text, pc_names) do
+    Regex.replace(puppet_relative_pattern(pc_names), text, fn _clause, name -> name end)
+  end
+
+  defp puppet_relative_pattern(pc_names) do
+    names_alt = pc_names |> Enum.map(&Regex.escape/1) |> Enum.join("|")
+    action = puppet_qualified_action()
+
+    Regex.compile!(
+      "(?<![\\p{L}\\p{N}_])(#{names_alt})(?=$|\\s|[,.:：—])\\s*,\\s*#{lx().relative_pronoun()}\\s+#{action}\\b" <>
+        "[^,;.!?…:«»“”\"\\n]{0,180}(?:,|(?=[;.!?…:«»“”\"\\n]|$))",
+      "iu"
+    )
+  end
+
+  defp strip_subordinate_pc_actions(text, pc_names) do
+    names_alt = pc_names |> Enum.map(&Regex.escape/1) |> Enum.join("|")
+
+    re =
+      Regex.compile!(
+        "\\s+#{lx().subordinators()}\\s+(?:#{names_alt})(?=$|\\s|[,.:：—])" <>
+          puppet_direct_predicate() <>
+          "[^,;.!?…:«»“”\"\\n]{0,180}(?:,|(?=[;.!?…:«»“”\"\\n]|$))",
+        "iu"
+      )
+
+    String.replace(text, re, "")
   end
 
   defp puppet_anywhere_pattern(pc_names) do
     names_alt = pc_names |> Enum.map(&Regex.escape/1) |> Enum.join("|")
-    pattern = "(?:\\b#{names_alt}\\b)[^.!?]{0,80}\\b(?:#{puppet_verb_alt()})\\b"
+    prefix = "(?:(?<![\\p{L}\\p{N}_])(?:#{names_alt})(?=$|\\s|[,.:：—]))"
+    pattern = "#{prefix}#{puppet_direct_predicate()}"
 
-    case Regex.compile(pattern, "i") do
+    case Regex.compile(pattern, "iu") do
       {:ok, re} -> re
       {:error, _} -> ~r/^$/
     end
@@ -615,8 +845,8 @@ defmodule Dragonex.Text do
   defp puppet_subject_pattern(pc_names) do
     names_alt = pc_names |> Enum.map(&Regex.escape/1) |> Enum.join("|")
 
-    pattern =
-      "^\\s*(?:—\\s*)?(?:\\*+\\s*)?(?:#{names_alt})(?:\\*+\\s*)?\\b[^.!?]{0,80}\\b(?:#{puppet_verb_alt()})\\b"
+    prefix = "^\\s*(?:—\\s*)?(?:\\*+\\s*)?(?:#{names_alt})(?:\\*+\\s*)?(?=$|\\s|[,.:：—])"
+    pattern = "#{prefix}#{puppet_direct_predicate()}"
 
     case Regex.compile(pattern, "iu") do
       {:ok, re} -> re
@@ -624,36 +854,92 @@ defmodule Dragonex.Text do
     end
   end
 
-  @time_skip ~r/\b(?:media hora|un rato|unos minutos|unas horas|varios d[ií]as|un par de horas)\s+despu[eé]s\b/iu
-  @time_skip_later ~r/\b(?:horas?|d[ií]as?|minutos?)\s+m[aá]s tarde\b/iu
-  @time_skip_cabo ~r/\bal cabo de\s+(?:un rato|una hora|unas horas|unos minutos)\b/iu
-  @time_skip_next ~r/\bal (?:d[ií]a|amanecer|anochecer) siguiente\b/iu
+  defp puppet_direct_predicate do
+    "(?:\\s*,[^.!?]{0,80},)?\\s+#{puppet_qualified_action()}\\b"
+  end
 
-  @npc_speech_verbs ~r/\b(?:dice|responde|pregunta|exclama|replica|gru[nñ]e|a[nñ]ade|contin[uú]a|grita|gritando|susurra|chilla|maldice)\b/iu
-  @npc_attr ~r/\b(?:dice|responde|pregunta|exclama|replica|gru[nñ]e|a[nñ]ade|contin[uú]a|grita|gritando|susurra)\s+(?:el|la|los|las)\s+\w+/iu
-  @npc_named ~r/\b(?:dice|responde|pregunta|exclama|replica|gru[nñ]e|a[nñ]ade|contin[uú]a|grita|gritando|susurra)\s+([A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)/u
-  @npc_name_speaks ~r/\b([A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)\s+(?:dice|responde|pregunta|exclama|replica|gru[nñ]e|a[nñ]ade|contin[uú]a|baja la voz|grita|gritando|susurra|maldice)\s*:/u
-  @npc_voice_colon ~r/\b(?:baja la voz|dice con voz|contesta|replica en voz|grita|gritando|chilla|a[uú]lla|maldice|susurra|vocifera)\s*:/iu
-  @npc_role_speaks ~r/\b(?:el|la)\s+(?:posadero|posadera|tabernero|tabernera|mesonero|encargado|encapuchado|emisario|anciano|anciana|enano|enana)\b.{0,120}[—«"“]/iu
-  @own_speech ~r/\b(?:pregunto|digo|respondo|exclamo|añado|replico)\b/iu
-  @trailing_conj ~r/\s+(?:y|e|pero|mientras|cuando|luego)\s*$/iu
+  defp puppet_qualified_action, do: lx().puppet_qualified_action()
+
+  # The general sentence splitter keeps quoted punctuation with its speaker.
+  # A sentence that follows a closing quote can therefore share the NPC's
+  # clause. Split only when a canonical PC starts there, preserving NPC voice
+  # and attributions such as «¡Alto!» —grita el goblin.
+  defp split_puppet_clauses(text, pc_names) do
+    names_alt = pc_names |> Enum.map(&Regex.escape/1) |> Enum.join("|")
+
+    boundary =
+      Regex.compile!(
+        "(?<=[.!?…][»”\"])[.!?…]?\\s+(?=(?:#{names_alt})(?=$|\\s|[,.:：—]))",
+        "iu"
+      )
+
+    text |> split_clauses() |> Enum.flat_map(&Regex.split(boundary, &1, trim: true))
+  end
+
+  defp quoted_pc_speech?(clause, pc_names, all_names, previous_pc?) do
+    case Regex.run(~r/^[«“"].*[»”"](?<suffix>.*)$/us, clause, capture: ["suffix"]) do
+      [suffix] ->
+        case attributed_speaker(suffix) do
+          nil ->
+            # Keep the removed PC's implicit speech out while its attribution
+            # is incomplete or has no named speaker (e.g. "—comenta."). An
+            # explicit NPC attribution below still preserves that NPC's voice.
+            previous_pc?
+
+          speaker ->
+            same_name?(matching_name(speaker, all_names), pc_names)
+        end
+
+      _ ->
+        previous_pc? and Regex.match?(~r/^[«“"]/u, String.trim_leading(clause))
+    end
+  end
+
+  # Speaker named after a closing quote: verb-first in both languages
+  # («…», dice Lyra / "…," says Lyra) and, in English, name-first
+  # ("…," Lyra says).
+  defp attributed_speaker(suffix) do
+    attribution = lx().speech_attribution()
+
+    cond do
+      Regex.match?(attribution, suffix) ->
+        Regex.replace(attribution, suffix, "")
+
+      name_first = lx().speech_attribution_name_first() ->
+        case Regex.run(name_first, suffix, capture: :all_but_first) do
+          [speaker] -> speaker
+          _ -> nil
+        end
+
+      true ->
+        nil
+    end
+  end
 
   @doc """
   Who a DM beat is asking, if anyone.
 
-  Returns `{:named, "Thane"}` when a PC name sits in the question,
+  Returns `{:named, "Thane"}` when an eligible PC name sits in the question,
   `:question` when the prose is a question to "you" / "qué hace" / ends
-  in `¿…?` without a name, or `nil` when it is not a prompt to a PC.
+  in `¿…?` (English: contains `?`, "what do you do") without a single
+  recipient, or `nil` when it is not a prompt to an eligible PC. Short forms
+  use the same registered identities as narration; longer names and
+  ambiguous short forms cannot become another PC's name.
   """
   @spec addressed_pc(String.t(), [String.t()]) :: {:named, String.t()} | :question | nil
-  def addressed_pc(text, names) when is_binary(text) and is_list(names) do
+  @spec addressed_pc(String.t(), [String.t()], [String.t()]) ::
+          {:named, String.t()} | :question | nil
+  def addressed_pc(text, names, character_names \\ [])
+
+  def addressed_pc(text, names, character_names) when is_binary(text) and is_list(names) do
     cleaned =
       text
       |> strip_inline_actor_tags()
       |> strip_inline_history_headers()
       |> String.trim()
 
-    names = Enum.filter(names, &(is_binary(&1) and &1 not in ["", "dm"]))
+    names = names |> canonical_names() |> Enum.reject(&(String.downcase(&1) == "dm"))
+    registered = canonical_names(names ++ canonical_names(character_names))
 
     cond do
       cleaned == "" ->
@@ -662,52 +948,503 @@ defmodule Dragonex.Text do
       not question_to_pc?(cleaned) ->
         nil
 
-      name = named_in_question(cleaned, names) ->
-        {:named, name}
-
       true ->
-        :question
+        case names_in_question(cleaned, registered) do
+          [] ->
+            :question
+
+          [name] ->
+            if same_name?(name, names), do: {:named, name}
+
+          recipients ->
+            if Enum.all?(recipients, &same_name?(&1, names)), do: :question
+        end
     end
   end
 
-  def addressed_pc(_, _), do: nil
+  def addressed_pc(_, _, _), do: nil
 
-  defp named_in_question(text, names) do
-    Enum.find(names, fn name ->
-      escaped = Regex.escape(name)
+  @doc """
+  Canonical recipients of a literal leading vocative followed by a complete
+  question (`Vex, ¿…?` / `Vex, can you…?`). This deliberately excludes
+  mentions, quoted requests and indirect questions; semantic requests remain
+  the model tool's responsibility.
+  """
+  @spec explicit_pc_recipients(String.t(), [String.t()]) :: [String.t()]
+  @spec explicit_pc_recipients(String.t(), [String.t()], [String.t()]) :: [String.t()]
+  def explicit_pc_recipients(text, names, character_names \\ [])
 
-      Regex.match?(~r/#{escaped}\s*[,:]/u, text) or
-        Regex.match?(~r/¿[^?]{0,100}#{escaped}/iu, text) or
-        Regex.match?(~r/#{escaped}[^?]{0,60}\?/iu, text)
+  def explicit_pc_recipients(text, names, character_names)
+      when is_binary(text) and is_list(names) do
+    case recipients_with_question(text, names, character_names) do
+      {recipients, _start} -> recipients
+      nil -> []
+    end
+  end
+
+  def explicit_pc_recipients(_, _, _), do: []
+
+  # Unique recipients of the leading vocative plus the byte offset where the
+  # question starts (Spanish: the `¿`; English: right after the vocative).
+  defp recipients_with_question(text, names, character_names) do
+    names = names |> canonical_names() |> Enum.reject(&(String.downcase(&1) == "dm"))
+    registered = canonical_names(names ++ canonical_names(character_names))
+    text = String.trim(text)
+
+    owners =
+      Map.new(
+        for name <- names,
+            form <- name_forms([name], registered),
+            do: {String.downcase(form), name}
+      )
+
+    with false <- owners == %{},
+         {recipients, start} <- leading_vocative(text, owners) do
+      if Enum.uniq(recipients) == recipients, do: {recipients, start}
+    else
+      _ -> nil
+    end
+  end
+
+  defp leading_vocative(text, owners) do
+    alternatives =
+      owners
+      |> Map.keys()
+      |> Enum.sort_by(&String.length/1, :desc)
+      |> Enum.map_join("|", &Regex.escape/1)
+
+    pattern =
+      Regex.compile!(
+        "^(#{alternatives})(?=$|\\s*,|\\s+(?:#{lx().and_alt()})\\s+)(.*)$",
+        "iu"
+      )
+
+    if lx().inverted_questions?() do
+      with [_, vocative, question] <- Regex.run(lx().vocative_question(), text),
+           false <- String.trim(question) == "" do
+        start =
+          case :binary.match(text, "¿") do
+            {start, _} -> start
+            :nomatch -> nil
+          end
+
+        {parse_vocative(String.trim(vocative), pattern, owners), start}
+      else
+        _ -> nil
+      end
+    else
+      plain_leading_vocative(text, pattern, owners)
+    end
+  end
+
+  # Without an opening `¿`, the vocative is the longest leading run of
+  # comma-separated names that parses completely; the question is what
+  # follows it up to the first `?`, within one sentence.
+  defp plain_leading_vocative(text, pattern, owners) do
+    offset =
+      case Regex.run(~r/^[—–]\s*/u, text) do
+        [lead] -> byte_size(lead)
+        _ -> 0
+      end
+
+    body = binary_part(text, offset, byte_size(text) - offset)
+
+    case :binary.match(body, "?") do
+      {qpos, _} ->
+        head = binary_part(body, 0, qpos)
+
+        head
+        |> :binary.matches(",")
+        |> Enum.map(&elem(&1, 0))
+        |> Enum.reverse()
+        |> Enum.find_value(fn comma ->
+          vocative = head |> binary_part(0, comma) |> String.trim()
+          rest = binary_part(head, comma + 1, qpos - comma - 1)
+          question = String.trim(rest)
+
+          with false <- question == "" or String.contains?(question, [".", "!", "¿", "\n"]),
+               [_ | _] = recipients <- parse_vocative(vocative, pattern, owners) do
+            leading = byte_size(rest) - byte_size(String.trim_leading(rest))
+            {recipients, offset + comma + 1 + leading}
+          else
+            _ -> nil
+          end
+        end)
+
+      :nomatch ->
+        nil
+    end
+  end
+
+  @doc "Spoken leading PC vocative plus up to three informative/opinion questions and passive waiting, or nil."
+  def literal_pc_speech(text, names, character_names \\ [])
+
+  def literal_pc_speech(text, names, character_names) when is_binary(text) do
+    with {spoken, questions} <- pc_question_parts(text, names, character_names),
+         true <- Enum.all?(questions, &Regex.match?(lx().pc_question_information(), &1)) do
+      scrub("—" <> spoken)
+    else
+      _ -> nil
+    end
+  end
+
+  def literal_pc_speech(_, _, _), do: nil
+
+  @doc "Up to three leading informative/opinion PC questions, passive waiting only, without an extra vocative clause."
+  def pc_question_only?(text, names, character_names \\ []) do
+    case pc_question_parts(text, names, character_names) do
+      {_spoken, questions} ->
+        Enum.all?(questions, fn question ->
+          Regex.match?(lx().pc_question_information(), question) and
+            not String.contains?(question, [",", ";", ":"])
+        end)
+
+      _ ->
+        false
+    end
+  end
+
+  defp pc_question_parts(text, names, character_names) when is_binary(text) do
+    text = String.trim(text)
+
+    with {[_ | _], start} when is_integer(start) <-
+           recipients_with_question(text, names, character_names),
+         body = binary_part(text, start, byte_size(text) - start),
+         [_all, questions, tail] <- Regex.run(lx().question_run(), body),
+         true <- Regex.match?(lx().pc_speech_wait(), String.trim(tail)) do
+      # Preserve the complete speech and spaces between questions. Nothing
+      # between them or after the passive wait can become a skipped action.
+      speech = binary_part(text, 0, start) <> String.trim_trailing(questions)
+      spoken = String.replace(speech, ~r/^[—–]\s*/u, "")
+      {spoken, Regex.scan(lx().question_item(), questions) |> List.flatten()}
+    else
+      _ -> nil
+    end
+  end
+
+  defp pc_question_parts(_, _, _), do: nil
+
+  # Literal human declarations only: a question addressed to a qualified NPC
+  # role (or one proper name with a known PC roster), with up to three questions.
+  # Mentions, plans, quoted reports and mixed recipients retain model resolution.
+  # The role vocabulary and the address forms live in the locale lexicon.
+
+  @doc "NPC role or single proper name (with a PC roster) of a bounded question, or nil."
+  def explicit_npc_question(text, opts \\ [])
+
+  def explicit_npc_question(text, opts) when is_binary(text) do
+    case quoted_npc_parts(text, opts) do
+      {recipient, _speech, _clarification} -> recipient
+      nil -> single_npc_question(text, opts)
+    end
+  end
+
+  def explicit_npc_question(_, _), do: nil
+
+  defp single_npc_question(text, opts) do
+    text = String.trim(text)
+
+    if single_question?(text) do
+      captures = npc_question_captures(text, opts)
+
+      if captures do
+        recipient = lx().normalize_recipient(captures["recipient"])
+
+        unless npc_role_is_pc?(recipient, Keyword.get(opts, :pc_names, [])), do: recipient
+      end
+    end
+  end
+
+  defp single_question?(text) do
+    one_close? = length(String.split(text, "?")) == 2
+
+    if lx().inverted_questions?(),
+      do: one_close? and length(String.split(text, "¿")) == 2,
+      else: one_close?
+  end
+
+  defp npc_question_captures(text, opts) do
+    lex = lx()
+
+    Regex.named_captures(lex.npc_question(), text) ||
+      Regex.named_captures(lex.npc_vocative_question(), text) ||
+      named_npc_captures(lex.npc_named_question(), text, opts) ||
+      named_npc_captures(lex.npc_named_vocative_question(), text, opts)
+  end
+
+  defp named_npc_captures(regex, text, opts) do
+    names = Keyword.get(opts, :pc_names, [])
+
+    if is_list(names) and names != [] and Enum.all?(names, &is_binary/1),
+      do: Regex.named_captures(regex, text)
+  end
+
+  defp npc_role_is_pc?(recipient, names) do
+    recipient = npc_identity(recipient)
+
+    names
+    |> canonical_names()
+    |> Enum.map(&npc_identity/1)
+    |> Enum.flat_map(fn name ->
+      first = name |> String.split() |> List.first()
+      # Even an ambiguous short PC name must not become an NPC by accident.
+      if first && String.length(first) >= 3, do: [name, first], else: [name]
+    end)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+    |> Enum.any?(fn name ->
+      Regex.match?(
+        ~r/(?<![\p{L}\p{M}\p{N}_])#{Regex.escape(name)}(?![\p{L}\p{M}\p{N}_])/u,
+        recipient
+      )
     end)
   end
 
-  defp question_to_pc?(text) do
-    String.contains?(text, "¿") or String.ends_with?(text, "?") or
-      Regex.match?(~r/\bante ti\b/iu, text) or
-      Regex.match?(~r/\bpara ti\b/iu, text) or
-      Regex.match?(~r/¿?\s*qué hace(?:s|is|n)?\b/iu, text) or
-      Regex.match?(~r/\btú\b/u, text) or
-      Regex.match?(~r/\bsi quieres\b/iu, text) or
-      Regex.match?(~r/\bte toca\b/iu, text) or
-      Regex.match?(~r/\bes tu (?:turno|decisi[oó]n)\b/iu, text)
+  defp npc_identity(name) do
+    name
+    |> String.normalize(:nfc)
+    |> String.downcase()
+    |> String.replace(~r/\s+/u, " ")
+    |> String.trim()
+    |> String.replace(lx().leading_article(), "")
   end
 
-  defp maybe_strip_pc_world_leaks(text, actor)
+  # The quote closes before the passive wait. Nothing outside it can be treated
+  # as speech, and each question must stay informative and share one recipient.
+  # The reported preamble is spoken verbatim; it does not resolve its meaning.
+  defp quoted_npc_parts(text, opts) do
+    lex = lx()
+    trimmed = String.trim(text)
+
+    with %{} = parts <-
+           Enum.find_value(lex.npc_quoted_speech(), &Regex.named_captures(&1, trimmed)),
+         true <- parts["close"] in Map.get(lex.quote_pairs(), parts["open"], []),
+         %{"recipient" => recipient} <-
+           Regex.named_captures(lex.npc_address(), parts["prefix"]) ||
+             named_npc_captures(lex.npc_named_address(), parts["prefix"], opts),
+         true <- literal_npc_prefix?(parts["prefix"], recipient),
+         false <- npc_role_is_pc?(recipient, Keyword.get(opts, :pc_names, [])),
+         speech = String.trim(parts["speech"]),
+         {questions, clarification?} <- speech_questions(speech, lex.inverted_questions?()),
+         true <- Enum.all?(questions, &Regex.match?(lex.npc_speech_information(), &1)),
+         tail =
+           without_listening_permission(
+             String.trim(parts["tail"]),
+             Keyword.get(opts, :pc_names, [])
+           ),
+         true <- Regex.match?(lex.npc_speech_wait(), tail) do
+      {lex.normalize_recipient(recipient), scrub("—" <> speech), clarification?}
+    else
+      _ -> nil
+    end
+  end
+
+  # Questions of a quoted NPC speech and whether a recall preface opens it.
+  # Spanish: the preface sits before the first `¿`. English: it opens the
+  # first question ("When you said X, what did you mean?").
+  defp speech_questions(speech, true) do
+    with [[{start, _}] | _] = questions <- Regex.scan(~r/¿[^¿?]+\?/u, speech, return: :index),
+         preface = binary_part(speech, 0, start),
+         true <- preface == "" or Regex.match?(lx().npc_recall_preface(), preface),
+         body = binary_part(speech, start, byte_size(speech) - start),
+         true <- Regex.match?(~r/^(?:¿[^¿?]+\?\s*){1,3}$/u, body) do
+      {Enum.map(questions, fn [{offset, size}] -> binary_part(speech, offset, size) end),
+       preface != ""}
+    else
+      _ -> nil
+    end
+  end
+
+  defp speech_questions(speech, false) do
+    with true <- Regex.match?(lx().question_body(), speech),
+         [first | rest] <- lx().question_item() |> Regex.scan(speech) |> List.flatten() do
+      case Regex.run(lx().npc_recall_preface(), first, return: :index) do
+        [{0, length} | _] ->
+          {[binary_part(first, length, byte_size(first) - length) | rest], true}
+
+        _ ->
+          {[first | rest], false}
+      end
+    else
+      _ -> nil
+    end
+  end
+
+  @doc "Spoken words of a literal NPC question containing only speech and passive waiting, or nil."
+  def literal_npc_speech(text, opts \\ [])
+
+  def literal_npc_speech(text, opts) when is_binary(text) do
+    case quoted_npc_parts(text, opts) do
+      {_recipient, speech, _clarification} -> speech
+      nil -> single_npc_speech(text, opts)
+    end
+  end
+
+  def literal_npc_speech(_, _), do: nil
+
+  @doc "A quoted clarification of earlier NPC speech, preserving its recipient and exact words."
+  def literal_npc_clarification(text, opts \\ [])
+
+  def literal_npc_clarification(text, opts) when is_binary(text) do
+    case quoted_npc_parts(text, opts) do
+      {recipient, speech, true} -> {recipient, speech}
+      _ -> nil
+    end
+  end
+
+  def literal_npc_clarification(_, _), do: nil
+
+  defp single_npc_speech(text, opts) do
+    text = String.trim(text)
+    lex = lx()
+
+    with recipient when is_binary(recipient) <- explicit_npc_question(text, opts),
+         captures when is_map(captures) <- npc_question_captures(text, opts),
+         {start, size} <- single_question_span(text, captures),
+         true <- Regex.match?(lex.npc_speech_information(), binary_part(text, start, size)),
+         prefix = binary_part(text, 0, start),
+         true <- literal_npc_prefix?(prefix, captures["recipient"]),
+         tail = binary_part(text, start + size, byte_size(text) - start - size),
+         tail = Regex.replace(lex.question_tail_opener(), tail, ""),
+         tail = without_listening_permission(tail, Keyword.get(opts, :pc_names, [])),
+         true <- Regex.match?(lex.npc_speech_wait(), String.trim(tail)) do
+      scrub("—" <> binary_part(text, start, size))
+    else
+      _ -> nil
+    end
+  end
+
+  # Spanish questions are delimited by `¿…?`; the English address patterns
+  # capture the question itself (`question`).
+  defp single_question_span(text, captures) do
+    if lx().inverted_questions?() do
+      case Regex.run(~r/¿[^?]+\?/u, text, return: :index) do
+        [span] -> span
+        _ -> nil
+      end
+    else
+      case captures do
+        %{"question" => question} when question != "" ->
+          case :binary.match(text, question) do
+            {start, size} -> {start, size}
+            :nomatch -> nil
+          end
+
+        _ ->
+          nil
+      end
+    end
+  end
+
+  defp literal_npc_prefix?(prefix, recipient) do
+    prefix = Regex.replace(lx().npc_speech_spatial(), String.trim(prefix), "")
+    role = Regex.escape(recipient)
+
+    Regex.match?(Regex.compile!(lx().npc_literal_prefix(role), "iu"), prefix) or
+      Regex.match?(~r/^(?:[—–]\s*)?#{role}\s*,\s*$/iu, prefix)
+  end
+
+  defp without_listening_permission(tail, []), do: tail
+
+  defp without_listening_permission(tail, names) do
+    name = names |> Enum.map(&Regex.escape/1) |> Enum.join("|")
+    listeners = Regex.compile!(lx().listeners(name), "iu")
+    Regex.replace(listeners, tail, "")
+  end
+
+  defp parse_vocative(vocative, pattern, owners) do
+    case Regex.run(pattern, vocative) do
+      [_, form, rest] ->
+        name = owners[String.downcase(form)]
+
+        case String.trim(rest) do
+          "" ->
+            [name]
+
+          rest ->
+            case Regex.run(lx().vocative_joiner(), rest) do
+              [_, next] ->
+                case parse_vocative(String.trim(next), pattern, owners) do
+                  [] -> []
+                  recipients -> [name | recipients]
+                end
+
+              _ ->
+                []
+            end
+        end
+
+      _ ->
+        []
+    end
+  end
+
+  defp names_in_question(_text, []), do: []
+
+  defp names_in_question(text, registered) do
+    owners =
+      Map.new(
+        for name <- registered,
+            form <- name_forms([name], registered),
+            do: {String.downcase(form), name}
+      )
+
+    owners =
+      registered
+      |> Enum.group_by(&first_name/1)
+      |> Enum.reduce(owners, fn {first, names}, acc ->
+        if length(names) > 1 and not Map.has_key?(acc, first) and
+             Regex.match?(~r/^\p{L}[\p{L}'’\-]{2,}$/u, first),
+           do: Map.put(acc, first, :ambiguous),
+           else: acc
+      end)
+
+    alternatives =
+      owners
+      |> Map.keys()
+      |> Enum.sort_by(&String.length/1, :desc)
+      |> Enum.map_join("|", &Regex.escape/1)
+
+    pattern = Regex.compile!("(?<![\\p{L}\\p{N}_])(?:#{alternatives})(?![\\p{L}\\p{N}_])", "iu")
+    open_question = lx().name_in_open_question()
+
+    Regex.scan(pattern, text, return: :index)
+    |> Enum.filter(fn [{offset, size}] ->
+      prefix = binary_part(text, 0, offset)
+      suffix = binary_part(text, offset + size, byte_size(text) - offset - size)
+
+      Regex.match?(~r/^\s*[,:]/u, suffix) or
+        Regex.match?(open_question, prefix) or
+        Regex.match?(~r/^[^?]{0,60}\?/u, suffix)
+    end)
+    |> Enum.map(fn [{offset, size}] ->
+      owners[String.downcase(binary_part(text, offset, size))]
+    end)
+    |> Enum.uniq()
+  end
+
+  defp question_to_pc?(text) do
+    punctuated? =
+      if lx().inverted_questions?(),
+        do: String.contains?(text, "¿") or String.ends_with?(text, "?"),
+        else: String.contains?(text, "?")
+
+    punctuated? or Enum.any?(lx().question_cues(), &Regex.match?(&1, text))
+  end
+
+  defp maybe_strip_pc_world_leaks(text, actor, names)
        when is_binary(actor) and actor not in ["", "dm", "turnmaster", "system"] do
     text
     |> split_clauses()
-    |> Enum.map(&trim_pc_world_leak(&1, actor))
+    |> Enum.map(&trim_pc_world_leak(&1, names))
     |> Enum.reject(&(&1 == ""))
     |> join_clauses()
   end
 
-  defp maybe_strip_pc_world_leaks(text, _actor), do: text
+  defp maybe_strip_pc_world_leaks(text, _actor, _names), do: text
 
   # Exploration + human at the table: an AI PC must propose, not finish the
   # job (open the scroll, pick the item, walk off). Combat is untouched.
-  @solo_exec ~r/\b(?:desliza la uña|quiebra|despliega el pergamino|rompe el lacre|recoge (?:la|el)|coge (?:la|el)|toma la pluma|lanza un|conjura |dispara un|camina hacia|se encamina|desaparece en|lee en voz alta|una hora andando)\b/iu
-
   defp maybe_strip_solo_exec(text, actor, opts)
        when is_binary(actor) and actor not in ["", "dm", "turnmaster", "system"] do
     if Keyword.get(opts, :wait_for_human, false) do
@@ -724,18 +1461,18 @@ defmodule Dragonex.Text do
   defp maybe_strip_solo_exec(text, _, _), do: text
 
   defp trim_solo_exec(clause) do
-    case earliest_index(clause, [@solo_exec]) do
+    case earliest_index(clause, [lx().solo_exec()]) do
       nil -> clause
       idx -> keep_prefix(clause, idx)
     end
   end
 
-  defp trim_pc_world_leak(clause, actor) do
+  defp trim_pc_world_leak(clause, names) do
     cond do
       idx = time_skip_index(clause) ->
         keep_prefix(clause, idx)
 
-      idx = npc_voice_index(clause, actor) ->
+      idx = npc_voice_index(clause, names) ->
         keep_prefix(clause, idx)
 
       true ->
@@ -744,45 +1481,76 @@ defmodule Dragonex.Text do
   end
 
   defp time_skip_index(clause) do
-    earliest_index(clause, [@time_skip, @time_skip_later, @time_skip_cabo, @time_skip_next])
+    earliest_index(clause, lx().time_skips())
   end
 
-  defp npc_voice_index(clause, actor) do
+  defp npc_voice_index(clause, names) do
     if own_dialogue?(clause) do
       nil
     else
-      named_idx = named_other_index(clause, actor)
-      role_idx = earliest_index(clause, [@npc_voice_colon, @npc_role_speaks, @npc_attr])
+      named_idx = named_other_index(clause, names)
+      role_idx = earliest_index(clause, [lx().npc_voice_colon(), lx().npc_role_speaks()])
+      relative_idx = npc_role_relative_index(clause)
+      attribution_idx = npc_attribution_index(clause, names)
 
-      [named_idx, role_idx]
+      [named_idx, role_idx, relative_idx, attribution_idx]
       |> Enum.reject(&is_nil/1)
       |> Enum.min(fn -> nil end)
     end
   end
 
-  defp own_dialogue?(clause) do
-    Regex.match?(@own_speech, clause) and not Regex.match?(@npc_speech_verbs, clause) and
-      not Regex.match?(@npc_voice_colon, clause) and not Regex.match?(@npc_role_speaks, clause)
+  # Addressing the NPC is the PC's action; the NPC's immediate relative reply
+  # belongs to the DM. Cut from "que responde", retaining the role recipient.
+  defp npc_role_relative_index(clause) do
+    case Regex.run(lx().npc_role_relative_speaks(), clause, return: :index, capture: ["relative"]) do
+      [{index, _length}] -> index
+      _ -> nil
+    end
   end
 
-  defp named_other_index(clause, actor) do
-    actor_l = String.downcase(actor)
+  # "Me dice la hora/la verdad" is an observation, not an NPC speaking.
+  # Resolve actual registered speakers first; otherwise require a known role
+  # or an explicit quotation/dash attribution before cutting the PC's clause.
+  defp npc_attribution_index(clause, names) do
+    lx().npc_attributions()
+    |> Enum.flat_map(&Regex.scan(&1, clause, return: :index))
+    |> Enum.sort()
+    |> Enum.find_value(fn [{idx, _}, {speaker_idx, _} = capture] ->
+      speaker = binary_part(clause, speaker_idx, byte_size(clause) - speaker_idx)
+      prefix = binary_part(clause, 0, idx) |> String.trim_trailing()
 
+      attribution? =
+        matching_name(speaker, names.all) != nil or Regex.match?(lx().npc_role_name(), speaker) or
+          Regex.match?(~r/[»”"](?:\s*[,—-])?$/u, prefix) or
+          String.ends_with?(prefix, ["—", "-"])
+
+      if attribution? and foreign_speaker?(clause, [capture], names), do: idx
+    end)
+  end
+
+  defp own_dialogue?(clause) do
+    lex = lx()
+
+    Regex.match?(lex.own_speech(), clause) and not Regex.match?(lex.npc_speech_verbs(), clause) and
+      not Regex.match?(lex.npc_voice_colon(), clause) and
+      not Regex.match?(lex.npc_role_speaks(), clause) and
+      not Regex.match?(lex.npc_role_relative_speaks(), clause)
+  end
+
+  defp named_other_index(clause, names) do
     verb_name =
-      case Regex.run(@npc_named, clause, return: :index) do
+      case Regex.run(lx().npc_named(), clause, return: :index) do
         [{idx, _} | rest] ->
-          name = named_capture(clause, rest)
-          if name && String.downcase(name) != actor_l, do: idx
+          if foreign_speaker?(clause, rest, names), do: idx
 
         _ ->
           nil
       end
 
     name_verb =
-      case Regex.run(@npc_name_speaks, clause, return: :index) do
+      case Regex.run(lx().npc_name_speaks(), clause, return: :index) do
         [{idx, _} | rest] ->
-          name = named_capture(clause, rest)
-          if name && String.downcase(name) != actor_l, do: idx
+          if foreign_speaker?(clause, rest, names), do: idx
 
         _ ->
           nil
@@ -793,11 +1561,21 @@ defmodule Dragonex.Text do
     |> Enum.min(fn -> nil end)
   end
 
-  defp named_capture(clause, [{cidx, clen} | _]) do
-    binary_part(clause, cidx, clen)
+  defp foreign_speaker?(clause, [{cidx, _clen} | _], names) do
+    speaker = binary_part(clause, cidx, byte_size(clause) - cidx)
+
+    case matching_name(speaker, names.all) do
+      nil ->
+        not Enum.any?(names.ambiguous, fn name ->
+          Regex.match?(Regex.compile!("^#{Regex.escape(name)}\\s*(?=$|[,.:：—])", "iu"), speaker)
+        end)
+
+      name ->
+        not same_name?(name, names.own)
+    end
   end
 
-  defp named_capture(_, _), do: nil
+  defp foreign_speaker?(_, _, _), do: false
 
   defp earliest_index(text, regexes) do
     regexes
@@ -816,7 +1594,7 @@ defmodule Dragonex.Text do
   defp keep_prefix(clause, idx) when idx > 0 do
     clause
     |> binary_part(0, idx)
-    |> String.replace(@trailing_conj, "")
+    |> String.replace(lx().trailing_conj(), "")
     |> String.trim()
   end
 
@@ -830,9 +1608,15 @@ defmodule Dragonex.Text do
       |> Enum.reduce({[], "", :out}, &clause_grapheme/2)
 
     (Enum.reverse(chunks) ++ [current])
+    |> split_after_closed_quotes(lx().closed_quote_boundary())
     |> Enum.map(&String.trim/1)
     |> Enum.reject(&(&1 == ""))
   end
+
+  defp split_after_closed_quotes(chunks, nil), do: chunks
+
+  defp split_after_closed_quotes(chunks, boundary),
+    do: Enum.flat_map(chunks, &Regex.split(boundary, &1))
 
   defp clause_grapheme(g, {acc, cur, :out}) do
     cond do

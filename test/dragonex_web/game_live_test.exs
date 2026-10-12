@@ -10,15 +10,12 @@ defmodule DragonexWeb.GameLiveTest do
 
   import Dragonex.Test.Harness
 
-  alias Dragonex.{Archetypes, Accounts, Game, Games, Monsters}
-  alias ExAgent.Models.Test
+  alias Dragonex.{Archetypes, Accounts, Character, Game, Games, Monsters}
 
   # AC-16.1: a model whose FIRST response is truncated at max_tokens
-  # (finish_reason :length — the partial text still goes through the Events
-  # capability and lands on the timeline) and whose subsequent responses are
-  # the complete narration. This drives the real retry path: Settlement
-  # deletes the turn's partial narrations before re-running the beat, so the
-  # duplicated chunk never reaches the feed twice.
+  # (finish_reason :length — unvalidated partial text remains private) and
+  # whose subsequent response closes through the official structured output.
+  # This drives the real token retry without publishing the truncated chunk.
   defmodule RetryModel do
     @behaviour ExAgent.Model
 
@@ -38,19 +35,19 @@ defmodule DragonexWeb.GameLiveTest do
       if dec(counter) do
         {:ok, build_response(@partial, :length), m}
       else
-        {:ok, build_response(@final, :stop), m}
+        {:ok, Dragonex.Test.Harness.narration_response(@final), m}
       end
     end
 
     @impl true
     def request_stream(m, messages, settings, params) do
       case request(m, messages, settings, params) do
-        {:ok, resp, _} ->
+        {:ok, resp, updated} ->
           text = Response.text(resp)
 
           Stream.concat([
             Stream.map(word_chunks(text), &{:text_delta, &1}),
-            [{:response, resp}]
+            [Dragonex.Test.Harness.stream_response(resp, updated)]
           ])
       end
     end
@@ -78,12 +75,11 @@ defmodule DragonexWeb.GameLiveTest do
     @impl true
     def system(_), do: "retry"
     @impl true
-    def profile(_), do: %ExAgent.ModelProfile{}
+    def profile(_), do: %ExAgent.ModelProfile{supports_tools: true}
   end
 
   setup do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(Dragonex.Repo)
-    Ecto.Adapters.SQL.Sandbox.mode(Dragonex.Repo, {:shared, self()})
+    Dragonex.Test.Sandbox.start_shared!()
 
     {:ok, user} =
       Accounts.register(%{
@@ -136,9 +132,10 @@ defmodule DragonexWeb.GameLiveTest do
 
       {:ok, _view, html} = live(conn, "/")
 
-      assert html =~ "Dragonex — partidas"
+      assert html =~ "Tus partidas"
       assert html =~ "La Cámara"
       assert html =~ "Nueva partida"
+      assert html =~ ~s(id="logout-form")
     end
 
     test "deletes a partida", %{conn: conn, user: user} do
@@ -237,6 +234,10 @@ defmodule DragonexWeb.GameLiveTest do
           initiative: ["goblin", "Thane"]
         )
 
+      Dragonex.Test.GameFixture.start!(
+        {Game, {game.id, [model: %Dragonex.Test.Narrator{text: "El goblin observa a Thane."}]}}
+      )
+
       {:ok, view, html} = live(conn, "/games/#{game.id}")
 
       assert html =~ ~s(id="sheet-drawer")
@@ -305,6 +306,10 @@ defmodule DragonexWeb.GameLiveTest do
         {:ok, _} = Games.append_event(game.id, :narration, "dm", "all", %{text: text})
       end
 
+      Dragonex.Test.GameFixture.start!(
+        {Game, {game.id, [model: %Dragonex.Test.Narrator{text: "El goblin observa a Thane."}]}}
+      )
+
       {:ok, view, _html} = live(conn, "/games/#{game.id}")
 
       # Quiescence: the opening DM beat settles and it's Thane's turn (the
@@ -348,13 +353,13 @@ defmodule DragonexWeb.GameLiveTest do
           initiative: ["goblin", "Thane"]
         )
 
-      # First response truncated at max_tokens (its partial narration lands on
-      # the timeline via Events), retry delivers the complete text. Started
-      # here (not by mount) so the model is under our control.
+      # The first response is truncated and kept private. The retry supplies
+      # validated narration through final_result. Start the real Game here so
+      # the model is under the fixture's control.
       {:ok, counter} = Agent.start_link(fn -> 1 end)
 
       pid =
-        ExUnit.Callbacks.start_supervised!(
+        Dragonex.Test.GameFixture.start!(
           {Game, {game.id, [model: %RetryModel{counter: counter}, roller: fixed_roller(15)]}}
         )
 
@@ -370,8 +375,8 @@ defmodule DragonexWeb.GameLiveTest do
       # …and the truncated chunk the retry duplicated is NOT on screen…
       refute html =~ "cuchilla jaspeada"
 
-      # …because the real mechanism removed it from the timeline: the retry's
-      # delete left exactly ONE narration for the beat, the final one.
+      # The truncated response never gained a publication receipt. Exactly
+      # one validated final narration reaches the durable feed.
       events = Games.list_events(game.id)
 
       assert Enum.count(events, fn e ->
@@ -381,6 +386,28 @@ defmodule DragonexWeb.GameLiveTest do
       assert Enum.count(events, fn e ->
                e.type == :narration and (e.payload["text"] || "") =~ "cuchilla jaspeada"
              end) == 0
+    end
+  end
+
+  describe "character sheet status" do
+    test "shows temporary HP, rage, inspiration and concentration" do
+      card =
+        Character.new(
+          name: "A",
+          class: "barbarian",
+          hp: 10,
+          max_hp: 12,
+          temp_hp: 8,
+          concentrating: "bless",
+          raging: true,
+          inspired: true
+        )
+
+      html = render_component(&DragonexWeb.GameLive.Components.detail_sheet/1, card: card)
+      assert html =~ "+8 temp"
+      assert html =~ "Furia"
+      assert html =~ "Inspirado"
+      assert html =~ "bless"
     end
   end
 end

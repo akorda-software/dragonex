@@ -27,7 +27,7 @@ defmodule Dragonex.Flows.MultiParticipantTest do
         ]
       },
       instructions: "You are the DM.",
-      tools: Dragonex.Tools.tools()
+      tools: Dragonex.Tools.agent_tools()
     )
   end
 
@@ -42,7 +42,7 @@ defmodule Dragonex.Flows.MultiParticipantTest do
         ]
       },
       instructions: "You are a brave fighter.",
-      tools: Dragonex.Tools.tools()
+      tools: Dragonex.Tools.agent_tools()
     )
   end
 

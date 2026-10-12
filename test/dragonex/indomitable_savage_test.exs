@@ -237,7 +237,7 @@ defmodule Dragonex.IndomitableSavageTest do
       assert msg =~
                "Bjorn supera la salvación (d20 18 (Indomitable: 6→19): 19 vs CD 13), mitad de daño"
 
-      assert msg =~ "2 de daño acid"
+      assert msg =~ "2 de daño de ácido"
       assert consumed?()
 
       {:ok, w2} = change.(w)
@@ -253,7 +253,7 @@ defmodule Dragonex.IndomitableSavageTest do
                Actions.spell(w, "mage", "acid splash", "Bjorn", seq([5, 7, 4]))
 
       assert msg =~ "falla la salvación (d20 7 (Indomitable: 6→8): 8 vs CD 13)"
-      assert msg =~ "4 de daño acid"
+      assert msg =~ "4 de daño de ácido"
       assert consumed?()
 
       {:ok, w2} = change.(w)
@@ -439,7 +439,7 @@ defmodule Dragonex.IndomitableSavageTest do
                Actions.spell(w, "mage", "acid splash", "Bjorn", seq([20, 4, 3, 17]))
 
       assert msg =~
-               "Bjorn mantiene la concentración en bless (d20 17 (Indomitable: 5→19): 19 vs CD 10)"
+               "Bjorn mantiene la concentración en Bendición (d20 17 (Indomitable: 5→19): 19 vs CD 10)"
 
       assert consumed?()
 
@@ -455,7 +455,7 @@ defmodule Dragonex.IndomitableSavageTest do
       assert {:ok, msg, change} =
                Actions.spell(w, "mage", "acid splash", "Bjorn", seq([20, 4, 3]))
 
-      assert msg =~ "Bjorn pierde la concentración en bless"
+      assert msg =~ "Bjorn pierde la concentración en Bendición"
       refute msg =~ "Indomitable"
       assert consumed?()
 
@@ -544,7 +544,7 @@ defmodule Dragonex.IndomitableSavageTest do
                Actions.attack(w, "Grok", "Goblin", "greataxe", seq([20, 6, 6, 6]))
 
       assert msg =~
-               "Grok CRÍTICO a Goblin (d20 20: 25 vs CA 13) por 21 de daño slashing (+6 Savage)."
+               "Grok CRÍTICO a Goblin (d20 20: 25 vs CA 13) por 21 de daño cortante en total (incluye 6 Savage)."
 
       assert consumed?()
 
@@ -558,7 +558,7 @@ defmodule Dragonex.IndomitableSavageTest do
       assert {:ok, msg, _change} =
                Actions.attack(w, "Grok", "Goblin", "longbow", seq([20, 4, 4]))
 
-      assert msg =~ "por 9 de daño piercing"
+      assert msg =~ "por 9 de daño perforante"
       refute msg =~ "Savage"
     end
 
@@ -590,7 +590,7 @@ defmodule Dragonex.IndomitableSavageTest do
       assert {:ok, msg, _change} =
                Actions.spell(w, "Gruk", "fire bolt", "Goblin", seq([20, 5, 5]))
 
-      assert msg =~ "por 10 de daño fire"
+      assert msg =~ "por 10 de daño de fuego"
       refute msg =~ "Savage"
     end
 
@@ -600,7 +600,7 @@ defmodule Dragonex.IndomitableSavageTest do
       assert {:ok, msg, _change} =
                Actions.attack(w, "Bjorn", "Goblin", "longsword", seq([20, 5, 5]))
 
-      assert msg =~ "por 13 de daño slashing"
+      assert msg =~ "por 13 de daño cortante"
       refute msg =~ "Savage"
     end
 
@@ -636,7 +636,7 @@ defmodule Dragonex.IndomitableSavageTest do
                )
 
       assert msg =~
-               "Vex CRÍTICO a Goblin (d20 20: 26 vs CA 13) por 30 de daño piercing (+3 Savage) (+18 sneak)."
+               "Vex CRÍTICO a Goblin (d20 20: 26 vs CA 13) por 30 de daño perforante en total (incluye 3 Savage, 18 sneak)."
 
       assert consumed?()
     end

@@ -12,6 +12,7 @@ defmodule Dragonex.Application do
       # before the Game supervisor so Games can consult it on (re)start.
       Dragonex.ModelConfig,
       {Registry, keys: :unique, name: Dragonex.Game.Registry},
+      {Registry, keys: :unique, name: Dragonex.Game.SupervisorRegistry},
       {Dragonex.Game.Supervisor, []},
       DragonexWeb.Endpoint
     ]

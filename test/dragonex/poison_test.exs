@@ -217,11 +217,11 @@ defmodule Dragonex.PoisonTest do
       w = world([spider(), human()])
 
       # d20 15 + prof 2 + DES 3 = 20 vs CA 16 → acierta;
-      # 3d8(4+4+4) + DES 3 = 15 de daño poison.
+      # 3d8(4+4+4) + DES 3 = 15 de daño de veneno.
       assert {:ok, msg, change} = Actions.attack(w, "araña", "Thane", "bite", seq([15, 4, 4, 4]))
 
       assert msg =~ "araña acierta a Thane"
-      assert msg =~ "por 15 de daño poison"
+      assert msg =~ "por 15 de daño de veneno"
       assert consumed?()
 
       {:ok, w2} = change.(w)
@@ -259,7 +259,7 @@ defmodule Dragonex.PoisonTest do
       # Mismo golpe exacto: 15 poison → div(15, 2) = 7.
       assert {:ok, msg, change} = Actions.attack(w, "araña", "Dagna", "bite", seq([15, 4, 4, 4]))
 
-      assert msg =~ "por 15 de daño poison"
+      assert msg =~ "por 15 de daño de veneno"
       assert consumed?()
 
       {:ok, w2} = change.(w)
@@ -292,7 +292,7 @@ defmodule Dragonex.PoisonTest do
 
       assert msg =~
                "Dagna supera la salvación (d20 14: 15 vs CD 14) (Resistencia enana: ventaja), " <>
-                 "mitad de daño — 5 de daño poison"
+                 "mitad de daño — 5 de daño de veneno"
 
       assert consumed?()
 
@@ -324,7 +324,7 @@ defmodule Dragonex.PoisonTest do
                Actions.spell(w, "mage", "frost snap", "Dagna", seq([14, 2, 2, 2, 2, 2]))
 
       assert msg =~
-               "Dagna supera la salvación (d20 14: 15 vs CD 14), mitad de daño — 5 de daño cold"
+               "Dagna supera la salvación (d20 14: 15 vs CD 14), mitad de daño — 5 de daño de frío"
 
       refute msg =~ "Resistencia enana"
       refute msg =~ "(ventaja)"
@@ -335,7 +335,7 @@ defmodule Dragonex.PoisonTest do
       w = world([mage5(metamagic: %{option: "heightened", target: "Dagna"}), dwarf()])
 
       # Ventaja racial + desventaja Heightened → normal: UN dado (14 ≥ 14
-      # con el +1 de CON → éxito) y el daño poison se resiste igual (la
+      # con el +1 de CON → éxito) y el daño de veneno se resiste igual (la
       # MITAD de la salvación es independiente del modo).
       assert {:ok, msg, change} =
                Actions.spell(w, "mage", "poison cloud", "Dagna", seq([14, 2, 2, 2, 2, 2]))

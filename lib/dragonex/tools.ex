@@ -9,28 +9,392 @@ defmodule Dragonex.Tools do
   """
 
   use ExAgent.Tools
+  use Gettext, backend: Dragonex.Gettext
+  require Logger
 
-  @doc "Narrate and set the current scene."
-  deftool set_scene(ctx, narration :: String.t()) do
-    # Model text reaching persistent world state must be scrubbed (D7): a scene
-    # is echoed to every agent every turn, so scrubbing closes a prompt-injection
-    # amplifier.
-    {:ok, _} = propose(ctx, Dragonex.World.set_scene(Dragonex.Text.scrub(narration)))
-    {:ok, "escena establecida"}
+  @doc "Tools advertised to live agents, with genuinely optional spell arguments."
+  def agent_tools do
+    Enum.map(tools(), fn
+      %{name: name} = tool when name in ["grant_item", "remove_item"] ->
+        schema = tool.parameters_json_schema
+
+        properties =
+          schema.properties
+          |> Map.update!(
+            "item",
+            &Map.merge(&1, %{minLength: 1, maxLength: Dragonex.Rules.Inventory.max_name()})
+          )
+          |> Map.update!(
+            "quantity",
+            &Map.merge(&1, %{minimum: 1, maximum: Dragonex.Rules.Inventory.max_quantity()})
+          )
+
+        %{tool | parameters_json_schema: %{schema | properties: properties}}
+
+      %{name: "record_npc_statement"} = tool ->
+        schema = tool.parameters_json_schema
+
+        properties =
+          schema.properties
+          |> Map.update!(
+            "speaker",
+            &Map.merge(&1, %{minLength: 1, maxLength: Dragonex.NPCStatement.max_speaker()})
+          )
+          |> Map.update!(
+            "statement",
+            &Map.merge(&1, %{minLength: 1, maxLength: Dragonex.NPCStatement.max_statement()})
+          )
+
+        %{tool | parameters_json_schema: %{schema | properties: properties}}
+
+      %{name: "cast_spell"} = tool ->
+        # exAgent derives every argument as required and non-nullable. The
+        # bridge accepts omitted arguments, so advertise that same contract
+        # rather than making a model invent a selection for every spell.
+        schema = tool.parameters_json_schema
+
+        properties =
+          schema.properties
+          |> Map.update!("cast_level", &Map.put(&1, :type, ["integer", "null"]))
+          |> Map.update!("additional_targets", &Map.put(&1, :type, ["array", "null"]))
+          |> Map.put("condition_to_remove", %{
+            anyOf: [
+              %{
+                type: ["string", "null"],
+                enum: [nil, "blinded", "deafened", "paralyzed", "poisoned", "diseased"]
+              },
+              %{type: "string", pattern: "^\\s*$"}
+            ]
+          })
+
+        required = schema.required -- ~w(cast_level additional_targets condition_to_remove)
+        %{tool | parameters_json_schema: %{schema | properties: properties, required: required}}
+
+      %{name: name} = tool
+      when name in [
+             "short_rest",
+             "lay_on_hands",
+             "make_attack",
+             "ability_check",
+             "action_surge",
+             "flurry_of_blows"
+           ] ->
+        field =
+          case name do
+            "short_rest" -> "hit_dice"
+            "lay_on_hands" -> "conditions_to_remove"
+            _ -> "mode"
+          end
+
+        schema = tool.parameters_json_schema
+
+        properties =
+          Map.update!(
+            schema.properties,
+            field,
+            &Map.update!(&1, :type, fn type -> [type, "null"] end)
+          )
+
+        %{
+          tool
+          | parameters_json_schema: %{
+              schema
+              | properties: properties,
+                required: schema.required -- [field]
+            }
+        }
+
+      %{name: "request_response"} = tool ->
+        schema = tool.parameters_json_schema
+
+        properties =
+          schema.properties
+          |> Map.update!(
+            "recipients",
+            &Map.merge(&1, %{
+              minItems: 1,
+              maxItems: Dragonex.Conversation.max_recipients(),
+              uniqueItems: true
+            })
+          )
+          |> Map.update!(
+            "question",
+            &Map.merge(&1, %{minLength: 1, maxLength: Dragonex.Conversation.max_question()})
+          )
+
+        %{tool | parameters_json_schema: %{schema | properties: properties}}
+
+      tool ->
+        tool
+    end)
+    |> Enum.map(&Dragonex.Game.ToolReplay.wrap/1)
+    |> Enum.map(fn tool ->
+      original = tool.call
+
+      %{
+        tool
+        | call: fn ctx, args ->
+            Dragonex.I18n.adopt(ctx.deps)
+
+            case original.(ctx, args) do
+              {:error, message} when is_binary(message) ->
+                raise ExAgent.ModelRetry, retry_guidance(message)
+
+              result ->
+                result
+            end
+          end
+      }
+    end)
+  end
+
+  # 19451/26–30: a declared attack on a narrated creature without a sheet led
+  # the manual resolver to retry spawn_monster until the turn failed.
+  defp unregistered_target do
+    dgettext(
+      "engine",
+      "Usa un nombre canónico del estado. Una criatura sin ficha solo la registra " <>
+        "el DM con spawn_monster; si resuelves la acción de un PC, no la crees ni " <>
+        "la ataques: cierra con una confirmación breve y el DM la registrará."
+    )
+  end
+
+  # The missing-target prefix may come from a converted message (active
+  # locale) or from one still emitted in Spanish.
+  defp retry_guidance(message) do
+    missing = ["no existe el objetivo", dgettext("engine", "no existe el objetivo")]
+
+    if String.starts_with?(message, missing),
+      do: message <> ". " <> unregistered_target(),
+      else: message
   end
 
   @doc """
-  Record a durable narrative fact ("Un mensajero del Concejo entregó un pergamino",
-  "Thane descubrió una puerta oculta"). Facts persist in the world and are shown
+  Acting PC only, exploration only: ask named present companions for their own
+  responses. Call when the player's declaration explicitly asks other PCs a
+  question, then narrate only the questioner's words. Recipients get one turn
+  each in the supplied order; never invent their answers. No rolls or resources.
+  If the engine already registered the human question, do not call again or
+  replace that pending conversation; narrate only the questioner's words.
+  Do not call for a PNJ, the DM, a mere mention, or while answering a request.
+  """
+  deftool request_response(ctx, recipients :: [String.t()], question :: String.t()) do
+    from = ctx.deps.state.participant_id
+    registered = ExAgent.Session.participants(ctx.deps.state.session) |> Enum.map(& &1.id)
+
+    if is_list(recipients) and Enum.all?(recipients, &(&1 in registered)) do
+      with {:ok, _} <- propose(ctx, Dragonex.Conversation.request(from, recipients, question)) do
+        {:ok,
+         dgettext(
+           "engine",
+           "Pregunta registrada. %{recipients} responderán por sí mismos; no narres sus respuestas.",
+           recipients: Enum.join(recipients, ", ")
+         )}
+      end
+    else
+      {:error,
+       dgettext("engine", "Usa solo nombres canónicos de PCs participantes: %{names}.",
+         names: Enum.join(registered -- ["dm", from], ", ")
+       )}
+    end
+  end
+
+  @doc "DM only: update the confirmed current surroundings. Do not invent actions or relocation for PCs; each decides on their own turn."
+  deftool set_scene(ctx, narration :: String.t()) do
+    with :ok <- assert_world_narrator(ctx) do
+      # Model text reaching persistent world state must be scrubbed (D7): a scene
+      # is echoed to every agent every turn, so scrubbing closes a prompt-injection
+      # amplifier.
+      scene = Dragonex.Text.scrub(narration)
+      world = world(ctx)
+      actor = ctx.deps.state.participant_id
+      pcs = for {name, %{side: "pc"}} <- world.characters, do: name
+
+      cond do
+        scene == "" ->
+          {:error,
+           dgettext(
+             "engine",
+             "RECHAZADO — describe una escena con contenido; no borres el entorno actual."
+           )}
+
+        Dragonex.Text.puppets_pc?(scene, actor, pcs, Map.keys(world.characters)) ->
+          {:error,
+           dgettext(
+             "engine",
+             "RECHAZADO — no decidas acciones ni traslados de otros PCs o del grupo. " <>
+               "Describe el entorno sin moverlos; cada PC decide y actúa en su turno."
+           )}
+
+        true ->
+          with {:ok, _} <- propose(ctx, Dragonex.World.set_scene(scene)) do
+            {:ok, dgettext("engine", "escena establecida")}
+          end
+      end
+    end
+  end
+
+  @doc """
+  DM only: record a confirmed durable narrative fact, written in the language of
+  the game ("A Council messenger delivered a scroll", "Thane found a hidden
+  door"). Facts persist in the world and are shown
   to every agent each turn, so the partida's concrete state survives history
   truncation and hooks don't get dropped or re-introduced. Call this whenever you
   introduce or reveal something concrete the party should remember.
+  Use this for established world events. For an NPC's report, rumor, promise or
+  uncertain claim, use record_npc_statement so its source remains explicit.
   """
   deftool establish_fact(ctx, fact :: String.t()) do
-    # Facts are canonical world state surfaced to every agent each turn — scrub
-    # before persisting so a tainted fact can't poison all future contexts (D7).
-    {:ok, _} = propose(ctx, Dragonex.World.add_fact(Dragonex.Text.scrub(fact)))
-    {:ok, "hecho registrado"}
+    with :ok <- assert_world_narrator(ctx) do
+      # Facts are canonical world state surfaced to every agent each turn — scrub
+      # before persisting so a tainted fact can't poison all future contexts (D7).
+      fact = Dragonex.Text.scrub(fact)
+      world = world(ctx)
+      actor = ctx.deps.state.participant_id
+      pcs = for {name, %{side: "pc"}} <- world.characters, do: name
+
+      if Dragonex.Text.puppets_pc?(fact, actor, pcs, Map.keys(world.characters)) do
+        {:error,
+         dgettext(
+           "engine",
+           "RECHAZADO — no registres decisiones ni acciones de otros PCs o del grupo. " <>
+             "Registra el entorno o hechos establecidos; cada PC decide y actúa en su turno."
+         )}
+      else
+        with {:ok, _} <- propose(ctx, Dragonex.World.add_fact(fact)) do
+          {:ok, dgettext("engine", "hecho registrado")}
+        end
+      end
+    end
+  end
+
+  defp assert_world_narrator(ctx) do
+    if ctx.deps.state.participant_id == "dm" do
+      :ok
+    else
+      {:error,
+       dgettext(
+         "engine",
+         "RECHAZADO — solo el DM confirma escenas y registra hechos canónicos del mundo. " <>
+           "Resuelve tus reglas y describe tu intención u observación; espera la confirmación del DM."
+       )}
+    end
+  end
+
+  @doc """
+  DM only: remember a durable NPC statement before narrating it. Supply the
+  NPC's name or role and the short claim, preserving uncertainty and who told
+  them. The engine stores attributed testimony, not a confirmed world fact.
+  Use for clues, reported sightings, rumors and promises the party may recall.
+  The engine stamps the first recording with the world clock. Repeating the
+  same claim preserves that reference; do not invent dates for old testimony.
+  Do not use for transient gestures or repeat unchanged testimony each turn.
+  It never moves characters, grants rewards, confirms a rumor or advances time.
+  """
+  deftool record_npc_statement(ctx, speaker :: String.t(), statement :: String.t()) do
+    if ctx.deps.state.participant_id == "dm" do
+      with :ok <- Dragonex.Game.NPCMemoryResolution.validate_speaker(ctx.deps, speaker),
+           {:ok, _} <- propose(ctx, Dragonex.World.record_npc_statement(speaker, statement)) do
+        {:ok,
+         dgettext(
+           "engine",
+           "Testimonio registrado con su fuente; el contenido no se considera confirmado."
+         )}
+      else
+        {:error, reason} = error ->
+          # A rejected source exhausts the model's retries without a trace
+          # otherwise; keep the offending value in the server log.
+          Logger.info(
+            "record_npc_statement rejected speaker=#{inspect(String.slice(speaker, 0, 120))}: " <>
+              inspect(reason)
+          )
+
+          error
+      end
+    else
+      {:error,
+       dgettext(
+         "engine",
+         "Solo el DM registra testimonios de PNJ; no hables por ellos como un PC."
+       )}
+    end
+  end
+
+  @doc """
+  DM only: record that an existing non-PC has left the scene. Does not roll or
+  decide an escape: resolve applicable actions/checks first. Preserves the
+  creature's HP/resources, ends its concentration and removes active targeting
+  and initiative. A narration or generic check alone does not remove it.
+  """
+  deftool leave_scene(ctx, who :: String.t(), reason :: String.t()) do
+    with :ok <- assert_scene_presence(ctx),
+         {:ok, _} <- propose(ctx, Dragonex.World.leave_scene(who, reason)) do
+      {:ok,
+       dgettext(
+         "engine",
+         "%{who} está fuera de escena; conserva su ficha y no es un objetivo presente.",
+         who: who
+       )}
+    end
+  end
+
+  @doc "DM only: bring an absent creature back with its stored HP/resources. Combat reinforcements join at the end; never spawn a fresh copy of the same name."
+  deftool return_to_scene(ctx, who :: String.t()) do
+    with :ok <- assert_scene_presence(ctx),
+         {:ok, _} <- propose(ctx, Dragonex.World.return_to_scene(who)) do
+      {:ok, dgettext("engine", "%{who} vuelve a la escena con su ficha conservada.", who: who)}
+    end
+  end
+
+  defp assert_scene_presence(ctx) do
+    if ctx.deps.state.participant_id == "dm",
+      do: :ok,
+      else:
+        {:error,
+         dgettext("engine", "RECHAZADO — solo el DM registra salidas y retornos de escena.")}
+  end
+
+  defp assert_present_target(ctx, who) do
+    if Dragonex.World.present?(world(ctx), who),
+      do: :ok,
+      else: {:error, dgettext("engine", "%{who} no está presente en la escena.", who: who)}
+  end
+
+  @doc "DM only, exploration: MUST call before narrating descriptive gear actually collected or handed to a present PC, including an NPC returning an object into their hand. Adds quantity to the canonical inventory stack. A pending request/plan alone does not transfer stock; when the NPC agrees and actually hands it over, this tool is required. Never equip weapons/armor or grant mechanical effects. Copy the canonical item name when adding to a stack; name a new scene object exactly as narrated, in the language of the game (e.g. \"ledger\" / \"libro de cuentas\"), never translated."
+  deftool grant_item(ctx, who :: String.t(), item :: String.t(), quantity :: integer()) do
+    with :ok <- assert_inventory_dm(ctx),
+         {:ok, _} <- propose(ctx, Dragonex.World.grant_item(who, item, quantity)) do
+      {:ok,
+       dgettext("engine", "%{who} recibe %{quantity} × %{item} en su inventario.",
+         who: who,
+         quantity: quantity,
+         item: Dragonex.Rules.Inventory.key(item)
+       )}
+    end
+  end
+
+  @doc "DM only, exploration: confirm a present PC actually handed over, dropped or lost owned descriptive gear. Removes only the requested positive quantity, rejects insufficient stock. Copy the canonical name from inventory. Does not equip/consume or alter combat equipment."
+  deftool remove_item(ctx, who :: String.t(), item :: String.t(), quantity :: integer()) do
+    with :ok <- assert_inventory_dm(ctx),
+         {:ok, _} <- propose(ctx, Dragonex.World.remove_item(who, item, quantity)) do
+      {:ok,
+       dgettext("engine", "%{who} entrega o deja %{quantity} × %{item}; inventario actualizado.",
+         who: who,
+         quantity: quantity,
+         item: Dragonex.Rules.Inventory.key(item)
+       )}
+    end
+  end
+
+  defp assert_inventory_dm(ctx) do
+    if ctx.deps.state.participant_id == "dm",
+      do: :ok,
+      else:
+        {:error,
+         dgettext(
+           "engine",
+           "RECHAZADO — solo el DM confirma entregas y retiradas del inventario; narra tu intención y espera su resolución."
+         )}
   end
 
   # --- legacy spike stubs ----------------------------------------------------
@@ -43,37 +407,67 @@ defmodule Dragonex.Tools do
   @doc "Attack a target for `damage` hp (after a successful hit roll elsewhere)."
   deftool attack(ctx, target :: String.t(), damage :: integer()) do
     case propose(ctx, Dragonex.World.apply_damage(target, damage)) do
-      {:ok, _} -> {:ok, "#{target} recibe #{damage} de daño"}
-      {:error, _} = e -> e
+      {:ok, _} ->
+        {:ok,
+         dgettext("engine", "%{target} recibe %{amount} de daño", target: target, amount: damage)}
+
+      {:error, _} = e ->
+        e
     end
   end
 
   @doc "Roll a single d`n` and report the result to the model."
   deftool roll(ctx, sides :: pos_integer()) do
-    roller = ctx.deps.roller
-    {:ok, "salió #{roller.(sides)} (d#{sides})"}
+    # Entradas inválidas (auditoría 7): caras 0/negativas/no enteras
+    # crasheaban en Dice.roll; aquí se responde con error accionable.
+    if is_integer(sides) and sides >= 2 and sides <= 1000 do
+      roller = ctx.deps.roller
+      {:ok, dgettext("engine", "salió %{value} (d%{sides})", value: roller.(sides), sides: sides)}
+    else
+      {:error,
+       dgettext("engine", "tirada inválida: d%{sides} — usa entre 2 y 1000 caras",
+         sides: inspect(sides)
+       )}
+    end
   end
 
   @doc "Add a character to the world with the given hp."
   deftool spawn_character(ctx, name :: String.t(), hp :: integer()) do
-    c =
-      Dragonex.Character.new(
-        name: name,
-        class: "monster",
-        hp: hp,
-        max_hp: hp,
-        ac: 10,
-        side: "enemy"
-      )
+    # Entradas inválidas (auditoría 7): un nombre vacío creaba un personaje
+    # basura con clave "" y pg <= 0 producían fichas sin sentido.
+    cond do
+      not is_binary(name) or String.trim(name) == "" ->
+        {:error,
+         dgettext("engine", "nombre inválido: %{name} — el personaje necesita un nombre",
+           name: inspect(name)
+         )}
 
-    {:ok, _} = propose(ctx, Dragonex.World.add_character(c))
-    {:ok, "#{name} aparece (#{hp} pg)"}
+      not is_integer(hp) or hp < 1 ->
+        {:error,
+         dgettext("engine", "pg iniciales inválidos: %{hp} — deben ser un entero ≥ 1",
+           hp: inspect(hp)
+         )}
+
+      true ->
+        c =
+          Dragonex.Character.new(
+            name: name,
+            class: "monster",
+            hp: hp,
+            max_hp: hp,
+            ac: 10,
+            side: "enemy"
+          )
+
+        {:ok, _} = propose(ctx, Dragonex.World.add_character(c))
+        {:ok, dgettext("engine", "%{name} aparece (%{hp} pg)", name: name, hp: hp)}
+    end
   end
 
   @doc "Advance to the next round."
   deftool next_round(ctx) do
     {:ok, _} = propose(ctx, Dragonex.World.next_round())
-    {:ok, "ronda avanzada"}
+    {:ok, dgettext("engine", "ronda avanzada")}
   end
 
   # --- real bridge tools (Rules -> World) -------------------------------
@@ -83,15 +477,18 @@ defmodule Dragonex.Tools do
 
   @doc "Roll `count` d`sides`, optionally with advantage/disadvantage."
   deftool roll_dice(ctx, count :: pos_integer(), sides :: pos_integer()) do
-    {:ok, msg} =
-      Dragonex.Actions.roll(count, sides, :normal, ctx.deps.roller, ctx.deps[:roll_log])
-
-    {:ok, msg}
+    # Entradas inválidas (auditoría 7): propagar el error de Actions.roll
+    # (antes el match duro crasheaba en cuanto la tirada no validaba).
+    case Dragonex.Actions.roll(count, sides, :normal, ctx.deps.roller, ctx.deps[:roll_log]) do
+      {:ok, msg} -> {:ok, msg}
+      {:error, _} = e -> e
+    end
   end
 
-  @doc "Roll initiative for every conscious combatant and begin combat."
+  @doc "DM only: roll initiative for every conscious combatant and begin combat."
   deftool roll_initiative(ctx) do
-    with {:ok, msg, change} <-
+    with :ok <- assert_combat_dm(ctx),
+         {:ok, msg, change} <-
            Dragonex.Actions.initiative(world(ctx), ctx.deps.roller, ctx.deps[:roll_log]),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
@@ -129,14 +526,39 @@ defmodule Dragonex.Tools do
   a 4th-level slot (9d6 instead of 8d6) and spends a 4th-level slot. Omit it
   (or pass the spell's base level) for a normal cast. Only spells with a
   curated scaling table scale (fireball, cure wounds, magic missile, …);
-  others just spend the requested slot.
+  others just spend the requested slot. Bless grants +1d4 to attacks and saves
+  for 1 minute of concentration. For Bless only, `additional_targets` is an
+  optional list of names besides `target`: up to 3 total at level 1, plus
+  one per slot level above 1. No duplicates; the caster may be a target.
+  Shield of Faith protects `target` with +2 effective AC for 10 minutes of
+  concentration, uses a bonus action and one slot, and does not stack with
+  itself. A higher slot does not increase its bonus. It is not Shield.
+  Heal (level 6) restores 70 HP, plus 10 per higher slot, capped at max HP,
+  and ends blinded, deafened and diseased. No dice or casting modifier.
+  It can target yourself or a living downed ally, but not undead, constructs
+  or dead creatures. One action and one slot, no concentration.
+  Spare the Dying is a cantrip: stabilizes a living target at exactly 0 HP,
+  clearing death-save failures without healing. One action, no slot or
+  concentration. No effect on undead, constructs or dead creatures.
+  False Life targets the caster only: 1d4+4 temporary HP at level 1, plus
+  5 per higher slot, for 1 hour without concentration. Temporary HP do not
+  stack; the engine keeps the greater value. One action and one slot.
+  Lesser Restoration removes one condition: blinded, deafened, paralyzed,
+  poisoned or diseased. Set condition_to_remove when several are present;
+  omit it only when each target has exactly one eligible condition.
+  It does not heal HP. One action and one slot, no concentration or scaling.
+  Omit condition_to_remove or send null for every other spell. Never send "none".
+  condition_to_remove is only accepted for Lesser Restoration; with Twinned,
+  an explicit selection applies to both targets.
   """
   deftool cast_spell(
             ctx,
             caster :: String.t(),
             spell :: String.t(),
             target :: String.t(),
-            cast_level :: integer()
+            cast_level :: integer(),
+            additional_targets :: [String.t()],
+            condition_to_remove :: String.t()
           ) do
     with :ok <- assert_controls(ctx, caster),
          {:ok, msg, change} <-
@@ -147,15 +569,23 @@ defmodule Dragonex.Tools do
              target,
              ctx.deps.roller,
              ctx.deps[:roll_log],
-             parse_cast_level(cast_level)
+             parse_cast_level(cast_level),
+             additional_targets,
+             empty_selection_to_nil(condition_to_remove)
            ),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
     end
   end
 
-  # D74: the model sometimes sends numbers as strings — coerce a clean
-  # integer string and let anything odd hit Actions' clear validation error.
+  # Keep the existing direct Elixir call compatible as well as old tool JSON.
+  def cast_spell(ctx, caster, spell, target, cast_level, additional_targets),
+    do: cast_spell(ctx, caster, spell, target, cast_level, additional_targets, nil)
+
+  def cast_spell(ctx, caster, spell, target, cast_level),
+    do: cast_spell(ctx, caster, spell, target, cast_level, nil)
+
+  # D74: coerce a clean integer string; let anything odd hit Actions' validation.
   defp parse_cast_level(nil), do: nil
 
   defp parse_cast_level(n) when is_integer(n), do: n
@@ -168,6 +598,12 @@ defmodule Dragonex.Tools do
   end
 
   defp parse_cast_level(other), do: other
+
+  defp empty_selection_to_nil(selection) when is_binary(selection) do
+    if String.trim(selection) == "", do: nil, else: selection
+  end
+
+  defp empty_selection_to_nil(selection), do: selection
 
   @doc "Make a death saving throw for a down `character`."
   deftool make_death_save(ctx, character :: String.t()) do
@@ -186,17 +622,102 @@ defmodule Dragonex.Tools do
 
   @doc "End combat and return to free-form exploration (DM call, once combat is over)."
   deftool end_combat(ctx) do
-    {:ok, _} = propose(ctx, Dragonex.World.end_combat())
-    {:ok, "el combate termina"}
+    with :ok <- assert_combat_dm(ctx),
+         {:ok, _} <- propose(ctx, Dragonex.World.end_combat()) do
+      {:ok, dgettext("engine", "el combate termina")}
+    end
   end
 
-  @doc "Short rest: spend a hit die to recover HP. Available outside combat."
-  deftool short_rest(ctx, target :: String.t()) do
+  @doc "One-hour short rest. Optional hit_dice: 0 to recover features only, or available dice to spend; omitted spends at most one."
+  deftool short_rest(ctx, target :: String.t(), hit_dice :: integer()) do
     with :ok <- assert_rest_target(ctx, target),
          {:ok, msg, change} <-
-           Dragonex.Actions.short_rest(world(ctx), target, ctx.deps.roller, ctx.deps[:roll_log]),
+           Dragonex.Actions.short_rest(
+             world(ctx),
+             target,
+             ctx.deps.roller,
+             ctx.deps[:roll_log],
+             hit_dice
+           ),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
+    end
+  end
+
+  def short_rest(ctx, target), do: short_rest(ctx, target, nil)
+
+  @doc """
+  D99 Spiritual Weapon: strike again with the caster's active spectral
+  weapon. One BONUS action per turn; melee spell attack of 1d8 (+the caster's
+  spellcasting modifier, +1d8 per two slot levels above 2nd) force damage.
+  Only usable while the spiritual weapon posture is active (cast spiritual
+  weapon first — it lasts 1 minute of combat rounds and a re-cast replaces
+  it, never stacks). The engine resolves the attack, crits and advantage;
+  never computes damage yourself.
+  """
+  deftool spiritual_weapon_attack(ctx, who :: String.t(), target :: String.t()) do
+    with :ok <- assert_controls(ctx, who),
+         {:ok, msg, change} <-
+           Dragonex.Actions.spiritual_weapon_attack(
+             world(ctx),
+             who,
+             target,
+             ctx.deps.roller,
+             ctx.deps[:roll_log]
+           ),
+         {:ok, _} <- propose(ctx, change) do
+      {:ok, msg}
+    end
+  end
+
+  @doc "DM only: advance explicit exploration time in seconds. Never use to skip combat turns."
+  deftool advance_time(ctx, seconds :: integer()) do
+    if ctx.deps.state.participant_id == "dm" do
+      with {:ok, committed} <-
+             propose(ctx, fn world ->
+               Dragonex.Game.WaitResolution.advance_time(world, seconds, ctx.deps)
+             end) do
+        if ctx.deps[:beat] && ctx.deps.beat[:wait_resolution] do
+          {:ok,
+           dgettext(
+             "engine",
+             "Espera registrada; reloj confirmado: %{seconds} s. No repitas este intervalo.",
+             seconds: committed.elapsed_seconds
+           )}
+        else
+          {:ok, dgettext("engine", "transcurren %{seconds} segundos", seconds: seconds)}
+        end
+      end
+    else
+      {:error, dgettext("engine", "solo el DM puede avanzar el tiempo del mundo")}
+    end
+  end
+
+  @doc "DM only: simultaneous party rest. kind is short (1h) or long (8h); time advances once for all targets."
+  deftool rest_party(ctx, targets :: [String.t()], kind :: String.t()) do
+    if ctx.deps.state.participant_id == "dm" do
+      with {:ok, message, change} <-
+             Dragonex.Actions.rest_party(
+               world(ctx),
+               targets,
+               kind,
+               ctx.deps.roller,
+               ctx.deps[:roll_log]
+             ),
+           {:ok, committed} <- propose(ctx, change),
+           do:
+             {:ok,
+              message <>
+                " " <>
+                dgettext(
+                  "engine",
+                  "Tiempo del mundo tras el descanso: %{seconds} s. " <>
+                    "Si el entorno o la situación cambió, actualiza el registro con set_scene, " <>
+                    "sin mover ni hacer actuar a los PCs. No repitas el descanso ya aplicado.",
+                  seconds: committed.elapsed_seconds
+                )}
+    else
+      {:error, dgettext("engine", "solo el DM puede resolver un descanso de grupo")}
     end
   end
 
@@ -210,28 +731,34 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
-  Otorga un nivel a un personaje (subida por hito). Sube PG y refresca huecos de
-  conjuro. **No aplica a PCs humanos** (los controla una persona real, incluso en
-  auto-play): esos suben siempre desde su ficha (`/heroes/:id/level-up`). Para
-  NPCs, enemigos y PCs IA, la subida la decide el DM aquí.
+  DM only: grant a character one level (milestone advancement). Raises HP and
+  refreshes spell slots. **Does not apply to human PCs** (a real person controls
+  them, even in auto-play): they always level up from their sheet
+  (`/heroes/:id/level-up`). For NPCs, enemies and AI PCs the DM decides here.
 
-  `opts` lleva las elecciones del nuevo nivel (ignoradas para PCs humanos):
-    * `"spells"` — keys de hechizos nuevos que aprende (builtin/SRD).
-    * `"asi"` — `%{"str" => 2}` repartiendo 2 puntos a niveles 4/8/12/16/19.
-  Pasa `{}` cuando no toque elegir nada. La validación de cupo la hace el motor.
+  `opts` carries the new level's choices (ignored for human PCs):
+    * `"spells"` — keys of the new spells learned (builtin/SRD).
+    * `"asi"` — `%{"str" => 2}` spending 2 points at levels 4/8/12/16/19.
+  Pass `{}` when there is nothing to choose. The engine validates the limits.
   """
   deftool level_up(ctx, target :: String.t(), opts :: map()) do
-    cond do
-      human_pc?(ctx, target) ->
-        {:ok,
-         "#{target} es un jugador humano: debe subir de nivel desde su ficha (/heroes/:id/level-up), no por la mesa."}
+    with :ok <- assert_direct_effect_dm(ctx) do
+      cond do
+        human_pc?(ctx, target) ->
+          {:ok,
+           dgettext(
+             "engine",
+             "%{target} es un jugador humano: debe subir de nivel desde su ficha (/heroes/:id/level-up), no por la mesa.",
+             target: target
+           )}
 
-      true ->
-        change = Dragonex.World.level_up(target, normalize_level_up_opts(opts))
+        true ->
+          change = Dragonex.World.level_up(target, normalize_level_up_opts(opts))
 
-        with {:ok, _} <- propose(ctx, change) do
-          {:ok, "¡#{target} sube de nivel!"}
-        end
+          with {:ok, _} <- propose(ctx, change) do
+            {:ok, dgettext("engine", "¡%{target} sube de nivel!", target: target)}
+          end
+      end
     end
   end
 
@@ -268,35 +795,76 @@ defmodule Dragonex.Tools do
     end
   end
 
-  @doc "Spawn a monster from the bestiary into the world (e.g. 'orc', 'skeleton', 'wolf'). Use a unique name if summoning multiples."
+  @doc "DM only: spawn a monster from the bestiary into the world (e.g. 'orc', 'skeleton', 'wolf'). Use a unique name if summoning multiples."
   deftool spawn_monster(ctx, kind :: String.t(), name :: String.t()) do
-    monster =
-      case Dragonex.Monsters.get(kind) do
-        builder when is_function(builder, 1) -> builder.(name: name)
-        nil -> nil
-      end
-
-    if monster do
-      # Add the monster AND join it to the initiative order when mid-combat
-      # (join_initiative is a no-op in exploration, so composing is always safe).
-      change =
-        compose(
-          Dragonex.World.add_character(monster),
-          Dragonex.World.join_initiative(monster.name)
-        )
-
-      with {:ok, _} <- propose(ctx, change) do
-        {:ok, "¡Aparece #{name} (#{kind})! PG #{monster.hp}, CA #{monster.ac}."}
-      end
-    else
-      {:ok,
-       "Tipo de monstruo desconocido '#{kind}'. Disponibles: #{Enum.join(Dragonex.Monsters.keys(), ", ")}"}
+    with :ok <- assert_combat_dm(ctx) do
+      spawn_bestiary_monster(ctx, kind, name)
     end
   end
 
-  @doc "Heal `target` by a dice expression (e.g. \"1d8+3\"); caps at max hp. Death saves clear only if hp rises above 0. Does not touch temp_hp."
+  defp spawn_bestiary_monster(ctx, kind, name) do
+    cond do
+      # Entradas inválidas (auditoría 7): sin esto un nombre en blanco
+      # spawnneaba un monstruo con clave "".
+      not is_binary(name) or String.trim(name) == "" ->
+        {:error,
+         dgettext("engine", "nombre inválido: %{name} — el monstruo necesita un nombre",
+           name: inspect(name)
+         )}
+
+      true ->
+        monster =
+          case Dragonex.Monsters.get(kind) do
+            builder when is_function(builder, 1) -> builder.(name: name)
+            nil -> nil
+          end
+
+        if monster do
+          # Add the monster AND join it to the initiative order when mid-combat
+          # (join_initiative is a no-op in exploration, so composing is always safe).
+          change =
+            compose(
+              Dragonex.World.add_character(monster),
+              Dragonex.World.join_initiative(monster.name)
+            )
+
+          with {:ok, _} <- propose(ctx, change) do
+            {:ok,
+             dgettext("engine", "¡Aparece %{name} (%{kind})! PG %{hp}, CA %{ac}.",
+               name: name,
+               kind: kind,
+               hp: monster.hp,
+               ac: monster.ac
+             )}
+          end
+        else
+          {:ok,
+           dgettext("engine", "Tipo de monstruo desconocido '%{kind}'. Disponibles: %{kinds}",
+             kind: kind,
+             kinds: Enum.join(Dragonex.Monsters.keys(), ", ")
+           )}
+        end
+    end
+  end
+
+  defp assert_combat_dm(ctx) do
+    if ctx.deps.state.participant_id == "dm" do
+      :ok
+    else
+      {:error,
+       dgettext(
+         "engine",
+         "RECHAZADO — solo el DM introduce criaturas o pide iniciar/terminar combate. " <>
+           "Resuelve con las fichas existentes; si el objetivo aún no tiene ficha, no lo crees " <>
+           "ni lo ataques: cierra con una confirmación breve y el DM lo registrará con su iniciativa."
+       )}
+    end
+  end
+
+  @doc "DM only: apply established healing by a dice expression (e.g. \"1d8+3\"); caps at max hp. PCs use their paid spell or class feature. Death saves clear only if hp rises above 0. Does not touch temp_hp."
   deftool heal(ctx, target :: String.t(), dice :: String.t()) do
-    with {:ok, msg, change} <-
+    with :ok <- assert_direct_effect_dm(ctx),
+         {:ok, msg, change} <-
            Dragonex.Actions.heal(world(ctx), target, dice, ctx.deps.roller, ctx.deps[:roll_log]),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
@@ -304,22 +872,45 @@ defmodule Dragonex.Tools do
   end
 
   @doc """
-  Grant `amount` temporary hit points to `who` (5e, D36). Does not stack: the
+  DM only: grant `amount` temporary hit points to `who` (5e, D36). Does not stack: the
   character keeps the higher of current temp_hp and `amount`. Does not heal.
-  The DM may grant to anyone; a PC may only grant to themselves.
+  PCs use cast_spell or their class feature, whose engine validates the source and cost.
   """
   deftool grant_temp_hp(ctx, who :: String.t(), amount :: integer()) do
-    current =
-      case Dragonex.World.character(world(ctx), who) do
-        nil -> 0
-        c -> c.temp_hp || 0
-      end
-
-    with :ok <- assert_grant_temp_hp(ctx, who),
-         {:ok, _} <- propose(ctx, Dragonex.World.apply_temp_hp(who, amount)) do
-      {:ok, "#{who} queda con #{max(current, amount)} pg temporales."}
+    with :ok <- assert_direct_effect_dm(ctx) do
+      grant_direct_temp_hp(ctx, who, amount)
     end
   end
+
+  defp grant_direct_temp_hp(ctx, who, amount) do
+    current =
+      case Dragonex.World.character(world(ctx), who) do
+        %Dragonex.Character{} = c -> c.temp_hp || 0
+        _ -> 0
+      end
+
+    with :ok <- assert_present_target(ctx, who),
+         :ok <- positive_amount(amount, dgettext("engine", "los pg temporales")),
+         {:ok, _} <- propose(ctx, Dragonex.World.apply_temp_hp(who, amount)) do
+      {:ok,
+       dgettext("engine", "%{who} queda con %{amount} pg temporales.",
+         who: who,
+         amount: max(current, amount)
+       )}
+    end
+  end
+
+  # Entradas inválidas (auditoría 7): guard temprano en la tool — el amount
+  # llega del LLM y debe ser un entero positivo.
+  defp positive_amount(amount, _what) when is_integer(amount) and amount > 0, do: :ok
+
+  defp positive_amount(amount, what),
+    do:
+      {:error,
+       dgettext("engine", "%{what} deben ser un entero positivo (recibió %{value})",
+         what: what,
+         value: inspect(amount)
+       )}
 
   @doc """
   Grant `amount` XP to `who` (5e, D43). Does not level up and does not
@@ -353,9 +944,13 @@ defmodule Dragonex.Tools do
     with :ok <- assert_drop_concentration(ctx, who),
          {:ok, _} <- propose(ctx, Dragonex.World.clear_concentration(who)) do
       if is_binary(spell) do
-        {:ok, "#{who} deja de concentrarse en #{spell}."}
+        {:ok,
+         dgettext("engine", "%{who} deja de concentrarse en %{spell}.",
+           who: who,
+           spell: Dragonex.Terms.spell(spell)
+         )}
       else
-        {:ok, "#{who} no estaba concentrado."}
+        {:ok, dgettext("engine", "%{who} no estaba concentrado.", who: who)}
       end
     end
   end
@@ -368,7 +963,7 @@ defmodule Dragonex.Tools do
   deftool start_rage(ctx, who :: String.t()) do
     with :ok <- assert_rage_self(ctx, who),
          {:ok, _} <- propose(ctx, Dragonex.World.start_rage(who)) do
-      {:ok, "#{who} entra en furia."}
+      {:ok, dgettext("engine", "%{who} entra en furia.", who: who)}
     end
   end
 
@@ -378,7 +973,7 @@ defmodule Dragonex.Tools do
   deftool end_rage(ctx, who :: String.t()) do
     with :ok <- assert_rage_self(ctx, who),
          {:ok, _} <- propose(ctx, Dragonex.World.end_rage(who)) do
-      {:ok, "#{who} deja la furia."}
+      {:ok, dgettext("engine", "%{who} deja la furia.", who: who)}
     end
   end
 
@@ -390,7 +985,7 @@ defmodule Dragonex.Tools do
   deftool start_reckless(ctx, who :: String.t()) do
     with :ok <- assert_reckless_self(ctx, who),
          {:ok, _} <- propose(ctx, Dragonex.World.start_reckless(who)) do
-      {:ok, "#{who} ataca de forma temeraria."}
+      {:ok, dgettext("engine", "%{who} ataca de forma temeraria.", who: who)}
     end
   end
 
@@ -401,7 +996,7 @@ defmodule Dragonex.Tools do
   deftool end_reckless(ctx, who :: String.t()) do
     with :ok <- assert_reckless_self(ctx, who),
          {:ok, _} <- propose(ctx, Dragonex.World.end_reckless(who)) do
-      {:ok, "#{who} deja de atacar de forma temeraria."}
+      {:ok, dgettext("engine", "%{who} deja de atacar de forma temeraria.", who: who)}
     end
   end
 
@@ -586,7 +1181,11 @@ defmodule Dragonex.Tools do
   deftool divine_smite(ctx, who :: String.t(), slot_level :: integer()) do
     with :ok <- assert_smite_self(ctx, who),
          {:ok, _} <- propose(ctx, Dragonex.World.start_smite(who, slot_level)) do
-      {:ok, "#{who} arma Castigo divino (casilla de nivel #{slot_level})."}
+      {:ok,
+       dgettext("engine", "%{who} arma Castigo divino (casilla de nivel %{level}).",
+         who: who,
+         level: slot_level
+       )}
     end
   end
 
@@ -597,7 +1196,7 @@ defmodule Dragonex.Tools do
   deftool end_smite(ctx, who :: String.t()) do
     with :ok <- assert_smite_self(ctx, who),
          {:ok, _} <- propose(ctx, Dragonex.World.end_smite(who)) do
-      {:ok, "#{who} retira el Castigo divino."}
+      {:ok, dgettext("engine", "%{who} retira el Castigo divino.", who: who)}
     end
   end
 
@@ -605,20 +1204,29 @@ defmodule Dragonex.Tools do
   Lay on Hands (5e, D49). Paladin only. Spends pool points to heal
   `target` (self or another). The DM may use it for any paladin; a PC
   may only use it as themselves (`who` is self; `target` may be an ally).
+  Optional conditions_to_remove: a unique list of poisoned and/or diseased
+  currently present on the target. Costs 5 pool points per condition plus
+  healing in the same action. amount may be 0 for purification alone.
+  No effect on undead, constructs or dead targets. Purification alone does
+  not restore HP or stabilize. Omit the list for ordinary healing.
   """
   deftool lay_on_hands(
             ctx,
             who :: String.t(),
             target :: String.t(),
-            amount :: integer()
+            amount :: integer(),
+            conditions_to_remove :: [String.t()]
           ) do
     with :ok <- assert_lay_on_hands_self(ctx, who),
          {:ok, msg, change} <-
-           Dragonex.Actions.lay_on_hands(world(ctx), who, target, amount),
+           Dragonex.Actions.lay_on_hands(world(ctx), who, target, amount, conditions_to_remove),
          {:ok, _} <- propose(ctx, change) do
       {:ok, msg}
     end
   end
+
+  def lay_on_hands(ctx, who, target, amount),
+    do: lay_on_hands(ctx, who, target, amount, nil)
 
   @doc """
   Divine Sense (5e, D52). Paladin only. Spends 1 use and the engine
@@ -786,24 +1394,37 @@ defmodule Dragonex.Tools do
     end
   end
 
-  @doc "Apply a condition to a character (e.g. prone, poisoned, blinded)."
+  @doc "DM only: apply an established condition (e.g. prone, poisoned, blinded). PCs use their rule-driven spell or class feature."
   deftool apply_condition(ctx, target :: String.t(), condition :: String.t()) do
     # D62 Aura of Courage: same-side ally of a conscious paladin L10+ can't
     # be frightened. The World hook would no-op anyway; the message tells
     # the model WHY nothing landed.
-    if condition == "frightened" and Dragonex.World.courage_immune?(world(ctx), target) do
-      {:ok, "#{target} es inmune al miedo (Aura de Coraje)"}
-    else
-      with {:ok, _} <- propose(ctx, Dragonex.World.apply_condition(target, condition)) do
-        {:ok, "#{target} ahora está #{condition}"}
+    with :ok <- assert_direct_effect_dm(ctx),
+         :ok <- assert_present_target(ctx, target) do
+      if condition == "frightened" and Dragonex.World.courage_immune?(world(ctx), target) do
+        {:ok, dgettext("engine", "%{target} es inmune al miedo (Aura de Coraje)", target: target)}
+      else
+        with {:ok, _} <- propose(ctx, Dragonex.World.apply_condition(target, condition)) do
+          {:ok,
+           dgettext("engine", "%{target} ahora está %{condition}",
+             target: target,
+             condition: Dragonex.Terms.condition(condition)
+           )}
+        end
       end
     end
   end
 
-  @doc "Remove a condition from a character."
+  @doc "DM only: remove a condition whose removal is established. PCs use their paid spell or class feature."
   deftool remove_condition(ctx, target :: String.t(), condition :: String.t()) do
-    with {:ok, _} <- propose(ctx, Dragonex.World.remove_condition(target, condition)) do
-      {:ok, "#{target} ya no está #{condition}"}
+    with :ok <- assert_direct_effect_dm(ctx),
+         :ok <- assert_present_target(ctx, target),
+         {:ok, _} <- propose(ctx, Dragonex.World.remove_condition(target, condition)) do
+      {:ok,
+       dgettext("engine", "%{target} ya no está %{condition}",
+         target: target,
+         condition: Dragonex.Terms.condition(condition)
+       )}
     end
   end
 
@@ -825,7 +1446,13 @@ defmodule Dragonex.Tools do
     if proposer == "dm" or proposer == target do
       :ok
     else
-      {:error, "RECHAZADO — solo puedes descansar tú mismo (#{proposer}), no a #{target}."}
+      {:error,
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes descansar tú mismo (%{proposer}), no a %{target}.",
+         proposer: proposer,
+         target: target
+       )}
     end
   end
 
@@ -835,30 +1462,54 @@ defmodule Dragonex.Tools do
     if proposer == "dm" do
       :ok
     else
-      {:error, "RECHAZADO — solo el DM puede otorgar XP."}
+      {:error, dgettext("engine", "RECHAZADO — solo el DM puede otorgar XP.")}
     end
   end
 
   defp grant_xp_message(who, amount, xp, nil, _can?) do
-    "#{who} gana #{amount} XP (total #{xp}; nivel máximo; no puede subir de nivel)."
+    dgettext(
+      "engine",
+      "%{who} gana %{amount} XP (total %{xp}; nivel máximo; no puede subir de nivel).",
+      who: who,
+      amount: amount,
+      xp: xp
+    )
   end
 
   defp grant_xp_message(who, amount, xp, threshold, true) do
-    "#{who} gana #{amount} XP (total #{xp}; umbral siguiente nivel #{threshold}; puede subir de nivel)."
+    dgettext(
+      "engine",
+      "%{who} gana %{amount} XP (total %{xp}; umbral siguiente nivel %{threshold}; puede subir de nivel).",
+      who: who,
+      amount: amount,
+      xp: xp,
+      threshold: threshold
+    )
   end
 
   defp grant_xp_message(who, amount, xp, threshold, false) do
-    "#{who} gana #{amount} XP (total #{xp}; umbral siguiente nivel #{threshold}; aún no puede subir de nivel)."
+    dgettext(
+      "engine",
+      "%{who} gana %{amount} XP (total %{xp}; umbral siguiente nivel %{threshold}; aún no puede subir de nivel).",
+      who: who,
+      amount: amount,
+      xp: xp,
+      threshold: threshold
+    )
   end
 
-  defp assert_grant_temp_hp(ctx, who) do
+  defp assert_direct_effect_dm(ctx) do
     proposer = ctx.deps.state.participant_id
 
-    if proposer == "dm" or proposer == who do
+    if proposer == "dm" do
       :ok
     else
       {:error,
-       "RECHAZADO — solo puedes otorgar pg temporales a ti mismo (#{proposer}), no a #{who}."}
+       dgettext(
+         "engine",
+         "RECHAZADO — solo el DM aplica curaciones/efectos directos o decide subidas de nivel. " <>
+           "Usa cast_spell, second_wind o la capacidad correspondiente; el motor valida su recurso y resultado."
+       )}
     end
   end
 
@@ -869,7 +1520,12 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error,
-       "RECHAZADO — solo puedes soltar tu propia concentración (#{proposer}), no la de #{who}."}
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes soltar tu propia concentración (%{proposer}), no la de %{who}.",
+         proposer: proposer,
+         who: who
+       )}
     end
   end
 
@@ -880,7 +1536,12 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error,
-       "RECHAZADO — solo puedes controlar tu propia furia (#{proposer}), no la de #{who}."}
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes controlar tu propia furia (%{proposer}), no la de %{who}.",
+         proposer: proposer,
+         who: who
+       )}
     end
   end
 
@@ -891,7 +1552,12 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error,
-       "RECHAZADO — solo puedes controlar tu propio ataque temerario (#{proposer}), no el de #{who}."}
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes controlar tu propio ataque temerario (%{proposer}), no el de %{who}.",
+         proposer: proposer,
+         who: who
+       )}
     end
   end
 
@@ -902,7 +1568,12 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error,
-       "RECHAZADO — solo puedes usar Segundo aliento en ti mismo (#{proposer}), no en #{who}."}
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes usar Segundo aliento en ti mismo (%{proposer}), no en %{who}.",
+         proposer: proposer,
+         who: who
+       )}
     end
   end
 
@@ -913,7 +1584,12 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error,
-       "RECHAZADO — solo puedes usar Oleada de acción en ti mismo (#{proposer}), no en #{who}."}
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes usar Oleada de acción en ti mismo (%{proposer}), no en %{who}.",
+         proposer: proposer,
+         who: who
+       )}
     end
   end
 
@@ -924,7 +1600,12 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error,
-       "RECHAZADO — solo puedes usar Ráfaga de golpes en ti mismo (#{proposer}), no en #{who}."}
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes usar Ráfaga de golpes en ti mismo (%{proposer}), no en %{who}.",
+         proposer: proposer,
+         who: who
+       )}
     end
   end
 
@@ -934,7 +1615,13 @@ defmodule Dragonex.Tools do
     if proposer == "dm" or proposer == who do
       :ok
     else
-      {:error, "RECHAZADO — solo puedes usar Marca del cazador como #{proposer}, no como #{who}."}
+      {:error,
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes usar Marca del cazador como %{proposer}, no como %{who}.",
+         proposer: proposer,
+         who: who
+       )}
     end
   end
 
@@ -945,7 +1632,13 @@ defmodule Dragonex.Tools do
     if proposer == "dm" or proposer == who do
       :ok
     else
-      {:error, "RECHAZADO — solo puedes esconderte tú mismo (#{proposer}), no a #{who}."}
+      {:error,
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes esconderte tú mismo (%{proposer}), no a %{who}.",
+         proposer: proposer,
+         who: who
+       )}
     end
   end
 
@@ -957,7 +1650,12 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error,
-       "RECHAZADO — solo puedes armarte tú mismo de Esquiva asombrosa (#{proposer}), no a #{who}."}
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes armarte tú mismo de Esquiva asombrosa (%{proposer}), no a %{who}.",
+         proposer: proposer,
+         who: who
+       )}
     end
   end
 
@@ -969,7 +1667,12 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error,
-       "RECHAZADO — solo puedes usar Fuente de magia en ti mismo (#{proposer}), no en #{who}."}
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes usar Fuente de magia en ti mismo (%{proposer}), no en %{who}.",
+         proposer: proposer,
+         who: who
+       )}
     end
   end
 
@@ -980,7 +1683,13 @@ defmodule Dragonex.Tools do
     if proposer == "dm" or proposer == who do
       :ok
     else
-      {:error, "RECHAZADO — solo puedes armar Metamagia en ti mismo (#{proposer}), no en #{who}."}
+      {:error,
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes armar Metamagia en ti mismo (%{proposer}), no en %{who}.",
+         proposer: proposer,
+         who: who
+       )}
     end
   end
 
@@ -991,7 +1700,12 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error,
-       "RECHAZADO — solo puedes controlar tu propio Castigo divino (#{proposer}), no el de #{who}."}
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes controlar tu propio Castigo divino (%{proposer}), no el de %{who}.",
+         proposer: proposer,
+         who: who
+       )}
     end
   end
 
@@ -1001,7 +1715,13 @@ defmodule Dragonex.Tools do
     if proposer == "dm" or proposer == who do
       :ok
     else
-      {:error, "RECHAZADO — solo puedes usar Manos impositoras como #{proposer}, no como #{who}."}
+      {:error,
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes usar Manos impositoras como %{proposer}, no como %{who}.",
+         proposer: proposer,
+         who: who
+       )}
     end
   end
 
@@ -1011,7 +1731,13 @@ defmodule Dragonex.Tools do
     if proposer == "dm" or proposer == who do
       :ok
     else
-      {:error, "RECHAZADO — solo puedes usar Sentido divino como #{proposer}, no como #{who}."}
+      {:error,
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes usar Sentido divino como %{proposer}, no como %{who}.",
+         proposer: proposer,
+         who: who
+       )}
     end
   end
 
@@ -1022,7 +1748,12 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error,
-       "RECHAZADO — solo puedes usar Expulsar no-muertos como #{proposer}, no como #{who}."}
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes usar Expulsar no-muertos como %{proposer}, no como %{who}.",
+         proposer: proposer,
+         who: who
+       )}
     end
   end
 
@@ -1033,7 +1764,12 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error,
-       "RECHAZADO — solo puedes usar Inspiración bárdica como #{proposer}, no como #{who}."}
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes usar Inspiración bárdica como %{proposer}, no como %{who}.",
+         proposer: proposer,
+         who: who
+       )}
     end
   end
 
@@ -1044,7 +1780,12 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error,
-       "RECHAZADO — solo puedes usar Recuperación arcana en ti mismo (#{proposer}), no en #{who}."}
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes usar Recuperación arcana en ti mismo (%{proposer}), no en %{who}.",
+         proposer: proposer,
+         who: who
+       )}
     end
   end
 
@@ -1056,7 +1797,12 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error,
-       "RECHAZADO — solo puedes usar Forma salvaje en ti mismo (#{proposer}), no en #{who}."}
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes usar Forma salvaje en ti mismo (%{proposer}), no en %{who}.",
+         proposer: proposer,
+         who: who
+       )}
     end
   end
 
@@ -1068,7 +1814,12 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error,
-       "RECHAZADO — solo puedes usar tu propio aliento de dragón (#{proposer}), no el de #{who}."}
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes usar tu propio aliento de dragón (%{proposer}), no el de %{who}.",
+         proposer: proposer,
+         who: who
+       )}
     end
   end
 
@@ -1080,28 +1831,118 @@ defmodule Dragonex.Tools do
       :ok
     else
       {:error,
-       "RECHAZADO — solo puedes elegir tu propio Expertise (#{proposer}), no el de #{who}."}
+       dgettext(
+         "engine",
+         "RECHAZADO — solo puedes elegir tu propio Expertise (%{proposer}), no el de %{who}.",
+         proposer: proposer,
+         who: who
+       )}
     end
   end
 
   defp assert_controls(ctx, actor) do
     proposer = ctx.deps.state.participant_id
+    current_world = world(ctx)
 
-    if Dragonex.World.controlled_by?(world(ctx), actor, proposer) do
+    if Dragonex.World.controlled_by?(current_world, actor, proposer) do
       :ok
     else
-      {:error,
-       "RECHAZADO — es el turno de #{proposer}, así que el atacante/conjurador/quien DEBE ser \"#{proposer}\". " <>
-         "Llamaste a esta herramienta con actor=\"#{actor}\" (#{proposer} no controla a #{actor}). " <>
-         "Reemite la MISMA intención pero como #{proposer}, p.ej. " <>
-         "make_attack(\"#{proposer}\", \"<objetivo>\", \"<arma>\") o cast_spell(\"#{proposer}\", \"<hechizo>\", \"<objetivo>\")."}
+      control_rejection(current_world, proposer, actor)
     end
   end
 
-  # Propose a world change through the Session handle. Tools must not mutate the
-  # world directly; they propose through SharedState (single-writer rule).
+  defp control_rejection(world, proposer, actor) do
+    cond do
+      proposer == "dm" and actor == "dm" ->
+        dm_control_rejection(world)
+
+      Dragonex.World.character(world, actor) == nil ->
+        registration =
+          if proposer == "dm",
+            do:
+              " " <>
+                dgettext(
+                  "engine",
+                  "Si introduces un monstruo nuevo, registra su ficha con spawn_monster antes de iniciativa o ataques."
+                ),
+            else:
+              " " <>
+                dgettext(
+                  "engine",
+                  "Usa el nombre canónico del personaje que controlas; el DM registra criaturas nuevas."
+                )
+
+        {:error,
+         dgettext(
+           "engine",
+           "RECHAZADO — no existe una ficha de %{actor} en el World. Usa un nombre canónico del estado.",
+           actor: actor
+         ) <>
+           registration}
+
+      not Dragonex.World.present?(world, actor) ->
+        {:error,
+         dgettext(
+           "engine",
+           "RECHAZADO — %{actor} está fuera de escena; no puede actuar aquí ni se recrea su ficha.",
+           actor: actor
+         )}
+
+      proposer == "dm" ->
+        dm_control_rejection(world)
+
+      true ->
+        {:error,
+         dgettext(
+           "engine",
+           "RECHAZADO — es el turno de %{proposer}, así que el atacante/conjurador/quien DEBE ser \"%{proposer}\". " <>
+             "Llamaste a esta herramienta con actor=\"%{actor}\" (%{proposer} no controla a %{actor}). " <>
+             "Reemite la MISMA intención pero como %{proposer}, usando su nombre canónico en los argumentos de la herramienta.",
+           proposer: proposer,
+           actor: actor
+         )}
+    end
+  end
+
+  defp dm_control_rejection(world) do
+    actors =
+      world.characters
+      |> Map.keys()
+      |> Enum.filter(
+        &(Dragonex.World.controlled_by?(world, &1, "dm") and
+            Dragonex.World.validate_actor(world, &1) == :ok)
+      )
+      |> Enum.sort()
+
+    available =
+      if actors == [],
+        do:
+          dgettext(
+            "engine",
+            "No hay criaturas registradas disponibles; introduce un monstruo nuevo con spawn_monster antes de resolver sus acciones."
+          ),
+        else:
+          dgettext(
+            "engine",
+            "Actores disponibles que controlas: %{actors}. Usa su nombre canónico y respeta el slot actual de iniciativa.",
+            actors: Enum.join(actors, ", ")
+          )
+
+    {:error,
+     dgettext(
+       "engine",
+       "RECHAZADO — dm es el controlador, no el atacante ni conjurador. El DM controla monstruos y PNJs; cada PC actúa por sí mismo. %{available}",
+       available: available
+     )}
+  end
+
+  # Live tools go through the Game's durable single writer. Standalone offline
+  # engine sessions retain their SharedState-only API without needing a DB.
   defp propose(ctx, change_fn) do
-    ExAgent.Session.SharedState.propose_change(ctx.deps.state, change_fn)
+    case Map.get(ctx.deps, :game_owner) do
+      owner when is_pid(owner) -> Dragonex.Game.commit_rule_change(owner, ctx.deps, change_fn)
+      _ -> ExAgent.Session.SharedState.propose_change(ctx.deps.state, change_fn)
+    end
   end
 
   # Sequence two change functions into one (the Session applies a single fn).

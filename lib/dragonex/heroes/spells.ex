@@ -171,6 +171,16 @@ defmodule Dragonex.Heroes.Spells do
         classes: ~w(bard)
       },
       %{
+        name: "poison spray",
+        level: 0,
+        kind: :save,
+        save_ability: :con,
+        dice: "1d12",
+        damage_type: "poison",
+        effect: "A puff of noxious gas on a creature.",
+        classes: ~w(druid sorcerer warlock wizard)
+      },
+      %{
         name: "produce flame",
         level: 0,
         kind: :attack,
@@ -318,7 +328,7 @@ defmodule Dragonex.Heroes.Spells do
         save_ability: nil,
         dice: nil,
         damage_type: nil,
-        effect: "Reaction; +5 AC until the start of your next turn.",
+        effect: "+5 AC until the start of your next turn; magic missile deals no damage (D96).",
         classes: ~w(sorcerer wizard)
       },
       %{
@@ -368,7 +378,8 @@ defmodule Dragonex.Heroes.Spells do
         save_ability: nil,
         dice: "5d8",
         damage_type: nil,
-        effect: "Creatures in an area fall asleep by HP pool.",
+        effect:
+          "5d8 pool: living foes fall asleep in ascending HP order until it runs out (D96).",
         classes: ~w(bard sorcerer wizard)
       },
       %{
@@ -499,6 +510,7 @@ defmodule Dragonex.Heroes.Spells do
         dice: nil,
         damage_type: nil,
         effect: "Target falls prone, incapacitated with laughter.",
+        effect_es: "El objetivo cae derribado, incapacitado por la risa.",
         classes: ~w(bard wizard)
       },
       %{
@@ -510,6 +522,8 @@ defmodule Dragonex.Heroes.Spells do
         damage_type: "necrotic",
         effect:
           "Target takes extra 1d6 necrotic when you hit it; disadvantage on a chosen ability.",
+        effect_es:
+          "El objetivo recibe 1d6 necrótico extra cuando le golpeas; desventaja en una característica elegida.",
         classes: ~w(warlock)
       },
       %{
@@ -530,6 +544,7 @@ defmodule Dragonex.Heroes.Spells do
         dice: "1d12",
         damage_type: "lightning",
         effect: "A beam of lightning; can deal 1d12 each turn while concentrated.",
+        effect_es: "Un rayo de relámpago; puede hacer 1d12 cada turno mientras te concentras.",
         classes: ~w(sorcerer warlock wizard)
       },
       %{
@@ -540,6 +555,7 @@ defmodule Dragonex.Heroes.Spells do
         dice: "3d8",
         damage_type: "acid",
         effect: "An orb of energy; choose acid/cold/fire/lightning/poison/thunder.",
+        effect_es: "Un orbe de energía; elige ácido/frío/fuego/relámpago/veneno/trueno.",
         classes: ~w(sorcerer wizard)
       },
       # --- 2nd level ---
@@ -590,6 +606,7 @@ defmodule Dragonex.Heroes.Spells do
             b
             |> Map.put(:name_es, s.name_es)
             |> Map.put(:effect, s[:effect] || b.effect)
+            |> Map.put(:effect_en, s[:effect_en] || b.effect)
             |> put_srd_concentration(s)
         end
       end)

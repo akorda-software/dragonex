@@ -10,10 +10,11 @@ defmodule Dragonex.Game.Turnmaster do
   never mutate the World from inside the agent — the Game applies decisions.
   """
 
+  use Gettext, backend: Dragonex.Gettext
   require Logger
 
-  alias Dragonex.{Games, Intents, TurnMaster}
-  alias Dragonex.Game.{Beats, Participants, Persistence}
+  alias Dragonex.{ExplorationTurns, Games, Intents, TurnMaster, World}
+  alias Dragonex.Game.{Beats, Combat, Conversations, Participants, Persistence}
   alias ExAgent.Session
 
   @tick :advance
@@ -29,6 +30,7 @@ defmodule Dragonex.Game.Turnmaster do
 
   def apply_turnmaster_decision(state, %{action: action} = decision) do
     decision = honor_human_reaction(state, decision)
+    decision = honor_combat_floor(state, decision)
     decision = honor_exploration_floor(state, decision)
     action = decision[:action] || action
     to = decision[:to]
@@ -43,6 +45,36 @@ defmodule Dragonex.Game.Turnmaster do
   end
 
   def apply_turnmaster_decision(state, _), do: fallback_world_driven(state, :no_decision)
+
+  # A main combat turn is already fixed by initiative. Keep consultation for
+  # pending human declarations, re-evaluation and explicit mini-turns; those
+  # may choose cut_in/react/end_scene. Even there, ordinary main handoffs must
+  # obey the same floor rather than letting the model reorder the round.
+  def combat_main_handoff(state, world) do
+    cond do
+      Map.get(state, :combat_handoffs, :initiative) != :initiative or world.phase != :combat ->
+        nil
+
+      world.turn_kind == "reaction" or state.tm_reeval or state.pending_mini or
+        state.last_was_mini or
+          state.interrupted not in [nil, ""] ->
+        nil
+
+      Enum.any?(state.intents, fn {name, raw} ->
+        Participants.human?(state, name) and Intents.present?(raw) and
+            not Intents.stale?(raw, world.phase)
+      end) ->
+        nil
+
+      true ->
+        Combat.next_main_combatant(world)
+    end
+  end
+
+  def settle_combat_main_handoff(state, name) do
+    state = do_apply_decision(state, :give_turn_to, name, %{action: :give_turn_to, to: name})
+    finish_turnmaster_settle(state)
+  end
 
   # After a PC in exploration the world/PNJ answers. Same at opener (no last
   # actor): the DM sits the scene.
@@ -61,6 +93,144 @@ defmodule Dragonex.Game.Turnmaster do
       end
 
     finish_turnmaster_settle(state)
+  end
+
+  # Fast path for the D30 forced handoff: after a DM beat in exploration whose
+  # last narration unambiguously addresses an eligible human — and no other
+  # human's pending intent outranks them — every possible TurnMaster outcome
+  # lands on the same `give_turn_to(name)`:
+  #
+  #   * valid decision (any action)  → `honor_exploration_floor` branch 4
+  #     overwrites it to give_turn_to(name);
+  #   * invalid action / mute model  → `fallback_world_driven` exploration
+  #     branch re-derives the same `addressed_human_after_dm` name;
+  #   * provider error (after transient retries) → same fallback branch.
+  #
+  # The TM beat is pure cost there. The branch order mirrors
+  # `honor_exploration_floor` exactly, so the predicate only fires when the
+  # handoff is provably forced. Cases where the outcome is NOT forced keep the
+  # beat: combat, ambiguous narration (unless D134 already completes an AI
+  # cycle), mini/reaction bookkeeping (see below), tm_reeval (a mute TM must
+  # park the waiter) and any pending human intent. D134 also honors that
+  # pending declaration in exploration's fallback; it still keeps the
+  # consultation path rather than treating it as an addressed-name handoff.
+  #
+  # Mini/reaction guards — `pending_mini` (a cut_in/react turn is parked),
+  # `last_was_mini` (the settled beat was a mini turn, even when its actor was
+  # the DM: the TM's own judgement must route the return) and `interrupted`
+  # (the brief owes the word back to the interrupted actor) all keep the TM
+  # beat. Mini/reaction consultation is a conservative requirement (D25/D28),
+  # not an equivalence claim.
+  #
+  # Known divergence (deliberate): the handoff itself is identical, but the
+  # error side effects are NOT reproduced — a provider outage that would have
+  # failed the TM beat (transient retries, `tm_fallback_streak` increments,
+  # `:turnmaster_fallback` system notes, possible TM circuit-breaker pause) is
+  # simply skipped here. The forced handoff happens without them.
+  #
+  # Returns the forced target's name (or nil — hence no `?` suffix).
+  def exploration_dm_addressed_human(state, world) do
+    last = state.last_actor
+
+    cond do
+      world.phase != :exploration -> nil
+      state.tm_reeval -> nil
+      state.pending_mini or state.last_was_mini or state.interrupted not in [nil, ""] -> nil
+      is_nil(last) or last == "" or Participants.pc_actor?(state, last) -> nil
+      pending_other_human(state, last) != nil -> nil
+      true -> addressed_human_after_dm(state, world)
+    end
+  end
+
+  # Settle the forced handoff without a TM beat: apply the very decision the
+  # floor rules would impose on the TM anyway, then run the standard
+  # turnmaster settle bookkeeping (same shape as `settle_exploration_opener`).
+  # Check + apply are synchronous inside one `advance` tick, so no off-turn
+  # declare can interleave between the predicate and the handoff.
+  def settle_exploration_dm_addressed_human(state, name) do
+    state = do_apply_decision(state, :give_turn_to, name, %{action: :give_turn_to, to: name})
+    finish_turnmaster_settle(state)
+  end
+
+  # A model may choose different companions for dramatic reasons, but each
+  # gets at most one ordinary turn before a manual player can respond. Once
+  # all available AI PCs have acted, the human handoff is already forced.
+  # A new mixed party also gives its first decision to a person immediately
+  # after the DM presents the scene, before any companion beat (D138).
+  def exploration_human_due(state, world) do
+    if ordinary_exploration_reply?(state, world) and
+         pending_other_human(state, state.last_actor) == nil and
+         Conversations.target(state, world) == nil do
+      context = exploration_context(state, world)
+      ExplorationTurns.opening_human(context) || ExplorationTurns.human_due(context)
+    end
+  end
+
+  def exploration_context(state, world) do
+    turns =
+      if world.phase == :exploration and
+           Enum.any?(state.participants, fn {name, _} ->
+             Participants.human?(state, name) and not Participants.ai_pc?(state, name)
+           end) do
+        Games.recent_turns(state.game_id)
+      else
+        []
+      end
+
+    ExplorationTurns.context(world, state.participants, state.pc_agents, turns)
+  end
+
+  defp ordinary_exploration_reply?(state, world) do
+    world.phase == :exploration and state.last_actor == "dm" and not state.tm_reeval and
+      not state.pending_mini and not state.last_was_mini and state.interrupted in [nil, ""]
+  end
+
+  defp honor_exploration_repeat(state, world, decision) do
+    to =
+      case decision do
+        %{action: :give_turn_to, to: to} -> to
+        %{action: :pass_to_dm} -> "dm"
+        _ -> nil
+      end
+
+    name =
+      if ordinary_exploration_reply?(state, world) do
+        state |> exploration_context(world) |> ExplorationTurns.human_after_repeat(to)
+      end
+
+    if name, do: %{action: :give_turn_to, to: name}, else: decision
+  end
+
+  def exploration_conversation_target(state, world) do
+    case Conversations.target(state, world) do
+      nil -> nil
+      name -> pending_other_human(state, state.last_actor) || name
+    end
+  end
+
+  def settle_exploration_conversation(state, name) do
+    state = handoff_conversation(state, name)
+    finish_turnmaster_settle(state)
+  end
+
+  def maybe_handoff_conversation(state, true), do: {state, false}
+
+  def maybe_handoff_conversation(state, false) do
+    case exploration_conversation_target(state, Session.read_state(state.session)) do
+      nil ->
+        {state, false}
+
+      name ->
+        {handoff_conversation(state, name), true}
+    end
+  end
+
+  defp conversation_decision("dm"), do: %{action: :pass_to_dm}
+  defp conversation_decision(name), do: %{action: :give_turn_to, to: name}
+
+  defp handoff_conversation(state, name) do
+    decision = conversation_decision(name)
+    do_apply_decision(state, decision.action, name, decision)
   end
 
   # WorldDriven fallback: advance the Session cursor deterministically.
@@ -89,7 +259,13 @@ defmodule Dragonex.Game.Turnmaster do
         state =
           case pending_other_human(state, current) do
             nil ->
-              do_apply_decision(state, :pass_to_dm, "dm", %{action: :pass_to_dm})
+              case Conversations.target(state, world) do
+                nil ->
+                  do_apply_decision(state, :pass_to_dm, "dm", %{action: :pass_to_dm})
+
+                name ->
+                  handoff_conversation(state, name)
+              end
 
             name ->
               do_apply_decision(state, :give_turn_to, name, %{action: :give_turn_to, to: name})
@@ -118,12 +294,27 @@ defmodule Dragonex.Game.Turnmaster do
             decision
 
           name ->
-            if decision[:to] == name, do: decision, else: %{action: :cut_in, to: name}
+            %{action: :cut_in, to: name}
         end
     end
   end
 
   defp honor_human_reaction(_state, decision), do: decision
+
+  defp honor_combat_floor(state, %{action: action} = decision)
+       when action in [:give_turn_to, :pass_to_dm] do
+    world = Session.read_state(state.session)
+
+    if world.phase == :combat do
+      mini? = world.turn_kind == "reaction" or state.last_was_mini or state.pending_mini
+      next = Combat.next_main_combatant(world, mini?)
+      Map.merge(decision, %{action: :give_turn_to, to: next})
+    else
+      decision
+    end
+  end
+
+  defp honor_combat_floor(_state, decision), do: decision
 
   # After a PC in exploration the world/PNJ answers. Same at opener (no last
   # actor): the DM sits the scene. Honor even when the model gives the next PC
@@ -139,14 +330,20 @@ defmodule Dragonex.Game.Turnmaster do
       (name = pending_other_human(state, last)) != nil ->
         %{action: :give_turn_to, to: name}
 
+      (name = Conversations.target(state, world)) != nil ->
+        conversation_decision(name)
+
       is_nil(last) or last == "" or Participants.pc_actor?(state, last) ->
         %{action: :pass_to_dm}
 
-      (name = addressed_human_after_dm(state)) != nil ->
+      (name = addressed_human_after_dm(state, world)) != nil ->
+        %{action: :give_turn_to, to: name}
+
+      (name = exploration_human_due(state, world)) != nil ->
         %{action: :give_turn_to, to: name}
 
       true ->
-        decision
+        honor_exploration_repeat(state, world, decision)
     end
   end
 
@@ -171,7 +368,10 @@ defmodule Dragonex.Game.Turnmaster do
       state = %{
         state
         | tm_same_actor_streak: 0,
-          tm_nudge: "No repitas a #{to}: ya actuó. Elige a otro participante."
+          tm_nudge:
+            dgettext("prompts", "No repitas a %{to}: ya actuó. Elige a otro participante.",
+              to: to
+            )
       }
 
       fallback_world_driven(state, :anti_loop)
@@ -204,7 +404,7 @@ defmodule Dragonex.Game.Turnmaster do
     case Session.handoff(state.session, target) do
       {:ok, _} ->
         append_tm_note(state, decision)
-        state = put_current_combatant(state, to)
+        state = Combat.start_turn(state, to, "reaction")
         %{state | pending_mini: true, tm_fallback_streak: 0}
 
       {:error, _} ->
@@ -220,14 +420,16 @@ defmodule Dragonex.Game.Turnmaster do
     case Session.handoff(state.session, target) do
       {:ok, _} ->
         append_tm_note(state, decision)
-        state = put_current_combatant(state, to)
+        state = Combat.start_turn(state, to)
+        state = Conversations.returned(state, to)
 
         %{
           state
           | tm_same_actor_streak: streak,
             tm_fallback_streak: 0,
             interrupted: nil,
-            pending_mini: false
+            pending_mini: false,
+            last_was_mini: false
         }
 
       {:error, _} ->
@@ -236,17 +438,6 @@ defmodule Dragonex.Game.Turnmaster do
   end
 
   defp handoff_to(state, _, _, _), do: fallback_world_driven(state, :invalid_target)
-
-  defp put_current_combatant(state, to) do
-    world = Session.read_state(state.session)
-    name = Dragonex.World.resolve_combatant(world, to)
-    proposer = Session.current(state.session) || "dm"
-
-    case Session.update_state(state.session, proposer, Dragonex.World.set_current_combatant(name)) do
-      {:ok, _} -> state
-      {:error, _} -> state
-    end
-  end
 
   # Session participants are "dm" + PC names. Monsters still resolve to the DM
   # as controller (D34); the live slot is `World.current_combatant`.
@@ -344,6 +535,12 @@ defmodule Dragonex.Game.Turnmaster do
       reason == :handoff_failed ->
         fallback_world_driven_cycle(state, reason, :pass)
 
+      (name = if(world.phase == :exploration, do: pending_other_human(state, last))) != nil ->
+        do_apply_decision(state, :give_turn_to, name, %{action: :give_turn_to, to: name})
+
+      (name = exploration_conversation_target(state, world)) != nil ->
+        handoff_conversation(state, name)
+
       world.phase == :exploration and
           (is_nil(last) or last == "" or Participants.pc_actor?(state, last)) ->
         case pending_other_human(state, last) do
@@ -355,7 +552,13 @@ defmodule Dragonex.Game.Turnmaster do
         end
 
       world.phase == :exploration ->
-        case addressed_human_after_dm(state) do
+        human =
+          if ordinary_exploration_reply?(state, world) do
+            context = exploration_context(state, world)
+            ExplorationTurns.opening_human(context) || ExplorationTurns.human_after_ai(context)
+          end
+
+        case addressed_human_after_dm(state, world) || human do
           nil ->
             fallback_world_driven_cycle(state, reason, :pass)
 
@@ -372,38 +575,27 @@ defmodule Dragonex.Game.Turnmaster do
     hard? = reason in [:tm_error, :handoff_failed]
     streak = if hard?, do: state.tm_fallback_streak + 1, else: state.tm_fallback_streak
 
-    current = Session.current(state.session)
-
-    # Prefer end_turn when we still sit on the actor who just finished — that
-    # advances WorldDriven past them. At partida start (nobody has acted yet)
-    # keep the policy's current so we don't skip the opener.
-    _ =
-      cond do
-        is_nil(state.last_actor) and is_binary(current) and current != "" ->
-          :ok
-
-        is_binary(current) and current != "" ->
-          case Session.end_turn(state.session, current) do
-            {:ok, _} -> :ok
-            {:error, _} -> try_handoff_first(state)
-          end
-
-        true ->
-          try_handoff_first(state)
-      end
+    # Combat slots and the acted ledger follow every TM handoff. The policy
+    # cursor does not, so use it only for exploration's legacy cycle.
+    state =
+      Combat.fallback_turn(state,
+        advance: state.last_actor not in [nil, ""],
+        mini: state.last_was_mini
+      )
 
     next = Session.current(state.session) || "dm"
-    state = put_current_combatant(state, next)
 
     note =
       case announce do
         :pass ->
-          if next == "dm", do: "El turno pasa al DM.", else: "El turno pasa a #{next}."
+          if next == "dm",
+            do: dgettext("engine", "El turno pasa al DM."),
+            else: dgettext("engine", "El turno pasa a %{next}.", next: next)
 
         :relevo ->
           case reason do
-            :anti_loop -> "El motor toma el relevo del turno (anti-bucle)."
-            _ -> "El motor toma el relevo del turno."
+            :anti_loop -> dgettext("engine", "El motor toma el relevo del turno (anti-bucle).")
+            _ -> dgettext("engine", "El motor toma el relevo del turno.")
           end
       end
 
@@ -429,20 +621,17 @@ defmodule Dragonex.Game.Turnmaster do
       {:ok, _} =
         Games.append_event(state.game_id, :system, "system", "all", %{
           note:
-            "⏸ La partida se ha pausado: el TurnMaster falló #{@max_tm_fallback_streak} veces seguidas. Reanuda manualmente."
+            dgettext(
+              "engine",
+              "⏸ La partida se ha pausado: el TurnMaster falló %{count} veces seguidas. Reanuda manualmente.",
+              count: @max_tm_fallback_streak
+            )
         })
 
       %{state | status: :paused, tm_fallback_streak: 0}
     else
       state
     end
-  end
-
-  defp try_handoff_first(state) do
-    # Session.start already ran; ask policy for next via a dummy end if needed.
-    # Last resort: hand off to dm.
-    _ = Session.handoff(state.session, "dm")
-    :ok
   end
 
   # --------------------------------------------------------- waiter parking
@@ -483,42 +672,33 @@ defmodule Dragonex.Game.Turnmaster do
 
     {:ok, _} =
       Games.append_event(state.game_id, :system, "system", "all", %{
-        note: "La intención de #{name} ya no aplica."
+        note: dgettext("engine", "La intención de %{name} ya no aplica.", name: name)
       })
 
     %{state | intents: intents}
   end
 
-  # Dropped intents when the phase changes (e.g. combat → exploration): the
-  # declared plan no longer applies. Called by `Game.Combat` after ending a
-  # combat, still inside the Game process.
-  def prune_stale_intents(state) do
-    world = Session.read_state(state.session)
-    {kept, dropped} = Intents.drop_stale(state.intents, world.phase)
+  # Prepare phase cleanup without writing or publishing. Combat commits the
+  # kept intents and these notes together with its private World candidate.
+  def prune_stale_intents(state, phase) do
+    {kept, dropped} = Intents.drop_stale(state.intents, phase)
 
-    case dropped do
-      [] ->
-        state
+    notes =
+      dropped
+      |> Enum.sort()
+      |> Enum.map(&%{note: dgettext("engine", "La intención de %{name} ya no aplica.", name: &1)})
 
-      names ->
-        Enum.each(names, fn name ->
-          {:ok, _} =
-            Games.append_event(state.game_id, :system, "system", "all", %{
-              note: "La intención de #{name} ya no aplica."
-            })
-        end)
-
-        Games.save_intents(state.game_id, kept)
-        %{state | intents: kept}
-    end
+    {%{state | intents: kept}, notes}
   end
 
   # ------------------------------------------------------------- predicates
 
-  defp addressed_human_after_dm(state) do
+  defp addressed_human_after_dm(state, world) do
     humans =
       state.participants
-      |> Enum.filter(fn {n, _} -> n != "dm" and Participants.human?(state, n) end)
+      |> Enum.filter(fn {n, _} ->
+        n != "dm" and Participants.human?(state, n) and World.validate_actor(world, n) == :ok
+      end)
       |> Enum.map(&elem(&1, 0))
 
     events = Games.recent_events(state.game_id, 24)
@@ -528,12 +708,24 @@ defmodule Dragonex.Game.Turnmaster do
         nil
 
       text ->
-        case Dragonex.Text.addressed_pc(text, humans) do
-          {:named, name} -> name
-          :question -> last_human_speaker(events, humans)
-          nil -> nil
+        case Dragonex.Text.addressed_pc(text, humans, Map.keys(world.characters)) do
+          {:named, name} ->
+            name
+
+          :question ->
+            last_human_speaker(events, humans) || last_human_turn(state.game_id, humans)
+
+          nil ->
+            nil
         end
     end
+  end
+
+  defp last_human_turn(game_id, humans) do
+    game_id
+    |> Games.recent_turns()
+    |> Enum.reverse()
+    |> Enum.find_value(fn event -> if event.actor in humans, do: event.actor end)
   end
 
   defp last_dm_narration(events) do

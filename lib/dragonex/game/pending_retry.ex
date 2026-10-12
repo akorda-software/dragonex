@@ -13,8 +13,11 @@ defmodule Dragonex.Game.PendingRetry do
     :phase,
     :turn_id,
     :instruction,
+    :model_retry,
+    tool_results: %{},
     max_token_retries: 0,
-    transient_retries: 0
+    transient_retries: 0,
+    narration_retries: 0
   ]
 
   @type t :: %__MODULE__{
@@ -22,7 +25,9 @@ defmodule Dragonex.Game.PendingRetry do
           phase: atom(),
           turn_id: String.t(),
           instruction: String.t(),
+          model_retry: nil | :invalid_tool_arguments,
           max_token_retries: non_neg_integer(),
-          transient_retries: non_neg_integer()
+          transient_retries: non_neg_integer(),
+          narration_retries: non_neg_integer()
         }
 end

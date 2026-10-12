@@ -26,7 +26,7 @@ defmodule Dragonex.Rules.Conditions do
 
   @attack_self_disadvantage ~w(poisoned frightened blinded restrained prone)
   @attack_self_advantage ~w(invisible hidden)
-  @attack_vs_advantage ~w(blinded stunned paralyzed unconscious restrained petrified)
+  @attack_vs_advantage ~w(blinded stunned paralyzed unconscious restrained petrified faerie_fire)
   @attack_vs_disadvantage ~w(invisible)
   @check_disadvantage ~w(poisoned frightened)
   @auto_fail_saves ~w(paralyzed stunned unconscious petrified)
@@ -55,7 +55,8 @@ defmodule Dragonex.Rules.Conditions do
     disadvantage? =
       requested == :disadvantage or
         Enum.any?(attacker_conds, &(&1 in @attack_self_disadvantage)) or
-        target_grants_attack_disadvantage?(target_conds, ranged?)
+        target_grants_attack_disadvantage?(target_conds, ranged?) or
+        charmed_attacker?(attacker, target)
 
     combine(advantage?, disadvantage?)
   end
@@ -154,6 +155,14 @@ defmodule Dragonex.Rules.Conditions do
   defp target_grants_attack_advantage?(conds, ranged?) do
     (not ranged? and "prone" in conds) or
       Enum.any?(conds, &(&1 in @attack_vs_advantage))
+  end
+
+  # D98: the charmed creature has disadvantage only when attacking its charmer.
+  defp charmed_attacker?(%Character{} = attacker, %Character{} = target) do
+    Enum.any?(attacker.conditions || [], fn
+      %{"condition" => "charmed", "source" => "charm_person:" <> name} -> name == target.name
+      _ -> false
+    end)
   end
 
   defp target_grants_attack_disadvantage?(conds, ranged?) do

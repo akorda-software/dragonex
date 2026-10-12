@@ -21,6 +21,18 @@ defmodule Dragonex.Game.BeatTest do
       assert Beat.max_tokens_error?({:max_tokens_exceeded, "deepseek-chat"})
     end
 
+    test "v2 incomplete length is retried briefly but unsupported finish reasons are not" do
+      assert Beat.max_tokens_error?(
+               {:model_request_failed,
+                %RequestError{provider: :req_llm, reason: {:incomplete_response, :length}}}
+             )
+
+      refute Beat.max_tokens_error?(
+               {:model_request_failed,
+                %RequestError{provider: :req_llm, reason: {:incomplete_response, :content_filter}}}
+             )
+    end
+
     test "anything else is not a max-tokens error" do
       refute Beat.max_tokens_error?({:crashed, :oops})
       refute Beat.max_tokens_error?(:nope)
@@ -29,6 +41,30 @@ defmodule Dragonex.Game.BeatTest do
   end
 
   describe "transient_provider_error?/1" do
+    test "invalid generated v2 tool arguments can retry but schema and continuation failures cannot" do
+      assert Beat.transient_provider_error?(
+               {:model_request_failed,
+                %RequestError{provider: :req_llm, reason: :invalid_tool_arguments}}
+             )
+
+      for reason <- [
+            :invalid_tool_schema,
+            :invalid_tool_history,
+            :continuation_routing_mismatch,
+            {:unsupported, :tool_history_codec},
+            :missing_credentials
+          ] do
+        refute Beat.transient_provider_error?(
+                 {:model_request_failed, %RequestError{provider: :req_llm, reason: reason}}
+               )
+      end
+
+      refute Beat.transient_provider_error?(
+               {:model_request_failed,
+                %RequestError{provider: :openrouter, reason: :invalid_tool_arguments}}
+             )
+    end
+
     test "transport-level faults are transient" do
       assert Beat.transient_provider_error?(
                {:model_request_failed, %RequestError{provider: :test, reason: :timeout}}
@@ -37,6 +73,35 @@ defmodule Dragonex.Game.BeatTest do
       assert Beat.transient_provider_error?(
                {:model_request_failed, %RequestError{provider: :test, reason: :request_failed}}
              )
+    end
+
+    test "v2 total timeout and HTTP faults retain the bounded retry policy" do
+      assert Beat.transient_provider_error?(
+               {:model_request_failed,
+                %RequestError{provider: :openrouter, reason: {:timeout, :total}}}
+             )
+
+      for status <- [429, 500, 503] do
+        assert Beat.transient_provider_error?(
+                 {:model_request_failed,
+                  %RequestError{
+                    provider: :openrouter,
+                    reason: :model_request_failed,
+                    status: status
+                  }}
+               )
+      end
+
+      for status <- [nil, 400, 401, 404] do
+        refute Beat.transient_provider_error?(
+                 {:model_request_failed,
+                  %RequestError{
+                    provider: :openrouter,
+                    reason: :model_request_failed,
+                    status: status
+                  }}
+               )
+      end
     end
 
     test "HTTP 429 and any 5xx are transient; 4xx is not" do
@@ -107,22 +172,22 @@ defmodule Dragonex.Game.BeatTest do
     end
   end
 
-  describe "fallback_narration/2" do
-    test "max_tokens: DM vs PC get distinct lines" do
-      assert Beat.fallback_narration("dm", :max_tokens_exceeded) =~ "narrador recupera el hilo"
+  describe "failure_label/1" do
+    test "names the cause without in-fiction prose" do
+      assert Beat.failure_label({:retention_limit_exceeded, %{bytes: 6300, limit: 4096}}) =~
+               "tamaño permitido"
 
-      assert Beat.fallback_narration("Lyra", {:max_tokens_exceeded, "x"}) =~
-               "empieza a decir algo"
+      assert Beat.failure_label({:unexpected_model_behavior, :x}) =~ "respuesta válida"
+      assert Beat.failure_label({:crashed, :oops}) == "error interno del motor"
+      assert Beat.failure_label(:whatever) == "error inesperado"
     end
 
-    test "unexpected_model_behavior: DM vs PC distinct lines" do
-      assert Beat.fallback_narration("dm", {:unexpected_model_behavior, :x}) =~ "respiración"
-      assert Beat.fallback_narration("Thane", {:unexpected_model_behavior, :x}) =~ "duda"
-    end
+    test "separates exhausted transient faults from rejected requests" do
+      transient = %ExAgent.RequestError{provider: :openrouter, status: 503, reason: :http_error}
+      rejected = %ExAgent.RequestError{provider: :openrouter, status: 400, reason: :http_error}
 
-    test "any other reason: DM vs PC distinct lines" do
-      assert Beat.fallback_narration("dm", {:crashed, :oops}) =~ "pausa breve"
-      assert Beat.fallback_narration("Vex", {:crashed, :oops}) =~ "titubea"
+      assert Beat.failure_label({:model_request_failed, transient}) =~ "tras varios intentos"
+      assert Beat.failure_label({:model_request_failed, rejected}) =~ "rechazó la petición"
     end
   end
 

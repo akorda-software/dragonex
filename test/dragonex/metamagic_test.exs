@@ -79,13 +79,13 @@ defmodule Dragonex.MetamagicTest do
               damage_type: nil
             },
             %Spell{
-              name: "shield",
+              name: "mage armor",
               level: 1,
               kind: :automatic,
               casting_ability: :cha,
               dice: nil,
               damage_type: nil,
-              effect: "Escudo arcano"
+              effect: "Armadura arcana"
             }
           ]
         ],
@@ -270,7 +270,7 @@ defmodule Dragonex.MetamagicTest do
       assert {:ok, msg, change} =
                Actions.spell(w, "Sylas", "scorch", "Goblin", seq([15, 2, 5, 1, 6, 3, 3, 4]))
 
-      assert msg =~ "por 18 de daño fire (Metamagia: Empowered)"
+      assert msg =~ "por 18 de daño de fuego (Metamagia: Empowered)"
 
       {:ok, w2} = change.(w)
       assert w2.characters["Goblin"].hp == 30 - 18
@@ -288,7 +288,7 @@ defmodule Dragonex.MetamagicTest do
       assert {:ok, msg, change} =
                Actions.spell(w, "Sylas", "poison spray", "Goblin", seq([10, 3, 6, 1, 2]))
 
-      assert msg =~ "8 de daño poison (Metamagia: Empowered)"
+      assert msg =~ "8 de daño de veneno (Metamagia: Empowered)"
 
       {:ok, w2} = change.(w)
       assert w2.characters["Sylas"].metamagic == nil
@@ -302,7 +302,7 @@ defmodule Dragonex.MetamagicTest do
       assert {:ok, msg, _change} =
                Actions.spell(w, "Sylas", "scorch", "Goblin", seq([20, 1, 4, 2, 2, 5, 2, 6]))
 
-      assert msg =~ "por 34 de daño fire (Metamagia: Empowered)"
+      assert msg =~ "por 34 de daño de fuego (Metamagia: Empowered)"
     end
 
     test "hechizo de ataque que falla igualmente consume (el hechizo califica)" do
@@ -341,7 +341,7 @@ defmodule Dragonex.MetamagicTest do
                Actions.spell(w, "Sylas", "poison spray", "Goblin", seq([16, 5, 2, 2]))
 
       assert msg =~ "(desventaja) (Metamagia: Heightened)"
-      assert msg =~ "4 de daño poison"
+      assert msg =~ "4 de daño de veneno"
 
       {:ok, w2} = change.(w)
       assert w2.characters["Goblin"].hp == 30 - 4
@@ -389,8 +389,8 @@ defmodule Dragonex.MetamagicTest do
 
       assert msg ==
                "Sylas conjura scorch (Metamagia: Twinned): " <>
-                 "en Goblin: impacta a Goblin (d20 15: 21 vs CA 12) por 14 de daño fire; " <>
-                 "en Kobold: impacta a Kobold (d20 8: 14 vs CA 12) por 4 de daño fire."
+                 "en Goblin: impacta a Goblin (d20 15: 21 vs CA 12) por 14 de daño de fuego; " <>
+                 "en Kobold: impacta a Kobold (d20 8: 14 vs CA 12) por 4 de daño de fuego."
 
       {:ok, w2} = change.(w)
       assert w2.characters["Goblin"].hp == 30 - 14
@@ -411,7 +411,7 @@ defmodule Dragonex.MetamagicTest do
 
       assert msg =~ "en Goblin:"
       assert msg =~ "en Kobold:"
-      assert msg =~ "Sylas concentra en hold person"
+      assert msg =~ "Sylas concentra en Inmovilizar persona"
 
       {:ok, w2} = change.(w)
       assert w2.characters["Sylas"].concentrating == "hold person"
@@ -422,9 +422,11 @@ defmodule Dragonex.MetamagicTest do
       w = world([sorcerer([]), goblin(), kobold()])
       w = arm!(w, "twinned", "Kobold")
 
-      assert {:ok, msg, change} = Actions.spell(w, "Sylas", "shield", "Sylas", seq([]))
+      # mage armor: self-buff SIN restricción de combate (D96 exige combate
+      # para shield; este test verifica Twinned, no la postura de shield).
+      assert {:ok, msg, change} = Actions.spell(w, "Sylas", "mage armor", "Sylas", seq([]))
 
-      assert msg =~ "conjura shield sobre Sylas"
+      assert msg =~ "conjura Armadura de mago sobre Sylas"
       refute msg =~ "Twinned"
 
       {:ok, w2} = change.(w)

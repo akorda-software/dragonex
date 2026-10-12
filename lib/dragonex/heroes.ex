@@ -41,6 +41,7 @@ defmodule Dragonex.Heroes do
   `Dragonex.Heroes.LevelUp.apply/2` (XP 5e, D43; subida explícita).
   """
 
+  use Gettext, backend: Dragonex.Gettext
   alias Dragonex.{Character, Item, Weapon}
 
   alias Dragonex.Heroes.{
@@ -314,11 +315,25 @@ defmodule Dragonex.Heroes do
     background_label = Translations.background(background)
 
     Enum.random([
-      "#{race_label} #{class_label} de origen #{background_label}, en busca de una deuda que saldar.",
-      "Tras años como #{String.downcase(background_label)}, aprendió que la gloria no espera a nadie.",
-      "Una vieja promesa empuja a este #{String.downcase(class_label)} a aceptar trabajos peligrosos.",
-      "No habla mucho de su pasado, pero cada cicatriz tiene nombre propio.",
-      "Persigue una pista menor que quizá revele una amenaza mucho mayor."
+      dgettext(
+        "engine",
+        "%{race} %{class} de origen %{background}, en busca de una deuda que saldar.",
+        race: race_label,
+        class: class_label,
+        background: background_label
+      ),
+      dgettext(
+        "engine",
+        "Tras años como %{background}, aprendió que la gloria no espera a nadie.",
+        background: String.downcase(background_label)
+      ),
+      dgettext(
+        "engine",
+        "Una vieja promesa empuja a este %{class} a aceptar trabajos peligrosos.",
+        class: String.downcase(class_label)
+      ),
+      dgettext("engine", "No habla mucho de su pasado, pero cada cicatriz tiene nombre propio."),
+      dgettext("engine", "Persigue una pista menor que quizá revele una amenaza mucho mayor.")
     ])
   end
 
@@ -329,7 +344,7 @@ defmodule Dragonex.Heroes do
     subrace_key = choices[:subrace] && to_string(choices[:subrace])
 
     if race_key == "" do
-      {:error, "race is required"}
+      {:error, dgettext("engine", "la raza es obligatoria")}
     else
       case Races.get(race_key, subrace_key) do
         {:ok, _} = ok ->
@@ -338,9 +353,9 @@ defmodule Dragonex.Heroes do
         {:error, msg} ->
           # Only try the parent-race heuristic when the race key itself was
           # unknown — not when a valid race simply needs a subrace.
-          if String.starts_with?(msg, "unknown race") and subrace_key == nil do
+          if race_key not in Races.keys() and subrace_key == nil do
             case find_parent_race(race_key) do
-              nil -> {:error, "unknown race: #{race_key}"}
+              nil -> {:error, dgettext("engine", "raza desconocida: %{race}", race: race_key)}
               parent -> Races.get(parent, race_key)
             end
           else
@@ -591,7 +606,8 @@ defmodule Dragonex.Heroes do
 
     cond do
       unknown != [] ->
-        {:error, "unknown spells: #{Enum.join(unknown, ", ")}"}
+        {:error,
+         dgettext("engine", "hechizos desconocidos: %{spells}", spells: Enum.join(unknown, ", "))}
 
       true ->
         data = Enum.map(resolved, fn {_n, d} -> d end)
@@ -602,16 +618,32 @@ defmodule Dragonex.Heroes do
 
         cond do
           catalog_higher != [] ->
-            {:error, "level-1 characters cannot learn: #{spell_names(catalog_higher)}"}
+            {:error,
+             dgettext("engine", "los personajes de nivel 1 no pueden aprender: %{spells}",
+               spells: spell_names(catalog_higher)
+             )}
 
           length(cantrips) > sc.cantrips ->
-            {:error, "expected at most #{sc.cantrips} cantrips, got #{length(cantrips)}"}
+            {:error,
+             dgettext("engine", "se esperaban como máximo %{max} trucos; se recibieron %{count}",
+               max: sc.cantrips,
+               count: length(cantrips)
+             )}
 
           length(level1) > sc.spells_level1 ->
-            {:error, "expected at most #{sc.spells_level1} level-1 spells, got #{length(level1)}"}
+            {:error,
+             dgettext(
+               "engine",
+               "se esperaban como máximo %{max} hechizos de nivel 1; se recibieron %{count}",
+               max: sc.spells_level1,
+               count: length(level1)
+             )}
 
           not_on_list != [] ->
-            {:error, "spells not on the class list: #{spell_names(not_on_list)}"}
+            {:error,
+             dgettext("engine", "hechizos fuera de la lista de la clase: %{spells}",
+               spells: spell_names(not_on_list)
+             )}
 
           true ->
             {:ok, Enum.map(data, &Spells.to_character_spell(&1, sc.ability))}
@@ -642,10 +674,15 @@ defmodule Dragonex.Heroes do
   defp validate_skills(%{skill_list: :any, skill_count: count}, skills) when is_list(skills) do
     cond do
       length(skills) != count ->
-        {:error, "expected #{count} skills, got #{length(skills)}"}
+        {:error,
+         dgettext("engine", "se esperaban %{expected} habilidades; se recibieron %{count}",
+           expected: count,
+           count: length(skills)
+         )}
 
       length(Enum.uniq(skills)) != length(skills) ->
-        {:error, "duplicate skills in: #{inspect(skills)}"}
+        {:error,
+         dgettext("engine", "habilidades duplicadas en: %{skills}", skills: inspect(skills))}
 
       true ->
         {:ok, skills}
@@ -657,13 +694,23 @@ defmodule Dragonex.Heroes do
 
     cond do
       length(skills) != count ->
-        {:error, "expected #{count} skills from the class list, got #{length(skills)}"}
+        {:error,
+         dgettext(
+           "engine",
+           "se esperaban %{expected} habilidades de la lista de la clase; se recibieron %{count}",
+           expected: count,
+           count: length(skills)
+         )}
 
       length(Enum.uniq(skills)) != length(skills) ->
-        {:error, "duplicate skills in: #{inspect(skills)}"}
+        {:error,
+         dgettext("engine", "habilidades duplicadas en: %{skills}", skills: inspect(skills))}
 
       invalid != [] ->
-        {:error, "skills not on the class list: #{inspect(invalid)}"}
+        {:error,
+         dgettext("engine", "habilidades fuera de la lista de la clase: %{skills}",
+           skills: inspect(invalid)
+         )}
 
       true ->
         {:ok, skills}
@@ -688,7 +735,13 @@ defmodule Dragonex.Heroes do
         not (is_integer(v) and v >= 1 and v <= 20)
       end)
 
-    if out == [], do: :ok, else: {:error, "final scores out of range [1, 20]: #{inspect(out)}"}
+    if out == [],
+      do: :ok,
+      else:
+        {:error,
+         dgettext("engine", "puntuaciones finales fuera de rango [1, 20]: %{abilities}",
+           abilities: inspect(out)
+         )}
   end
 
   # -------------------------------------------------------------- attrs
@@ -808,8 +861,19 @@ defmodule Dragonex.Heroes do
   end
 
   defp default_backstory(race, class, choices) do
-    bg = choices[:background] || "unknown origin"
-    "A #{race} #{class.key} of #{bg}, stepping into adventure."
+    locale = Dragonex.I18n.locale()
+
+    background =
+      case choices[:background] do
+        nil -> dgettext("engine", "desconocido")
+        key -> Translations.background(to_string(key), locale)
+      end
+
+    dgettext("engine", "%{race} %{class} de origen %{background}, que se lanza a la aventura.",
+      race: Translations.race_display(race, locale),
+      class: Translations.class(class.key, locale),
+      background: background
+    )
   end
 
   # ------------------------------------------------------- changeset guard
@@ -885,9 +949,12 @@ defmodule Dragonex.Heroes do
   defp wild_shape_uses_for("druid", _), do: 0
   defp wild_shape_uses_for(_, _), do: 0
 
-  defp fetch(_module, nil, field), do: {:error, "#{field} is required"}
+  defp fetch(_module, nil, field), do: {:error, required_error(field)}
 
   defp fetch(module, key, _field) when is_binary(key) or is_atom(key) do
     module.get(to_string(key))
   end
+
+  defp required_error("class"), do: dgettext("engine", "la clase es obligatoria")
+  defp required_error("background"), do: dgettext("engine", "el trasfondo es obligatorio")
 end

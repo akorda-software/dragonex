@@ -19,8 +19,7 @@ defmodule Dragonex.WorldFactsTest do
   alias ExAgent.Models.Test
 
   setup do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(Dragonex.Repo)
-    Ecto.Adapters.SQL.Sandbox.mode(Dragonex.Repo, {:shared, self()})
+    Dragonex.Test.Sandbox.start_shared!()
     :ok
   end
 
@@ -29,7 +28,7 @@ defmodule Dragonex.WorldFactsTest do
       Games.create_game(
         title: "facts",
         scene: "una taberna",
-        roster: [{Archetypes.fighter(), :ai}]
+        roster: [{Archetypes.fighter(), :human}]
       )
 
     # The DM records a concrete hook on its first beat.
@@ -40,26 +39,22 @@ defmodule Dragonex.WorldFactsTest do
             "Un mensajero del Concejo entregó a Thane un pergamino con una misión en Thornwood"
         })
       ]),
-      text("Un mensajero cruza la taberna y entrega un pergamino a Thane.")
+      narration("Un mensajero cruza la taberna y entrega un pergamino a Thane.")
     ]
 
     pid =
-      ExUnit.Callbacks.start_supervised!(
-        {Dragonex.Game, {game.id, [model: %Test{script: script}, roller: fn _ -> 10 end]}}
+      Dragonex.Test.GameFixture.start!(
+        {Game,
+         {game.id,
+          [model: %Test{script: script}, scene_model: scene_model(), roller: fn _ -> 10 end]}}
       )
 
-    # Wait until the DM beat (and its tool call) has run.
-    assert :ok ==
-             Game.await(
-               pid,
-               fn _s ->
-                 Game.world(pid).facts != []
-               end,
-               5_000
-             )
+    wait(pid)
 
     facts = Game.world(pid).facts
     assert Enum.any?(facts, &String.contains?(&1, "mensajero del Concejo"))
+    assert Games.load_world(Games.get_game(game.id)).facts == facts
+    refute_failed_turn(game.id)
   end
 
   test "World.add_fact is idempotent and trims whitespace" do
@@ -100,7 +95,7 @@ defmodule Dragonex.WorldFactsTest do
       Games.create_game(
         title: "scrub",
         scene: "una taberna",
-        roster: [{Archetypes.fighter(), :ai}]
+        roster: [{Archetypes.fighter(), :human}]
       )
 
     # The DM records a fact that leaks an HP stat ("3/7 pg") — the kind of inline
@@ -109,23 +104,20 @@ defmodule Dragonex.WorldFactsTest do
     script = [
       tool_calls([
         call("establish_fact", %{
-          "fact" => "Thane descubre una puerta oculta. El goblin jefe queda en 3/7 pg."
+          "fact" => "La taberna tiene una puerta oculta. El goblin jefe queda en 3/7 pg."
         })
       ]),
-      text("Thane encuentra una puerta.")
+      narration("Thane encuentra una puerta.")
     ]
 
     pid =
-      ExUnit.Callbacks.start_supervised!(
-        {Dragonex.Game, {game.id, [model: %Test{script: script}, roller: fn _ -> 10 end]}}
+      Dragonex.Test.GameFixture.start!(
+        {Game,
+         {game.id,
+          [model: %Test{script: script}, scene_model: scene_model(), roller: fn _ -> 10 end]}}
       )
 
-    assert :ok ==
-             Game.await(
-               pid,
-               fn _s -> Game.world(pid).facts != [] end,
-               5_000
-             )
+    wait(pid)
 
     facts = Game.world(pid).facts
 
@@ -133,6 +125,8 @@ defmodule Dragonex.WorldFactsTest do
     assert Enum.any?(facts, &String.contains?(&1, "puerta oculta"))
     # ...but the leaked stat was scrubbed before reaching the world.
     refute Enum.any?(facts, &String.contains?(&1, "3/7"))
+    assert Games.load_world(Games.get_game(game.id)).facts == facts
+    refute_failed_turn(game.id)
   end
 
   test "set_scene scrubs model text before persisting (D7)" do
@@ -140,32 +134,58 @@ defmodule Dragonex.WorldFactsTest do
       Games.create_game(
         title: "scene-scrub",
         scene: "una taberna",
-        roster: [{Archetypes.fighter(), :ai}]
+        roster: [{Archetypes.fighter(), :human}]
       )
 
     script = [
       tool_calls([
         call("set_scene", %{
-          "narration" => "El goblin jefe queda en 3/7 pg tras la pelea."
+          "narration" =>
+            "La taberna queda en silencio. El goblin jefe queda en 3/7 pg tras la pelea."
         })
       ]),
-      text("La taberna queda en silencio.")
+      narration("La taberna queda en silencio.")
     ]
 
     pid =
-      ExUnit.Callbacks.start_supervised!(
-        {Dragonex.Game, {game.id, [model: %Test{script: script}, roller: fn _ -> 10 end]}}
+      Dragonex.Test.GameFixture.start!(
+        {Game,
+         {game.id,
+          [model: %Test{script: script}, scene_model: scene_model(), roller: fn _ -> 10 end]}}
       )
 
-    assert :ok ==
-             Game.await(
-               pid,
-               fn _s -> not String.contains?(Game.world(pid).scene || "", "3/7") end,
-               5_000
-             )
+    wait(pid)
 
     # The scene was overwritten with scrubbed text — the leaked stat is gone.
     refute String.contains?(Game.world(pid).scene || "", "3/7")
+    assert Game.world(pid).scene =~ "La taberna queda en silencio."
+    assert Game.world(pid).scene != game.world["scene"]
+    assert Games.load_world(Games.get_game(game.id)).scene == Game.world(pid).scene
+    refute_failed_turn(game.id)
+  end
+
+  defp scene_model do
+    %Test{
+      script: [
+        tool_calls([
+          call("final_result", %{
+            "scene" => "La taberna sigue tranquila, con luz en el mostrador."
+          })
+        ])
+      ]
+    }
+  end
+
+  defp wait(pid) do
+    assert :ok == Game.await(pid, &(&1.current == "Thane" and &1.status == :waiting), 5_000)
+    assert :ok == Game.pause(pid)
+  end
+
+  defp refute_failed_turn(game_id) do
+    refute Enum.any?(
+             Games.list_events(game_id),
+             &String.contains?(&1.payload["note"] || "", "el turno falló")
+           )
   end
 
   test "creating a game from a bible seeds NPC facts" do

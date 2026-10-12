@@ -407,7 +407,7 @@ defmodule Dragonex.WildShapeTest do
   # ------------------------------------------------------------- rests
 
   describe "rests recargan usos" do
-    test "short_rest recarga a 2 (sin forzar revert)" do
+    test "short_rest recarga a 2 y la forma de nivel 2 expira al cabo de una hora" do
       w = transform!(world([druid([]), goblin([])]))
       assert w.characters["Sylvi"].wild_shape_uses == 1
 
@@ -415,8 +415,8 @@ defmodule Dragonex.WildShapeTest do
       {:ok, w2} = rest.(w)
       s = w2.characters["Sylvi"]
       assert s.wild_shape_uses == 2
-      # RAW: puedes descansar en forma — no hay revert forzado.
-      assert s.wild_shape != nil
+      # Puede descansar en forma, pero transcurre su duración máxima (L2: 1h).
+      assert s.wild_shape == nil
     end
 
     test "long_rest recarga a 2" do

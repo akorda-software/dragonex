@@ -33,7 +33,7 @@ defmodule Dragonex.HuntersMarkTest do
     }
   end
 
-  defp ranger(opts \\ []) do
+  defp ranger(opts) do
     Character.new(
       Keyword.merge(
         [
@@ -189,7 +189,7 @@ defmodule Dragonex.HuntersMarkTest do
       assert {:ok, msg, change} = Actions.attack(w, "Ari", "goblin", "longsword", seq([10, 4, 3]))
 
       assert msg =~ "acierta"
-      assert msg =~ "por 10 de daño slashing (+3 presa marcada)"
+      assert msg =~ "por 10 de daño cortante en total (incluye 3 presa marcada)"
 
       {:ok, w2} = change.(w)
       assert w2.characters["goblin"].hp == 30 - 10
@@ -216,7 +216,7 @@ defmodule Dragonex.HuntersMarkTest do
 
       assert {:ok, msg, _} = Actions.attack(w, "Ari", "goblin", "longsword", seq([10, 4, 3]))
 
-      assert msg =~ "(+3 presa marcada)"
+      assert msg =~ "(incluye 3 presa marcada)"
     end
 
     test "crítico dobla los d6 de la marca" do
@@ -227,7 +227,7 @@ defmodule Dragonex.HuntersMarkTest do
                Actions.attack(w, "Ari", "goblin", "longsword", seq([20, 4, 4, 2, 3]))
 
       assert msg =~ "CRÍTICO"
-      assert msg =~ "(+5 presa marcada)"
+      assert msg =~ "(incluye 5 presa marcada)"
 
       {:ok, w2} = change.(w)
       assert w2.characters["goblin"].hp == 30 - 16
@@ -242,7 +242,7 @@ defmodule Dragonex.HuntersMarkTest do
                Actions.attack(w, "Ari", "goblin", "longsword", seq([10, 3, 2, 10, 3, 2]))
 
       assert msg =~ "2 golpes"
-      assert msg =~ "(+2 presa marcada)"
+      assert msg =~ "(incluye 2 presa marcada)"
 
       {:ok, w2} = change.(w)
       assert w2.characters["goblin"].hp == 30 - 16
@@ -282,6 +282,10 @@ defmodule Dragonex.HuntersMarkTest do
       w = marked_world()
       {:ok, w} = World.apply_condition("Ari", "stunned").(w)
       assert w.characters["Ari"].concentrating == nil
+
+      assert {:error, _} = Actions.attack(w, "Ari", "goblin", "longsword", seq([99]))
+      assert Process.get(:seq) == [99]
+      {:ok, w} = World.remove_condition("Ari", "stunned").(w)
 
       assert {:ok, msg, _} = Actions.attack(w, "Ari", "goblin", "longsword", seq([10, 4, 99]))
 

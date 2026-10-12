@@ -123,6 +123,44 @@ defmodule Dragonex.SpellSlots do
     end
   end
 
+  @doc """
+  Adjust slot capacity after a level-up without restoring prior expenditure.
+
+  Regular casters retain spending per spell level and funded extra slots.
+  Pact Magic carries spending across its single pool when the slot level
+  changes. `nil` represents an untracked legacy pool; a tracked missing key
+  is empty, consistent with `World.has_slot?/3`.
+  """
+  @spec level_up(String.t(), pos_integer(), pos_integer(), map() | nil) :: map()
+  def level_up(class, old_level, new_level, remaining) do
+    old_max = for_class(class, old_level)
+    new_max = for_class(class, new_level)
+    remaining = remaining || old_max
+
+    if pact_caster?(class) do
+      spent =
+        Enum.reduce(old_max, 0, fn {slot, capacity}, total ->
+          total + max(0, capacity - available(remaining, slot))
+        end)
+
+      Map.new(new_max, fn {slot, capacity} -> {slot, max(0, capacity - spent)} end)
+    else
+      (Map.keys(remaining) ++ Map.keys(new_max))
+      |> Enum.uniq()
+      |> Map.new(fn slot ->
+        capacity_gain = Map.get(new_max, slot, 0) - Map.get(old_max, slot, 0)
+        {slot, max(0, available(remaining, slot) + capacity_gain)}
+      end)
+    end
+  end
+
+  defp available(slots, level) do
+    case Map.get(slots, level, 0) do
+      n when is_integer(n) and n > 0 -> n
+      _ -> 0
+    end
+  end
+
   @doc "Whether a class is any kind of caster."
   @spec caster?(String.t()) :: boolean()
   def caster?(class),

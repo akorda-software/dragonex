@@ -1,4 +1,4 @@
-# Catálogo de mecánicas 5e (M1–M60)
+# Catálogo de mecánicas 5e (M1–M66)
 
 > **Técnico.** Cada mecánica implementada, con identificador estable `Mxx`,
 > dónde vive (módulo:función), qué regla 5e aplica, sus simplificaciones (ADR)
@@ -31,6 +31,8 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 - **Tests**: `actions_test.exs`, `turn_master_loop_test.exs`.
 
 ### M03 — Tirada de ataque
+- **D81/D82**: cada impacto completo se resuelve antes del siguiente;
+  Ataque Extra consume una sola acción, con cupo persistido por turno.
 - **Dónde**: `Rules.Combat.attack_roll/5`; la Acción de Ataque la orquesta
   `Actions.attack/7`.
 - **5e**: d20 (ventaja/desventaja = 2 dados, el mejor/peor) + prof + mod vs AC
@@ -62,6 +64,16 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 - **5e**: dados del arma + mod de aptitud; crítico **dobla los dados** (no el
   mod). El daño floor-0 en el world (M22). Dueling (D48): +2 si melee.
 - **Tests**: `rules/combat_test.exs`, `actions_test.exs`, `fighting_style_test.exs`.
+- **D160**: `Rules.Combat.damage_total/1` aplica
+  mínimo cero después de sumar los bonos del mismo tipo. El subtotal tagged
+  conserva la penalización hasta sumar furia/Sneak/marca; radiante de Smite
+  permanece aparte. Feedback/dados/preparación coinciden y cero no provoca
+  salvaciones de concentración. Nueve casos en `negative_weapon_damage_test.exs`,
+  uno PC/TestModel/Session; gate2444/3, VM19437/restart y navegador verificados.
+- **D161**: subtotal negativo opcional `raw_total` conserva la penalización
+  real en crónica/modal/History y explica el mínimo0. No altera daño/dados ni
+  reescribe eventos antiguos sin subtotal. Cinco casos nuevos, gate2449/3,
+  VM19438/restart/reload375/1440 px y teclado verificados.
 
 ### M05 — Ventaja/desventaja (cancelación 5e)
 - **Dónde**: `Rules.Conditions.combine/2` (fuentes: condiciones + `mode`
@@ -72,6 +84,10 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   `reckless_attack_test.exs`.
 
 ### M06 — Condiciones → ataque / salvación / chequeo
+- **D80 — actuación**: `World.validate_actor/2` impide acciones, bonus y
+  reacciones a muertos, caídos e incapacitados; las entradas activas de
+  Actions lo comprueban antes de tirar y al aplicar su cambio.
+  Tests: `action_incapacitation_test.exs`.
 - **Dónde**: `Rules.Conditions` (`attack_mode/3`, `save_mode/3`, `check_mode/3`);
   `Actions.attack`, `Actions.check`, `Actions.spell` (`:attack` y `:save`).
 - **5e (tabla; claves de `apply_condition`)**:
@@ -156,17 +172,30 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   `World.apply_death_save/2`.
 - **5e**: nat 20 = revive con 1 PG; nat 1 = **2 fallos**; 3 éxitos = estable;
   3 fallos = muerto. Tracker en el world. Guards: rechaza muertos, estables y
-  no-caídos.
-- **Tests**: `actions_test.exs`, `world_test.exs`.
+  no-caídos. Estabilizar borra los fallos anteriores. El motor conserva
+  `successes: 3` como indicador de estabilidad; al recibir daño que registra
+  fallos, elimina ese indicador y comienza un contador nuevo (1 fallo,
+  2 si crítico). Daño cero no rompe la estabilidad.
+- **Tests**: `actions_test.exs`, `world_test.exs`, `stabilization_test.exs`
+  (secuencia completa y compatibilidad de mundos serializados).
 
 ## Curación y descansos
 
 ### M15 — Curación
+- **D80**: curación ordinaria no resucita muertos; mínimo 0 en tiradas,
+  rechazo de cantidades negativas en World. Validación de objetivo también
+  al aplicar, para que una curación preparada no resucite a quien murió
+  después. Tests: `engine_lifecycle_test.exs`.
 - **Dónde**: `Actions.heal/5` — parsea expresión (`1d8+3`), cap `max_hp`,
   **resetea death saves** al curar.
 - **Tests**: `test/dragonex/healing_and_bestiary_test.exs`.
 
 ### M16 — Short rest
+- **D83**: una hora explícita; reserva de dados de golpe por nivel y selección
+  opcional 0..disponibles. Sin dados también recupera rasgos. Reinicia la CD de
+  Furia implacable y recarga inspiración de bardos L5+. `rest_party` comparte
+  el intervalo entre participantes. Tests: `rest_clock_test.exs`.
+- **D80**: `max(0, dado + CON)`; una CON negativa nunca hace daño.
 - **Dónde**: `Actions.short_rest/4` — gasta hit die; fuera de combate.
   Recarga Second Wind (`second_wind_used = false`, D45), Action Surge
   (`action_surge_used = false`, D47) y Channel Divinity
@@ -177,6 +206,8 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   `turn_undead_test.exs`.
 
 ### M17 — Long rest
+- **D83**: ocho horas, máximo un beneficio cada 24 h. Recupera hasta la mitad
+  de dados de golpe (mínimo uno), borra PG temporales y procesa caducidades.
 - **Dónde**: `Actions.long_rest/2` — PG completos + `restore_slots`.
   Recarga Second Wind (`second_wind_used = false`, D45), Action Surge
   (`action_surge_used = false`, D47) y Channel Divinity
@@ -215,9 +246,21 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   retro-CON; **RAW no cura** (D11); ASI 2 pts en `[4,8,12,16,19]` cap 20, sin
   feats (D13); hechizos nuevos respetando `max_spell_level`; half-casters
   desde L2.
+- **Capacidad sin descanso (D124)**: `SpellSlots.level_up/4` conserva gasto
+  por nivel al ampliar tabla; Pact Magic traslada gasto al nuevo nivel de su
+  pool. Excedentes pagados con Fuente de magia sobreviven. Reintento de merge
+  no repone, ni pausa/reapertura; rest_state/reloj permanecen y dados nuevos
+  se derivan del nivel.
+- **Pools de clase (D126)**: `ClassResources` suma solo la capacidad nueva
+  al gasto vivo. Ki/Font/Shape se desbloquean con dos puntos/usos a L2;
+  ki/Font posteriores ganan uno, LoH cinco por nivel y BI/Divine Sense por
+  aumento de capacidad de CHA. Sync repetida no rellena; ficha propia muestra
+  disponible/máximo desde World. Flags/descanso/PG conservados.
 - **Tests**: `test/dragonex/heroes/level_up_test.exs`,
   `test/dragonex/accounts/level_up_test.exs`, `tools_level_up_test.exs`,
-  `multi_level_test.exs`, `game_sync_genserver_test.exs`.
+  `multi_level_test.exs`, `game_sync_genserver_test.exs`,
+  `level_up_resources_test.exs`, `class_resource_level_up_test.exs`,
+  `game_sheet_state_test.exs`, `hero_level_up_live_test.exs`.
 
 ### M22 — Invariantes del world
 - **Dónde**: `world.ex` — daño floor 0; no dañar/curar desconocidos;
@@ -225,25 +268,36 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   quién) es la base de las guardas de tools.
 - **Tests**: `world_test.exs` + transversales.
 
-### M23 — Puntos de golpe temporales (`temp_hp`, D36)
+### M23 — Puntos de golpe temporales (`temp_hp`, D36/D83/D89)
 - **Dónde**: `World.apply_damage/2` (y `/3` tras D38) absorbe `temp_hp`
   primero sobre el amount ya modificado (nunca negativo), resto a `hp`
   (floor 0). `World.apply_temp_hp/2` otorga sin
   apilar (`max(actual, nuevo)`); amount ≤ 0 → error. Tool `grant_temp_hp`
   (DM cualquiera; PC sólo sí mismo). `heal` no escribe el campo. Death
-  saves / `down?` miran `hp`. Sin reloj de duración; `long_rest` no wipe.
-  False Life SRD (`dice` nil): `Actions.spell` tira 1d4+4 al caster.
-- **Tests**: `world_test.exs`, `healing_and_bestiary_test.exs`.
+  saves / `down?` miran `hp`. D83 añade caducidad y limpieza en long rest.
+  False Life SRD (`dice` nil): `Actions.spell` tira `1d4+4+5×(cast_level−1)`
+  mediante `Rules.Upcast.false_life_dice/1`, sin modificador, una acción/casilla
+  y una hora sin concentración. Solo objetivo propio; no activa metamagia.
+  Una cantidad menor/igual conserva valor y plazo existentes; solo una mayor
+  reemplaza fuente y arranca una hora nueva. RollLog registra un d4 y el total
+  generado, aunque se conserve una reserva previa mayor. No hay selector de
+  fuente en empates (política determinista D36/D83).
+- **Tests**: `world_test.exs`, `healing_and_bestiary_test.exs`,
+  `false_life_test.exs` (11), `flows/false_life_test.exs`,
+  `false_life_persistence_test.exs`.
 
 ### M24 — Concentración (`concentrating`, D37)
 - **Dónde**: `Character.concentrating` (Codec, default nil). Catálogo
   `Heroes.Spells.concentration?/1`. `Actions.spell` fija el campo al
-  lanzar; `Actions.attack`/`spell` (daño) tira salvación CON
+  lanzar; `World.apply_damage` / `Damage` (D81) tira salvación CON
   DC = `max(10, div(damage, 2))` por golpe. `World.clear_concentration/1`,
   `World.set_concentration/2`. `apply_condition` de unconscious /
   incapacitated / stunned / paralyzed / petrified rompe sin tirada. hp a
-  0 rompe. Tool `drop_concentration`. Sin reloj de duración; el LLM narra
-  el buff.
+  0 efectivo rompe; supervivencia a 1 PG requiere la salvación normal.
+  Tool `drop_concentration`. D83 aplica duración del SRD con reloj persistido;
+  Bless y Shield of Faith tienen efectos vinculados a esa concentración
+  (M61/D85 y M62/D86);
+  los demás buffs sin implementación mecánica propia siguen siendo narrativos.
 - **Tests**: `concentration_test.exs`, `codec_test.exs`, `world_test.exs`.
 
 ### M25 — Resistencia, vulnerabilidad e inmunidad (D38)
@@ -268,7 +322,9 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   B/P/S en `incoming_damage/3` (no muta listas; combina D38).
   `Actions.spell` error si el caster está raging. Chequeo STR con
   ventaja. Tools `start_rage`/`end_rage`. Cupo por descanso largo en
-  **M56 / D72** (`rage_uses_used`); sigue sin reloj de 1 minuto.
+  **M56 / D72** (`rage_uses_used`); D82/D83 añaden límite de un minuto y
+  terminación al acabar un turno sin atacar a un enemigo ni recibir daño
+  desde el anterior (salvo Persistent Rage L15+).
   Reckless es M28 / D44. El string `"rage"` del catálogo L1
   no es la fuente de verdad.
 - **Tests**: `rage_test.exs`, `codec_test.exs`, `heroes/progression_test.exs`.
@@ -345,7 +401,7 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   TWF, GWF, Superior Technique, Blind Fighting.
 - **Tests**: `fighting_style_test.exs`, `codec_test.exs`.
 
-### M33 — Lay on Hands (`lay_on_hands_pool`, D49)
+### M33 — Lay on Hands (`lay_on_hands_pool`, D49/D91)
 - **Dónde**: `Character.lay_on_hands_pool` (integer restantes, Codec,
   default 0; jsonb viejo → 0). Máximo `5 * level`. `Heroes.build`
   paladín → `5 * level`. `Actions.lay_on_hands/4` calcula
@@ -357,8 +413,17 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   `"undead"`/`"construct"`. Tool `lay_on_hands(who, target, amount)`
   (DM cualquiera; PC sólo `who` sí mismo). `long_rest` recarga a
   `5 * level`; `short_rest` no. Level-up no resetea remaining.
-  Sin enfermedad/veneno, Divine Sense, feats, multiclase.
-- **Tests**: `lay_on_hands_test.exs`, `codec_test.exs`.
+  D91 añade `conditions_to_remove` opcional en Actions/tool: lista sin duplicados
+  de `poisoned`/`diseased` presentes. `Actions.LayOnHandsPurify.prepare/5`
+  elimina cada condición y plazo por 5 puntos, combinable con curación en una
+  acción. Con selección, `amount` puede ser 0; a PG completos puede purificar.
+  Exige reserva para amount + coste de condiciones, descontando solo PG efectivos
+  + purificación. A 0 PG purificar sin curar no toca death saves. Snapshot de
+  fichas/plazos impide aplicar resultados obsoletos. Sin geometría de toque ni
+  enfermedades/venenos individuales: usa marcadores abstractos existentes.
+- **Tests**: `lay_on_hands_test.exs`, `codec_test.exs`,
+  `lay_on_hands_purify_test.exs` (10), `flows/lay_on_hands_purify_test.exs` (2),
+  `lay_on_hands_purify_persistence_test.exs` (1).
 
 ### M34 — Bardic Inspiration (`bardic_inspiration_uses`, `inspired`, D50)
 - **Dónde**: `Character.bardic_inspiration_uses` (integer restantes,
@@ -442,7 +507,7 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   `flurry_of_blows(who, target, mode)` (DM cualquiera; PC sólo `who`
   sí mismo; mode como `make_attack`). `short_rest` y `long_rest`
   recargan al máximo (`compose_rest`); otras clases no-op. Level-up no
-  resetea remaining. Sin Patient Defense, Step of the Wind, Stunning
+  repone el gasto previo; añade solo capacidad nueva (D126). Sin Patient Defense, Step of the Wind, Stunning
   Strike, Deflect Missiles, golpe extra de Martial Arts, Unarmored
   Movement, feats, multiclase.
 - **Tests**: `flurry_of_blows_test.exs`.
@@ -661,7 +726,8 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   inexistente/caído, no druida, L1, ya transformado, bestia
   desconocida, CR superior, 0 usos. Mensaje: "X adopta la forma de
   un lobo (usos de forma salvaje restantes: N)."
-- **Revert manual**: restaura TODO con `hp = orig_hp` exacto;
+- **Revert manual**: restaura TODO con `hp = orig_hp` guardado, incluida
+  vitalidad de CON ganada al progresar en forma animal (D129);
   "X vuelve a su forma original (PG N)."
 - **Auto-revert** (`apply_damage/3`, cuello único): transformado y hp
   resultante ≤ 0 → exceso = rest − hp de bestia (tras resist D38 y
@@ -672,10 +738,14 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 - **Bloqueo**: `cast_spell` en forma → "X no puede conjurar en forma
   de bestia"; `make_attack` (armas de bestia), `ability_check` y
   rests funcionan igual. Short Y long rest recargan usos a 2
-  (`compose_rest`, como ki D54); NO fuerza revert (RAW puedes
-  descansar en forma); level-up no toca usos ni forma.
-- Sin duración (sin reloj), componentes V/S (el bloqueo integral ya
-  lo cubre), Circle of the Moon, formas volar/nadar, multiclase,
+  (`compose_rest`, como ki D54); se puede descansar en forma, pero D83
+  aplica su caducidad durante el intervalo. D126 aporta capacidad de usos al
+  desbloquearse, conservando gasto. D129 progresa la ficha original guardada
+  (PG/ASI/CA/armas), conservando PG/stats/armas de bestia. Mental/nivel/spells
+  permanecen; revertir o caducar recupera la forma nativa progresada. Cambiar
+  el snapshot de la misma bestia no reinicia el deadline original.
+- D83: duración máxima floor(level/2) horas. Siguen fuera componentes V/S
+  (el bloqueo integral ya lo cubre), Circle of the Moon, formas volar/nadar, multiclase,
   feats.
 - **Tests**: `wild_shape_test.exs`.
 
@@ -948,9 +1018,10 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   menor que la base → error claro; > 9 → error; truco a nivel superior
   → error; `has_slot?` del nivel PEDIDO (mensaje lo cita). Mensaje ES:
   "(nivel N)" tras el nombre cuando cast_level > base.
-- **Excluidos (ADR D74)**: heal (70 pg planos), mass_cure_wounds y
+- **Excluidos (ADR D74)**: mass_cure_wounds y
   sleep (motor sin dados reales / mal-modelado), escalados
-  multi-objetivo y multi-rayo (scorching_ray), variantes 2024.
+  multi-objetivo (excepto Bless D85) y multi-rayo (scorching_ray), variantes 2024.
+  Heal escala curación plana por su ruta propia desde D87/M63.
 - **Tests**: `upcast_test.exs`.
 
 ### M59 — Araña gigante (bestiario, D75)
@@ -998,6 +1069,110 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 
 ---
 
+### M61 — Bless / Bendición (D85)
+- **Dónde**: `World.bless/3`, `Rules.Effects`, `Rules.Combat`, `Actions`,
+  `WorldClock.observe`. Entradas de condición con fuente/concentración;
+  Codec conserva los mapas y el plazo original del lanzador.
+- **5e**: hasta 3 criaturas a nivel 1, +1 por nivel de casilla superior;
+  +1d4 por ataque o salvación (arma, hechizo, concentración, Furia implacable,
+  muerte). No modifica chequeos, iniciativa ni daño; naturales 1/20 conservados.
+  Un minuto y concentración. Varias fuentes no apilan dados. Perder,
+  reemplazar o abandonar concentración retira solo sus efectos; relanzar
+  renueva objetivos y plazo. Una acción y una casilla por lanzamiento.
+- **Contrato**: `cast_spell` añade `additional_targets` opcional, exclusivo
+  de Bless; `target` sigue siendo el objetivo principal. Duplicados,
+  inexistentes, muertos, exceso de objetivos o falta de slot se rechazan.
+- **Límites**: sin comprobación geométrica de 30 pies, visión o componentes
+  materiales; no generaliza todos los hechizos multiobjetivo ni Twinned.
+- **Tests**: `bless_test.exs` (21), `flows/bless_test.exs` (schema y JSON
+  anterior con TestModel), `bless_persistence_test.exs` (Postgres/Game).
+
+### M62 — Shield of Faith / Escudo de la fe (D86)
+- **Dónde**: `World.shield_of_faith/2`, `Rules.Effects.effective_ac/1`,
+  resolución de ataques en `Actions` y limpieza por fuente en `WorldClock`.
+- **5e**: +2 CA, una bonus action, una casilla, concentración hasta 10 minutos.
+  Una criatura existente no muerta, incluido self o un caído. Upcast no aumenta
+  bonus ni duración. Varias fuentes no apilan; sí suma con Defense. El valor
+  base `Character.ac` permanece intacto. Los ataques de arma y hechizo usan
+  la misma CA efectiva; no modifica salvaciones ni críticos naturales.
+- **Ciclo**: relanzar reemplaza objetivo/plazo; cambiar a Bless u otra
+  concentración, caer/incapacitarse, fallar CON, abandonar o agotar tiempo
+  retira solo esa fuente. JSON/Postgres no renuevan los 600 segundos.
+- **Twinned**: conserva D65 para dos objetivos distintos no-self, una
+  concentración y una casilla; no acepta `additional_targets` (solo Bless).
+- **Límites**: sin geometría de 60 pies, visión/componentes. No es Shield.
+- **Tests**: `shield_of_faith_test.exs` (17),
+  `flows/shield_of_faith_test.exs`, `shield_of_faith_persistence_test.exs`.
+
+### M63 — Heal: curación plana y limpieza (D87)
+- **Dónde**: `Actions.spell` delega en `Actions.HealSpell.prepare/4`, que
+  compone `World.heal/2` y `World.remove_condition/2`.
+- **5e**: 70 PG a nivel 6, +10 por nivel superior, cap al máximo; sin dados ni
+  modificador de conjuración. Elimina `blinded`, `deafened`, `diseased` y sus
+  plazos, conservando veneno, maldiciones y otras condiciones. Funciona a PG
+  completos para limpiar y sobre caídos vivos; no resucita ni afecta a
+  constructos/no-muertos (`race`). Una acción/casilla, sin concentración.
+- **Transición**: valida todos los objetivos, revalida las fichas al aplicar,
+  informa curación efectiva y conserva la concentración previa. Twinned D65
+  cura dos objetivos distintos con una casilla; no acepta `additional_targets`.
+- **Límites**: enfermedad explícita `diseased`, sin inferencia desde prosa ni
+  subsistema de enfermedades; sin geometría de 60 pies, visión/componentes.
+- **Tests**: `heal_spell_test.exs` (12), `flows/heal_spell_test.exs`
+  (PCAgent/TestModel/JSON antiguo), `heal_spell_persistence_test.exs` (Postgres/Game).
+
+### M64 — Spare the Dying / Preservar a los moribundos (D88)
+- **Dónde**: `Actions.SpareTheDying.prepare/3` desde `Actions.spell`,
+  `World.stabilize/1` y rama de personaje estable en `PCAgent.instruction/3`.
+- **5e**: criatura viva a 0 PG queda estable sin curarse ni tirar dados.
+  Una acción, ninguna casilla/concentración; no afecta a constructos/no-muertos.
+  Borra fallos usando el sentinel existente `successes: 3, fails: 0`.
+  Condiciones/PG temporales y concentración previa se conservan.
+- **Transición**: valida y revalida objetivos/recursos; el receptor no gasta
+  turno ni salvación. Ya estable es válido y consume acción. Twinned D65
+  requiere dos objetivos distintos; sin `additional_targets` ni upcast.
+  Daño posterior rompe estabilidad por las reglas existentes; curar resetea
+  contadores. Codec/Postgres conserva el sentinel sin nuevos campos.
+- **Agente**: el estable sigue inconsciente y no pide salvaciones ni acciones.
+- **Límites**: sin geometría de contacto, componentes o recuperación automática
+  de 1 PG tras 1d4 horas.
+- **Tests**: `spare_the_dying_test.exs` (11),
+  `flows/spare_the_dying_test.exs`, `spare_the_dying_persistence_test.exs`.
+
+### M65 — Lesser Restoration / Restauración menor (D90)
+- **Dónde**: `Actions.LesserRestoration.prepare/4` desde `Actions.spell`;
+  `World.remove_condition/2` retira la condición y su plazo persistido.
+- **Efecto**: termina exactamente una de `blinded`, `deafened`, `paralyzed`,
+  `poisoned`, `diseased`. `condition_to_remove` opcional; sin selector solo
+  acepta un efecto elegible único por receptor. No cura PG ni tira dados.
+- **Coste**: acción y casilla de nivel >=2, sin escalado ni concentración.
+  Self y caídos vivos válidos; no excluye constructos/no-muertos. Rechaza muertos,
+  selección inválida/ausente, ambigüedad y ningún efecto elegible.
+- **Twinned**: conserva D65 (dos receptores no-self distintos); selector común
+  explícito o selección única independiente. Empowered/Heightened siguen armadas.
+- **Atomicidad**: revalida personajes y plazos; error no gasta recursos ni
+  elimina efectos parcialmente. Conserva condiciones y plazos no seleccionados.
+- **Límites**: enfermedad abstracta `diseased`, sin catálogo de enfermedades
+  individuales ni geometría de toque. No elimina maldiciones/petrificación.
+- **Tests**: `lesser_restoration_test.exs` (15),
+  `flows/lesser_restoration_test.exs` (2), `lesser_restoration_persistence_test.exs` (1).
+
+### M66 — Efectos al inicio del turno (D97/D99/D100)
+- **Dónde**: `Game.Combat.start_turn/3` → `World.set_current_combatant/4` →
+  `Actions.reroll_hold_person/4` y `Actions.spirit_guardians_tick/4`.
+- **Efectos existentes**: repetición SAB de Hold Person; envejecimiento del
+  arma espiritual y aura de Spirit Guardians. Conserva el turno nuevo de
+  D82 y las simplificaciones de D97/D99 (inicio, área abstracta).
+- **Recursos**: la salvación del aura consume Inspiración/Indomitable antes
+  del daño/concentración; no se recuperan aunque el daño sea inmune.
+- **Dados**: roller de Game y RollLog opcional; tras aplicar la transición,
+  eventos `:dice` con `timing: "turn_start"` y combatiente. DM/PCAgent leen
+  los resultados del mismo history compartido.
+- **Durabilidad**: re-selección, reacción y recarga no repiten tiradas/daño;
+  se conservan las aridades anteriores y los campos persistentes.
+- **Tests**: `spirit_guardians_test.exs`, `hold_person_test.exs`,
+  `game_start_turn_effects_test.exs` (decisión, TM mudo/fallido, actor fallido,
+  Postgres/reanudación y contexto real enviado a DM/PC con TestModel).
+
 ## Declarado NO implementado (no son bugs — R28)
 
 reacciones como mecánica formal (TurnMaster da interrupciones narrativas) ·
@@ -1027,7 +1202,7 @@ Iniciativa individual por monstruo: **D34**.
 **D38 / M25**. Cupo de Rage/día entró en **D72 / M56** (Furia implacable
 con él); el segundo uso de Action Surge a L17 sigue fuera.
 Protection / TWF / GWF siguen fuera. Curar
-enfermedad/veneno con Lay on Hands (gastar 5) sigue fuera.
+enfermedad/veneno con Lay on Hands (gastar 5) implementado en **D91/M33**.
   Channel Divinity / Turn the Unholy / Improved Divine Sense siguen
   fuera. Dash / Disengage siguen fuera (sin grid ni ataques de
   oportunidad no tienen efecto mecánico — D57); Uncanny Dodge entró en
@@ -1036,11 +1211,11 @@ enfermedad/veneno con Lay on Hands (gastar 5) sigue fuera.
   en este motor. Expertise (doble prof de skill) entró en
   **D73 / M57** (sólo skills, no tools/instrumentos). Upcasting de
   hechizos (dados extra con casilla superior) entró en **D74 / M58**
-  (tabla curada; multi-objetivo/multi-rayo y escalados no-dados siguen
-  fuera). Veneno real en el motor (araña gigante + Resistencia enana)
+   (tabla curada; multi-objetivo salvo Bless D85/M61, multi-rayo y otros
+   escalados no-dados siguen fuera). Veneno real en el motor (araña gigante + Resistencia enana)
   entró en **D75/D76 / M59–M60**.
 
-Para que una de estas entre: ADR nuevo + mecánica `M61+` en este catálogo +
+Para que una de estas entre: ADR nuevo + mecánica `M63+` en este catálogo +
 tests.
 
 ## Dados

@@ -20,6 +20,7 @@ defmodule Dragonex.Heroes.Classes do
   See `Dragonex.Heroes.Equipment` for the weapon/armor catalogue.
   See `Dragonex.Heroes.Spells` for the spell data behind the default picks.
   """
+  use Gettext, backend: Dragonex.Gettext
 
   @type ability :: :str | :dex | :con | :int | :wis | :cha
 
@@ -51,7 +52,7 @@ defmodule Dragonex.Heroes.Classes do
 
   def get(key) when is_binary(key) do
     case Enum.find(all(), &(&1.key == key)) do
-      nil -> {:error, "unknown class: #{key}"}
+      nil -> {:error, dgettext("engine", "clase desconocida: %{class}", class: key)}
       c -> {:ok, c}
     end
   end

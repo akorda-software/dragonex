@@ -1,0 +1,828 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-04T14:40:16+00:00",
+  "title": "Design System: Dragonex",
+  "extensions": {
+    "colorMeta": {
+      "abyss": {
+        "role": "neutral",
+        "displayName": "Abyss",
+        "canonical": "#110c1a",
+        "oklch": "oklch(16.9% 0.029 299.7)",
+        "purpose": "Page ground under the brick tile.",
+        "tonalRamp": [
+          "#0c0913",
+          "#27232f",
+          "#443f4e",
+          "#635e6f",
+          "#857f92",
+          "#a7a2b4",
+          "#cbc6d8",
+          "#f0ebfc"
+        ]
+      },
+      "stone": {
+        "role": "neutral",
+        "displayName": "Stone",
+        "canonical": "#251d38",
+        "oklch": "oklch(25.4% 0.051 296.3)",
+        "purpose": "Window gradient base, ghost button.",
+        "tonalRamp": [
+          "#0d0719",
+          "#272136",
+          "#443d57",
+          "#635c79",
+          "#857d9e",
+          "#a7a0c0",
+          "#cbc4e3",
+          "#f0eaff"
+        ]
+      },
+      "stone-2": {
+        "role": "neutral",
+        "displayName": "Upper Stone",
+        "canonical": "#2f2645",
+        "oklch": "oklch(29.4% 0.056 296.1)",
+        "purpose": "Window gradient top.",
+        "tonalRamp": [
+          "#0d071a",
+          "#272038",
+          "#443d59",
+          "#645b7c",
+          "#857ca0",
+          "#a89fc3",
+          "#cbc3e6",
+          "#f1e9ff"
+        ]
+      },
+      "stone-3": {
+        "role": "neutral",
+        "displayName": "Stone Rim",
+        "canonical": "#4a3f68",
+        "oklch": "oklch(39.8% 0.069 295.4)",
+        "purpose": "Default rim, inset borders, default button.",
+        "tonalRamp": [
+          "#0d061e",
+          "#271f3d",
+          "#443b5e",
+          "#645a82",
+          "#857aa7",
+          "#a89dc9",
+          "#ccc2ec",
+          "#f1e8ff"
+        ]
+      },
+      "stone-4": {
+        "role": "neutral",
+        "displayName": "Lit Stone",
+        "canonical": "#6b5d92",
+        "oklch": "oklch(51.4% 0.084 295.5)",
+        "purpose": "Hover rim.",
+        "tonalRamp": [
+          "#0e0421",
+          "#281d41",
+          "#453964",
+          "#655889",
+          "#8678af",
+          "#a89cd1",
+          "#ccc0f4",
+          "#f1e6ff"
+        ]
+      },
+      "edge": {
+        "role": "neutral",
+        "displayName": "Edge",
+        "canonical": "#07050b",
+        "oklch": "oklch(12.3% 0.016 301.7)",
+        "purpose": "Outer ring of every frame.",
+        "tonalRamp": [
+          "#0c0a11",
+          "#26232c",
+          "#434049",
+          "#635f69",
+          "#84808b",
+          "#a7a3ae",
+          "#cbc7d2",
+          "#f0ecf8"
+        ]
+      },
+      "well": {
+        "role": "neutral",
+        "displayName": "Well",
+        "canonical": "#120d1b",
+        "oklch": "oklch(17.3% 0.029 299.8)",
+        "purpose": "Recessed panels: chips, stat boxes, options.",
+        "tonalRamp": [
+          "#0c0913",
+          "#27232f",
+          "#443f4e",
+          "#635e6f",
+          "#857f92",
+          "#a7a2b4",
+          "#cbc6d8",
+          "#f0ebfc"
+        ]
+      },
+      "pit": {
+        "role": "neutral",
+        "displayName": "Pit",
+        "canonical": "#0d0914",
+        "oklch": "oklch(15.1% 0.024 300.4)",
+        "purpose": "Input field ground.",
+        "tonalRamp": [
+          "#0c0911",
+          "#26232d",
+          "#44404c",
+          "#635f6c",
+          "#847f8f",
+          "#a7a2b1",
+          "#cbc6d5",
+          "#f0ecfa"
+        ]
+      },
+      "torch": {
+        "role": "primary",
+        "displayName": "Torch Orange",
+        "canonical": "#ff8a1f",
+        "oklch": "oklch(74.8% 0.176 55.4)",
+        "purpose": "Single primary action, focus ring of inputs, active states.",
+        "tonalRamp": [
+          "#2c0000",
+          "#520000",
+          "#7a1d00",
+          "#a33d00",
+          "#ce5d00",
+          "#f08529",
+          "#ffad61",
+          "#ffd591"
+        ]
+      },
+      "torch-hi": {
+        "role": "primary",
+        "displayName": "Torch Glow",
+        "canonical": "#ffb35c",
+        "oklch": "oklch(82.3% 0.136 67.6)",
+        "purpose": "Primary hover, panel heads.",
+        "tonalRamp": [
+          "#230000",
+          "#451300",
+          "#693100",
+          "#8f4f00",
+          "#b67000",
+          "#d99545",
+          "#fcba73",
+          "#ffe19f"
+        ]
+      },
+      "ember": {
+        "role": "primary",
+        "displayName": "Ember",
+        "canonical": "#c2410c",
+        "oklch": "oklch(55.3% 0.174 38.4)",
+        "purpose": "Under-bevel of torch fills.",
+        "tonalRamp": [
+          "#2e0000",
+          "#550000",
+          "#7e0e00",
+          "#a93200",
+          "#d45326",
+          "#f87c54",
+          "#ffa57f",
+          "#ffceaa"
+        ]
+      },
+      "torch-ink": {
+        "role": "primary",
+        "displayName": "Torch Ink",
+        "canonical": "#2a1004",
+        "oklch": "oklch(21.0% 0.049 45.9)",
+        "purpose": "Text on torch fills.",
+        "tonalRamp": [
+          "#170601",
+          "#351f15",
+          "#553b2f",
+          "#78594b",
+          "#9c7a6a",
+          "#be9d8e",
+          "#e1c1b3",
+          "#ffe7d9"
+        ]
+      },
+      "gold": {
+        "role": "primary",
+        "displayName": "Dragon Gold",
+        "canonical": "#ffd23f",
+        "oklch": "oklch(87.9% 0.162 90.9)",
+        "purpose": "Titles, names, your turn, selection, focus outline.",
+        "tonalRamp": [
+          "#1d0300",
+          "#3c1d00",
+          "#5e3b00",
+          "#815a00",
+          "#a67c00",
+          "#c8a000",
+          "#ebc551",
+          "#ffeb85"
+        ]
+      },
+      "gold-dim": {
+        "role": "primary",
+        "displayName": "Tarnished Gold",
+        "canonical": "#a8801f",
+        "oklch": "oklch(62.3% 0.118 84.3)",
+        "purpose": "Gold bevel and rim.",
+        "tonalRamp": [
+          "#1b0400",
+          "#3a1e00",
+          "#5b3b00",
+          "#7e5a00",
+          "#a37b19",
+          "#c59f4e",
+          "#e8c47a",
+          "#ffeaa6"
+        ]
+      },
+      "gold-ink": {
+        "role": "primary",
+        "displayName": "Gold Ink",
+        "canonical": "#2b1f00",
+        "oklch": "oklch(24.7% 0.050 87.7)",
+        "purpose": "Text on gold fills.",
+        "tonalRamp": [
+          "#120a00",
+          "#2d240c",
+          "#4c4126",
+          "#6d6042",
+          "#8f8160",
+          "#b1a484",
+          "#d5c8aa",
+          "#faeed1"
+        ]
+      },
+      "blood": {
+        "role": "tertiary",
+        "displayName": "Blood",
+        "canonical": "#e03a3a",
+        "oklch": "oklch(60.1% 0.203 25.8)",
+        "purpose": "Low HP, misses, errors.",
+        "tonalRamp": [
+          "#340000",
+          "#5d0000",
+          "#880000",
+          "#b4151f",
+          "#e23d3c",
+          "#ff6c64",
+          "#ff978d",
+          "#ffc2b6"
+        ]
+      },
+      "blood-dim": {
+        "role": "tertiary",
+        "displayName": "Old Blood",
+        "canonical": "#7c1a22",
+        "oklch": "oklch(38.8% 0.132 21.9)",
+        "purpose": "Enemy rim, danger button, title shadow.",
+        "tonalRamp": [
+          "#280000",
+          "#4c010b",
+          "#732125",
+          "#9b3f40",
+          "#c55e5e",
+          "#e88482",
+          "#ffaba8",
+          "#ffd3cf"
+        ]
+      },
+      "arcane": {
+        "role": "secondary",
+        "displayName": "Arcane Teal",
+        "canonical": "#46e0c8",
+        "oklch": "oklch(82.1% 0.131 180.2)",
+        "purpose": "Links, subheads on stone.",
+        "tonalRamp": [
+          "#00150d",
+          "#003327",
+          "#005445",
+          "#007764",
+          "#009b86",
+          "#2bbea8",
+          "#69e1cc",
+          "#9bfff1"
+        ]
+      },
+      "arcane-dim": {
+        "role": "secondary",
+        "displayName": "Deep Arcane",
+        "canonical": "#1d6f6c",
+        "oklch": "oklch(49.4% 0.076 191.4)",
+        "purpose": "Own-sheet rim, random button.",
+        "tonalRamp": [
+          "#001111",
+          "#002e2c",
+          "#004d4b",
+          "#256e6b",
+          "#45918d",
+          "#6eb3b0",
+          "#97d7d3",
+          "#c1fcf8"
+        ]
+      },
+      "moss": {
+        "role": "tertiary",
+        "displayName": "Moss",
+        "canonical": "#7bd389",
+        "oklch": "oklch(79.3% 0.135 147.9)",
+        "purpose": "Healthy HP, hits, running.",
+        "tonalRamp": [
+          "#001400",
+          "#003100",
+          "#005218",
+          "#1e7434",
+          "#409852",
+          "#6aba77",
+          "#94de9e",
+          "#beffc6"
+        ]
+      },
+      "moss-dim": {
+        "role": "tertiary",
+        "displayName": "Deep Moss",
+        "canonical": "#265c3b",
+        "oklch": "oklch(42.8% 0.080 154.3)",
+        "purpose": "Ready/open rim.",
+        "tonalRamp": [
+          "#001102",
+          "#022e16",
+          "#204d31",
+          "#3c6e4e",
+          "#5b916d",
+          "#80b390",
+          "#a7d7b5",
+          "#cffcdc"
+        ]
+      },
+      "parch": {
+        "role": "neutral",
+        "displayName": "Parchment",
+        "canonical": "#ead2a0",
+        "oklch": "oklch(87.2% 0.070 85.2)",
+        "purpose": "Chronicle sheet.",
+        "tonalRamp": [
+          "#150800",
+          "#312200",
+          "#513f17",
+          "#725e33",
+          "#967f50",
+          "#b8a276",
+          "#dbc79d",
+          "#ffecc5"
+        ]
+      },
+      "parch-rim": {
+        "role": "neutral",
+        "displayName": "Parchment Rim",
+        "canonical": "#c79f5f",
+        "oklch": "oklch(72.5% 0.095 78.2)",
+        "purpose": "Chronicle border.",
+        "tonalRamp": [
+          "#1a0500",
+          "#381f00",
+          "#593b00",
+          "#7d5a1d",
+          "#a17b3b",
+          "#c39e64",
+          "#e7c38d",
+          "#ffe9b6"
+        ]
+      },
+      "parch-edge": {
+        "role": "neutral",
+        "displayName": "Parchment Edge",
+        "canonical": "#3b2412",
+        "oklch": "oklch(28.5% 0.046 57.6)",
+        "purpose": "Chronicle outer ring.",
+        "tonalRamp": [
+          "#150701",
+          "#322013",
+          "#523d2d",
+          "#745b49",
+          "#987c68",
+          "#ba9f8c",
+          "#dec3b1",
+          "#ffe9d7"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#2a1a10",
+        "oklch": "oklch(23.6% 0.031 52.7)",
+        "purpose": "Text on parchment, roll stub ground.",
+        "tonalRamp": [
+          "#130804",
+          "#2f221a",
+          "#4e3e35",
+          "#6f5d52",
+          "#927e71",
+          "#b4a095",
+          "#d8c5b9",
+          "#fdeae0"
+        ]
+      },
+      "ink-soft": {
+        "role": "neutral",
+        "displayName": "Faded Ink",
+        "canonical": "#6a4c33",
+        "oklch": "oklch(44.3% 0.056 60.5)",
+        "purpose": "Turn headers, system lines.",
+        "tonalRamp": [
+          "#170600",
+          "#35200d",
+          "#553c27",
+          "#775a43",
+          "#9b7b61",
+          "#be9e85",
+          "#e1c3ab",
+          "#ffe8d2"
+        ]
+      },
+      "rubric": {
+        "role": "secondary",
+        "displayName": "Rubric Red",
+        "canonical": "#a3201c",
+        "oklch": "oklch(46.7% 0.167 27.9)",
+        "purpose": "Parchment-only accent: actors, capitals, phase tag.",
+        "tonalRamp": [
+          "#2e0000",
+          "#550000",
+          "#7d0d0d",
+          "#a8312a",
+          "#d45146",
+          "#f77a6d",
+          "#ffa394",
+          "#ffccbd"
+        ]
+      },
+      "roll-paper": {
+        "role": "neutral",
+        "displayName": "Roll Paper",
+        "canonical": "#f3e6c8",
+        "oklch": "oklch(92.8% 0.042 87.4)",
+        "purpose": "Text on roll stubs.",
+        "tonalRamp": [
+          "#110a00",
+          "#2c2411",
+          "#4a412b",
+          "#6b6048",
+          "#8d8166",
+          "#afa48a",
+          "#d3c8af",
+          "#f8eed6"
+        ]
+      },
+      "felt": {
+        "role": "neutral",
+        "displayName": "Oxblood Felt",
+        "canonical": "#3a1712",
+        "oklch": "oklch(25.6% 0.057 29.8)",
+        "purpose": "Home dice tray.",
+        "tonalRamp": [
+          "#190403",
+          "#381c18",
+          "#593832",
+          "#7d564f",
+          "#a2766e",
+          "#c49992",
+          "#e7beb7",
+          "#ffe4dd"
+        ]
+      },
+      "bone": {
+        "role": "neutral",
+        "displayName": "Bone",
+        "canonical": "#efe2c4",
+        "oklch": "oklch(91.5% 0.042 87.4)",
+        "purpose": "Dice faces.",
+        "tonalRamp": [
+          "#110a00",
+          "#2c2411",
+          "#4a412b",
+          "#6b6048",
+          "#8d8166",
+          "#afa48a",
+          "#d3c8af",
+          "#f8eed6"
+        ]
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "Bone Text",
+        "canonical": "#f1e8d8",
+        "oklch": "oklch(93.4% 0.023 82.1)",
+        "purpose": "Primary text on stone.",
+        "tonalRamp": [
+          "#0f0a04",
+          "#2a241b",
+          "#474136",
+          "#676053",
+          "#898173",
+          "#aca496",
+          "#d0c8bb",
+          "#f5eee1"
+        ]
+      },
+      "text-dim": {
+        "role": "neutral",
+        "displayName": "Lavender Dim",
+        "canonical": "#b9adcb",
+        "oklch": "oklch(76.7% 0.044 303.5)",
+        "purpose": "Secondary text.",
+        "tonalRamp": [
+          "#0e0816",
+          "#292133",
+          "#463d53",
+          "#665c75",
+          "#887c98",
+          "#aa9fbb",
+          "#cec4de",
+          "#f3e9ff"
+        ]
+      },
+      "text-mute": {
+        "role": "neutral",
+        "displayName": "Lavender Mute",
+        "canonical": "#8577a0",
+        "oklch": "oklch(59.7% 0.063 300.1)",
+        "purpose": "Tertiary text, labels.",
+        "tonalRamp": [
+          "#0e061b",
+          "#291f3a",
+          "#463b5b",
+          "#665a7e",
+          "#887aa3",
+          "#aa9dc5",
+          "#cec2e8",
+          "#f3e8ff"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display (Jacquarda Bastarda 9)",
+        "purpose": "Page, modal and wizard titles; in-game drop caps. Never the brand mark."
+      },
+      "title": {
+        "displayName": "Title (Alegreya 700)",
+        "purpose": "Card, quest, hero and item names."
+      },
+      "body": {
+        "displayName": "Body (Alegreya)",
+        "purpose": "Interface prose; italic for hints and subtitles."
+      },
+      "chronicle": {
+        "displayName": "Chronicle (Alegreya)",
+        "purpose": "Narration on parchment."
+      },
+      "ui": {
+        "displayName": "UI (Departure Mono)",
+        "purpose": "Buttons, nav, badges, roll stubs."
+      },
+      "label": {
+        "displayName": "Label (Departure Mono caps)",
+        "purpose": "Field labels, panel heads, turn headers."
+      },
+      "numeral": {
+        "displayName": "Numeral (Departure Mono)",
+        "purpose": "Ability scores, roll totals (40px on home readout)."
+      }
+    },
+    "shadows": [
+      {
+        "name": "window-frame",
+        "value": "0 -3px 0 0 var(--edge), 0 3px 0 0 var(--edge), -3px 0 0 0 var(--edge), 3px 0 0 0 var(--edge), 0 9px 0 0 rgba(0,0,0,0.45), inset 0 3px 0 0 rgba(255,255,255,0.06)",
+        "purpose": "Every RPG window: stepped corners plus hard drop."
+      },
+      {
+        "name": "button-bevel",
+        "value": "0 -3px 0 0 var(--edge), 0 3px 0 0 var(--edge), -3px 0 0 0 var(--edge), 3px 0 0 0 var(--edge), inset 0 -3px 0 0 rgba(0,0,0,0.32), inset 0 3px 0 0 rgba(255,255,255,0.16)",
+        "purpose": "All buttons."
+      },
+      {
+        "name": "well-inset",
+        "value": "inset 0 0 0 2px var(--stone-3)",
+        "purpose": "Chips, stat boxes, options, badges."
+      },
+      {
+        "name": "input-inset",
+        "value": "inset 0 0 0 3px var(--stone-3), inset 0 6px 0 0 rgba(0,0,0,0.5)",
+        "purpose": "Text fields; ring becomes torch on focus."
+      },
+      {
+        "name": "roll-stub",
+        "value": "inset 4px 0 0 0 <outcome>, 3px 3px 0 0 rgba(59,36,18,0.3)",
+        "purpose": "Roll lines on parchment; bar colored by outcome."
+      },
+      {
+        "name": "title-drop",
+        "value": "text-shadow: 3px 3px 0 var(--blood-dim), 6px 6px 0 rgba(0,0,0,0.45)",
+        "purpose": "Gold display titles."
+      },
+      {
+        "name": "home-chronicle-lift",
+        "value": "0 14px 32px rgba(0,0,0,0.55), 0 0 90px rgba(255,138,31,0.14)",
+        "purpose": "Home only: torchlit lift of the parchment (light, not frame)."
+      }
+    ],
+    "motion": [
+      {
+        "name": "window-unfold",
+        "value": "scaleY(0.2)→none, 0.24s steps(4)",
+        "purpose": "Windows, cards, quests appearing."
+      },
+      {
+        "name": "torchlight",
+        "value": "opacity flicker 3.2s steps(4) infinite",
+        "purpose": "Ambient torch pools (2.6s on home table)."
+      },
+      {
+        "name": "sprite-strip",
+        "value": "0.54s steps(1) over 3 frames",
+        "purpose": "Animated torch sprite."
+      },
+      {
+        "name": "press",
+        "value": "translateY(2px) 0.06s; hover filter brightness(1.18) 0.12s",
+        "purpose": "Button feedback."
+      },
+      {
+        "name": "caret",
+        "value": "opacity blink 1.05s steps(1)",
+        "purpose": "Declare-bar torch caret."
+      },
+      {
+        "name": "ink-set",
+        "value": "opacity/blur(4px)/translateY(6px) 0.7s cubic-bezier(0.16,1,0.3,1)",
+        "purpose": "Home only: ink settling on parchment; rolls delayed 1.25s to land after dice."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "animation/transition 0.01ms, 1 iteration",
+        "purpose": "Global prefers-reduced-motion override."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile",
+        "value": "720px"
+      },
+      {
+        "name": "sheet-stack",
+        "value": "900px"
+      },
+      {
+        "name": "table-collapse",
+        "value": "1023px"
+      },
+      {
+        "name": "narrow-rails",
+        "value": "1100px"
+      },
+      {
+        "name": "short-landscape",
+        "value": "721–1023px wide, max-height 600px"
+      }
+    ],
+    "rootTokensFile": "priv/static/assets/dragonex.css",
+    "notCanonized": [
+      ".eyebrow kicker «Sala de espera» in the waiting room (craft-floor kicker).",
+      "Glyph icons ✓ ▸ ▾ ▴ ⋯ in steps, badges and summaries (sprites are the icon system).",
+      "System ui-monospace in the AI label and settings input (off the Departure Mono voice)."
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single torch call to action per view.",
+      "html": "<button class=\"ds-btn-primary\">Crear cuenta</button>",
+      "css": ".ds-btn-primary { display:inline-flex; align-items:center; gap:.5rem; padding:.5rem 1rem .6rem; font-family:var(--f-ui); font-size:15px; line-height:1.1; color:#2a1004; background:var(--torch); border:0; border-radius:0; cursor:pointer; box-shadow:0 -3px 0 0 var(--edge), 0 3px 0 0 var(--edge), -3px 0 0 0 var(--edge), 3px 0 0 0 var(--edge), inset 0 -3px 0 0 rgba(0,0,0,.32), inset 0 3px 0 0 rgba(255,255,255,.16); transition:filter .12s, transform .06s; } .ds-btn-primary:hover { filter:brightness(1.18); background:var(--torch-hi); } .ds-btn-primary:active { transform:translateY(2px); } .ds-btn-primary:focus-visible { outline:3px solid var(--gold); outline-offset:4px; }"
+    },
+    {
+      "name": "Default Button",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "Stone bevel button for secondary actions.",
+      "html": "<button class=\"ds-btn\">Ver ficha</button>",
+      "css": ".ds-btn { display:inline-flex; align-items:center; gap:.5rem; padding:.5rem 1rem .6rem; font-family:var(--f-ui); font-size:15px; line-height:1.1; color:var(--text); background:var(--stone-3); border:0; border-radius:0; cursor:pointer; box-shadow:0 -3px 0 0 var(--edge), 0 3px 0 0 var(--edge), -3px 0 0 0 var(--edge), 3px 0 0 0 var(--edge), inset 0 -3px 0 0 rgba(0,0,0,.32), inset 0 3px 0 0 rgba(255,255,255,.16); transition:filter .12s, transform .06s; } .ds-btn:hover { filter:brightness(1.18);  } .ds-btn:active { transform:translateY(2px); } .ds-btn:focus-visible { outline:3px solid var(--gold); outline-offset:4px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Back/cancel and turn-bar controls.",
+      "html": "<button class=\"ds-btn-ghost\">Volver</button>",
+      "css": ".ds-btn-ghost { display:inline-flex; align-items:center; gap:.5rem; padding:.5rem 1rem .6rem; font-family:var(--f-ui); font-size:15px; line-height:1.1; color:var(--text-dim); background:var(--stone); border:0; border-radius:0; cursor:pointer; box-shadow:0 -3px 0 0 var(--edge), 0 3px 0 0 var(--edge), -3px 0 0 0 var(--edge), 3px 0 0 0 var(--edge), inset 0 -3px 0 0 rgba(0,0,0,.32), inset 0 3px 0 0 rgba(255,255,255,.16); transition:filter .12s, transform .06s; } .ds-btn-ghost:hover { filter:brightness(1.18);  } .ds-btn-ghost:active { transform:translateY(2px); } .ds-btn-ghost:focus-visible { outline:3px solid var(--gold); outline-offset:4px; }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destructive actions.",
+      "html": "<button class=\"ds-btn-danger\">Borrar</button>",
+      "css": ".ds-btn-danger { display:inline-flex; align-items:center; gap:.5rem; padding:.5rem 1rem .6rem; font-family:var(--f-ui); font-size:15px; line-height:1.1; color:#ffd9d2; background:var(--blood-dim); border:0; border-radius:0; cursor:pointer; box-shadow:0 -3px 0 0 var(--edge), 0 3px 0 0 var(--edge), -3px 0 0 0 var(--edge), 3px 0 0 0 var(--edge), inset 0 -3px 0 0 rgba(0,0,0,.32), inset 0 3px 0 0 rgba(255,255,255,.16); transition:filter .12s, transform .06s; } .ds-btn-danger:hover { filter:brightness(1.18);  } .ds-btn-danger:active { transform:translateY(2px); } .ds-btn-danger:focus-visible { outline:3px solid var(--gold); outline-offset:4px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Pit-dark field with pixel inset; torch ring on focus.",
+      "html": "<input class=\"ds-input\" placeholder=\"Declara tu intención…\">",
+      "css": ".ds-input { width:100%; padding:.6rem .75rem; font-family:var(--f-body); font-size:17px; color:var(--text); background:#0d0914; border:0; border-radius:0; box-shadow:inset 0 0 0 3px var(--stone-3), inset 0 6px 0 0 rgba(0,0,0,.5); transition:box-shadow .12s; } .ds-input::placeholder { color:var(--text-mute); font-style:italic; } .ds-input:focus { outline:none; box-shadow:inset 0 0 0 3px var(--torch), inset 0 6px 0 0 rgba(0,0,0,.5); }"
+    },
+    {
+      "name": "Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Selectable well chip; gold when selected.",
+      "html": "<span class=\"ds-chip\">Bola de fuego</span> <span class=\"ds-chip ds-chip-sel\">Escudo</span>",
+      "css": ".ds-chip { display:inline-block; padding:.3rem .65rem .36rem; font-family:var(--f-ui); font-size:14px; color:var(--text-dim); background:#120d1b; box-shadow:inset 0 0 0 2px var(--stone-3); cursor:pointer; } .ds-chip:hover { color:var(--text); box-shadow:inset 0 0 0 2px var(--stone-4); } .ds-chip-sel { color:#2b1f00; background:var(--gold); box-shadow:inset 0 0 0 2px #fff0a8, inset 0 -3px 0 0 var(--gold-dim); }"
+    },
+    {
+      "name": "Topbar",
+      "kind": "nav",
+      "refersTo": "navigation",
+      "description": "Dark gradient bar, pixel wordmark, mono links turning gold.",
+      "html": "<nav class=\"ds-topbar\"><img src=\"/assets/wordmark.svg\" alt=\"Dragonex\" height=\"26\"><span class=\"ds-links\"><a href=\"#\">Partidas</a><a href=\"#\">Héroes</a><a href=\"#\">Entrar</a></span></nav>",
+      "css": ".ds-topbar { display:flex; align-items:center; gap:1.25rem; padding:.35rem 1.5rem .4rem; background:linear-gradient(180deg,#1d152b,#150f20); box-shadow:0 3px 0 0 var(--edge), 0 6px 0 0 var(--stone-3), 0 12px 0 0 rgba(0,0,0,.35); } .ds-topbar img { image-rendering:pixelated; } .ds-links { margin-left:auto; display:flex; gap:.35rem; } .ds-links a { padding:.4rem .7rem; font-family:var(--f-ui); font-size:15px; color:var(--text-dim); text-decoration:none; } .ds-links a:hover { color:var(--gold); } .ds-links a:focus-visible { outline:3px solid var(--gold); outline-offset:4px; }"
+    },
+    {
+      "name": "RPG Window",
+      "kind": "card",
+      "refersTo": "window",
+      "description": "Stepped-corner window frame; meaning via --rim.",
+      "html": "<div class=\"ds-win\"><h3>Thane</h3><p>Guerrero humano · nivel 3</p></div>",
+      "css": ".ds-win { --rim:var(--stone-3); padding:.75rem .85rem .8rem; color:var(--text); background:linear-gradient(180deg,var(--stone-2),var(--stone)); border:3px solid var(--rim); box-shadow:0 -3px 0 0 var(--edge), 0 3px 0 0 var(--edge), -3px 0 0 0 var(--edge), 3px 0 0 0 var(--edge), 0 9px 0 0 rgba(0,0,0,.45), inset 0 3px 0 0 rgba(255,255,255,.06); } .ds-win:hover { --rim:var(--stone-4); } .ds-win h3 { margin:0; font-family:var(--f-body); font-size:20px; font-weight:700; color:var(--gold); } .ds-win p { margin:.15rem 0 0; font-family:var(--f-ui); font-size:13px; color:var(--text-mute); }"
+    },
+    {
+      "name": "Chronicle with Roll Stub",
+      "kind": "custom",
+      "refersTo": "chronicle",
+      "description": "Parchment log: rubric actor header, DM prose, engine roll stub.",
+      "html": "<div class=\"ds-chron\"><div class=\"ds-th\">Turno de Vex</div><p>La niebla se cierra sobre el molino.</p><p class=\"ds-roll\"><b>Vex</b> ataque d20:16 +5 = 21 vs CA 12 → ¡ACIERTO!</p></div>",
+      "css": ".ds-chron { padding:1.2rem 1.5rem; font-family:var(--f-body); font-size:18px; line-height:1.6; color:var(--ink); background:var(--parch); border:3px solid #c79f5f; box-shadow:0 -3px 0 0 var(--parch-edge), 0 3px 0 0 var(--parch-edge), -3px 0 0 0 var(--parch-edge), 3px 0 0 0 var(--parch-edge), 0 9px 0 0 rgba(0,0,0,.5); } .ds-th { font-family:var(--f-ui); font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:var(--rubric); text-align:center; } .ds-roll { width:fit-content; padding:.32rem .75rem .38rem; font-family:var(--f-ui); font-size:14.5px; line-height:1.4; color:#f3e6c8; background:#2a1a10; box-shadow:inset 4px 0 0 0 var(--moss), 3px 3px 0 0 rgba(59,36,18,.3); } .ds-roll b { font-weight:400; color:var(--gold); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "La crónica de mazmorra en 16 bits",
+    "overview": "**Creative North Star: \"La crónica de mazmorra en 16 bits\"**\n\nDragonex is a dungeon at torchlight. Every screen sits on a pixel-brick wall (96×48 tile) lit by two warm torch pools at the top corners and a faint violet halo below, all flickering in four stepped frames. On that wall float classic-RPG windows: square, with a coloured rim, a dark one-pixel ring whose corners are clipped, and a hard drop beneath. The game itself is written on parchment: brown ink, rubric red for actors and capitals, and the engine's dice results as dark ink stubs in a pixel mono. The UI is dark (`color-scheme: dark`), dense, and Spanish throughout.\n\nThe home follows the same world and proves the product by showing it: a real chronicle replaying turn by turn between two animated torches, a dice tray where bone dice land on oxblood felt (dic_ex 2D engine), a roll readout, and a declare bar whose only action is «Crear cuenta». The brand mark is the SVG pixel wordmark, not type. The user rejected the earlier pixelated-blackletter wordmark (Jacquarda Bastarda 9) and the pixel dragon sprite on the home. Assets are plain CSS and SVG in `priv/static/assets`. There is no JS build pipeline; sprites come from `scripts/gen_pixel_sprites.py` and the wordmark from `scripts/gen_wordmark.py`.",
+    "keyCharacteristics": [
+      "Square corners everywhere; depth is built from hard pixel rings and offset drops, not blur.",
+      "Three type voices: blackletter for titles, Alegreya for prose, Departure Mono for UI and numbers.",
+      "Two surfaces: dark stone windows for the interface, parchment for the narrative.",
+      "Motion snaps in `steps()` like a 16-bit menu; it never glides, with one exception (ink settling on the home).",
+      "Pixel sprites (`image-rendering: pixelated`) scale by whole-pixel multipliers."
+    ],
+    "rules": [
+      {
+        "name": "The Two Surfaces Rule",
+        "body": "Stone is for interface and parchment is for narrative. Rubric red lives only on parchment, and arcane links live only on stone.",
+        "section": "colors"
+      },
+      {
+        "name": "The Dark-Ink-on-Light Rule",
+        "body": "Text on gold or torch backgrounds is always the dark ink of its family (gold-ink, torch-ink), never white.",
+        "section": "colors"
+      },
+      {
+        "name": "The Wordmark Is Not Type Rule",
+        "body": "The brand appears only as `wordmark.svg`: 26px tall in the topbar after an animated torch, and min(560px, 84vw) on the home with a torch-glow drop shadow. Never set \"Dragonex\" in Jacquarda Bastarda as a logo.",
+        "section": "typography"
+      },
+      {
+        "name": "The Home Capital Rule",
+        "body": "The home's drop cap is Alegreya 800 at 2.9em in rubric with no shadow. The in-game chronicle keeps the blackletter capital.",
+        "section": "typography"
+      },
+      {
+        "name": "The No-Blur Frame Rule",
+        "body": "Frames and controls take zero-blur shadows only. Soft blur is reserved for light: torch glow, the vignette, and the home chronicle's lift (`0 14px 32px` plus a torch halo).",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** build every new panel on the window frame and change meaning only through `--rim`.",
+      "**Do** use `steps()` timing for UI motion (frame unfold 0.24s/4, flicker 3.2s/4, sprite strips 0.54s), and respect `prefers-reduced-motion`, which stops animations globally.",
+      "**Do** put mechanical facts (numbers, dice, labels) in Departure Mono and narrative in Alegreya.",
+      "**Do** keep text on gold and torch fills in the dark ink of its family.",
+      "**Do** render sprites and the wordmark pixelated at whole multiples."
+    ],
+    "donts": [
+      "**Don't** set the brand name in Jacquarda Bastarda 9 or bring back the pixel dragon on the home; both were rejected by the user.",
+      "**Don't** round corners or use blurred drop shadows on frames and controls.",
+      "**Don't** use rubric red on stone, or arcane teal on parchment.",
+      "**Don't** add a JS build step or a CDN font; assets are static files in `priv/static/assets`.",
+      "**Don't** show more than one torch-primary button in a view."
+    ]
+  }
+}

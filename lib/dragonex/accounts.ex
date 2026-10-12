@@ -7,6 +7,7 @@ defmodule Dragonex.Accounts do
   """
 
   import Ecto.Query
+  use Gettext, backend: Dragonex.Gettext
 
   alias Dragonex.{Codec, Repo}
   alias Dragonex.Accounts.{CustomContent, Hero, User}
@@ -184,18 +185,15 @@ defmodule Dragonex.Accounts do
   @spec grant_xp(User.t(), term(), integer()) ::
           {:ok, Hero.t()} | {:error, :not_found}
   def grant_xp(%User{} = user, id, amount) when is_integer(amount) do
-    case get_user_hero(user, id) do
-      nil ->
-        {:error, :not_found}
+    Repo.transaction(fn ->
+      hero = locked_user_hero(user, id)
+      sheet = hero_sheet(hero)
+      updated = %{sheet | xp: sheet.xp + max(amount, 0)}
 
-      %Hero{} = hero ->
-        sheet = hero_sheet(hero)
-        updated = %{sheet | xp: sheet.xp + max(amount, 0)}
-
-        hero
-        |> Ecto.Changeset.cast(%{sheet: Codec.encode_character(updated)}, [:sheet])
-        |> Repo.update()
-    end
+      hero
+      |> Ecto.Changeset.cast(%{sheet: Codec.encode_character(updated)}, [:sheet])
+      |> Repo.update!()
+    end)
   end
 
   @doc """
@@ -204,25 +202,57 @@ defmodule Dragonex.Accounts do
   A diferencia de `update_hero/4`, **no se bloquea** si el héroe está en partida:
   el level-up vive aquí, y la partida se sincroniza desde el héroe. `choices`
   lleva las elecciones (`spells_added`, `asi`, `custom`); ver
-  `Dragonex.Heroes.apply_level_up/2`.
+  `Dragonex.Heroes.apply_level_up/2`. La web envía también `expected_level`:
+  una confirmación anterior devuelve `:stale_level` sin aplicar otra subida.
+  La lectura y escritura bloquean la misma fila que `grant_xp/3`.
   """
   @spec level_up_hero(User.t(), term(), map()) ::
-          {:ok, Hero.t()} | {:error, :not_found | String.t()}
+          {:ok, Hero.t()} | {:error, :not_found | :stale_level | :invalid_level | String.t()}
   def level_up_hero(%User{} = user, id, choices \\ %{}) do
-    case get_user_hero(user, id) do
-      nil ->
-        {:error, :not_found}
+    choices = normalize_choices(choices)
 
-      %Hero{} = hero ->
-        with {:ok, new_sheet} <-
-               Dragonex.Heroes.apply_level_up(hero_sheet(hero), normalize_choices(choices)) do
+    Repo.transaction(fn ->
+      hero = locked_user_hero(user, id)
+      sheet = hero_sheet(hero)
+      validate_expected_level!(choices, sheet.level)
+
+      case Dragonex.Heroes.apply_level_up(sheet, choices) do
+        {:ok, new_sheet} ->
           hero
           |> Ecto.Changeset.cast(
             %{level: new_sheet.level, sheet: Codec.encode_character(new_sheet)},
             [:level, :sheet]
           )
-          |> Repo.update()
-        end
+          |> Repo.update!()
+
+        {:error, reason} ->
+          Repo.rollback(reason)
+      end
+    end)
+  end
+
+  defp locked_user_hero(%User{id: user_id}, id) do
+    case Repo.one(
+           from(h in Hero, where: h.id == ^id and h.user_id == ^user_id, lock: "FOR UPDATE")
+         ) do
+      nil -> Repo.rollback(:not_found)
+      hero -> hero
+    end
+  end
+
+  defp validate_expected_level!(choices, level) do
+    case Map.fetch(choices, :expected_level) do
+      :error ->
+        :ok
+
+      {:ok, ^level} ->
+        :ok
+
+      {:ok, expected} when is_integer(expected) and expected in 1..20 ->
+        Repo.rollback(:stale_level)
+
+      {:ok, _} ->
+        Repo.rollback(:invalid_level)
     end
   end
 
@@ -378,18 +408,21 @@ defmodule Dragonex.Accounts do
   defp clean(nil), do: nil
   defp clean(v) when is_binary(v), do: String.trim(v)
 
-  defp require_present(%{kind: k}) when k in ["", nil], do: {:error, "kind es obligatorio"}
-  defp require_present(%{name: n}) when n in ["", nil], do: {:error, "name_es es obligatorio"}
+  defp require_present(%{kind: k}) when k in ["", nil],
+    do: {:error, dgettext("ui", "kind es obligatorio")}
+
+  defp require_present(%{name: n}) when n in ["", nil],
+    do: {:error, dgettext("ui", "name_es es obligatorio")}
 
   defp require_present(%{definition: d}) when d in [nil, %{}],
-    do: {:error, "definition es obligatorio"}
+    do: {:error, dgettext("ui", "definition es obligatorio")}
 
   defp require_present(_), do: :ok
 
   defp validate_kind(kind) do
     if kind in CustomContent.kinds(),
       do: :ok,
-      else: {:error, "kind inválido (debe ser weapon, spell o item)"}
+      else: {:error, dgettext("ui", "kind inválido (debe ser weapon, spell o item)")}
   end
 
   defp key_for(nil, name) when is_binary(name) and name != "", do: CustomContent.slugify(name)
@@ -397,7 +430,7 @@ defmodule Dragonex.Accounts do
   defp key_for(key, _name) when is_binary(key), do: CustomContent.slugify(key)
 
   defp validate_key(_kind, key) when is_binary(key) and byte_size(key) > 0, do: :ok
-  defp validate_key(_kind, _), do: {:error, "key vacío tras normalizar"}
+  defp validate_key(_kind, _), do: {:error, dgettext("ui", "key vacío tras normalizar")}
 
   defp validate_definition("weapon", defn),
     do: validate_weapon(defn)
@@ -408,7 +441,7 @@ defmodule Dragonex.Accounts do
   defp validate_definition("item", defn),
     do: validate_item(defn)
 
-  defp validate_definition(_, _), do: {:error, "definition inválido"}
+  defp validate_definition(_, _), do: {:error, dgettext("ui", "definition inválido")}
 
   defp validate_weapon(defn) do
     with {:ok, dice} <- require_dice(get(defn, "dice")),
@@ -451,7 +484,7 @@ defmodule Dragonex.Accounts do
   # Si kind == "save", save_ability es obligatoria y debe ser una ability válida.
   # Para :attack/:automatic, nil es válido (se ignora).
   defp validate_save_ability("save", nil),
-    do: {:error, "save_ability es obligatoria cuando kind es 'save'"}
+    do: {:error, dgettext("ui", "save_ability es obligatoria cuando kind es 'save'")}
 
   defp validate_save_ability("save", ab) when is_atom(ab),
     do: validate_save_ability("save", Atom.to_string(ab))
@@ -459,14 +492,14 @@ defmodule Dragonex.Accounts do
   defp validate_save_ability("save", ab) when ab in @abilities, do: {:ok, ab}
 
   defp validate_save_ability("save", _),
-    do: {:error, "save_ability debe ser una de str/dex/con/int/wis/cha"}
+    do: {:error, dgettext("ui", "save_ability debe ser una de str/dex/con/int/wis/cha")}
 
   defp validate_save_ability(_, ab) when is_atom(ab),
     do: validate_save_ability(nil, Atom.to_string(ab))
 
   defp validate_save_ability(_, ab) when ab in @abilities, do: {:ok, ab}
   defp validate_save_ability(_, ab) when ab in [nil, ""], do: {:ok, nil}
-  defp validate_save_ability(_, _), do: {:error, "save_ability inválido"}
+  defp validate_save_ability(_, _), do: {:error, dgettext("ui", "save_ability inválido")}
 
   defp validate_item(defn) do
     with {:ok, qty} <- require_qty(get(defn, "qty")),
@@ -482,21 +515,24 @@ defmodule Dragonex.Accounts do
 
   defp get(defn, key), do: Dragonex.MapUtil.get(defn, key)
 
-  defp require_str(nil, field), do: {:error, "#{field} es obligatorio"}
+  defp require_str(nil, field),
+    do: {:error, dgettext("ui", "%{field} es obligatorio", field: field)}
+
   defp require_str(v, _) when is_binary(v) and byte_size(v) > 0, do: :ok
-  defp require_str(_, field), do: {:error, "#{field} inválido"}
+  defp require_str(_, field), do: {:error, dgettext("ui", "%{field} inválido", field: field)}
 
   defp optional_str(nil, _), do: :ok
   defp optional_str(v, _) when is_binary(v), do: :ok
-  defp optional_str(_, field), do: {:error, "#{field} inválido"}
+  defp optional_str(_, field), do: {:error, dgettext("ui", "%{field} inválido", field: field)}
 
-  defp require_member(nil, field, _), do: {:error, "#{field} es obligatorio"}
+  defp require_member(nil, field, _),
+    do: {:error, dgettext("ui", "%{field} es obligatorio", field: field)}
 
   defp require_member(v, field, list) do
-    if v in list, do: :ok, else: {:error, "#{field} inválido"}
+    if v in list, do: :ok, else: {:error, dgettext("ui", "%{field} inválido", field: field)}
   end
 
-  defp require_dice(nil), do: {:error, "dice es obligatorio"}
+  defp require_dice(nil), do: {:error, dgettext("ui", "dice es obligatorio")}
   defp require_dice(dice), do: valid_dice(dice)
 
   defp optional_dice(nil), do: :ok
@@ -511,33 +547,34 @@ defmodule Dragonex.Accounts do
   defp valid_dice(dice) when is_binary(dice) do
     if Dragonex.Dice.valid?(dice),
       do: {:ok, String.trim(dice)},
-      else: {:error, "dice no es una expresión válida (p. ej. 2d6, 1d8+2)"}
+      else: {:error, dgettext("ui", "dice no es una expresión válida (p. ej. 2d6, 1d8+2)")}
   end
 
-  defp valid_dice(_), do: {:error, "dice debe ser texto"}
+  defp valid_dice(_), do: {:error, dgettext("ui", "dice debe ser texto")}
 
-  defp require_level(nil), do: {:error, "level es obligatorio"}
+  defp require_level(nil), do: {:error, dgettext("ui", "level es obligatorio")}
 
   defp require_level(level) when level in 0..9, do: {:ok, level}
 
   defp require_level(level) when is_binary(level) do
     case Integer.parse(level) do
       {n, ""} when n in 0..9 -> {:ok, n}
-      _ -> {:error, "level debe ser un entero 0–9"}
+      _ -> {:error, dgettext("ui", "level debe ser un entero 0–9")}
     end
   end
 
-  defp require_level(_), do: {:error, "level debe ser un entero 0–9"}
+  defp require_level(_), do: {:error, dgettext("ui", "level debe ser un entero 0–9")}
 
-  defp require_ability(nil), do: {:error, "attack_ability es obligatorio"}
+  defp require_ability(nil), do: {:error, dgettext("ui", "attack_ability es obligatorio")}
 
   defp require_ability(ab) when ab in @abilities, do: :ok
 
   defp require_ability(ab) when is_atom(ab), do: require_ability(Atom.to_string(ab))
 
-  defp require_ability(_), do: {:error, "attack_ability debe ser una de str/dex/con/int/wis/cha"}
+  defp require_ability(_),
+    do: {:error, dgettext("ui", "attack_ability debe ser una de str/dex/con/int/wis/cha")}
 
-  defp require_classes(nil), do: {:error, "classes es obligatorio"}
+  defp require_classes(nil), do: {:error, dgettext("ui", "classes es obligatorio")}
 
   defp require_classes(classes) when is_list(classes) do
     valid = MapSet.new(Dragonex.Heroes.Classes.keys())
@@ -546,11 +583,13 @@ defmodule Dragonex.Accounts do
 
     if bad == [],
       do: {:ok, classes},
-      else: {:error, "classes contiene claves desconocidas: #{inspect(bad)}"}
+      else:
+        {:error,
+         dgettext("ui", "classes contiene claves desconocidas: %{keys}", keys: inspect(bad))}
   end
 
   defp require_classes(class) when is_binary(class), do: require_classes([class])
-  defp require_classes(_), do: {:error, "classes debe ser una lista de clases"}
+  defp require_classes(_), do: {:error, dgettext("ui", "classes debe ser una lista de clases")}
 
   defp require_qty(nil), do: {:ok, 1}
 
@@ -559,18 +598,18 @@ defmodule Dragonex.Accounts do
   defp require_qty(qty) when is_binary(qty) do
     case Integer.parse(qty) do
       {n, ""} when n >= 1 -> {:ok, n}
-      _ -> {:error, "qty debe ser un entero ≥ 1"}
+      _ -> {:error, dgettext("ui", "qty debe ser un entero ≥ 1")}
     end
   end
 
-  defp require_qty(_), do: {:error, "qty debe ser un entero ≥ 1"}
+  defp require_qty(_), do: {:error, dgettext("ui", "qty debe ser un entero ≥ 1")}
 
   defp as_bool(true, _), do: {:ok, true}
   defp as_bool(false, _), do: {:ok, false}
   defp as_bool(nil, default), do: {:ok, default}
   defp as_bool("true", _), do: {:ok, true}
   defp as_bool("false", _), do: {:ok, false}
-  defp as_bool(_, _), do: {:error, "valor booleano inválido"}
+  defp as_bool(_, _), do: {:error, dgettext("ui", "valor booleano inválido")}
 
   # El unique_constraint del changeset cae a {:error, changeset}; lo traducimos a
   # un {:error, :conflict} legible para la UI.
@@ -599,7 +638,7 @@ defmodule Dragonex.Accounts do
     )
     |> Ecto.Changeset.validate_required([:email, :password])
     |> Ecto.Changeset.validate_format(:email, ~r/^[^\s]+@[^\s]+$/,
-      message: "debe ser un email válido"
+      message: dgettext("ui", "debe ser un email válido")
     )
     |> Ecto.Changeset.validate_length(:password, min: 8, max: 72)
     |> Ecto.Changeset.unique_constraint(:email)

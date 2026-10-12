@@ -15,6 +15,7 @@ defmodule Dragonex.Games do
   """
 
   import Ecto.Query
+  use Gettext, backend: Dragonex.Gettext
 
   alias Dragonex.Repo
   alias Dragonex.Games.{Character, Game, GameEvent, Participant}
@@ -41,9 +42,13 @@ defmodule Dragonex.Games do
     initiative = Keyword.get(opts, :initiative, [])
     user_id = Keyword.get(opts, :user_id)
     open_slots = Keyword.get(opts, :open_slots, 0)
+    locale = opts |> Keyword.get(:locale, Dragonex.I18n.locale()) |> Dragonex.I18n.normalize()
 
+    # Bible facts are seeded in the game's own language.
     {world, participants, characters} =
-      build_scenario(scene, roster, initiative, user_id, story_bible || %{})
+      Dragonex.I18n.with_locale(locale, fn ->
+        build_scenario(scene, roster, initiative, user_id, story_bible || %{})
+      end)
 
     # Games with open slots start in :configuring (waiting room); others start
     # immediately in :running.
@@ -51,36 +56,44 @@ defmodule Dragonex.Games do
 
     changeset =
       %Game{}
-      |> Ecto.Changeset.cast(
-        %{
-          title: title,
-          story_bible: story_bible,
-          dm_style: dm_style,
-          dice_engine: dice_engine,
-          user_id: user_id,
-          open_slots: open_slots
-        },
-        [:title, :story_bible, :dm_style, :dice_engine, :user_id, :open_slots]
-      )
+      |> Game.creation_changeset(%{
+        title: title,
+        story_bible: story_bible,
+        dm_style: dm_style,
+        dice_engine: dice_engine,
+        user_id: user_id,
+        open_slots: open_slots,
+        locale: Atom.to_string(locale)
+      })
       |> Ecto.Changeset.put_change(:world, Dragonex.Codec.encode(world))
       |> Ecto.Changeset.put_change(:status, initial_status)
       |> Ecto.Changeset.put_change(:current_participant, nil)
       |> Ecto.Changeset.put_assoc(:participants, participants)
       |> Ecto.Changeset.put_assoc(:characters, characters)
 
-    Repo.transaction(fn ->
-      case Repo.insert(changeset) do
-        {:ok, game} ->
-          # Seed the opening scene as the first timeline event.
-          append_event(game.id, :system, "system", "all", %{note: "partida creada"})
-          append_event(game.id, :narration, "dm", "all", %{text: opening_for(scene)})
+    if changeset.valid? do
+      Repo.transaction(fn ->
+        case Repo.insert(changeset) do
+          {:ok, game} ->
+            # Seed the opening scene as the first timeline event, written in
+            # the game's own language.
+            Dragonex.I18n.with_locale(locale, fn ->
+              append_event(game.id, :system, "system", "all", %{
+                note: dgettext("engine", "partida creada")
+              })
 
-          game
+              append_event(game.id, :narration, "dm", "all", %{text: opening_for(scene)})
+            end)
 
-        {:error, changeset} ->
-          Repo.rollback(changeset)
-      end
-    end)
+            game
+
+          {:error, changeset} ->
+            Repo.rollback(changeset)
+        end
+      end)
+    else
+      {:error, changeset}
+    end
   end
 
   @doc """
@@ -117,7 +130,7 @@ defmodule Dragonex.Games do
       # left roll_initiative refusing "already in combat" and dropped players
       # into a fight before the scene was even set.
       create_game(
-        title: Map.get(params, "title", "Nueva partida"),
+        title: Map.get(params, "title", dgettext("ui", "Nueva partida")),
         scene: scene_from(roster, Map.get(params, "scene")),
         story_bible: Map.get(params, "story_bible", %{}),
         dm_style: Map.get(params, "dm_style", "vivid but brief"),
@@ -125,7 +138,8 @@ defmodule Dragonex.Games do
         roster: roster,
         initiative: [],
         user_id: user_id,
-        open_slots: Map.get(params, "open_slots", 0)
+        open_slots: Map.get(params, "open_slots", 0),
+        locale: Map.get(params, "locale", Dragonex.I18n.locale())
       )
     end
   end
@@ -143,7 +157,14 @@ defmodule Dragonex.Games do
   """
   @spec create_from_wizard_choices(map()) :: {:ok, Game.t()} | {:error, term()}
   def create_from_wizard_choices(choices) do
-    {bible, title, scene, dm_style} = resolve_scenario_fields(choices)
+    locale = choices |> Map.get(:locale, Dragonex.I18n.locale()) |> Dragonex.I18n.normalize()
+
+    # The picked scenario arrives resolved in the UI's language; the game's
+    # bible, title and scene must be written in the GAME's language (D236).
+    {bible, title, scene, dm_style} =
+      Dragonex.I18n.with_locale(locale, fn ->
+        choices |> relocalize_scenario() |> resolve_scenario_fields()
+      end)
 
     companions = Map.get(choices, :companions, [])
     open_count = Enum.count(companions, &(&1 == "open"))
@@ -157,21 +178,45 @@ defmodule Dragonex.Games do
       "dice_engine" => Map.get(choices, :dice_engine, "2d"),
       "user_id" => Map.get(choices, :user_id),
       "roster" => roster,
-      "open_slots" => open_count
+      "open_slots" => open_count,
+      "locale" => locale
     })
   end
+
+  # Re-resolve a catalog scenario by key in the active locale; a custom (or
+  # unknown) scenario keeps whatever the wizard collected.
+  defp relocalize_scenario(%{scenario: %{key: key} = scenario} = choices)
+       when is_binary(key) and key != "custom" do
+    %{choices | scenario: Dragonex.Scenarios.get(key) || scenario}
+  end
+
+  defp relocalize_scenario(choices), do: choices
+
+  @doc "Validate wizard details without writing a game or resolving its roster."
+  def wizard_details_changeset(choices) do
+    locale = choices |> Map.get(:locale, Dragonex.I18n.locale()) |> Dragonex.I18n.normalize()
+
+    {bible, title, _scene, dm_style} =
+      Dragonex.I18n.with_locale(locale, fn ->
+        choices |> relocalize_scenario() |> resolve_scenario_fields()
+      end)
+
+    Game.creation_changeset(%Game{}, %{title: title, story_bible: bible, dm_style: dm_style})
+  end
+
+  def creation_title_limit, do: Game.title_limit()
 
   # Scenario → {bible, title, scene, dm_style}. A custom scenario (or none) falls
   # back to the wizard's custom_* fields then to safe defaults; a picked scenario
   # contributes its own bible + fields.
   defp resolve_scenario_fields(%{scenario: %{key: "custom"}} = ch) do
-    {%{}, Map.get(ch, :custom_title) || "Nueva partida",
+    {%{}, Map.get(ch, :custom_title) || dgettext("ui", "Nueva partida"),
      Map.get(ch, :custom_scene) || "an unremarkable crossroads",
      Map.get(ch, :custom_dm_style) || "vivid but brief"}
   end
 
   defp resolve_scenario_fields(%{scenario: nil}) do
-    {%{}, "Nueva partida", "an unremarkable crossroads", "vivid but brief"}
+    {%{}, dgettext("ui", "Nueva partida"), "an unremarkable crossroads", "vivid but brief"}
   end
 
   defp resolve_scenario_fields(%{scenario: scenario}) do
@@ -314,7 +359,13 @@ defmodule Dragonex.Games do
     end)
   end
 
-  defp opening_for(scene), do: "La escena está preparada: #{scene}."
+  # The scene usually ends its own sentence; never print "harina..".
+  defp opening_for(scene) do
+    scene = String.trim(scene)
+
+    scene = if String.ends_with?(scene, [".", "!", "?", "…"]), do: scene, else: scene <> "."
+    dgettext("engine", "La escena está preparada: %{scene}", scene: scene)
+  end
 
   # --------------------------------------------------------------- reads
 
@@ -348,57 +399,65 @@ defmodule Dragonex.Games do
   @doc """
   A human player joins an open slot of a game STILL IN CONFIGURATION (the
   waiting room): creates a participant (linked to their user), adds the
-  character to the live world (if running), and decrements `open_slots`.
+  character to the configuring world and decrements `open_slots` atomically.
   Returns `{:ok, game}` or `{:error, reason}` — `{:error, :already_started}`
   once the partida has started (start_game closes the door), `:already_joined`
-  for a repeat join, `:no_open_slots` when the room is full.
+  for a repeat join, `:no_open_slots` when the room is full and `:name_taken`
+  for an ambiguous identity. The passed row may be stale: lock and reread it.
   """
   @spec join_game(Game.t(), Dragonex.Accounts.User.t(), Dragonex.Character.t(), keyword()) ::
           {:ok, Game.t()} | {:error, term()}
   def join_game(game, user, sheet, opts \\ [])
 
-  # A started partida (running/paused/waiting/ended) takes no joiners — even
-  # with residual open_slots (start_game zeroes them; this is the guard).
-  def join_game(%Game{status: status}, _user, _sheet, _opts) when status != :configuring,
-    do: {:error, :already_started}
-
-  def join_game(
-        %Game{id: game_id, open_slots: open} = game,
-        user,
-        %Dragonex.Character{} = sheet,
-        opts
-      )
-      when open > 0 do
-    if already_joined?(game, user) do
-      {:error, :already_joined}
-    else
-      do_join_game(game_id, open, user, sheet, opts)
-    end
-  end
-
-  def join_game(%Game{}, _user, _sheet, _opts), do: {:error, :no_open_slots}
-
-  defp already_joined?(%Game{} = game, user) do
-    game
-    |> Repo.preload(:participants)
-    |> Map.get(:participants, [])
-    |> Enum.any?(&(&1.user_id == user.id))
-  end
-
-  defp do_join_game(game_id, open, user, sheet, opts) do
+  def join_game(%Game{id: game_id}, user, %Dragonex.Character{} = sheet, opts) do
     hero_id = Keyword.get(opts, :hero_id)
 
     Repo.transaction(fn ->
+      game = locked_game(game_id)
+      world = load_world(game)
+
+      cond do
+        game.status != :configuring ->
+          Repo.rollback(:already_started)
+
+        Enum.any?(game.participants, &(&1.user_id == user.id)) ->
+          Repo.rollback(:already_joined)
+
+        game.open_slots <= 0 ->
+          Repo.rollback(:no_open_slots)
+
+        sheet.side != "pc" or not is_binary(sheet.name) or String.trim(sheet.name) == "" ->
+          Repo.rollback(:invalid_character)
+
+        join_name_taken?(game, world, sheet.name) ->
+          Repo.rollback(:name_taken)
+
+        true ->
+          :ok
+      end
+
+      world =
+        case Dragonex.World.add_character(sheet).(world) do
+          {:ok, world} -> world
+          {:error, _} -> Repo.rollback(:invalid_character)
+        end
+
       # Create the participant (linked to the user)
       case %Participant{}
            |> Ecto.Changeset.cast(
              %{game_id: game_id, user_id: user.id, name: sheet.name, kind: :human, side: "pc"},
              [:game_id, :user_id, :name, :kind, :side]
            )
-           |> Ecto.Changeset.unique_constraint([:game_id, :user_id])
+           |> Ecto.Changeset.unique_constraint([:game_id, :user_id], error_key: :user_id)
+           |> Ecto.Changeset.unique_constraint([:game_id, :name], error_key: :name)
            |> Repo.insert() do
-        {:ok, _participant} -> :ok
-        {:error, _} -> Repo.rollback(:already_joined)
+        {:ok, _participant} ->
+          :ok
+
+        {:error, changeset} ->
+          if Keyword.has_key?(changeset.errors, :name),
+            do: Repo.rollback(:name_taken),
+            else: Repo.rollback(:already_joined)
       end
 
       # Store the character sheet
@@ -416,38 +475,30 @@ defmodule Dragonex.Games do
         )
         |> Repo.insert()
 
-      # Add to the live world if the game is running
-      game = get_game(game_id)
-
-      if game.world do
-        world = load_world(game)
-
-        world =
-          case Dragonex.World.add_character(sheet).(world) do
-            {:ok, w} -> w
-            {:error, _} -> world
-          end
-
-        {:ok, _} =
-          save_state(
-            game_id,
-            world,
-            game.current_participant,
-            game.round,
-            game.status,
-            game.intents || %{}
-          )
-      end
-
-      # Decrement open_slots
-      {1, _} =
-        Repo.update_all(
-          from(g in Game, where: g.id == ^game_id),
-          set: [open_slots: open - 1]
-        )
+      # Configuring only, before the Game loop starts. Once started, World is
+      # owned by the Game GenServer and this transaction rejects any join.
+      game
+      |> Ecto.Changeset.change(
+        world: Dragonex.Codec.encode(world),
+        open_slots: game.open_slots - 1
+      )
+      |> Repo.update!()
 
       get_game(game_id)
     end)
+  end
+
+  defp locked_game(game_id) do
+    case Repo.one(from(g in Game, where: g.id == ^game_id, lock: "FOR UPDATE")) do
+      nil -> Repo.rollback(:not_found)
+      game -> Repo.preload(game, [:participants, :characters])
+    end
+  end
+
+  defp join_name_taken?(game, world, name) do
+    normalized = name |> String.trim() |> String.downcase()
+    names = Enum.map(game.participants, & &1.name) ++ Map.keys(world.characters)
+    Enum.any?(names, &(String.downcase(String.trim(&1)) == normalized))
   end
 
   @doc "Can the given user access this game (creator, participant, or open slots)?"
@@ -471,9 +522,17 @@ defmodule Dragonex.Games do
   """
   @spec start_game(term()) :: {:ok, Game.t()} | {:error, term()}
   def start_game(game_id) do
-    {:ok, _} = set_status(game_id, :running)
-    {_, _} = Repo.update_all(from(g in Game, where: g.id == ^game_id), set: [open_slots: 0])
-    {:ok, get_game(game_id)}
+    Repo.transaction(fn ->
+      game = locked_game(game_id)
+
+      if game.status == :configuring do
+        game
+        |> Ecto.Changeset.change(status: :running, open_slots: 0)
+        |> Repo.update!()
+      end
+
+      get_game(game_id)
+    end)
   end
 
   @doc """
@@ -524,41 +583,64 @@ defmodule Dragonex.Games do
   Aplica los deltas (nivel, max_hp, vitalidad retroactiva de CON, atributos ASI,
   hechizos nuevos, class_features, xp) **sin pisar** el estado transitorio del
   combate (hp actual dañado, condiciones, death_saves, temp_hp, concentrating, raging, reckless, second_wind_used, action_surge_used, smite_slot, lay_on_hands_pool, divine_sense_uses, channel_divinity_used, ki, sorcery_points, bardic_inspiration_uses, inspired, arcane_recovery_used, wild_shape_uses, wild_shape, slots usados):
-  subir de nivel no cura (RAW). También actualiza el snapshot `characters.sheet`.
+  subir de nivel no cura (RAW). Pools finitos ganan solo capacidad nueva según
+  clase/nivel/Carisma, conservando lo gastado (D126). También actualiza el
+  snapshot `characters.sheet`.
 
-  Limitación v1: si el proceso `Game` está activo procesando beats, su próxima
-  persistencia podría sobreescribir el `world`. Para partidas en espera/pausada
-  la sincronización es inmediata y durable.
+  En Forma salvaje progresa la ficha original guardada y conserva el estado
+  físico/PG de la bestia; revertir recupera la forma original progresada (D129).
+
+  Las partidas iniciadas se sincronizan siempre por su único `Game`, que se
+  rehidrata si no está activo. Solo una sala aún `:configuring` se modifica en
+  esta transacción, bloqueando/releyendo la fila frente al inicio de partida.
+  Una ficha anterior al nivel vivo devuelve `:stale_level` sin cambios.
   """
   @spec sync_hero_level_up(term(), term(), Dragonex.Character.t()) ::
           {:ok, Game.t()} | {:error, :not_found | term()}
   def sync_hero_level_up(game_id, hero_id, %Dragonex.Character{} = new_sheet) do
-    game = get_game(game_id)
-    gc = Enum.find((game && game.characters) || [], &(&1.hero_id == hero_id))
+    result =
+      Repo.transaction(fn ->
+        game = locked_game(game_id)
 
-    cond do
-      is_nil(game) or is_nil(gc) ->
-        {:error, :not_found}
+        if game.status != :configuring or not is_nil(Dragonex.Game.Supervisor.whereis(game.id)) do
+          Repo.rollback({:game_started, game.id})
+        end
 
-      true ->
-        world = merge_character_level_up(load_world(game), gc.name, new_sheet)
+        gc = Enum.find(game.characters, &(&1.hero_id == hero_id))
+        if is_nil(gc), do: Repo.rollback(:not_found)
+        world = load_world(game)
+        live = world.characters[gc.name]
+        if is_nil(live), do: Repo.rollback(:not_found)
+        if new_sheet.level < live.level, do: Repo.rollback(:stale_level)
+        world = merge_character_level_up(world, gc.name, new_sheet)
 
-        Repo.transaction(fn ->
-          {:ok, _} =
-            gc
-            |> Ecto.Changeset.cast(%{sheet: Dragonex.Codec.encode_character(new_sheet)}, [:sheet])
-            |> Repo.update()
+        gc
+        |> Ecto.Changeset.change(sheet: Dragonex.Codec.encode_character(new_sheet))
+        |> Repo.update!()
 
-          {:ok, _game} =
-            save_state(
-              game_id,
-              world,
-              game.current_participant,
-              game.round,
-              game.status,
-              game.intents || %{}
-            )
-        end)
+        game
+        |> Ecto.Changeset.change(world: Dragonex.Codec.encode(world))
+        |> Repo.update!()
+
+        get_game(game.id)
+      end)
+
+    case result do
+      {:error, {:game_started, id}} -> sync_started_hero(id, hero_id, new_sheet)
+      other -> other
+    end
+  end
+
+  defp sync_started_hero(game_id, hero_id, sheet) do
+    started =
+      case Dragonex.Game.ensure_started(game_id) do
+        {:error, {:already_started, pid}} -> {:ok, pid}
+        other -> other
+      end
+
+    with {:ok, pid} <- started,
+         :ok <- Dragonex.Game.sync_hero_level_up(pid, hero_id, sheet) do
+      {:ok, get_game(game_id)}
     end
   end
 
@@ -592,7 +674,13 @@ defmodule Dragonex.Games do
       nil ->
         world
 
+      live when new_sheet.level < live.level ->
+        world
+
       live ->
+        active = live
+        live = Dragonex.WildShape.base_form(live)
+
         # RAW 5e: subir de nivel NO cura. El `hp_gain` del nuevo nivel ya está en
         # `new_sheet.max_hp` pero NO se suma al hp actual. La única excepción es
         # la vitalidad retroactiva por subir el mod de CON (regla del PHB), que
@@ -620,9 +708,17 @@ defmodule Dragonex.Games do
               class_features: new_sheet.class_features
           }
 
+        merged = Dragonex.ClassResources.level_up(live, merged)
+        merged = Dragonex.WildShape.preserve_form(merged, active)
         world = %{world | characters: Map.put(world.characters, name, merged)}
 
-        slots = Dragonex.SpellSlots.for_class(merged.class, merged.level)
+        slots =
+          Dragonex.SpellSlots.level_up(
+            live.class,
+            live.level,
+            merged.level,
+            Map.get(world.spell_slots, name)
+          )
 
         if slots != %{},
           do: %{world | spell_slots: Map.put(world.spell_slots, name, slots)},
@@ -652,6 +748,38 @@ defmodule Dragonex.Games do
   def recent_events(game_id, n \\ 200) do
     Repo.all(
       from(e in GameEvent, where: e.game_id == ^game_id, order_by: [desc: e.seq], limit: ^n)
+    )
+    |> Enum.reverse()
+  end
+
+  @doc "Up to 32 older dice events for a role, filtered before the bound and returned oldest-first."
+  @spec rolls_before(term(), pos_integer(), String.t() | nil, pos_integer()) :: [GameEvent.t()]
+  def rolls_before(game_id, before_seq, viewer \\ nil, n \\ 32)
+      when is_integer(before_seq) and before_seq > 0 and is_integer(n) and n > 0 do
+    visibility = if viewer == "dm", do: ["all", "dm"], else: ["all"]
+    limit = min(n, 32)
+
+    Repo.all(
+      from(e in GameEvent,
+        where:
+          e.game_id == ^game_id and e.type == :dice and e.seq < ^before_seq and
+            e.visible_to in ^visibility,
+        order_by: [desc: e.seq],
+        limit: ^limit
+      )
+    )
+    |> Enum.reverse()
+  end
+
+  @doc "Recent turn markers, unaffected by the number of tool or narration events."
+  @spec recent_turns(term(), pos_integer()) :: [GameEvent.t()]
+  def recent_turns(game_id, n \\ 64) do
+    Repo.all(
+      from(e in GameEvent,
+        where: e.game_id == ^game_id and e.type == :turn,
+        order_by: [desc: e.seq],
+        limit: ^n
+      )
     )
     |> Enum.reverse()
   end
@@ -759,6 +887,79 @@ defmodule Dragonex.Games do
       {:error, _} ->
         {:error, :insert_failed}
     end
+  end
+
+  @doc "The public human declaration belonging to this exact durable actor turn."
+  def declaration_for_turn(game_id, actor, turn_id) do
+    payload =
+      Repo.one(
+        from(e in GameEvent,
+          where:
+            e.game_id == ^game_id and e.type == :action and e.actor == ^actor and
+              e.visible_to == "all" and fragment("?->>'turn_id' = ?", e.payload, ^turn_id),
+          order_by: [desc: e.seq],
+          limit: 1,
+          select: e.payload
+        )
+      )
+
+    case payload do
+      %{"text" => text} when is_binary(text) and text != "" -> text
+      _ -> nil
+    end
+  end
+
+  @doc "True when this actor turn already paused once after a hard failure (D228)."
+  def turn_retained?(game_id, turn_id) when is_binary(turn_id) do
+    Repo.exists?(
+      from(e in GameEvent,
+        where:
+          e.game_id == ^game_id and e.type == :system and
+            fragment("?->>'turn_id' = ?", e.payload, ^turn_id) and
+            fragment("?->>'kind' = 'turn_retained'", e.payload)
+      )
+    )
+  end
+
+  def turn_retained?(_game_id, _turn_id), do: false
+
+  @doc """
+  Read a completed actor response for recovery of the same pending beat.
+  Intermediate, truncated and legacy narrations are not completion receipts.
+  """
+  def completed_narration(game_id, actor, turn_id) do
+    payload =
+      Repo.one(
+        from(e in GameEvent,
+          where:
+            e.game_id == ^game_id and e.type == :narration and e.actor == ^actor and
+              fragment("?->>'turn_id' = ?", e.payload, ^turn_id) and
+              fragment("?->'complete' = 'true'::jsonb", e.payload),
+          order_by: [desc: e.seq],
+          limit: 1,
+          select: e.payload
+        )
+      )
+
+    case payload do
+      %{"text" => text} when is_binary(text) and text != "" -> text
+      _ -> nil
+    end
+  end
+
+  @doc "Public unfinished speech from this exact actor beat; it never proves completion."
+  def intermediate_narration?(game_id, actor, turn_id) do
+    Repo.exists?(
+      from(e in GameEvent,
+        where:
+          e.game_id == ^game_id and e.type == :narration and e.actor == ^actor and
+            e.visible_to == "all" and
+            fragment("?->>'turn_id' = ?", e.payload, ^turn_id) and
+            fragment("?->'complete' = 'false'::jsonb", e.payload) and
+            fragment("jsonb_typeof(?->'text') = 'string'", e.payload) and
+            fragment("?->>'text' <> ''", e.payload)
+      )
+    )
   end
 
   @doc """

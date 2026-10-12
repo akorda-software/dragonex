@@ -10,7 +10,7 @@ defmodule Dragonex.TurnPolicy.WorldDriven do
   Sequencing:
 
     * **exploration** — round-robin over the participants (the DM narrates on its
-      turn, same as everyone else).
+      turn, same as everyone else), continuing after whoever holds the turn.
     * **combat** — cycle `world.initiative_order` one combatant at a time
       (D34). PCs map to themselves; each enemy maps to the DM (`:dm` option,
       default `"dm"`). Consecutive DM slots are **not** collapsed: three
@@ -72,6 +72,7 @@ defmodule Dragonex.TurnPolicy.WorldDriven do
   def can_act?(%__MODULE__{current: current}, id, _ctx),
     do: current != nil and current == id
 
+  if {:handoff, 3} in ExAgent.Session.TurnPolicy.behaviour_info(:callbacks), do: @impl(true)
   def handoff(%__MODULE__{} = state, id, _ctx), do: {:ok, %{state | current: id}}
 
   @impl true
@@ -96,6 +97,55 @@ defmodule Dragonex.TurnPolicy.WorldDriven do
 
   # ----------------------------------------------------------- helpers
 
+  @doc "Codec de política explícito para snapshots de Session en exAgent v2."
+  if {:snapshot, 1} in ExAgent.Session.TurnPolicy.behaviour_info(:callbacks), do: @impl(true)
+
+  def snapshot(%__MODULE__{} = state) do
+    {:ok, 1,
+     %{
+       "ids" => state.ids,
+       "index" => state.index,
+       "current" => state.current,
+       "last_phase" => if(state.last_phase, do: Atom.to_string(state.last_phase)),
+       "dm" => state.dm
+     }}
+  end
+
+  if {:restore_snapshot, 3} in ExAgent.Session.TurnPolicy.behaviour_info(:callbacks),
+    do: @impl(true)
+
+  def restore_snapshot(1, data, %{participants: participants}) when is_map(data) do
+    ids = data["ids"]
+    roster = Enum.map(participants, & &1.id)
+
+    phase =
+      case data["last_phase"] do
+        "exploration" -> :exploration
+        "combat" -> :combat
+        nil -> nil
+        _ -> :invalid
+      end
+
+    if is_list(ids) and Enum.all?(ids, &is_binary/1) and
+         length(ids) == length(Enum.uniq(ids)) and MapSet.new(ids) == MapSet.new(roster) and
+         is_integer(data["index"]) and data["index"] >= 0 and
+         (is_nil(data["current"]) or data["current"] in ids) and
+         data["dm"] in ids and phase != :invalid do
+      {:ok,
+       %__MODULE__{
+         ids: ids,
+         index: data["index"],
+         current: data["current"],
+         last_phase: phase,
+         dm: data["dm"]
+       }}
+    else
+      {:error, :invalid_policy_state}
+    end
+  end
+
+  def restore_snapshot(_, _, _), do: {:error, :invalid_policy_state}
+
   @doc """
   The combat turn cycle as Session participant ids: each name in
   `initiative_order` mapped to their controller (PCs → themselves, enemies →
@@ -103,10 +153,12 @@ defmodule Dragonex.TurnPolicy.WorldDriven do
   combatants are not filtered here — ending combat is the Game's job.
   """
   @spec combat_participants(World.t(), term()) :: [term()]
-  def combat_participants(%World{phase: :combat, initiative_order: order, characters: chars}, dm)
+  def combat_participants(%World{phase: :combat, initiative_order: order} = w, dm)
       when is_list(order) do
-    Enum.map(order, fn name ->
-      case Map.get(chars, name) do
+    order
+    |> Enum.filter(&World.present?(w, &1))
+    |> Enum.map(fn name ->
+      case World.character(w, name) do
         %{side: "pc"} -> name
         _ -> dm
       end
@@ -115,7 +167,26 @@ defmodule Dragonex.TurnPolicy.WorldDriven do
 
   def combat_participants(_, _), do: []
 
-  defp pick(state, pool, phase) do
+  # Exploration follows the participant who actually held the turn: a
+  # TurnMaster handoff moves `current` without the cursor, and a stale cursor
+  # could hand the DM a second consecutive beat. Combat keeps its cursor,
+  # because consecutive DM slots repeat the same id (D34).
+  defp pick(%__MODULE__{current: current} = state, pool, :exploration)
+       when pool != [] and not is_nil(current) do
+    case Enum.find_index(pool, &(&1 == current)) do
+      nil ->
+        cursor_pick(state, pool, :exploration)
+
+      at ->
+        next = rem(at + 1, length(pool))
+        id = Enum.at(pool, next)
+        {:ok, id, %{state | index: next + 1, current: id, last_phase: :exploration}}
+    end
+  end
+
+  defp pick(state, pool, phase), do: cursor_pick(state, pool, phase)
+
+  defp cursor_pick(state, pool, phase) do
     if pool == [] do
       {:done, %{state | current: nil, last_phase: phase}}
     else

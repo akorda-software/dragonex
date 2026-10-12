@@ -12,6 +12,7 @@ defmodule DragonexWeb.HeroLive.New do
   """
 
   use Phoenix.LiveView, layout: {DragonexWeb.Layouts, :app}
+  use Gettext, backend: Dragonex.Gettext
 
   alias Dragonex.{Character, Heroes, I18n}
   alias Dragonex.Heroes.{Classes, Draft, Scoring}
@@ -91,7 +92,12 @@ defmodule DragonexWeb.HeroLive.New do
     if step_reachable?(socket.assigns.form, target) do
       {:noreply, socket |> assign(step: target, error: nil) |> refresh_preview()}
     else
-      {:noreply, assign(socket, :error, "Completa los pasos anteriores antes de saltar a este.")}
+      {:noreply,
+       assign(
+         socket,
+         :error,
+         dgettext("ui", "Completa los pasos anteriores antes de saltar a este.")
+       )}
     end
   end
 
@@ -141,7 +147,12 @@ defmodule DragonexWeb.HeroLive.New do
         {:noreply, socket |> assign(:form, form) |> assign(:error, nil) |> refresh_preview()}
 
       length(current) >= count ->
-        {:noreply, assign(socket, :error, "Ya tienes tus #{count} habilidades de clase.")}
+        {:noreply,
+         assign(
+           socket,
+           :error,
+           dgettext("ui", "Ya tienes tus %{count} habilidades de clase.", count: count)
+         )}
 
       true ->
         form = %{socket.assigns.form | skills_choice: current ++ [key]}
@@ -167,7 +178,12 @@ defmodule DragonexWeb.HeroLive.New do
         {:noreply, socket |> assign(:form, form) |> assign(:error, nil) |> refresh_preview()}
 
       length(current) >= cap ->
-        {:noreply, assign(socket, :error, "Ya tienes tus #{cap} idiomas extra.")}
+        {:noreply,
+         assign(
+           socket,
+           :error,
+           dgettext("ui", "Ya tienes tus %{count} idiomas extra.", count: cap)
+         )}
 
       true ->
         form = %{socket.assigns.form | extra_langs: current ++ [key]}
@@ -282,14 +298,19 @@ defmodule DragonexWeb.HeroLive.New do
 
       {:error, :in_game} ->
         {:noreply,
-         assign(socket, :error, "Este héroe ya está en una partida y no se puede actualizar.")}
+         assign(
+           socket,
+           :error,
+           dgettext("ui", "Este héroe ya está en una partida y no se puede actualizar.")
+         )}
 
       {:error, _} ->
-        {:noreply, assign(socket, :error, "No se pudo guardar.")}
+        {:noreply, assign(socket, :error, dgettext("ui", "No se pudo guardar."))}
     end
   end
 
-  def handle_event("save", _, socket), do: {:noreply, assign(socket, :error, "Faltan datos.")}
+  def handle_event("save", _, socket),
+    do: {:noreply, assign(socket, :error, dgettext("ui", "Faltan datos."))}
 
   # --- helpers ---
 
@@ -332,7 +353,7 @@ defmodule DragonexWeb.HeroLive.New do
       scores = if form.score_method == "pointbuy", do: form.pb, else: nil
 
       case Heroes.build(%{
-             name: if(form.name == "", do: "Héroe", else: form.name),
+             name: if(form.name == "", do: dgettext("ui", "Héroe"), else: form.name),
              race: form.race,
              subrace: form.subrace,
              class: form.class,
@@ -387,16 +408,27 @@ defmodule DragonexWeb.HeroLive.New do
 
   defp step_error(:identity, f) do
     cond do
-      f.name == "" -> "Ponle nombre a tu héroe."
-      f.race == nil -> "Elige una raza."
-      f.class == nil -> "Elige una clase."
-      f.race && Heroes.subraces(f.race) != [] && f.subrace == nil -> "Elige una subraza."
-      true -> "Completa la identidad."
+      f.name == "" ->
+        dgettext("ui", "Ponle nombre a tu héroe.")
+
+      f.race == nil ->
+        dgettext("ui", "Elige una raza.")
+
+      f.class == nil ->
+        dgettext("ui", "Elige una clase.")
+
+      f.race && Heroes.subraces(f.race) != [] && f.subrace == nil ->
+        dgettext("ui", "Elige una subraza.")
+
+      true ->
+        dgettext("ui", "Completa la identidad.")
     end
   end
 
   defp step_error(:heritage, f) do
-    if f.background == nil, do: "Elige un trasfondo.", else: "Completa el linaje."
+    if f.background == nil,
+      do: dgettext("ui", "Elige un trasfondo."),
+      else: dgettext("ui", "Completa el linaje.")
   end
 
   # A tab is reachable when every step before it is complete (identity always is).
@@ -427,56 +459,56 @@ defmodule DragonexWeb.HeroLive.New do
     ~H"""
     <div class="creator">
 
-      <.link navigate="/heroes" class="nav-back">← mis héroes</.link>
+      <.link navigate="/heroes" class="nav-back">{dgettext("ui", "← mis héroes")}</.link>
 
       <div class="creator-head">
-        <h1>{if @mode == :edit, do: "Editar héroe", else: "⚔ Forjar un héroe"}</h1>
-        <div class="sub">D&D 5e · Nivel 1 · SRD</div>
-        <button type="button" class="btn-random" phx-click="random">🎲 Héroe aleatorio</button>
+        <h1>{if @mode == :edit, do: dgettext("ui", "Editar héroe"), else: dgettext("ui", "Forjar un héroe")}</h1>
+        <p class="sub">{dgettext("ui", "D&D 5e · nivel 1 · reglas SRD")}</p>
+        <button type="button" class="btn-random" phx-click="random"><i class="px px-d20" aria-hidden="true"></i>{dgettext("ui", "Héroe aleatorio")}</button>
       </div>
 
-      <section class="creator-panel">
+      <section class="creator-panel win-open">
         <div class="steps">
           <button type="button"
                   class={"s #{step_status(@step, :identity)} clickable"}
                   phx-click="goto" phx-value-step="identity">
-            1 · Identidad
+            1 · {dgettext("ui", "Identidad")}
           </button>
           <% reachable_h = step_reachable?(@form, :heritage) %>
           <button type="button"
                   class={"s #{step_status(@step, :heritage)} #{if reachable_h, do: "clickable", else: "locked"}"}
                   disabled={not reachable_h}
-                  title={if not reachable_h, do: "Completa Identidad primero", else: nil}
+                  title={if not reachable_h, do: dgettext("ui", "Completa Identidad primero"), else: nil}
                   phx-click={if reachable_h, do: "goto", else: nil} phx-value-step="heritage">
-            2 · Linaje
+            2 · {dgettext("ui", "Linaje")}
           </button>
           <% reachable_e = step_reachable?(@form, :equipment) %>
           <button type="button"
                   class={"s #{step_status(@step, :equipment)} #{if reachable_e, do: "clickable", else: "locked"}"}
                   disabled={not reachable_e}
-                  title={if not reachable_e, do: "Completa Identidad y Linaje primero", else: nil}
+                  title={if not reachable_e, do: dgettext("ui", "Completa Identidad y Linaje primero"), else: nil}
                   phx-click={if reachable_e, do: "goto", else: nil} phx-value-step="equipment">
-            3 · Equipo
+            3 · {dgettext("ui", "Equipo")}
           </button>
           <% reachable_d = step_reachable?(@form, :details) %>
           <button type="button"
                   class={"s #{step_status(@step, :details)} #{if reachable_d, do: "clickable", else: "locked"}"}
                   disabled={not reachable_d}
-                  title={if not reachable_d, do: "Completa los pasos anteriores primero", else: nil}
+                  title={if not reachable_d, do: dgettext("ui", "Completa los pasos anteriores primero"), else: nil}
                   phx-click={if reachable_d, do: "goto", else: nil} phx-value-step="details">
-            4 · Detalles
+            4 · {dgettext("ui", "Detalles")}
           </button>
           <% reachable_r = step_reachable?(@form, :review) %>
           <button type="button"
                   class={"s #{step_status(@step, :review)} #{if reachable_r, do: "clickable", else: "locked"}"}
                   disabled={not reachable_r}
-                  title={if not reachable_r, do: "Completa los pasos anteriores primero", else: nil}
+                  title={if not reachable_r, do: dgettext("ui", "Completa los pasos anteriores primero"), else: nil}
                   phx-click={if reachable_r, do: "goto", else: nil} phx-value-step="review">
-            5 · Revisión
+            5 · {dgettext("ui", "Revisión")}
           </button>
         </div>
 
-        <form phx-submit="next">
+        <form id="hero-creator-form" phx-change="change" phx-submit="next">
           <%= case @step do %>
             <% :identity -> %>
               <.identity_step form={@form} locale={@locale} />
@@ -494,10 +526,10 @@ defmodule DragonexWeb.HeroLive.New do
         <div :if={@error} class="error">{@error}</div>
 
         <div class="actions">
-          <button :if={@step != :identity} type="button" class="btn btn-back" phx-click="back">← Atrás</button>
+          <button :if={@step != :identity} type="button" class="btn btn-back" phx-click="back">{dgettext("ui", "← Atrás")}</button>
           <span :if={@step == :identity} />
-          <button :if={@step != :review} type="button" class="btn btn-primary" phx-click="next">Siguiente →</button>
-          <button :if={@step == :review && @preview} type="button" class="btn btn-primary" phx-click="save">{if @mode == :edit, do: "Actualizar héroe", else: "⚔ Guardar héroe"}</button>
+          <button :if={@step != :review} type="button" class="btn btn-primary" phx-click="next">{dgettext("ui", "Siguiente →")}</button>
+          <button :if={@step == :review && @preview} type="button" class="btn btn-primary" phx-click="save">{if @mode == :edit, do: dgettext("ui", "Actualizar héroe"), else: dgettext("ui", "Guardar héroe")}</button>
         </div>
       </section>
 

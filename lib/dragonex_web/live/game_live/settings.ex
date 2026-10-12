@@ -10,6 +10,7 @@ defmodule DragonexWeb.GameLive.Settings do
   """
 
   use Phoenix.Component
+  use Gettext, backend: Dragonex.Gettext
 
   def handle_event("open_settings", _params, socket) do
     # Privileged: the Ajustes modal swaps the (app-global) DM model and can
@@ -43,7 +44,12 @@ defmodule DragonexWeb.GameLive.Settings do
     do: {:noreply, assign(socket, show_settings: false)}
 
   def handle_event("settings_select_provider", %{"provider" => pid}, socket) do
-    provider = String.to_existing_atom(pid)
+    provider =
+      case pid do
+        "openrouter" -> :openrouter
+        "opencode" -> :opencode
+        _ -> nil
+      end
 
     socket =
       socket
@@ -113,24 +119,43 @@ defmodule DragonexWeb.GameLive.Settings do
           socket.assigns.settings_reasoning
         )
 
-      :ok =
-        Dragonex.ModelConfig.set(
-          provider: provider,
-          model: model,
-          reasoning: reasoning
-        )
+      case Dragonex.Models.prepare_selection(provider, model, reasoning) do
+        {:error, message} ->
+          {:noreply, Phoenix.LiveView.put_flash(socket, :error, message)}
 
-      # Restart rehydrates the same game_id from Postgres with the new model.
-      if socket.assigns.game_id,
-        do: {:ok, _} = Dragonex.Game.restart(socket.assigns.game_id)
+        {:ok, models} ->
+          previous = Dragonex.ModelConfig.get()
+          :ok = Dragonex.ModelConfig.set(provider: provider, model: model, reasoning: reasoning)
 
-      Phoenix.PubSub.broadcast(
-        Dragonex.PubSub,
-        "dragonex:game:#{socket.assigns.game_id}",
-        {:game_updated, socket.assigns.game_id}
-      )
+          result =
+            if socket.assigns.game_id,
+              do: Dragonex.Game.restart(socket.assigns.game_id, models),
+              else: {:ok, nil}
 
-      {:noreply, assign(socket, show_settings: false)}
+          case result do
+            {:ok, _} ->
+              Phoenix.PubSub.broadcast(
+                Dragonex.PubSub,
+                "dragonex:game:#{socket.assigns.game_id}",
+                {:game_updated, socket.assigns.game_id}
+              )
+
+              {:noreply, assign(socket, show_settings: false)}
+
+            {:error, _} ->
+              :ok = Dragonex.ModelConfig.set(Map.from_struct(previous) |> Map.to_list())
+
+              {:noreply,
+               Phoenix.LiveView.put_flash(
+                 socket,
+                 :error,
+                 dgettext(
+                   "ui",
+                   "No se pudieron aplicar los ajustes. Conservamos la configuración anterior; vuelve a abrir la partida."
+                 )
+               )}
+          end
+      end
     end
   end
 
@@ -209,6 +234,14 @@ defmodule DragonexWeb.GameLive.Settings do
   #   * {:unknown}                      — reasoning metadata not curated yet
   #   * {:options, efforts, mandatory}  — render these effort buttons (+ Off unless mandatory)
   def thinking_state(_provider, models, model_id, custom) do
+    if Dragonex.Models.backend() == :req_llm do
+      {:fixed_off}
+    else
+      legacy_thinking_state(models, model_id, custom)
+    end
+  end
+
+  defp legacy_thinking_state(models, model_id, custom) do
     if custom != "" do
       # Custom slug → no metadata, offer the generic set.
       {:options, sort_efforts(Dragonex.Models.generic_efforts()), false}
@@ -240,13 +273,13 @@ defmodule DragonexWeb.GameLive.Settings do
     end)
   end
 
-  defp effort_label("none"), do: "Off"
-  defp effort_label("minimal"), do: "Mín"
-  defp effort_label("low"), do: "Bajo"
-  defp effort_label("medium"), do: "Medio"
-  defp effort_label("high"), do: "Alto"
-  defp effort_label("xhigh"), do: "Muy alto"
-  defp effort_label("max"), do: "Máx"
+  defp effort_label("none"), do: dgettext("ui", "Off")
+  defp effort_label("minimal"), do: dgettext("ui", "Mín")
+  defp effort_label("low"), do: dgettext("ui", "Bajo")
+  defp effort_label("medium"), do: dgettext("ui", "Medio")
+  defp effort_label("high"), do: dgettext("ui", "Alto")
+  defp effort_label("xhigh"), do: dgettext("ui", "Muy alto")
+  defp effort_label("max"), do: dgettext("ui", "Máx")
   defp effort_label(other), do: String.capitalize(other)
 
   # The gear button's live label: provider/model + (reasoning) for the currently
@@ -264,17 +297,27 @@ defmodule DragonexWeb.GameLive.Settings do
   # Default reasoning when a model is first selected: the model's own default
   # effort, or :none (forced to a level when reasoning is mandatory).
   defp default_reasoning_for(_provider, models, model_id) do
-    case find_model_info(models, model_id) do
-      %{reasoning?: false} -> :none
-      %{default_effort: effort} when is_binary(effort) -> effort
-      %{mandatory: true} -> "medium"
-      _ -> :none
+    if Dragonex.Models.backend() == :req_llm do
+      :none
+    else
+      case find_model_info(models, model_id) do
+        %{reasoning?: false} -> :none
+        %{default_effort: effort} when is_binary(effort) -> effort
+        %{mandatory: true} -> "medium"
+        _ -> :none
+      end
     end
   end
 
   # Clamp a reasoning choice to a value the model actually accepts, so we never
   # send an invalid effort. `:none` is kept unless the model mandates reasoning.
-  defp clamp_reasoning(:openrouter, models, model_id, current) do
+  defp clamp_reasoning(provider, models, model_id, current) do
+    if Dragonex.Models.backend() == :req_llm,
+      do: :none,
+      else: legacy_clamp_reasoning(provider, models, model_id, current)
+  end
+
+  defp legacy_clamp_reasoning(:openrouter, models, model_id, current) do
     case find_model_info(models, model_id) do
       nil ->
         current
@@ -292,14 +335,14 @@ defmodule DragonexWeb.GameLive.Settings do
   end
 
   # OpenCode has no per-model metadata → keep any generic low/medium/high, else :none.
-  defp clamp_reasoning(:opencode, _models, _model_id, current) do
+  defp legacy_clamp_reasoning(:opencode, _models, _model_id, current) do
     case current do
       effort when effort in ["low", "medium", "high"] -> effort
       _ -> :none
     end
   end
 
-  defp clamp_reasoning(_, _, _, _), do: :none
+  defp legacy_clamp_reasoning(_, _, _, _), do: :none
 
   # Server-side ownership guard for privileged actions (the buttons are UI-gated
   # by @is_creator, but a forged phx-click must be rejected here).
@@ -323,11 +366,11 @@ defmodule DragonexWeb.GameLive.Settings do
     ~H"""
     <div :if={@show} class="modal settings-modal">
       <div class="settings-backdrop" phx-click="close_settings"></div>
-      <div class="modal-box settings-box">
-        <h2>⚙ Ajustes de IA</h2>
+      <div class="modal-box settings-box win-open">
+        <h2><i class="px px-gear" aria-hidden="true"></i>{dgettext("ui", "Ajustes de IA")}</h2>
 
         <div class="settings-section">
-          <div class="settings-label">Provider</div>
+          <div class="settings-label">{dgettext("ui", "Provider")}</div>
           <div class="settings-providers">
             <button
               :for={p <- @providers}
@@ -345,40 +388,45 @@ defmodule DragonexWeb.GameLive.Settings do
 
         <div class="settings-section">
           <div class="settings-label">
-            Modelo
-            <button type="button" phx-click="settings_refresh_models" class="settings-refresh" title="Refrescar modelos">↻</button>
+            {dgettext("ui", "Modelo")}
+            <button type="button" phx-click="settings_refresh_models" class="settings-refresh" title={dgettext("ui", "Refrescar modelos")}>↻</button>
           </div>
           <%= cond do %>
             <% @models_status == :loading -> %>
-              <div class="settings-msg">cargando modelos…</div>
+              <div class="settings-msg">{dgettext("ui", "cargando modelos…")}</div>
             <% @models_status == :no_key -> %>
-              <div class="settings-msg warn">sin API key para este provider — escribe el slug abajo</div>
+              <div class="settings-msg warn">{dgettext("ui", "sin API key para este provider — escribe el slug abajo")}</div>
             <% @models_status == :error -> %>
-              <div class="settings-msg warn">no se pudieron cargar los modelos — escribe el slug abajo</div>
+              <div class="settings-msg warn">{dgettext("ui", "no se pudieron cargar los modelos — escribe el slug abajo")}</div>
             <% true -> %>
-              <form phx-change="settings_select_model">
+              <form id="settings-select-model" phx-change="settings_select_model">
                 <select name="model" class="settings-select">
-                  <option value="" disabled={@model == nil}>(elige modelo)</option>
+                  <option value="" disabled={@model == nil}>{dgettext("ui", "(elige modelo)")}</option>
                   {Phoenix.HTML.Form.options_for_select(Enum.map(@models, &{&1.id, &1.id}), @model)}
                 </select>
               </form>
           <% end %>
-          <input
-            type="text"
-            class="settings-input"
-            phx-change="settings_custom_model"
-            value={@custom_model}
-            placeholder="o escribe un slug (ej: deepseek-v4-flash)"
-          />
+          <form id="settings-custom-model" phx-change="settings_custom_model" phx-submit="settings_custom_model">
+            <input
+              type="text"
+              name="value"
+              class="settings-input"
+              value={@custom_model}
+              placeholder={dgettext("ui", "o escribe un slug (ej: deepseek/deepseek-v4.1-flash)")}
+              aria-label={dgettext("ui", "Modelo personalizado")}
+            />
+          </form>
         </div>
 
         <div class="settings-section">
-          <div class="settings-label">Thinking (cuánto razona)</div>
+          <div class="settings-label">{dgettext("ui", "Thinking (cuánto razona)")}</div>
           <%= case thinking_state(@provider, @models, @model, @custom_model) do %>
+            <% {:fixed_off} -> %>
+              <div class="settings-msg">{dgettext("ui", "Esta mesa usa el razonamiento desactivado.")}</div>
             <% {:unsupported} -> %>
-              <div class="settings-msg warn">este modelo no soporta thinking</div>
+              <div class="settings-msg warn">{dgettext("ui", "este modelo no soporta thinking")}</div>
             <% {:unknown} -> %>
-              <div class="settings-msg warn">nivel de thinking sin confirmar para este modelo</div>
+              <div class="settings-msg warn">{dgettext("ui", "nivel de thinking sin confirmar para este modelo")}</div>
             <% {:options, efforts, mandatory} -> %>
               <div class="settings-reasoning">
                 <button
@@ -388,7 +436,7 @@ defmodule DragonexWeb.GameLive.Settings do
                   phx-value-level="none"
                   class={"settings-rbtn #{if @reasoning == :none, do: "sel", else: ""}"}
                 >
-                  Off
+                  {dgettext("ui", "Off")}
                 </button>
                 <button
                   :for={eff <- efforts}
@@ -404,12 +452,11 @@ defmodule DragonexWeb.GameLive.Settings do
         </div>
 
         <div class="settings-actions">
-          <button class="ctl-btn" phx-click="close_settings">Cancelar</button>
-          <button class="ctl-btn ctl-active" phx-click="settings_apply">Aplicar ⚡</button>
+          <button class="btn btn-ghost" phx-click="close_settings">{dgettext("ui", "Cancelar")}</button>
+          <button class="btn btn-primary" phx-click="settings_apply">{dgettext("ui", "Aplicar")}</button>
         </div>
         <p class="settings-hint">
-          Aplicar reinicia el proceso de la partida con el nuevo modelo/thinking.
-          El estado queda en Postgres, así que continúa en el mismo punto.
+          {dgettext("ui", "Al aplicar, se conserva el mundo, el turno y la crónica de la partida.")}
         </p>
       </div>
     </div>

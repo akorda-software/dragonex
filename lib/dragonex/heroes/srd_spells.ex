@@ -7,10 +7,11 @@ defmodule Dragonex.Heroes.SRDSpells do
   importer) devuelve `[]` sin romper la compilación.
 
   Cada entrada tiene la misma forma que `Dragonex.Heroes.Spells` pero con los
-  textos ya en español:
+  textos ya en español (`effect_en` conserva la descripción original del SRD
+  para las mesas en inglés, D236):
 
       %{name, name_es, level, school, kind, save_ability, dice, damage_type,
-        effect, classes, range, casting_time, duration, concentration, ritual,
+        effect, effect_en, classes, range, casting_time, duration, concentration, ritual,
         source: :srd}
 
   `Dragonex.Heroes.Spells.all/0` mezcla builtin + SRD (builtin gana en
@@ -47,6 +48,7 @@ defmodule Dragonex.Heroes.SRDSpells do
                     dice: s[:dice],
                     damage_type: s[:damage_type],
                     effect: s[:effect],
+                    effect_en: s[:effect_en],
                     classes: s[:classes] || [],
                     range: s[:range],
                     casting_time: s[:casting_time],

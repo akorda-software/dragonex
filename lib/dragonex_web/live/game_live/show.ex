@@ -4,9 +4,9 @@ defmodule DragonexWeb.GameLive.Show do
 
   It opens a partida by `game_id` (resuming it from Postgres), subscribes to its
   `Dragonex.PubSub` updates, and renders the Game's snapshot. Each viewer
-  **claims a participant** (`?as=<name>` or the picker overlay), so several humans
-  can share a partida: the input is gated to the viewer's own turn, their sheet is
-  marked, and a banner calls "Es tu turno". The Game owns the loop/rules/persistence
+  sees their own participant; the creator may inspect the DM view (`?as=dm`).
+  Several humans can share a partida: the input resolves on the viewer's own
+  turn, their sheet is marked, and a banner calls "Es tu turno". The Game owns the loop/rules/persistence
   and enforces server-side that `declare/3` only resolves the current human's turn.
 
   The heavy view code lives apart: the timeline view-model in
@@ -16,18 +16,11 @@ defmodule DragonexWeb.GameLive.Show do
   """
 
   use Phoenix.LiveView, layout: {DragonexWeb.Layouts, :app}
+  use Gettext, backend: Dragonex.Gettext
 
   alias Dragonex.{Game, Games}
-  alias DragonexWeb.GameLive.{Chat, Dice, Settings, Snapshot}
+  alias DragonexWeb.GameLive.{Dice, Settings, Snapshot}
   import DragonexWeb.GameLive.Components
-
-  # How many events each "load more log" click pulls in. Tuned so one click
-  # recovers ~2-4 turns of context.
-  @log_page_size 100
-  # Hard cap on how many turn-blocks the LiveView keeps rendered client-side.
-  # Prevents unbounded memory/render growth when a user clicks "load more"
-  # repeatedly; the oldest tail is dropped past this limit.
-  @max_chat_blocks 400
 
   @impl true
   def mount(%{"game_id" => id}, _session, socket) do
@@ -40,16 +33,21 @@ defmodule DragonexWeb.GameLive.Show do
     # mount and handle_params — so the full default set must exist from the
     # very first moment.
     socket = Snapshot.base_assigns(socket, game_id)
+    game = Games.get_game(game_id)
+
+    # The whole table (and its waiting room) renders in the game's language,
+    # regardless of the visitor's interface locale. Both the disconnected and
+    # the connected render follow it, so `<html lang>` matches too.
+    if game, do: Dragonex.I18n.put_locale(game.locale)
 
     cond do
       not Phoenix.LiveView.connected?(socket) ->
         {:ok, socket}
 
-      Games.get_game(game_id) == nil ->
+      game == nil ->
         {:ok, push_navigate(socket, to: "/")}
 
       true ->
-        game = Games.get_game(game_id)
         can_access = user && Games.can_access?(game, user)
         has_open_slots = game.open_slots > 0
 
@@ -111,17 +109,23 @@ defmodule DragonexWeb.GameLive.Show do
     # is UI-gated, but a forged phx-click must not bypass the check.
     if creator?(socket) do
       game_id = socket.assigns.game_id
-      {:ok, _} = Games.start_game(game_id)
-      {:ok, _pid} = Game.ensure_started(game_id)
 
-      Phoenix.PubSub.broadcast(
-        Dragonex.PubSub,
-        "dragonex:game:#{game_id}",
-        {:game_updated, game_id}
-      )
+      case Games.start_game(game_id) do
+        {:ok, _} ->
+          {:ok, _pid} = Game.ensure_started(game_id)
 
-      # Full reload — mount runs again with status :running, loads the table
-      {:noreply, Phoenix.LiveView.push_navigate(socket, to: "/games/#{game_id}")}
+          Phoenix.PubSub.broadcast(
+            Dragonex.PubSub,
+            "dragonex:game:#{game_id}",
+            {:game_updated, game_id}
+          )
+
+          # Full reload — mount runs again with status :running, loads the table
+          {:noreply, Phoenix.LiveView.push_navigate(socket, to: "/games/#{game_id}")}
+
+        {:error, :not_found} ->
+          room_unavailable(socket)
+      end
     else
       {:noreply, socket}
     end
@@ -130,39 +134,66 @@ defmodule DragonexWeb.GameLive.Show do
   @impl true
   def handle_event("join_with_hero", %{"hero_id" => hero_id}, socket) do
     user = socket.assigns.current_user
-    hero = Dragonex.Accounts.get_user_hero(user, hero_id)
 
-    if hero do
-      game = Games.get_game(socket.assigns.game_id)
-      sheet = Dragonex.Accounts.hero_sheet(hero)
-
-      case Games.join_game(game, user, sheet, hero_id: hero.id) do
-        {:ok, updated_game} ->
-          Phoenix.PubSub.broadcast(
-            Dragonex.PubSub,
-            "dragonex:game:#{socket.assigns.game_id}",
-            {:game_updated, socket.assigns.game_id}
-          )
-
-          # Stay in the waiting room with refreshed data
-          {:noreply,
-           socket
-           |> assign(show_waiting_room: true, waiting_game: updated_game)}
-
-        {:error, :already_joined} ->
-          {:noreply, assign(socket, join_error: "Ya estás en esta partida.")}
-
-        {:error, :already_started} ->
-          {:noreply, assign(socket, join_error: "La partida ya ha empezado.")}
-
-        {:error, :no_open_slots} ->
-          {:noreply, assign(socket, join_error: "La partida no tiene plazas libres.")}
-
-        {:error, _} ->
-          {:noreply, assign(socket, join_error: "No se pudo unir a la partida.")}
+    hero =
+      case Ecto.Type.cast(:id, hero_id) do
+        {:ok, id} when is_integer(id) and id > 0 -> Dragonex.Accounts.get_user_hero(user, id)
+        _ -> nil
       end
-    else
-      {:noreply, assign(socket, join_error: "Héroe no encontrado.")}
+
+    game = Games.get_game(socket.assigns.game_id)
+
+    cond do
+      is_nil(game) ->
+        room_unavailable(socket)
+
+      is_nil(hero) ->
+        join_failed(
+          socket,
+          dgettext("ui", "Héroe no encontrado. Vuelve a elegir uno de tus héroes.")
+        )
+
+      true ->
+        sheet = Dragonex.Accounts.hero_sheet(hero)
+
+        case Games.join_game(game, user, sheet, hero_id: hero.id) do
+          {:ok, updated_game} ->
+            Phoenix.PubSub.broadcast(
+              Dragonex.PubSub,
+              "dragonex:game:#{socket.assigns.game_id}",
+              {:game_updated, socket.assigns.game_id}
+            )
+
+            # Stay in the waiting room with refreshed data
+            {:noreply,
+             socket
+             |> assign(show_waiting_room: true, waiting_game: updated_game, join_error: nil)}
+
+          {:error, :already_joined} ->
+            refresh_lobby(socket)
+
+          {:error, :already_started} ->
+            join_failed(socket, dgettext("ui", "La partida ya ha empezado."))
+
+          {:error, :no_open_slots} ->
+            join_failed(socket, dgettext("ui", "La partida no tiene plazas libres."))
+
+          {:error, :name_taken} ->
+            join_failed(
+              socket,
+              dgettext(
+                "ui",
+                "Ya hay un personaje llamado %{name}. Elige otro héroe o cambia su nombre.",
+                name: sheet.name
+              )
+            )
+
+          {:error, _} ->
+            join_failed(
+              socket,
+              dgettext("ui", "No se pudo unir a la partida. Vuelve a elegir tu héroe.")
+            )
+        end
     end
   end
 
@@ -189,7 +220,7 @@ defmodule DragonexWeb.GameLive.Show do
       {:noreply, socket}
     else
       engine = if socket.assigns[:dice_engine] == "3d", do: "2d", else: "3d"
-      {:noreply, assign(socket, dice_engine: engine)}
+      {:noreply, assign(socket, dice_engine: Dice.effective_engine(engine))}
     end
   end
 
@@ -200,16 +231,59 @@ defmodule DragonexWeb.GameLive.Show do
 
   @impl true
   def handle_event("declare", %{"text" => text}, socket) do
-    with pid when is_pid(pid) <- server(socket),
-         viewer when not is_nil(viewer) <- socket.assigns[:viewer] do
-      _ = Game.declare(pid, viewer, text)
-    end
+    if String.trim(text) == "" do
+      {:noreply, assign(socket, pending: "", input_error: nil)}
+    else
+      result =
+        try do
+          with pid when is_pid(pid) <- server(socket),
+               viewer when not is_nil(viewer) <- socket.assigns[:viewer] do
+            Game.declare(pid, viewer, text)
+          else
+            _ -> {:error, :unavailable}
+          end
+        catch
+          :exit, _ -> {:error, :unavailable}
+        end
 
-    {:noreply, assign(socket, pending: "")}
+      socket =
+        case result do
+          {:ok, _} ->
+            socket
+            |> assign(pending: "", input_error: nil)
+            |> push_event("action_accepted", %{
+              game_id: socket.assigns.game_id,
+              viewer: socket.assigns.viewer,
+              text: text
+            })
+
+          {:error, :not_your_turn} ->
+            assign(socket,
+              pending: text,
+              input_error: dgettext("ui", "Vuelve a tu personaje para declarar una acción.")
+            )
+
+          {:error, _} ->
+            assign(socket,
+              pending: text,
+              input_error:
+                dgettext(
+                  "ui",
+                  "No se pudo enviar tu acción. Recarga la partida para volver a intentarlo; tu texto sigue aquí."
+                )
+            )
+        end
+
+      {:noreply, socket}
+    end
   end
 
   def handle_event("draft", %{"text" => text}, socket) do
     {:noreply, assign(socket, pending: text)}
+  end
+
+  def handle_event("toggle_sheet", _params, socket) do
+    {:noreply, assign(socket, sheet_open: not socket.assigns.sheet_open)}
   end
 
   def handle_event("clear_intent", _params, socket) do
@@ -221,53 +295,10 @@ defmodule DragonexWeb.GameLive.Show do
     {:noreply, socket}
   end
 
-  # Paginate the chat timeline upward. The button sits at the top of the log
-  # when `has_more_events` is true; clicking it loads the previous chunk of
-  # events (those with seq < the oldest currently shown) and prepends them to
-  # the rendered blocks. The `chat` assign is rebuilt so blocks regroup the
-  # newly-arrived events correctly under their `:turn` headers.
+  # Expand the authoritative history window. Retaining its size in the socket
+  # keeps earlier turns visible on broadcasts and regroups split turn markers.
   def handle_event("load_more_log", _params, socket) do
-    game_id = socket.assigns.game_id
-    viewer = socket.assigns[:viewer]
-
-    case Enum.at(socket.assigns[:chat] || [], 0) do
-      nil ->
-        {:noreply, socket}
-
-      first_block ->
-        oldest_seq =
-          first_block.events
-          |> Enum.map(& &1.seq)
-          |> Enum.min(fn -> nil end)
-
-        if oldest_seq == nil or oldest_seq <= 1 do
-          {:noreply, assign(socket, has_more_events: false)}
-        else
-          older = Dragonex.Games.events_before(game_id, oldest_seq, @log_page_size)
-          older_blocks = Chat.blocks(older, viewer)
-          still_more? = length(older) == @log_page_size
-
-          # Cap the in-memory chat so a user clicking "load more" a hundred times
-          # can't grow the assign without bound (each block carries its events).
-          # When we exceed the cap, drop the OLDEST blocks at the tail — the user
-          # is paging up, so the freshly loaded top is what matters.
-          merged = older_blocks ++ socket.assigns[:chat]
-
-          merged =
-            if length(merged) > @max_chat_blocks do
-              Enum.take(merged, @max_chat_blocks)
-            else
-              merged
-            end
-
-          {:noreply,
-           socket
-           |> assign(
-             chat: merged,
-             has_more_events: still_more?
-           )}
-        end
-    end
+    {:noreply, Snapshot.load_more(socket)}
   end
 
   def handle_event("pause", _params, socket) do
@@ -314,14 +345,17 @@ defmodule DragonexWeb.GameLive.Show do
         %{assigns: %{game_id: game_id, show_waiting_room: true}} = socket
       ) do
     # In the waiting room: check if the game started
-    game = Games.get_game(game_id)
+    case Games.get_game(game_id) do
+      nil ->
+        room_unavailable(socket)
 
-    if game.status == :running do
-      # Game started! Full reload to enter the table
-      {:noreply, Phoenix.LiveView.push_navigate(socket, to: "/games/#{game_id}")}
-    else
-      # Still waiting: refresh the roster
-      {:noreply, assign(socket, waiting_game: game)}
+      %{status: :configuring} = game ->
+        # Still waiting: refresh the roster
+        {:noreply, assign(socket, waiting_game: game)}
+
+      _game ->
+        # Game started! Full reload to enter the table
+        {:noreply, Phoenix.LiveView.push_navigate(socket, to: "/games/#{game_id}")}
     end
   end
 
@@ -338,6 +372,13 @@ defmodule DragonexWeb.GameLive.Show do
   # `{:game_updated, _}` re-render flushes the live bubble (its text now lives
   # in the chat timeline as a real narration entry).
   def handle_info(
+        {:text_delta, game_id, _turn_id, _actor, _chunk},
+        %{assigns: %{game_id: game_id, busy_stage: stage}} = socket
+      )
+      when stage in [:scene_review, :turnmaster, :retrying],
+      do: {:noreply, socket}
+
+  def handle_info(
         {:text_delta, game_id, turn_id, actor, chunk},
         %{assigns: %{game_id: game_id}} = socket
       ) do
@@ -346,7 +387,7 @@ defmodule DragonexWeb.GameLive.Show do
     # New turn or new actor → start a fresh bubble (drop the previous preview).
     {text, live_turn, live_actor} =
       cond do
-        prev_turn == nil or prev_turn != turn_id ->
+        prev_turn == nil or prev_turn != turn_id or socket.assigns[:live_actor] != actor ->
           {chunk, turn_id, actor}
 
         true ->
@@ -363,7 +404,12 @@ defmodule DragonexWeb.GameLive.Show do
 
   def handle_info({:flush_dice, token}, socket), do: Dice.flush(socket, token)
 
+  def handle_info({:dice_animation_timeout, token}, socket),
+    do: Dice.animation_timeout(socket, token)
+
   def handle_info(:hide_dice, socket), do: Dice.hide(socket)
+
+  def handle_info({:hide_dice, token}, socket), do: Dice.hide(socket, token)
 
   def handle_info({:settings_models, _, _} = msg, socket), do: Settings.handle_info(msg, socket)
 
@@ -377,6 +423,25 @@ defmodule DragonexWeb.GameLive.Show do
     do: Dragonex.Game.Supervisor.whereis(game_id)
 
   defp server(_), do: nil
+
+  defp join_failed(socket, message), do: refresh_lobby(socket, message)
+
+  defp refresh_lobby(socket, error \\ nil) do
+    case Games.get_game(socket.assigns.game_id) do
+      nil -> room_unavailable(socket)
+      game -> {:noreply, assign(socket, join_error: error, waiting_game: game)}
+    end
+  end
+
+  defp room_unavailable(socket) do
+    {:noreply,
+     socket
+     |> put_flash(
+       :error,
+       dgettext("ui", "La partida ya no está disponible. Vuelve a tus partidas.")
+     )
+     |> push_navigate(to: "/")}
+  end
 
   # Server-side ownership guard for privileged actions (start/pause/resume/
   # settings). The buttons are UI-gated by @is_creator, but a forged phx-click
@@ -392,11 +457,11 @@ defmodule DragonexWeb.GameLive.Show do
 
       <%= cond do %>
         <% @show_waiting_room -> %>
-          <.waiting_room game_id={@game_id} game={@waiting_game} is_creator={@is_creator} current_user={@current_user} waiting_heroes={@waiting_heroes} />
+          <.waiting_room game_id={@game_id} game={@waiting_game} is_creator={@is_creator} current_user={@current_user} waiting_heroes={@waiting_heroes} join_error={@join_error} />
         <% not @loaded -> %>
-          <div class="loading">Cargando partida…</div>
+          <div class="loading">{dgettext("ui", "Cargando partida…")}</div>
         <% @viewer == nil -> %>
-          <div class="loading">Esperando tu turno o la acción del DM…</div>
+          <div class="loading">{dgettext("ui", "Esperando tu turno o la acción del DM…")}</div>
         <% true -> %>
           <.table
             game_id={@game_id}
@@ -411,12 +476,16 @@ defmodule DragonexWeb.GameLive.Show do
             my_turn={@my_turn}
             my_intent={@my_intent}
             chat={@chat}
+            history_limited={@history_limited}
             busy={@busy}
             busy_actor={@busy_actor}
+            busy_stage={@busy_stage}
             live_text={@live_text}
             live_actor={@live_actor}
             has_more_events={@has_more_events}
             pending={@pending}
+            input_error={@input_error}
+            sheet_open={@sheet_open}
             dice_show={@dice_show}
             dice_rolling={@dice_rolling}
             dice_hand={@dice_hand}

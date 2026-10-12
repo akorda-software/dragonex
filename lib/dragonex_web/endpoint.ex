@@ -10,6 +10,29 @@ defmodule DragonexWeb.Endpoint do
 
   socket("/live", Phoenix.LiveView.Socket, websocket: [connect_info: [session: @session_options]])
 
+  # Resolve assets from the package loaded by this VM. Independent local/Hex
+  # builds cannot overwrite another VM's vendored renderer.
+  plug(Plug.Static,
+    at: "/assets",
+    from: {:dic_ex, "priv/static"},
+    gzip: false,
+    only: ~w(dic_ex.min.js dic_ex.css)
+  )
+
+  plug(Plug.Static,
+    at: "/assets",
+    from: {:phoenix, "priv/static"},
+    gzip: false,
+    only: ~w(phoenix.mjs)
+  )
+
+  plug(Plug.Static,
+    at: "/assets",
+    from: {:phoenix_live_view, "priv/static"},
+    gzip: false,
+    only: ~w(phoenix_live_view.esm.js)
+  )
+
   plug(Plug.Static,
     at: "/",
     from: :dragonex,

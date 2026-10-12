@@ -60,7 +60,7 @@ defmodule Dragonex.SneakAttackTest do
                Actions.attack(w, "Vex", "goblin", "dagger", seq([10, 8, 4, 5]), :advantage)
 
       assert msg =~ "acierta"
-      assert msg =~ "+5 sneak"
+      assert msg =~ "incluye 5 sneak"
       {:ok, w2} = change.(w)
       assert w2.characters["goblin"].hp == 30 - 12
     end
@@ -84,7 +84,7 @@ defmodule Dragonex.SneakAttackTest do
       assert {:ok, msg, change} =
                Actions.attack(w, "Vex", "goblin", "dagger", seq([10, 4, 5]))
 
-      assert msg =~ "+5 sneak"
+      assert msg =~ "incluye 5 sneak"
       {:ok, w2} = change.(w)
       assert w2.characters["goblin"].hp == 30 - 12
     end
@@ -134,7 +134,7 @@ defmodule Dragonex.SneakAttackTest do
       assert {:ok, msg, change} =
                Actions.attack(w, "Vex", "goblin", "dagger", seq([10, 10, 4, 1, 2, 3]), :advantage)
 
-      assert msg =~ "+6 sneak"
+      assert msg =~ "incluye 6 sneak"
       {:ok, w2} = change.(w)
       # L5 prof 3 + dex 3; d4=4 +3 + 1+2+3 = 13.
       assert w2.characters["goblin"].hp == 30 - 13
@@ -147,7 +147,7 @@ defmodule Dragonex.SneakAttackTest do
                Actions.attack(w, "Vex", "goblin", "dagger", seq([20, 20, 4, 4, 2, 3]), :advantage)
 
       assert msg =~ "CRÍTICO"
-      assert msg =~ "+5 sneak"
+      assert msg =~ "incluye 5 sneak"
       {:ok, w2} = change.(w)
       # 2d4=8 +3 + 2d6=5 = 16. Duplicar 1d6=2 daría 4 y dejaría [3] en la cola.
       assert w2.characters["goblin"].hp == 30 - 16

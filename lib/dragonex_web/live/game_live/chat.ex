@@ -8,13 +8,25 @@ defmodule DragonexWeb.GameLive.Chat do
   LiveView's event handling.
   """
 
-  alias Dragonex.Text
+  use Gettext, backend: Dragonex.Gettext
+
+  alias Dragonex.{SpeechEcho, Text}
   alias DragonexWeb.GameLive.RollFormat
 
-  # When the loop is :running, snap.current is the participant whose beat is in
-  # flight — drives the "X está actuando…" indicator. nil when waiting/paused.
+  # A session cursor can still point at the DM during scene review/handoff.
+  # These stages have no narrator, so they also flush the finished preview.
+  def busy_actor(%{busy_stage: stage}) when stage in [:scene_review, :turnmaster, :retrying],
+    do: nil
+
   def busy_actor(%{status: :running, current: current}), do: current
   def busy_actor(_), do: nil
+
+  def busy_label(:scene_review, _actor), do: dgettext("ui", "Actualizando la escena…")
+  def busy_label(:turnmaster, _actor), do: dgettext("ui", "Organizando el siguiente turno…")
+  def busy_label(:retrying, _actor), do: dgettext("ui", "Reintentando el turno…")
+  def busy_label(_stage, "dm"), do: dgettext("ui", "el DM está narrando…")
+  def busy_label(_stage, nil), do: dgettext("ui", "el DM está pensando…")
+  def busy_label(_stage, actor), do: dgettext("ui", "%{actor} está actuando…", actor: actor)
 
   # Streaming bubble state machine, re-evaluated on every `:game_updated`
   # re-render. The bubble shows the text currently being generated; it must
@@ -72,19 +84,21 @@ defmodule DragonexWeb.GameLive.Chat do
   # The header label for the acting character: "TÚ" if the viewer is manually
   # controlling them; "🤖 <name> (auto)" if they enabled auto-play on their own
   # character; otherwise just the name (or "Turno del DM").
-  def turn_header_label("dm", _viewer, _auto), do: "Turno del DM"
+  def turn_header_label("dm", _viewer, _auto), do: dgettext("ui", "Turno del DM")
 
   def turn_header_label(actor, viewer, true) when actor == viewer do
-    ["🤖 ", actor, " (auto)"]
+    dgettext("ui", "🤖 %{actor} (auto)", actor: actor)
   end
 
   def turn_header_label(actor, viewer, _auto) when actor == viewer do
-    [actor, " · TÚ"]
+    dgettext("ui", "%{actor} · TÚ", actor: actor)
   end
 
-  def turn_header_label(actor, _viewer, _auto), do: "Turno de #{actor}"
+  def turn_header_label(actor, _viewer, _auto),
+    do: dgettext("ui", "Turno de %{actor}", actor: actor)
 
-  def live_shown(text, actor), do: Text.scrub(text || "", actor)
+  def live_shown(text, actor, pc_names \\ [], character_names \\ []),
+    do: Text.scrub(text || "", actor, pc_names: pc_names, character_names: character_names)
 
   def show_live_who?(text, actor)
       when is_binary(actor) and actor != "dm" and actor != "",
@@ -97,11 +111,18 @@ defmodule DragonexWeb.GameLive.Chat do
   # instead of a flat list where narration, dice and actions pile up without
   # hierarchy. Events without a turn_id (the opening narration, legacy events,
   # system notes) land in a prologue block with no header.
+  #
+  # Repeated speech inside one actor turn is shown once (D227): a human action
+  # whose literal voice was published later stays visible in its own position,
+  # and intermediate/final copies collapse. The events themselves are kept.
   def blocks(events, viewer) do
     visible =
       Enum.filter(events, fn e ->
         if viewer == "dm", do: e.visible_to in ["all", "dm"], else: e.visible_to == "all"
       end)
+
+    %{hidden: hidden, voiced: voiced} = SpeechEcho.analyze(visible)
+    visible = Enum.reject(visible, &MapSet.member?(hidden, &1.seq))
 
     # Walk the visible events in order, opening a new block every time a
     # :turn marker appears. The marker carries turn_id/round/phase/actor.
@@ -132,7 +153,9 @@ defmodule DragonexWeb.GameLive.Chat do
               role: chat_role(e),
               who: chat_who(e),
               text: chat_text(e),
-              outcome: chat_outcome(e)
+              outcome: chat_outcome(e),
+              declaration:
+                e.type == :action and e.actor != "dm" and not MapSet.member?(voiced, e.seq)
             }
 
             case cur do
@@ -163,10 +186,9 @@ defmodule DragonexWeb.GameLive.Chat do
   # The label shown in the chat for each line: the acting hero's name for player
   # actions/declarations and for a PC bot's narration. DM narration carries no
   # label — it is understood to be the DM.
-  defp chat_who(%{type: :dice, actor: actor, payload: p}) do
-    who = p["who"] || actor
-    if who, do: "🎲 #{who}", else: "🎲"
-  end
+  # The die icon is drawn by CSS (`.msg-roll::before`), so the label is just
+  # the roller's name.
+  defp chat_who(%{type: :dice, actor: actor, payload: p}), do: p["who"] || actor || ""
 
   defp chat_who(%{type: :action, actor: actor}) when actor != "dm", do: "#{actor} ·"
   defp chat_who(%{type: :narration, actor: actor}) when actor != "dm", do: "#{actor} ·"

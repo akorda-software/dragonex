@@ -2,6 +2,8 @@ defmodule Dragonex.TurnMasterLoopTest do
   @moduledoc """
   Fase B/C — TurnMaster integrated in the Game loop: handoff, WorldDriven
   fallback, mini-turns, acted_this_round.
+  Uses :combat_handoffs => :turnmaster to exercise actual consultation after
+  D113; the initiative floor still applies to every main decision.
   """
 
   use ExUnit.Case, async: false
@@ -13,8 +15,7 @@ defmodule Dragonex.TurnMasterLoopTest do
   alias ExAgent.Models.Test
 
   setup do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(Dragonex.Repo)
-    Ecto.Adapters.SQL.Sandbox.mode(Dragonex.Repo, {:shared, self()})
+    Dragonex.Test.Sandbox.start_shared!()
     :ok
   end
 
@@ -35,12 +36,12 @@ defmodule Dragonex.TurnMasterLoopTest do
   # DM narrates once; TurnMaster hands to Thane then back to dm.
   defp dm_script do
     [
-      text("El DM sitúa la escena en la ruina."),
+      narration("El DM sitúa la escena en la ruina."),
       tool_calls([
         call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})
       ]),
-      text("El goblin ataca."),
-      text("El DM cierra.")
+      narration("El goblin ataca."),
+      narration("El DM cierra.")
     ]
   end
 
@@ -73,10 +74,15 @@ defmodule Dragonex.TurnMasterLoopTest do
       }
 
     pid =
-      start_supervised!(
-        {Dragonex.Game,
+      Dragonex.Test.GameFixture.start!(
+        {Game,
          {game.id,
-          [model: %Test{script: dm_script()}, turnmaster_model: tm, roller: hit_roller()]}}
+          [
+            model: %Test{script: dm_script()},
+            combat_handoffs: :turnmaster,
+            turnmaster_model: tm,
+            roller: hit_roller()
+          ]}}
       )
 
     assert :ok == Game.await(pid, waiting_on("Thane"), 10_000)
@@ -97,11 +103,12 @@ defmodule Dragonex.TurnMasterLoopTest do
 
     # Empty TM model → no tool-call → fallback every time.
     pid =
-      start_supervised!(
-        {Dragonex.Game,
+      Dragonex.Test.GameFixture.start!(
+        {Game,
          {game.id,
           [
             model: %Test{script: dm_script()},
+            combat_handoffs: :turnmaster,
             turnmaster_model: %Test{label: "(no decision)"},
             roller: hit_roller()
           ]}}
@@ -144,11 +151,12 @@ defmodule Dragonex.TurnMasterLoopTest do
     log =
       capture_log(fn ->
         pid =
-          start_supervised!(
-            {Dragonex.Game,
+          Dragonex.Test.GameFixture.start!(
+            {Game,
              {game.id,
               [
-                model: %Test{script: dm_script() ++ [text("ok")]},
+                model: %Test{script: dm_script() ++ [narration("ok")]},
+                combat_handoffs: :turnmaster,
                 turnmaster_model: looping_tm,
                 roller: hit_roller()
               ]}}
@@ -162,7 +170,7 @@ defmodule Dragonex.TurnMasterLoopTest do
                    fn s ->
                      Enum.any?(s.events, fn e ->
                        e.actor == "turnmaster" and e.type == :system and
-                         (e.payload["note"] || "") =~ "El turno pasa a dm"
+                         (e.payload["note"] || "") =~ "El turno pasa a goblin"
                      end)
                    end,
                    15_000
@@ -180,7 +188,7 @@ defmodule Dragonex.TurnMasterLoopTest do
     # …the decision was the TurnMaster's (system note), not WorldDriven's…
     assert Enum.any?(events, fn e ->
              e.actor == "turnmaster" and e.type == :system and
-               (e.payload["note"] || "") =~ "El turno pasa a dm"
+               (e.payload["note"] || "") =~ "El turno pasa a goblin"
            end)
 
     refute Enum.any?(events, fn e -> (e.payload["note"] || "") =~ "relevo" end)
@@ -209,11 +217,12 @@ defmodule Dragonex.TurnMasterLoopTest do
     log =
       capture_log(fn ->
         pid =
-          start_supervised!(
-            {Dragonex.Game,
+          Dragonex.Test.GameFixture.start!(
+            {Game,
              {game.id,
               [
-                model: %Test{script: dm_script() ++ [text("ok")]},
+                model: %Test{script: dm_script() ++ [narration("ok")]},
+                combat_handoffs: :turnmaster,
                 turnmaster_model: invalid_tm,
                 roller: hit_roller()
               ]}}
@@ -257,10 +266,15 @@ defmodule Dragonex.TurnMasterLoopTest do
     log =
       capture_log(fn ->
         pid =
-          start_supervised!(
-            {Dragonex.Game,
+          Dragonex.Test.GameFixture.start!(
+            {Game,
              {game.id,
-              [model: %Test{script: dm_script()}, turnmaster_model: tm, roller: hit_roller()]}}
+              [
+                model: %Test{script: dm_script()},
+                combat_handoffs: :turnmaster,
+                turnmaster_model: tm,
+                roller: hit_roller()
+              ]}}
           )
 
         assert :ok == Game.await(pid, waiting_on("Thane"), 15_000)
@@ -272,7 +286,7 @@ defmodule Dragonex.TurnMasterLoopTest do
 
     assert Enum.any?(events, fn e ->
              e.actor == "turnmaster" and e.type == :system and
-               (e.payload["note"] || "") =~ "El turno pasa a dm"
+               (e.payload["note"] || "") =~ "El turno pasa a goblin"
            end)
 
     refute Enum.any?(events, fn e -> (e.payload["note"] || "") =~ "relevo" end)
@@ -287,11 +301,12 @@ defmodule Dragonex.TurnMasterLoopTest do
       )
 
     pid =
-      start_supervised!(
-        {Dragonex.Game,
+      Dragonex.Test.GameFixture.start!(
+        {Game,
          {game.id,
           [
-            model: %Test{script: [text("El posadero limpia un vaso.")] ++ [text("ok")]},
+            model: %Test{script: [narration("El posadero limpia un vaso.")] ++ [narration("ok")]},
+            combat_handoffs: :turnmaster,
             turnmaster_model: %Test{label: "(no decision)"}
           ]}}
       )
@@ -323,11 +338,20 @@ defmodule Dragonex.TurnMasterLoopTest do
       )
 
     pid =
-      start_supervised!(
-        {Dragonex.Game,
+      Dragonex.Test.GameFixture.start!(
+        {Game,
          {game.id,
           [
-            model: %Test{script: [text("Thane pregunta al tabernero.")] ++ [text("ok")]},
+            model: %Test{
+              script: [
+                narration("El caldero humea en la taberna."),
+                narration("ok"),
+                narration(
+                  "El tabernero responde: —Hay guiso. Thane, ¿quieres preguntar algo más?"
+                )
+              ]
+            },
+            combat_handoffs: :turnmaster,
             turnmaster_model: %Test{
               script: tm_script_give("Thane") ++ tm_script_give("Lyra") ++ tm_script_give("Lyra")
             }
@@ -341,18 +365,21 @@ defmodule Dragonex.TurnMasterLoopTest do
              Game.await(
                pid,
                fn s ->
-                 notes =
-                   s.events
-                   |> Enum.filter(&(&1.type == :system))
-                   |> Enum.map(&(&1.payload["note"] || ""))
-
-                 Enum.any?(notes, &(&1 =~ "El turno pasa al DM."))
+                 Enum.any?(s.events, fn e ->
+                   e.type == :narration and e.actor == "dm" and
+                     e.payload["complete"] == true and
+                     e.payload["text"] ==
+                       "El tabernero responde: —Hay guiso. Thane, ¿quieres preguntar algo más?"
+                 end)
                end,
                10_000
              )
 
+    assert :ok == Game.await(pid, waiting_on("Thane"), 10_000)
+    assert :ok == Game.pause(pid)
     events = Games.list_events(game.id)
     refute Enum.any?(events, fn e -> (e.payload["note"] || "") =~ "relevo" end)
+    refute Enum.any?(events, fn e -> (e.payload["note"] || "") =~ "el turno falló" end)
 
     thane_then_dm =
       events
@@ -372,11 +399,12 @@ defmodule Dragonex.TurnMasterLoopTest do
       )
 
     pid =
-      start_supervised!(
-        {Dragonex.Game,
+      Dragonex.Test.GameFixture.start!(
+        {Game,
          {game.id,
           [
-            model: %Test{script: [text("Thane, el pergamino está cerrado. ¿Lo abres?")]},
+            model: %Test{script: [narration("Thane, el pergamino está cerrado. ¿Lo abres?")]},
+            combat_handoffs: :turnmaster,
             turnmaster_model: %Test{
               script: tm_script_give("Lyra") ++ tm_script_give("Lyra") ++ tm_script_give("Lyra")
             }
@@ -396,16 +424,17 @@ defmodule Dragonex.TurnMasterLoopTest do
       )
 
     pid =
-      start_supervised!(
-        {Dragonex.Game,
+      Dragonex.Test.GameFixture.start!(
+        {Game,
          {game.id,
           [
             model: %Test{
               script:
-                [text("El pergamino descansa en la mesa.")] ++
-                  [text("Thane se acerca.")] ++
-                  [text("Ábrelo tú, si quieres.")]
+                [narration("El pergamino descansa en la mesa.")] ++
+                  [narration("Thane se acerca.")] ++
+                  [narration("Ábrelo tú, si quieres.")]
             },
+            combat_handoffs: :turnmaster,
             turnmaster_model: %Test{
               script:
                 tm_script_give("Thane") ++
@@ -489,7 +518,7 @@ defmodule Dragonex.TurnMasterLoopTest do
     dm_beats =
       Enum.flat_map(["g1", "g2", "g3"], fn name ->
         [
-          text("El DM sitúa la escena."),
+          narration("El DM sitúa la escena."),
           tool_calls([
             call("make_attack", %{
               "attacker" => name,
@@ -497,17 +526,18 @@ defmodule Dragonex.TurnMasterLoopTest do
               "weapon" => "scimitar"
             })
           ]),
-          text("#{name} ataca."),
-          text("El DM cierra.")
+          narration("#{name} ataca."),
+          narration("El DM cierra.")
         ]
       end)
 
     pid =
-      start_supervised!(
-        {Dragonex.Game,
+      Dragonex.Test.GameFixture.start!(
+        {Game,
          {game.id,
           [
             model: %Test{script: dm_beats},
+            combat_handoffs: :turnmaster,
             turnmaster_model: %Test{label: "(no decision)"},
             roller: hit_roller()
           ]}}
@@ -544,7 +574,7 @@ defmodule Dragonex.TurnMasterLoopTest do
     dm_beats =
       Enum.flat_map(["g1", "g2", "g3"], fn name ->
         [
-          text("El DM sitúa la escena."),
+          narration("El DM sitúa la escena."),
           tool_calls([
             call("make_attack", %{
               "attacker" => name,
@@ -552,8 +582,8 @@ defmodule Dragonex.TurnMasterLoopTest do
               "weapon" => "scimitar"
             })
           ]),
-          text("#{name} ataca."),
-          text("El DM cierra.")
+          narration("#{name} ataca."),
+          narration("El DM cierra.")
         ]
       end)
 
@@ -567,9 +597,15 @@ defmodule Dragonex.TurnMasterLoopTest do
       }
 
     pid =
-      start_supervised!(
-        {Dragonex.Game,
-         {game.id, [model: %Test{script: dm_beats}, turnmaster_model: tm, roller: hit_roller()]}}
+      Dragonex.Test.GameFixture.start!(
+        {Game,
+         {game.id,
+          [
+            model: %Test{script: dm_beats},
+            combat_handoffs: :turnmaster,
+            turnmaster_model: tm,
+            roller: hit_roller()
+          ]}}
       )
 
     assert :ok == Game.await(pid, waiting_on("Thane"), 15_000)
@@ -610,7 +646,7 @@ defmodule Dragonex.TurnMasterLoopTest do
           "weapon" => "scimitar"
         })
       ]),
-      text("g1 abate a g2."),
+      narration("g1 abate a g2."),
       tool_calls([
         call("make_attack", %{
           "attacker" => "g3",
@@ -618,17 +654,18 @@ defmodule Dragonex.TurnMasterLoopTest do
           "weapon" => "scimitar"
         })
       ]),
-      text("g3 ataca."),
-      text("El DM cierra."),
-      text("ok")
+      narration("g3 ataca."),
+      narration("El DM cierra."),
+      narration("ok")
     ]
 
     pid =
-      start_supervised!(
-        {Dragonex.Game,
+      Dragonex.Test.GameFixture.start!(
+        {Game,
          {game.id,
           [
             model: %Test{script: dm_beats},
+            combat_handoffs: :turnmaster,
             turnmaster_model: %Test{label: "(no decision)"},
             roller: kill_roller()
           ]}}
@@ -704,15 +741,16 @@ defmodule Dragonex.TurnMasterLoopTest do
           "weapon" => "longsword"
         })
       ]),
-      text("Thane intercepta.")
+      narration("Thane intercepta.")
     ]
 
     pid =
-      start_supervised!(
-        {Dragonex.Game,
+      Dragonex.Test.GameFixture.start!(
+        {Game,
          {game.id,
           [
             model: %Test{script: dm_script() ++ human_attack ++ dm_script()},
+            combat_handoffs: :turnmaster,
             turnmaster_model: tm,
             roller: hit_roller()
           ]}}
@@ -752,6 +790,7 @@ defmodule Dragonex.TurnMasterLoopTest do
 
   test "queued human intent is visible to TurnMaster and can steal the floor" do
     {:ok, game} = Games.create_game(two_humans_opts())
+    owner = self()
 
     tm =
       %Test{
@@ -761,19 +800,27 @@ defmodule Dragonex.TurnMasterLoopTest do
             tm_script_give("Lyra")
       }
 
-    lyra_cast = [
-      tool_calls([
-        call("cast_spell", %{"caster" => "Lyra", "spell" => "firebolt", "target" => "goblin"})
-      ]),
-      text("Lyra lanza un rayo.")
+    lyra_action = [
+      fn _, _ ->
+        send(owner, {:queued_lyra_action_completed, self()})
+
+        receive do
+          :finish_queued_action -> narration("Me pongo delante del golpe.")
+        after
+          5_000 -> flunk("the queued action was not released")
+        end
+      end
     ]
 
     pid =
-      start_supervised!(
-        {Dragonex.Game,
+      Dragonex.Test.GameFixture.start!(
+        {Game,
          {game.id,
           [
-            model: %Test{script: dm_script() ++ lyra_cast},
+            model: %Test{
+              script: [narration("El goblin amaga un golpe desde la ruina.") | lyra_action]
+            },
+            combat_handoffs: :turnmaster,
             turnmaster_model: tm,
             roller: hit_roller()
           ]}}
@@ -781,12 +828,16 @@ defmodule Dragonex.TurnMasterLoopTest do
 
     assert :ok == Game.await(pid, waiting_on("Thane"), 10_000)
     assert {:ok, :queued} = Game.declare(pid, "Lyra", "me pongo delante del golpe")
+    assert_receive {:queued_lyra_action_completed, request}, 2_000
+    assert :ok == Game.pause(pid)
+    send(request, :finish_queued_action)
 
     assert :ok ==
              Game.await(
                pid,
                fn s ->
-                 Enum.any?(s.events, fn e -> e.type == :action and e.actor == "Lyra" end)
+                 s.status == :paused and :sys.get_state(pid).busy == nil and
+                   Enum.any?(s.events, fn e -> e.type == :action and e.actor == "Lyra" end)
                end,
                10_000
              )
@@ -806,10 +857,15 @@ defmodule Dragonex.TurnMasterLoopTest do
       }
 
     pid =
-      start_supervised!(
-        {Dragonex.Game,
+      Dragonex.Test.GameFixture.start!(
+        {Game,
          {game.id,
-          [model: %Test{script: dm_script()}, turnmaster_model: tm, roller: hit_roller()]}}
+          [
+            model: %Test{script: dm_script()},
+            combat_handoffs: :turnmaster,
+            turnmaster_model: tm,
+            roller: hit_roller()
+          ]}}
       )
 
     assert :ok == Game.await(pid, waiting_on("Thane"), 10_000)
@@ -832,10 +888,15 @@ defmodule Dragonex.TurnMasterLoopTest do
       }
 
     pid =
-      start_supervised!(
-        {Dragonex.Game,
+      Dragonex.Test.GameFixture.start!(
+        {Game,
          {game.id,
-          [model: %Test{script: dm_script()}, turnmaster_model: tm, roller: hit_roller()]}}
+          [
+            model: %Test{script: dm_script()},
+            combat_handoffs: :turnmaster,
+            turnmaster_model: tm,
+            roller: hit_roller()
+          ]}}
       )
 
     assert :ok == Game.await(pid, waiting_on("Thane"), 10_000)
@@ -862,11 +923,12 @@ defmodule Dragonex.TurnMasterLoopTest do
     {:ok, game} = Games.create_game(two_humans_opts())
 
     pid =
-      start_supervised!(
-        {Dragonex.Game,
+      Dragonex.Test.GameFixture.start!(
+        {Game,
          {game.id,
           [
             model: %Test{script: dm_script()},
+            combat_handoffs: :turnmaster,
             turnmaster_model: %Test{label: "(no decision)"},
             roller: hit_roller()
           ]}}
@@ -880,6 +942,7 @@ defmodule Dragonex.TurnMasterLoopTest do
 
   test "a combat reaction intent cuts in even if TurnMaster gave another actor" do
     {:ok, game} = Games.create_game(two_humans_opts())
+    owner = self()
 
     tm =
       %Test{
@@ -890,28 +953,65 @@ defmodule Dragonex.TurnMasterLoopTest do
       }
 
     pid =
-      start_supervised!(
-        {Dragonex.Game,
+      Dragonex.Test.GameFixture.start!(
+        {Game,
          {game.id,
-          [model: %Test{script: dm_script()}, turnmaster_model: tm, roller: hit_roller()]}}
+          [
+            model: %Test{
+              script: [
+                narration("El goblin amaga un golpe desde la ruina."),
+                tool_calls([
+                  call("cast_spell", %{
+                    "caster" => "Lyra",
+                    "spell" => "shield",
+                    "target" => "Lyra"
+                  })
+                ]),
+                fn _, _ ->
+                  send(owner, {:shield_reaction_completed, self()})
+
+                  receive do
+                    :finish_shield_reaction ->
+                      narration("Alzo la mano y me cubro con mi escudo mágico.")
+                  after
+                    5_000 -> flunk("the shield reaction was not released")
+                  end
+                end
+              ]
+            },
+            combat_handoffs: :turnmaster,
+            turnmaster_model: tm,
+            roller: hit_roller()
+          ]}}
       )
 
     assert :ok == Game.await(pid, waiting_on("Thane"), 10_000)
+    slots = Game.world(pid).spell_slots["Lyra"][1]
     assert {:ok, :queued} = Game.declare(pid, "Lyra", "interrumpo con Escudo")
+    assert_receive {:shield_reaction_completed, request}, 2_000
+    assert :ok == Game.pause(pid)
+    send(request, :finish_shield_reaction)
 
     assert :ok ==
              Game.await(
                pid,
                fn s ->
-                 Enum.any?(s.events, fn e ->
-                   note = e.payload["note"] || ""
-                   kind = e.payload["kind"]
+                 s.status == :paused and :sys.get_state(pid).busy == nil and
+                   Enum.any?(s.events, fn e ->
+                     note = e.payload["note"] || ""
+                     kind = e.payload["kind"]
 
-                   e.actor == "turnmaster" and
-                     (note =~ "interrumpe" or kind in ["cut_in", :cut_in])
-                 end)
+                     e.actor == "turnmaster" and
+                       (note =~ "interrumpe" or kind in ["cut_in", :cut_in])
+                   end)
                end,
                10_000
              )
+
+    assert Game.world(pid).spell_slots["Lyra"][1] == slots - 1
+    lyra = Game.world(pid).characters["Lyra"]
+    assert lyra.ac == 12
+    assert Dragonex.Rules.Effects.effective_ac(lyra) == 17
+    assert Games.load_world(Games.get_game(game.id)) == Game.world(pid)
   end
 end

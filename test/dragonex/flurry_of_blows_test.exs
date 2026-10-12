@@ -100,7 +100,7 @@ defmodule Dragonex.FlurryOfBlowsTest do
       assert msg =~ "Ráfaga de golpes"
       assert msg =~ "ki restantes 1"
       assert msg =~ "2 golpes"
-      assert msg =~ "bludgeoning"
+      assert msg =~ "contundente"
       {:ok, w2} = change.(w)
       assert w2.characters["goblin"].hp == 30 - 12
       assert w2.characters["Shen"].ki == 1
@@ -237,14 +237,15 @@ defmodule Dragonex.FlurryOfBlowsTest do
     end
   end
 
-  describe "level-up no resetea ki restante" do
-    test "L2 ki=1 sube a L3 y conserva ki=1" do
+  describe "level-up conserva el gasto de ki" do
+    test "L2 ki=1 sube a L3 con ki=2 por la capacidad ganada" do
       w = world([monk(ki: 1)])
 
       {:ok, w2} = World.level_up("Shen", %{}).(w)
 
       assert w2.characters["Shen"].level == 3
-      assert w2.characters["Shen"].ki == 1
+      # D126: conserva el punto gastado y gana el punto del nivel nuevo.
+      assert w2.characters["Shen"].ki == 2
     end
   end
 

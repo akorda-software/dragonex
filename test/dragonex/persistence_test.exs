@@ -24,6 +24,7 @@ defmodule Dragonex.PersistenceTest do
     {:ok, s1} =
       Session.start_link(
         shared_state: world,
+        shared_state_codec: Dragonex.Store.WorldCodec,
         store: @store,
         policy: {WorldDriven, dm: "dm"},
         participants: [
@@ -43,6 +44,8 @@ defmodule Dragonex.PersistenceTest do
              end)
 
     assert %World{phase: :combat} = Session.read_state(s1)
+    committed = Session.read_state(s1)
+    cursor = Session.current(s1)
 
     # "Crash".
     :ok = GenServer.stop(s1, :normal)
@@ -50,6 +53,7 @@ defmodule Dragonex.PersistenceTest do
     # Rehydrate from the same store + session id.
     {:ok, s2} =
       Session.start_link(
+        shared_state_codec: Dragonex.Store.WorldCodec,
         store: @store,
         policy: {WorldDriven, dm: "dm"},
         participants: [
@@ -63,6 +67,8 @@ defmodule Dragonex.PersistenceTest do
 
     # Structs came back, not a plain JSON map.
     assert %World{} = rehydrated
+    assert rehydrated == committed
+    assert Session.current(s2) == cursor
     assert rehydrated.phase == :combat
     assert rehydrated.initiative_order == ["Thane", "goblin"]
     assert %Dragonex.Character{hp: 12, ac: 16} = rehydrated.characters["Thane"]

@@ -253,8 +253,11 @@ defmodule Dragonex.TurnMasterTest do
           {Server, agent: agent, agent_id: "tm-loop-#{System.unique_integer([:positive])}"}
         )
 
-      assert {:error, {:max_steps_exceeded, 3}} =
+      assert {:error, error} =
                Server.chat(server, "decide", deps: deps(world, rec), stream_text: false)
+
+      reason = if is_map(error), do: error.reason, else: error
+      assert reason == {:max_steps_exceeded, 3}
 
       assert Agent.get(counter, & &1) == 3
       Decision.stop(rec)

@@ -1,3 +1,17 @@
 <main class="game-layout">
+  <div :if={Phoenix.Flash.get(@flash, :info) || Phoenix.Flash.get(@flash, :error)} class="app-flashes">
+    <p :if={Phoenix.Flash.get(@flash, :info)} id="app-flash-info" class="flash flash-info" role="status">
+      <span>{Phoenix.Flash.get(@flash, :info)}</span>
+      <button type="button" class="flash-dismiss"
+              phx-click={Phoenix.LiveView.JS.push("lv:clear-flash", value: %{key: "info"})}
+              aria-label={dgettext("ui", "Cerrar aviso")}>{dgettext("ui", "Cerrar")}</button>
+    </p>
+    <p :if={Phoenix.Flash.get(@flash, :error)} id="app-flash-error" class="flash flash-error" role="alert">
+      <span>{Phoenix.Flash.get(@flash, :error)}</span>
+      <button type="button" class="flash-dismiss"
+              phx-click={Phoenix.LiveView.JS.push("lv:clear-flash", value: %{key: "error"})}
+              aria-label={dgettext("ui", "Cerrar error")}>{dgettext("ui", "Cerrar")}</button>
+    </p>
+  </div>
   <%= @inner_content %>
 </main>

@@ -190,7 +190,7 @@ defmodule Dragonex.UncannyDodgeTest do
       # fixed(15): golpe 15+prof 2+DES 2=19 vs CA 14 → acierta; daño
       # 1d6(15)+DES 2=17 → mitad 8 → PG 12.
       assert {:ok, msg, change} = Actions.attack(w, "Goblin", "Vex", "scimitar", fixed(15))
-      assert msg =~ "por 17 de daño slashing"
+      assert msg =~ "por 17 de daño cortante"
 
       {:ok, w2} = change.(w)
       assert w2.characters["Vex"].hp == 20 - 8

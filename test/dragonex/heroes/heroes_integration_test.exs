@@ -175,7 +175,7 @@ defmodule Dragonex.HeroesIntegrationTest do
       # d20=15 → total 20 vs goblin AC 15 → hit, 1d10 fire
       {:ok, msg, change} = Actions.spell(world, "Lyra", "fire bolt", "goblin", fixed(15))
 
-      assert msg =~ "fire bolt"
+      assert msg =~ "Rayo ígneo"
       assert msg =~ "impacta"
       new_world = elem(change.(world), 1)
       assert new_world.characters["goblin"].hp < 7
@@ -199,7 +199,7 @@ defmodule Dragonex.HeroesIntegrationTest do
       # magic missile is :automatic — always hits, 3d4+3 force
       {:ok, msg, change} = Actions.spell(world, "Lyra", "magic missile", "goblin", fixed(1))
 
-      assert msg =~ "magic missile"
+      assert msg =~ "Proyectil mágico"
       new_world = elem(change.(world), 1)
       # fixed roller(1) → 3d4 = 3, +3 = 6 damage
       assert new_world.characters["goblin"].hp == 7 - 6
@@ -224,7 +224,7 @@ defmodule Dragonex.HeroesIntegrationTest do
       # d20=5 → 7 < 13 → fails → full damage 1d8
       {:ok, msg, change} = Actions.spell(world, "Elder", "sacred flame", "goblin", fixed(5))
 
-      assert msg =~ "sacred flame"
+      assert msg =~ "Llama sagrada"
       assert msg =~ "falla la salvación"
       new_world = elem(change.(world), 1)
       assert new_world.characters["goblin"].hp < 7

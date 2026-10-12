@@ -9,8 +9,7 @@ defmodule DragonexWeb.CustomContentLiveTest do
   alias Dragonex.Accounts
 
   setup do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(Dragonex.Repo)
-    Ecto.Adapters.SQL.Sandbox.mode(Dragonex.Repo, {:shared, self()})
+    Dragonex.Test.Sandbox.start_shared!()
 
     {:ok, user} =
       Accounts.register(%{

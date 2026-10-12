@@ -18,7 +18,7 @@ defmodule Dragonex.Flows.LiveSmokeTest do
 
   alias Dragonex.Tools
   alias Dragonex.World
-  alias ExAgent.{Models, Server, Session}
+  alias ExAgent.{Server, Session}
   alias ExAgent.Session.{Participant, SharedState}
 
   # Opt-in is via the :integration tag (excluded by default). The env gate is a
@@ -34,11 +34,7 @@ defmodule Dragonex.Flows.LiveSmokeTest do
     unless live_ready?(),
       do: flunk("set DRAGONEX_RUN_LIVE=1 and OPENROUTER_API_KEY to run this test")
 
-    model =
-      Models.OpenRouter.new(
-        model: System.get_env("DRAGONEX_MODEL", "z-ai/glm-4.7-flash"),
-        app_title: "dragonex smoke test"
-      )
+    model = Dragonex.Models.dm()
 
     agent =
       ExAgent.new(
@@ -48,8 +44,14 @@ defmodule Dragonex.Flows.LiveSmokeTest do
         ALWAYS call the `set_scene` tool once with your narration before answering.
         Be vivid but brief (2 sentences).
         """,
-        tools: Tools.tools(),
-        model_settings: [max_tokens: 1024, temperature: 0]
+        tools: Tools.agent_tools(),
+        max_steps: 3,
+        model_settings:
+          Dragonex.Models.request_settings(
+            model,
+            [max_tokens: 1024, temperature: 0],
+            Dragonex.Models.request_extra()
+          )
       )
 
     {:ok, dm} =

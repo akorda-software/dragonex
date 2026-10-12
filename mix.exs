@@ -7,8 +7,12 @@ defmodule Dragonex.MixProject do
       version: "0.1.0",
       elixir: "~> 1.20",
       start_permanent: Mix.env() == :prod,
+      # Local packages gain new protocol implementations during code reload.
+      # A consolidated dispatch table would keep ignoring those implementations.
+      consolidate_protocols: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
+      lockfile: if(hex_dependencies?(), do: "mix.hex.lock", else: "mix.lock"),
       listeners: [Phoenix.CodeReloader]
     ]
   end
@@ -25,8 +29,8 @@ defmodule Dragonex.MixProject do
 
   defp deps do
     [
-      local_dep(:exagent, "kukapu/exagent"),
-      local_dep(:dic_ex, "kukapu/dic_ex"),
+      workspace_dep(:exagent, "exAgent", "~> 2.1"),
+      workspace_dep(:dic_ex, "dic_ex", "~> 0.3"),
       {:ecto, "~> 3.12"},
       {:ecto_sql, "~> 3.12"},
       {:postgrex, ">= 0.0.0"},
@@ -39,38 +43,31 @@ defmodule Dragonex.MixProject do
       {:jason, "~> 1.4"},
       {:bcrypt_elixir, "~> 3.0"},
       {:lazy_html, ">= 0.1.0", only: :test},
-      {:dotenvy, "~> 1.1", only: [:dev, :test]}
+      {:dotenvy, "~> 1.1"},
+      {:gettext, "~> 0.26"}
     ]
   end
 
-  # Switch entre deps de GitHub (producción/CI) y deps locales (desarrollo).
-  #
-  # mix.exs se evalúa ANTES que config/runtime.exs, así que Dotenvy todavía no
-  # ha cargado .env.dev: la variable debe venir del shell. Usa `bin/dev` o
-  # exporta a mano: `DRAGONEX_LOCAL_DEPS=1 mix phx.server`.
-  #
-  #   DRAGONEX_LOCAL_DEPS=1            -> usa path local
-  #   DRAGONEX_DEPS_ROOT=../           -> raíz de los paquetes (default: ../)
-  #
-  # Cuando está activo, resuelve a:
-  #   {:exagent, path: "../exagent"}   (y "../dic_ex")
-  # Si la carpeta no existe, mix fallará con un error claro (mejor que caer
-  # silenciosamente a GitHub mientras crees que estás probando local).
-  defp local_dep(name, repo) do
-    if System.get_env("DRAGONEX_LOCAL_DEPS") == "1" do
-      root = System.get_env("DRAGONEX_DEPS_ROOT", "../")
-      path = Path.join(root, Atom.to_string(name))
+  # Dev siempre usa los hermanos, incluso con `mix` directamente. Producción
+  # siempre usa Hex. Test permite comprobar ese segundo grafo explícitamente.
+  # Las rutas se anclan al repo, no al cwd del shell. En Linux exAgent lleva A.
+  defp workspace_dep(name, directory, requirement) do
+    if hex_dependencies?() do
+      {name, requirement}
+    else
+      root = System.get_env("DRAGONEX_DEPS_ROOT", "..") |> Path.expand(__DIR__)
+      path = Path.join(root, directory)
 
-      unless File.dir?(path) do
-        raise """
-        DRAGONEX_LOCAL_DEPS=1 pero no existe #{path}.
-        Crea la carpeta o ajusta DRAGONEX_DEPS_ROOT.
-        """
+      unless File.regular?(Path.join(path, "mix.exs")) do
+        raise "Falta la dependencia local #{name} en #{path}. Ajusta DRAGONEX_DEPS_ROOT."
       end
 
       {name, path: path}
-    else
-      {name, github: repo, branch: "main"}
     end
+  end
+
+  defp hex_dependencies? do
+    Mix.env() == :prod or
+      (Mix.env() == :test and System.get_env("DRAGONEX_DEPS_SOURCE") == "hex")
   end
 end

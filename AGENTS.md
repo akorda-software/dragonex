@@ -5,8 +5,9 @@ Léela antes de tocar nada.
 
 ## Qué es
 
-D&D 5e con DM por IA. Elixir/Phoenix LiveView + Postgres + `exAgent` (GitHub dep
-`kukapu/exagent`, branch `main`). El LLM **solo narra**; las reglas las resuelven `deftool`s.
+D&D 5e con DM por IA. Elixir/Phoenix LiveView + Postgres + `exAgent` (checkout
+hermano en dev/test, paquete publicado de Hex en prod). El LLM **solo narra**;
+las reglas las resuelven `deftool`s.
 
 **Lee primero**: [`docs/progress.md`](docs/progress.md) (estado),
 [`docs/decisions.md`](docs/decisions.md) (porqués),
@@ -25,20 +26,31 @@ cuando el commit existe.
 
 ```sh
 docker compose -f compose.dev.yml up -d   # Postgres + app en http://localhost:4035
-MIX_ENV=test mix test                     # suite (1511 passed / 3 excluded). SIEMPRE con MIX_ENV=test
+MIX_ENV=test bin/dev test                 # SIEMPRE con MIX_ENV=test; estado en docs/progress.md
 mix format                                # obligatorio antes de commit
 mix compile                               # sin warnings
 docker logs -f dragonex-app               # logs
 ```
 
-- **Deps locales (exagent/dic_ex)**: `DRAGONEX_LOCAL_DEPS=1` en `.env.dev`
-  hace que mix los resuelva desde `../exagent` y `../dic_ex` (siblings del repo)
-  en vez de GitHub. Arranca con `bin/dev` (carga `.env.dev` antes que mix, que
-  `mix.exs` se evalúa antes que `config/runtime.exs`). Docker y prod usan
-  siempre GitHub. Detalle y porqué en D26.
+- **Deps locales**: dev/test siempre resuelve `../exAgent` (A mayúscula) y
+  `../dic_ex`, incluso con mix directo; si faltan, falla sin fallback.
+  `DRAGONEX_DEPS_ROOT` permite otro directorio. `bin/dev` carga `.env.dev` y
+  conserva MIX_ENV/selectores explícitos. Compose dev monta los dos hermanos.
+  Prod siempre usa Hex con `mix.hex.lock`; test de ese grafo:
+  `MIX_ENV=test DRAGONEX_DEPS_SOURCE=hex bin/dev test`. D201 sustituye D26.
+  JS del paquete: `mix dic_ex.build` dentro de dic_ex; Endpoint sirve el bundle
+  de la dependencia cargada por esa VM. No hay build JS propio aquí.
+  Phoenix/LiveView sirven también sus módulos desde los paquetes resueltos,
+  manteniendo cliente y servidor alineados sin CDN (D203).
 - **Package manager: `mix`** (NUNCA npm/npx — no hay frontend JS build propio;
-  los assets de dados vienen de `dic_ex`, ya vendored en `priv/static/assets/`).
+  los assets de dados se sirven desde `priv/static` del `dic_ex` efectivo).
 - DB para `mix phx.server` en host: `DB_PORT=5455` (`.env.dev`). App dev: **4035**, Postgres dev: **5455**.
+- Tests usan **dragonex_test**, ignorando `DB_NAME` de desarrollo (D122).
+  Override explícito: `DB_TEST_NAME`; primera vez, `MIX_ENV=test mix ecto.create`
+  y `MIX_ENV=test mix ecto.migrate`.
+  Gates completos local/Hex **en secuencia** si comparten esa DB: fixtures de
+  rollback usan constraints temporales y dos VMs pueden bloquearse en DDL.
+  Paralelizar requiere `DB_TEST_NAME` distinto y migrado para cada grafo (D209).
 - Sin `OPENROUTER_API_KEY` en `.env.dev`, los beats usan `TestModel` (no narran).
   Live: `DRAGONEX_RUN_LIVE=1 OPENROUTER_API_KEY=... mix test --include integration`.
 
@@ -67,7 +79,7 @@ lib/dragonex/           motor + dominio (Rules, World, Actions, Tools, DM,
                         PCAgent, TurnMaster, Game GenServer, Games DB, Heroes
                         creador, Accounts)
 lib/dragonex_web/       LiveViews (Game, Hero, CustomContent), router, auth
-priv/repo/migrations/   8 migraciones
+priv/repo/migrations/   10 migraciones
 priv/srd/spells.es.json 319 hechizos SRD (regenerable: scripts/import_srd_spells.py)
 docs/                   progress, decisions, FLUJO_PARTIDA, producto/
                         (requisitos, plan-fases), tecnico/ (arquitectura,

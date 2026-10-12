@@ -11,13 +11,14 @@ defmodule Dragonex.DMAntiRepeatTest do
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureLog
+  import Dragonex.Test.Harness, only: [narration: 1]
 
   alias Dragonex.{Archetypes, Games, Game}
   alias ExAgent.Models.Test
+  alias ExAgent.Server
 
   setup do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(Dragonex.Repo)
-    Ecto.Adapters.SQL.Sandbox.mode(Dragonex.Repo, {:shared, self()})
+    Dragonex.Test.Sandbox.start_shared!()
     :ok
   end
 
@@ -39,13 +40,15 @@ defmodule Dragonex.DMAntiRepeatTest do
       )
 
     # The DM narrates the SAME death description twice in a row.
-    model = %Test{label: "El no-muerto se desvanece en una nube de humo sulfúrico."}
+    model = %Dragonex.Test.Narrator{
+      text: "El no-muerto se desvanece en una nube de humo sulfúrico."
+    }
 
     log =
       capture_log(fn ->
         pid =
-          ExUnit.Callbacks.start_supervised!(
-            {Dragonex.Game, {game.id, [model: model, roller: fn _ -> 10 end]}}
+          Dragonex.Test.GameFixture.start!(
+            {Game, {game.id, [model: model, roller: fn _ -> 10 end]}}
           )
 
         # The nudge lands on the THIRD DM turn (comparing the previous two);
@@ -72,23 +75,56 @@ defmodule Dragonex.DMAntiRepeatTest do
       "Gotas de agua golpean el suelo de la cripta."
     ]
 
-    model = %Test{script: script}
+    before = Games.load_world(game)
+    {:ok, _} = Games.save_state(game.id, before, nil, before.round, :paused)
+    parent = self()
+
+    last = fn _, _ ->
+      send(parent, {:varied_dm_ready, self()})
+      receive do: (:narrate -> narration(List.last(script)))
+    end
+
+    model = %Test{script: Enum.map(Enum.take(script, 2), &narration/1) ++ [last]}
 
     log =
       capture_log(fn ->
         pid =
-          ExUnit.Callbacks.start_supervised!(
-            {Dragonex.Game, {game.id, [model: model, roller: fn _ -> 10 end]}}
+          Dragonex.Test.GameFixture.start!(
+            {Game, {game.id, [model: model, roller: fn _ -> 10 end]}}
           )
 
-        assert :ok ==
-                 Game.await(pid, fn _s -> dm_narration_count(game.id) >= 3 end, 10_000)
+        :ok =
+          Server.set_model(:sys.get_state(pid).pc_agents["Thane"], %Dragonex.Test.Narrator{
+            text: "Observo la cripta."
+          })
 
-        _ = Game.pause(pid)
+        assert :ok == Game.resume(pid)
+        assert_receive {:varied_dm_ready, request}, 2_000
+
+        try do
+          assert Game.current(pid) == "dm"
+          assert :ok == Game.pause(pid)
+        after
+          send(request, :narrate)
+        end
+
+        assert :ok == Game.await(pid, &(&1.status == :paused and :sys.get_state(pid).busy == nil))
+
+        narration =
+          for event <- Games.list_events(game.id),
+              event.type == :narration and event.actor == "dm" and
+                not String.starts_with?(event.payload["text"] || "", "La escena está preparada"),
+              do: event.payload["text"]
+
+        assert narration == script
+        assert Game.world(pid) == before
+        assert Games.load_world(Games.get_game(game.id)) == before
       end)
 
     refute log =~ "DM repeating narration",
            "distinct DM lines must not trip the anti-repeat detector"
+
+    refute log =~ "model_request_failed"
   end
 
   test "the DM drifting into English triggers the Spanish nudge" do
@@ -101,13 +137,15 @@ defmodule Dragonex.DMAntiRepeatTest do
 
     # An English narration (DeepSeek sometimes drifts) — has plenty of the
     # clearly-English function words the detector counts.
-    model = %Test{label: "The sun has climbed above the hills and the wind smells of dust."}
+    model = %Dragonex.Test.Narrator{
+      text: "The sun has climbed above the hills and the wind smells of dust."
+    }
 
     log =
       capture_log(fn ->
         pid =
-          ExUnit.Callbacks.start_supervised!(
-            {Dragonex.Game, {game.id, [model: model, roller: fn _ -> 10 end]}}
+          Dragonex.Test.GameFixture.start!(
+            {Game, {game.id, [model: model, roller: fn _ -> 10 end]}}
           )
 
         assert :ok ==

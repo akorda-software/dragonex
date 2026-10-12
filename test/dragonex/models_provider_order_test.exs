@@ -147,7 +147,7 @@ defmodule Dragonex.ModelsProviderOrderTest do
       System.put_env("DRAGONEX_PROVIDER", "openrouter")
       System.put_env("OPENROUTER_PROVIDER_ORDER", "deepinfra")
 
-      agent = TurnMaster.new(%ExAgent.Models.Test{label: "tm"})
+      agent = TurnMaster.new(%ExAgent.Models.Test{label: "tm"}, max_tokens: 256)
 
       assert agent.settings.extra ==
                %{"provider" => %{"order" => ["deepinfra"], "allow_fallbacks" => true}}

@@ -28,32 +28,60 @@ defmodule Dragonex.Flows.CompactionTest do
       compactor: Compaction.Summary,
       opts: [
         threshold_tokens: 50,
-        keep_recent: 4,
+        keep_recent: Dragonex.Agent.compaction_window(4),
         summarize: fn old ->
           "Earlier, the party explored #{length(old)} rooms."
         end
       ]
     }
 
+    owner = self()
+
+    model = %ExAgent.Models.Test{
+      script: [
+        fn request, _ ->
+          send(owner, {:projection, request})
+          "next room"
+        end
+      ]
+    }
+
     agent =
       ExAgent.new(
-        model: %ExAgent.Models.Test{label: "next room"},
+        model: model,
         capabilities: [compaction]
       )
 
     assert {:ok, %{messages: messages}} =
              ExAgent.run(agent, "turn 25: the throne room", message_history: history)
 
-    # Compacted: far fewer than the 24 history + this turn.
-    assert length(messages) < 12
+    assert_receive {:projection, projection}
+    assert length(projection) < 12
 
     # The summary is the first message, and the recent window (incl. the current
     # prompt) survived verbatim. (exAgent 1.0 compacts only the PRIOR history,
     # keeping `keep_recent` of the 24 turns verbatim, so 24 - 4 = 20 are summed.)
-    [%Request{parts: [%Part.System{content: summary} | _]} | _] = messages
+    summary =
+      projection
+      |> Enum.flat_map(& &1.parts)
+      |> Enum.find(fn
+        %Part.User{content: content} -> content =~ "20 rooms"
+        %Part.System{content: content} -> content =~ "20 rooms"
+        _ -> false
+      end)
+
+    assert summary
+    summary = summary.content
     assert summary =~ "20 rooms"
 
-    assert Enum.any?(messages, fn
+    if Dragonex.Models.backend() == :req_llm do
+      assert length(messages) == 26
+      assert Enum.take(messages, 24) == history
+    else
+      assert length(messages) < 12
+    end
+
+    assert Enum.any?(projection, fn
              %Request{parts: parts} ->
                Enum.any?(parts, &match?(%Part.User{content: "turn 25: the throne room"}, &1))
 

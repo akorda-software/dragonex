@@ -21,7 +21,7 @@ pierda silenciosamente.
 
 ## Tablas (esquema relacional)
 
-> **Fuente canónica:** `priv/repo/migrations/` (8 migraciones). Ante duda, mira
+> **Fuente canónica:** `priv/repo/migrations/` (10 migraciones). Ante duda, mira
 > la migración.
 
 ```
@@ -36,7 +36,7 @@ games ──< participants
 
 | Tabla | Columnas clave | Relaciones |
 |---|---|---|
-| `games` | `title`, `story_bible` jsonb, `dm_style`, `dice_engine`, **`world` jsonb** (vía Codec), `status` enum (`configuring/running/waiting/paused/ended`), `round`, `current_participant`, `intents` map, `open_slots` | `belongs_to :user`; `has_many :participants/:characters/:events` |
+| `games` | `title` varchar255 (validado por puntos de código), `story_bible` jsonb, `dm_style` text (D212), `dice_engine`, **`world` jsonb** (vía Codec), `status` enum (`configuring/running/waiting/paused/ended`), `round`, `current_participant`, `intents` map, `open_slots` | `belongs_to :user`; `has_many :participants/:characters/:events` |
 | `participants` | `name`, `kind` (`ai/human`), `side` (`pc/dm` — los enemigos no son participants, se pliegan al DM), `user_id` (nullable) | `belongs_to :game`, `belongs_to :user` |
 | `characters` | `name`, **`sheet` jsonb** (baseline estática), `kind`, `hero_id` | `belongs_to :game`, `belongs_to :hero` |
 | `game_events` | **`seq`** (monotono por game), `type` enum (`narration/action/tool/dice/system/turn`), `actor`, `visible_to`, `payload` jsonb, `inserted_at` | `belongs_to :game` |
@@ -54,6 +54,9 @@ que tenga que estar tanto en el `Codec.encode_character` (para `sheet`) como en 
 
 - **`game_events(game_id, seq)` UNIQUE** — el `seq` es monotono por partida; el
   unique lo defiende frente a una race en `next_seq` (`games.ex`).
+- **`game_events(game_id, visible_to, seq)` WHERE type='dice'** — D186 recupera
+  hasta32 tiradas anteriores al contexto reciente400 con visibilidad antes
+  del límite. No añade columnas, copias de resultados ni un ledger mutable.
 - **`participants(game_id, user_id)` UNIQUE** — un usuario no puede unirse dos veces
   a la misma partida (los `user_id` NULL de DM/IA no chocan: Postgres trata NULLs
   como distintos).

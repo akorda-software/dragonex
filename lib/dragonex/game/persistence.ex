@@ -8,7 +8,8 @@ defmodule Dragonex.Game.Persistence do
   the Game itself that writes partida state.
   """
 
-  alias Dragonex.Games
+  alias Dragonex.{Games, Repo, RollLog}
+  require Logger
   alias ExAgent.Session
 
   @pubsub Dragonex.PubSub
@@ -17,7 +18,11 @@ defmodule Dragonex.Game.Persistence do
   # the pending intents (so a player's declared plan survives a restart).
   def persist(state, status) do
     world = Session.read_state(state.session)
+    persist_world(state, world, status)
+  end
 
+  # Also used before an actor tool publishes its candidate to the Session.
+  def persist_world(state, world, status) do
     Games.save_state(
       state.game_id,
       world,
@@ -26,6 +31,71 @@ defmodule Dragonex.Game.Persistence do
       status,
       state.intents
     )
+  end
+
+  # Prepared dice are private to the tool execution. Save them together with
+  # its candidate and replay receipt; never publish a partial SQL transaction.
+  # Read after evaluating the change, which can itself produce saving throws.
+  def persist_tool_change(state, world, deps) do
+    entries = RollLog.pending(deps[:roll_log])
+    actor = Map.get(deps.beat, :actor, Session.current(state.session))
+    metadata = Map.take(deps.beat, [:turn_id, :round, :phase])
+    persist_roll_change(state, world, entries, actor, metadata)
+  end
+
+  # Automatic engine rolls have no model tool execution but need the same
+  # durability boundary. Related system notes belong to that transition too.
+  def persist_narration_change(state, world, actor, payload),
+    do: persist_roll_change(state, world, [], actor, %{}, [], [{actor, payload}])
+
+  def persist_roll_change(state, world, entries, actor, metadata, notes \\ [], narrations \\ []) do
+    Repo.transaction(fn ->
+      case persist_world(state, world, state.status) do
+        {:ok, %Games.Game{}} -> :ok
+        {:ok, nil} -> Repo.rollback(:game_not_found)
+      end
+
+      for entry <- entries do
+        payload = Map.merge(entry, metadata)
+
+        case Games.append_event(state.game_id, :dice, actor, "all", payload) do
+          {:ok, _} -> :ok
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end
+
+      for note <- notes do
+        case Games.append_event(state.game_id, :system, "system", "all", note) do
+          {:ok, _} -> :ok
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end
+
+      for {speaker, payload} <- narrations do
+        case Games.append_event(state.game_id, :narration, speaker, "all", payload) do
+          {:ok, _} -> :ok
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end
+
+      entries
+    end)
+  rescue
+    error in [Ecto.ConstraintError, Postgrex.Error, DBConnection.ConnectionError] ->
+      Logger.warning("Rule commit failed for game #{state.game_id}: #{inspect(error.__struct__)}")
+      {:error, :persistence_failed}
+  end
+
+  # Call only after both SQL and the live Session have accepted the candidate.
+  def publish_tool_rolls(state, deps, entries) do
+    RollLog.acknowledge(deps[:roll_log], entries)
+    publish_rolls(state, entries)
+  end
+
+  def publish_rolls(state, entries) do
+    Enum.each(entries, &broadcast_roll_group(state.game_id, &1))
+    if entries != [], do: broadcast_updated(state)
+    :ok
   end
 
   # The Game owns a single "something changed" signal on Dragonex.PubSub. The

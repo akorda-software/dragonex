@@ -17,7 +17,7 @@ defmodule Dragonex.Flows.LiveDMTest do
   @moduletag :integration
 
   alias Dragonex.{Archetypes, Brief, DM, Monsters, TurnPolicy.WorldDriven, World}
-  alias ExAgent.{Models, Server, Session}
+  alias ExAgent.{Server, Session}
   alias ExAgent.Session.{Participant, SharedState}
 
   defp live_ready? do
@@ -25,12 +25,7 @@ defmodule Dragonex.Flows.LiveDMTest do
       System.get_env("OPENROUTER_API_KEY") not in ["", nil]
   end
 
-  defp model,
-    do:
-      Models.OpenRouter.new(
-        model: System.get_env("DRAGONEX_MODEL", "z-ai/glm-4.7-flash"),
-        app_title: "dragonex live DM"
-      )
+  defp model, do: Dragonex.Models.dm()
 
   defp build(world, changes) do
     Enum.reduce(changes, world, fn change, w ->

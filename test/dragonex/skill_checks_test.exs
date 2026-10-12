@@ -45,7 +45,7 @@ defmodule Dragonex.SkillChecksTest do
     )
   end
 
-  defp bard(opts \\ []) do
+  defp bard(opts) do
     Character.new(
       Keyword.merge(
         [

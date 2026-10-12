@@ -12,6 +12,8 @@ defmodule Dragonex.Heroes.Draft do
   Offline by design (D9): no Repo, no DB — safe for `async: true` tests.
   """
 
+  use Gettext, backend: Dragonex.Gettext
+
   alias Dragonex.{Character, Heroes}
   alias Dragonex.Heroes.{Backgrounds, Classes, Races, Translations}
 
@@ -178,15 +180,21 @@ defmodule Dragonex.Heroes.Draft do
       0 ->
         {:ok, %{spellcasting: sc}} = Classes.get(class_key)
 
-        "Límite alcanzado: #{sc.cantrips} trucos para #{Translations.class(class_key)}."
+        dgettext("ui", "Límite alcanzado: %{count} trucos para %{class}.",
+          count: sc.cantrips,
+          class: Translations.class(class_key)
+        )
 
       lvl when lvl != nil ->
         {:ok, %{spellcasting: sc}} = Classes.get(class_key)
 
-        "Límite alcanzado: #{sc.spells_level1} hechizos de nivel 1 para #{Translations.class(class_key)}."
+        dgettext("ui", "Límite alcanzado: %{count} hechizos de nivel 1 para %{class}.",
+          count: sc.spells_level1,
+          class: Translations.class(class_key)
+        )
 
       nil ->
-        "Hechizo desconocido."
+        dgettext("ui", "Hechizo desconocido.")
     end
   end
 

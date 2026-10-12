@@ -26,7 +26,7 @@ defmodule Dragonex.Game.Bootstrap do
 
     session_participants =
       Enum.map(game.participants, fn p ->
-        Participant.new(id: p.name, kind: p.kind)
+        Participant.new(id: p.name, kind: if(p.kind == :ai, do: :agent, else: :human))
       end)
 
     {:ok, session} =
@@ -59,6 +59,7 @@ defmodule Dragonex.Game.Bootstrap do
     dm_agent =
       DM.new(model,
         story_bible: game.story_bible || %{},
+        dm_style: game.dm_style,
         summarizer: summarizer,
         max_tokens: Dragonex.Models.dm_max_tokens(),
         # Request extras (reasoning effort + OpenRouter provider order). Ride
@@ -87,7 +88,7 @@ defmodule Dragonex.Game.Bootstrap do
     tm_model =
       Keyword.get(opts, :turnmaster_model) || default_turnmaster_model(model)
 
-    tm_agent = TurnMaster.new(tm_model, max_tokens: 256)
+    tm_agent = TurnMaster.new(tm_model)
 
     {:ok, turnmaster} =
       Server.start_link(
@@ -123,17 +124,31 @@ defmodule Dragonex.Game.Bootstrap do
     # that human resumes into :waiting without an extra TM hop.
     loop_phase = if is_nil(game.current_participant), do: :turnmaster, else: :actor
 
+    # Mini-turn bookkeeping is ephemeral, but its authoritative kind/owner
+    # survives in World. Reopening a paused reaction must not mark the
+    # reactor's main initiative slot or lose the interrupted owner's floor.
+    pending = Map.get(world, :pending_turn) || %{}
+
+    mini? =
+      world.phase == :combat and (world.turn_kind == "reaction" or pending["kind"] == "reaction")
+
+    Dragonex.Game.RunLifecycle.watch([self()], [session, dm, turnmaster])
+
     %Dragonex.Game{
       game_id: game_id,
       game: game,
       session: session,
       dm: dm,
       turnmaster: turnmaster,
+      combat_handoffs: Keyword.get(opts, :combat_handoffs, :initiative),
       pc_agents: pc_agents,
       model: model,
+      scene_model: Keyword.get(opts, :scene_model) || default_scene_model(model, summarizer),
       roller: roller,
       participants: participants,
       intents: game.intents || %{},
+      pending_mini: mini?,
+      interrupted: if(mini?, do: world.turn_owner),
       status: status,
       loop_phase: loop_phase
     }
@@ -164,11 +179,14 @@ defmodule Dragonex.Game.Bootstrap do
   # models (and any custom %ExAgent.Model{} used in tests) get a quiet Test TM
   # that soft-falls back to WorldDriven — otherwise a keyed .env would make
   # every suite hit the network, and FlakyModel would burn retry budget on TM.
-  defp default_turnmaster_model(%ExAgent.Models.OpenRouter{}), do: Dragonex.Models.turnmaster()
-  defp default_turnmaster_model(%ExAgent.Models.OpenCode{}), do: Dragonex.Models.turnmaster()
+  defp default_turnmaster_model(model) do
+    if Dragonex.Models.live?(model),
+      do: Dragonex.Models.turnmaster(),
+      else: %ExAgent.Models.Test{label: "(turnmaster: use WorldDriven)"}
+  end
 
-  defp default_turnmaster_model(_offline),
-    do: %ExAgent.Models.Test{label: "(turnmaster: use WorldDriven)"}
+  defp default_scene_model(model, summarizer),
+    do: if(Dragonex.Models.live?(model), do: summarizer, else: model)
 
   def start_pc_agent(game_id, model, summarizer, name, character, id_suffix) do
     agent =
@@ -186,6 +204,8 @@ defmodule Dragonex.Game.Bootstrap do
         pubsub: :local
       )
 
+    # This also covers human autoplay agents created after rehydration.
+    Dragonex.Game.RunLifecycle.watch([self()], [pid])
     {name, pid}
   end
 

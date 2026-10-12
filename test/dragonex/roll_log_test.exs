@@ -79,4 +79,65 @@ defmodule Dragonex.RollLogTest do
     assert 7 = roller.(20)
     assert nil == RollLog.close(close, total: 7)
   end
+
+  test "a damage minimum retains its actual subtotal through buffering and JSON" do
+    {:ok, rec} = RollLog.start()
+    log = RollLog.for_tool(%RollLog{base: always(1), recorder: rec}, make_ref())
+    {roller, closer} = RollLog.open(log, nil, "Arden", :damage, "daño del arma")
+    assert roller.(4) == 1
+    entry = RollLog.close(closer, total: 0, raw_total: -1)
+    assert entry.raw_total == -1
+    assert RollLog.pending(log) == [entry]
+    assert Jason.decode!(Jason.encode!(entry))["raw_total"] == -1
+    assert :ok == RollLog.acknowledge(log, [entry])
+    assert RollLog.pending(log) == []
+    RollLog.stop(rec)
+  end
+
+  test "a recorder already running before a code update can buffer a tool" do
+    {:ok, rec} = RollLog.start()
+    Agent.update(rec, &Map.delete(&1, :deferred))
+    legacy = struct(RollLog, base: always(3), recorder: rec) |> Map.delete(:execution)
+    log = RollLog.for_tool(legacy, make_ref())
+    {roller, closer} = RollLog.open(log, nil, "Mara", :spell, "magia")
+    roller.(4)
+    entry = RollLog.close(closer, total: 3)
+    assert RollLog.pending(log) == [entry]
+    assert :ok == RollLog.acknowledge(log, [entry])
+    assert RollLog.pending(log) == []
+    RollLog.stop(rec)
+  end
+
+  test "tool executions buffer independently and acknowledge only committed groups" do
+    parent = self()
+    {:ok, rec} = RollLog.start(on_close: &send(parent, {:published, &1}))
+    log = %RollLog{base: always(4), recorder: rec}
+    first = RollLog.for_tool(log, make_ref())
+    second = RollLog.for_tool(log, make_ref())
+
+    {r1, c1} = RollLog.open(first, nil, "Mara", :damage, "primer efecto")
+    {r2, c2} = RollLog.open(second, nil, "Lyra", :save, "salvación paralela")
+    {r3, c3} = RollLog.open(log, nil, "Vex", :roll, "tirada independiente")
+    r1.(4)
+    r2.(20)
+    r3.(6)
+    entry1 = RollLog.close(c1, total: 4)
+    entry2 = RollLog.close(c2, total: 4)
+    entry3 = RollLog.close(c3, total: 4)
+    assert_receive {:published, ^entry3}
+    refute_receive {:published, _}, 10
+    assert RollLog.pending(first) == [entry1]
+    assert RollLog.pending(second) == [entry2]
+
+    {r4, c4} = RollLog.open(first, nil, "Mara", :damage, "segundo efecto")
+    r4.(4)
+    entry4 = RollLog.close(c4, total: 4)
+    assert :ok == RollLog.acknowledge(first, [entry1])
+    assert RollLog.pending(first) == [entry4]
+    assert RollLog.pending(second) == [entry2]
+    assert :ok == RollLog.acknowledge(first, [entry4])
+    assert RollLog.pending(first) == []
+    assert {:ok, _} = Jason.encode(RollLog.entries(rec))
+    RollLog.stop(rec)
+  end
 end

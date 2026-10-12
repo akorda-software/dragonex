@@ -20,14 +20,14 @@ defmodule Dragonex.Rules.Upcast do
       %{per: 2, die: 8}  — +1d8 cada DOS niveles sobre la base (los niveles
                             impares no añaden nada: spiritual weapon a 4º)
       :dart              — magic missile: +1 dardo (+1d4+1) por nivel
+      :sleep             — sleep: +2d8 por nivel sobre el 1º (D96)
 
   Excluidos a propósito (ADR D74): escalados multi-objetivo ("+1 objetivo":
   hold_person, invisibility…), multi-rayo (scorching_ray) y hechizos que el
-  motor no resuelve con dados reales (heal: 70 pg planos; mass_cure_wounds:
-  SRD sin `dice`; sleep: el motor lo modela como curación automática, no como
-  pool de pg). flame_strike escala +1d6 al total aunque RAW reparte el extra
+  motor no resuelve con dados reales (mass_cure_wounds:
+  SRD sin `dice`). flame_strike escala +1d6 al total aunque RAW reparte el extra
   entre fuego y radiante — el motor modela 4d6 de fuego único (simplificación
-  documentada).
+  documentada). Heal escala curación plana por su ruta propia (D87), no aquí.
   """
 
   alias Dragonex.Dice
@@ -45,7 +45,12 @@ defmodule Dragonex.Rules.Upcast do
     "flamestrike" => %{per: 1, die: 6},
     "vampirictouch" => %{per: 1, die: 6},
     "spiritualweapon" => %{per: 2, die: 8},
+    # D99 Spirit Guardians: +1d8 por nivel de casilla sobre 3º (RAW).
+    "spiritguardians" => %{per: 1, die: 8},
     "magicmissile" => :dart,
+    # D96 Sleep: RAW añade 2d8 por nivel sobre el 1º (no 1d8 — por eso
+    # fila propia en vez del genérico %{per: 1, die: 8}).
+    "sleep" => :sleep,
     "curewounds" => %{per: 1, die: 8},
     "healingword" => %{per: 1, die: 4},
     "prayerofhealing" => %{per: 1, die: 8}
@@ -64,6 +69,10 @@ defmodule Dragonex.Rules.Upcast do
       :dart ->
         "#{above}d4+#{above}"
 
+      # D96: +2d8 por nivel sobre la base (RAW sleep).
+      :sleep ->
+        "#{2 * above}d8"
+
       %{per: per, die: die} ->
         if div(above, per) > 0, do: "#{div(above, per)}d#{die}", else: nil
 
@@ -73,6 +82,10 @@ defmodule Dragonex.Rules.Upcast do
   end
 
   def extra_dice(_spell_name, _base_level, _cast_level), do: nil
+
+  @doc "False Life (D89): one d4, +4 base and +5 temporary HP per higher slot."
+  def false_life_dice(level) when is_integer(level) and level in 1..9,
+    do: "1d4+#{4 + 5 * (level - 1)}"
 
   @doc """
   El hechizo con sus dados ya escalados a `cast_level`: combina la expresión

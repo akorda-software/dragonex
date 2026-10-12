@@ -26,8 +26,7 @@ defmodule Dragonex.GamePhase0Test do
   alias ExAgent.Models.Test
 
   setup do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(Dragonex.Repo)
-    Ecto.Adapters.SQL.Sandbox.mode(Dragonex.Repo, {:shared, self()})
+    Dragonex.Test.Sandbox.start_shared!()
     :ok
   end
 
@@ -48,7 +47,7 @@ defmodule Dragonex.GamePhase0Test do
       tool_calls([
         call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})
       ]),
-      text("The goblin lunges at Thane."),
+      narration("The goblin lunges at Thane."),
       # beat 2 — Thane (human) attacks the goblin
       tool_calls([
         call("make_attack", %{
@@ -57,12 +56,12 @@ defmodule Dragonex.GamePhase0Test do
           "weapon" => "longsword"
         })
       ]),
-      text("Thane brings his longsword down."),
+      narration("Thane brings his longsword down."),
       # beat 3 — DM (goblin) attacks Thane again
       tool_calls([
         call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})
       ]),
-      text("The goblin strikes once more.")
+      narration("The goblin strikes once more.")
     ]
   end
 
@@ -82,8 +81,8 @@ defmodule Dragonex.GamePhase0Test do
     game_id = game.id
 
     pid =
-      ExUnit.Callbacks.start_supervised!(
-        {Dragonex.Game, {game_id, [model: %Test{script: script()}, roller: hit_roller()]}}
+      Dragonex.Test.GameFixture.start!(
+        {Game, {game_id, [model: %Test{script: script()}, roller: hit_roller()]}}
       )
 
     # 1 — The DM auto-acts (goblin attacks Thane), then it's Thane's turn.
@@ -153,8 +152,8 @@ defmodule Dragonex.GamePhase0Test do
       )
 
     pid =
-      ExUnit.Callbacks.start_supervised!(
-        {Dragonex.Game, {game.id, [model: %Test{script: script()}, roller: hit_roller()]}}
+      Dragonex.Test.GameFixture.start!(
+        {Game, {game.id, [model: %Test{script: script()}, roller: hit_roller()]}}
       )
 
     assert :ok == Game.await(pid, waiting_on("Thane"))
@@ -180,8 +179,8 @@ defmodule Dragonex.GamePhase0Test do
       )
 
     pid =
-      ExUnit.Callbacks.start_supervised!(
-        {Dragonex.Game, {game.id, [model: %Test{script: script()}, roller: hit_roller()]}}
+      Dragonex.Test.GameFixture.start!(
+        {Game, {game.id, [model: %Test{script: script()}, roller: hit_roller()]}}
       )
 
     # DM (goblin) auto-acts, then Thane's turn. Thane declares while still the
@@ -221,7 +220,7 @@ defmodule Dragonex.GamePhase0Test do
       tool_calls([
         call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})
       ]),
-      text("The goblin snarls and lunges at Thane."),
+      narration("The goblin snarls and lunges at Thane."),
       # beat 2 — Thane (human) attacks the goblin
       tool_calls([
         call("make_attack", %{
@@ -230,17 +229,22 @@ defmodule Dragonex.GamePhase0Test do
           "weapon" => "longsword"
         })
       ]),
-      text("Thane brings his blade down."),
+      narration("Thane brings his blade down."),
       # beat 3 — Lyra (human) casts at the goblin (consumed from her queued intent)
       tool_calls([
         call("cast_spell", %{"caster" => "Lyra", "spell" => "firebolt", "target" => "goblin"})
       ]),
-      text("Lyra hurls a bolt of fire.")
+      narration("Lyra hurls a bolt of fire."),
+      # The surviving goblin has the next legitimate turn before Thane waits.
+      tool_calls([
+        call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})
+      ]),
+      narration("The goblin strikes again.")
     ]
 
     pid =
-      ExUnit.Callbacks.start_supervised!(
-        {Dragonex.Game, {game.id, [model: %Test{script: script}, roller: hit_roller()]}}
+      Dragonex.Test.GameFixture.start!(
+        {Game, {game.id, [model: %Test{script: script}, roller: hit_roller()]}}
       )
 
     # DM auto-acts (goblin), then it's Thane's turn.
@@ -254,15 +258,22 @@ defmodule Dragonex.GamePhase0Test do
     assert thane in [:resolving, :queued]
 
     # Thane's beat completes → the loop advances to Lyra and consumes her queued
-    # intent automatically (no second declare needed). Wait until both declared
-    # actions are recorded — proof Lyra's queued intent was valued on her turn.
+    # intent automatically (no second declare needed). Both actions must finish,
+    # including the following goblin turn, before the fixture can close.
     assert :ok ==
              Game.await(pid, fn s ->
                actors =
                  s.events |> Enum.filter(&(&1.type == :action)) |> Enum.map(& &1.actor)
 
-               actors == ["Thane", "Lyra"]
+               actors == ["Thane", "Lyra"] and s.status == :waiting and s.current == "Thane"
              end)
+
+    world = Game.world(pid)
+    assert world.characters["goblin"].hp == 2
+    assert world.characters["Thane"].hp == 6
+    assert world.spell_slots["Lyra"][1] == 2
+    assert Games.load_world(Games.get_game(game.id)) == world
+    assert Games.get_game(game.id).intents == %{}
 
     # Both humans' declared actions were recorded, in turn order.
     actions =
@@ -296,7 +307,7 @@ defmodule Dragonex.GamePhase0Test do
       tool_calls([
         call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})
       ]),
-      text("The goblin lunges."),
+      narration("The goblin lunges."),
       # beat 2 — Thane attacks the goblin
       tool_calls([
         call("make_attack", %{
@@ -305,7 +316,7 @@ defmodule Dragonex.GamePhase0Test do
           "weapon" => "longsword"
         })
       ]),
-      text("Thane swings."),
+      narration("Thane swings."),
       # beat 3 — Lyra's turn: DM mis-acts (goblin) → REFUSED → retry → corrects (Lyra)
       tool_calls([
         call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})
@@ -313,17 +324,17 @@ defmodule Dragonex.GamePhase0Test do
       tool_calls([
         call("cast_spell", %{"caster" => "Lyra", "spell" => "firebolt", "target" => "goblin"})
       ]),
-      text("Lyra hurls a bolt of fire."),
+      narration("Lyra hurls a bolt of fire."),
       # beat 4 — goblin (dm) attacks Thane again (keeps the loop from exhausting)
       tool_calls([
         call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})
       ]),
-      text("The goblin snaps back.")
+      narration("The goblin snaps back.")
     ]
 
     pid =
-      ExUnit.Callbacks.start_supervised!(
-        {Dragonex.Game, {game.id, [model: %Test{script: script}, roller: hit_roller()]}}
+      Dragonex.Test.GameFixture.start!(
+        {Game, {game.id, [model: %Test{script: script}, roller: hit_roller()]}}
       )
 
     # DM (goblin) → Thane's turn. Thane declares on his turn.
@@ -372,16 +383,16 @@ defmodule Dragonex.GamePhase0Test do
           "weapon" => "longsword"
         })
       ]),
-      text("Thane ataca."),
+      narration("Thane ataca."),
       tool_calls([
         call("make_attack", %{"attacker" => "Lyra", "target" => "goblin", "spell" => "firebolt"})
       ]),
-      text("Lyra conjura."),
+      narration("Lyra conjura."),
       tool_calls([
         call("make_attack", %{"attacker" => "goblin", "target" => "Thane", "weapon" => "scimitar"})
       ]),
       # dm acts (last) → bump round 2, wrap to Thane
-      text("El goblin ataca."),
+      narration("El goblin ataca."),
       tool_calls([
         call("make_attack", %{
           "attacker" => "Thane",
@@ -389,12 +400,12 @@ defmodule Dragonex.GamePhase0Test do
           "weapon" => "longsword"
         })
       ]),
-      text("Thane ataca de nuevo.")
+      narration("Thane ataca de nuevo.")
     ]
 
     pid =
-      ExUnit.Callbacks.start_supervised!(
-        {Dragonex.Game, {game.id, [model: %Test{script: script}, roller: hit_roller()]}}
+      Dragonex.Test.GameFixture.start!(
+        {Game, {game.id, [model: %Test{script: script}, roller: hit_roller()]}}
       )
 
     # Thane (human, top of order) is first → waiting immediately.

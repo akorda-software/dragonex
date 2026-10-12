@@ -196,7 +196,7 @@ defmodule Dragonex.BardicInspirationTest do
                Actions.attack(w, "Lira", "goblin", "rapier", seq([10, 5, 4, 99]))
 
       assert msg =~ "acierta"
-      assert msg =~ "+5 inspiración"
+      assert msg =~ "ataque: incluye 5 inspiración"
       {:ok, w2} = change.(w)
       assert w2.characters["goblin"].hp == 40 - 6
       refute w2.characters["Lira"].inspired
@@ -209,7 +209,7 @@ defmodule Dragonex.BardicInspirationTest do
       assert {:ok, msg, change} = Actions.attack(w, "Lira", "goblin", "rapier", seq([2, 3, 99]))
 
       assert msg =~ "fallo"
-      assert msg =~ "+3 inspiración"
+      assert msg =~ "ataque: incluye 3 inspiración"
       refute msg =~ "daño"
       {:ok, w2} = change.(w)
       assert w2.characters["goblin"].hp == 40
@@ -226,7 +226,7 @@ defmodule Dragonex.BardicInspirationTest do
                Actions.attack(w, "Thane", "goblin", "longsword", seq([10, 4, 4, 10, 4, 99]))
 
       assert msg =~ "2 golpes"
-      assert msg =~ "+4 inspiración"
+      assert msg =~ "ataque: incluye 4 inspiración"
       {:ok, w2} = change.(w)
       refute w2.characters["Thane"].inspired
       assert Process.get(:seq) == [99]

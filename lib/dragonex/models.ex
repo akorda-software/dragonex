@@ -41,6 +41,8 @@ defmodule Dragonex.Models do
   `cached_tokens/1`).
   """
 
+  use Gettext, backend: Dragonex.Gettext
+
   require Logger
 
   alias ExAgent.Models
@@ -66,6 +68,118 @@ defmodule Dragonex.Models do
       turnmaster: "deepseek-v4-flash"
     }
   }
+
+  @doc "Backend disponible: candidata ReqLLM local o adaptadores de Hex 1.2."
+  def backend, do: if(Code.ensure_loaded?(Models.ReqLLM), do: :req_llm, else: :legacy)
+
+  @doc "Reconoce modelos de proveedor sin depender de structs retiradas en v2."
+  def live?(%{__struct__: module}),
+    do: module in [Models.ReqLLM, Models.OpenRouter, Models.OpenCode]
+
+  def live?(_), do: false
+
+  @doc "Settings admitidos por el modelo efectivo; Test conserva los extras offline."
+  def request_settings(%{__struct__: Models.ReqLLM} = model, settings, _extra) do
+    if model.reasoning_mode == :none, do: Keyword.delete(settings, :temperature), else: settings
+  end
+
+  def request_settings(%{__struct__: Models.OpenRouter, model: id}, settings, extra)
+      when id in ["deepseek/deepseek-v4.1-flash", "xiaomi/mimo-v2.6-flash"] do
+    routing = routing_for(id) |> Jason.encode!() |> Jason.decode!()
+    extra = Map.put(extra || %{}, "provider", routing)
+
+    extra =
+      if id == "xiaomi/mimo-v2.6-flash",
+        do: Map.put(extra, "reasoning", %{"enabled" => false}),
+        else: Map.put(extra, "reasoning", %{"effort" => "none"})
+
+    Keyword.put(settings, :extra, extra)
+  end
+
+  def request_settings(_model, settings, extra) when is_map(extra) and map_size(extra) > 0,
+    do: Keyword.put(settings, :extra, extra)
+
+  def request_settings(_model, settings, _extra), do: settings
+
+  @doc "Construye un perfil Chat explícito desde metadatos públicos, sin IO."
+  def chat_model(provider, id, api_key, metadata, opts \\ []) do
+    parameters = metadata["supported_parameters"] || []
+    reasoning = metadata["reasoning"]
+
+    unless "tools" in parameters,
+      do: raise(ArgumentError, "El catálogo no confirma herramientas para #{id}.")
+
+    {reasoning_caps, mode} =
+      cond do
+        is_map(reasoning) and reasoning["mandatory"] == false and
+            "reasoning_effort" in parameters ->
+          {%{
+             enabled: true,
+             effort: %{supported: true, values: ["none"]},
+             thinking: %{disable_supported: true}
+           }, :none}
+
+        is_nil(reasoning) and
+            not Enum.any?(parameters, &(&1 in ["reasoning", "reasoning_effort"])) ->
+          {%{enabled: false}, nil}
+
+        true ->
+          raise ArgumentError,
+                "El catálogo no confirma que se pueda desactivar el razonamiento de #{id}."
+      end
+
+    apply(Models.ReqLLM, :new, [
+      [
+        model: %{
+          provider: if(provider == :openrouter, do: :openrouter, else: :openai),
+          id: id,
+          capabilities: %{tools: %{enabled: true}, reasoning: reasoning_caps},
+          extra: %{wire: %{protocol: "openai_chat"}}
+        },
+        api_key: api_key,
+        base_url: base_url(provider),
+        tool_profile:
+          if(provider == :openrouter, do: :openrouter_chat_tools_v1, else: :chat_tools_v1),
+        provider_options:
+          if(provider == :openrouter,
+            do: [
+              openrouter_provider: routing_for(id),
+              app_title: System.get_env("DRAGONEX_APP_TITLE", "dragonex")
+            ],
+            else: []
+          ),
+        reasoning_mode: mode,
+        total_timeout: Keyword.get(opts, :total_timeout, 60_000)
+      ]
+    ])
+  end
+
+  @doc """
+  Routing vinculante por modelo para las pruebas solicitadas por el usuario.
+  DeepSeek queda fijado a Decart salvo que `DRAGONEX_DEEPSEEK_PROVIDERS`
+  (CSV de slugs) indique otros: sigue siendo estricto, sin alternativas.
+  Decart entrega los argumentos de las tools de una vez; los proveedores que
+  los trocean permiten ver la narración mientras se genera (R16).
+  """
+  def routing_for("deepseek/deepseek-v4.1-flash") do
+    providers =
+      case parse_provider_order(System.get_env("DRAGONEX_DEEPSEEK_PROVIDERS")) do
+        [] -> ["decart"]
+        list -> list
+      end
+
+    %{order: providers, only: providers, allow_fallbacks: false, require_parameters: true}
+  end
+
+  def routing_for("xiaomi/mimo-v2.6-flash"),
+    do: %{order: ["io-net"], only: ["io-net"], allow_fallbacks: false, require_parameters: true}
+
+  def routing_for(_id) do
+    case openrouter_provider_extra() do
+      %{"provider" => routing} -> routing
+      _ -> %{}
+    end
+  end
 
   @doc """
   The active provider.
@@ -135,6 +249,52 @@ defmodule Dragonex.Models do
   @spec turnmaster() :: term()
   def turnmaster, do: build(:turnmaster)
 
+  @doc "Confirma todos los modelos antes de cambiar la configuración o reiniciar una mesa."
+  def prepare_selection(provider, id, reasoning) when provider in [:openrouter, :opencode] do
+    cfg = @providers[provider]
+
+    cond do
+      not is_binary(id) or String.trim(id) == "" ->
+        {:error, dgettext("ui", "Elige un modelo antes de aplicar los ajustes.")}
+
+      not configured?(provider) ->
+        {:error, dgettext("ui", "Este proveedor todavía no tiene una clave configurada.")}
+
+      backend() == :req_llm and reasoning != :none ->
+        {:error,
+         dgettext("ui", "Esta mesa necesita un modelo que permita desactivar el razonamiento.")}
+
+      true ->
+        try do
+          {:ok,
+           [
+             model: configured_model(provider, cfg, String.trim(id)),
+             summarizer:
+               configured_model(
+                 provider,
+                 cfg,
+                 System.get_env("DRAGONEX_SUMMARIZER_MODEL", cfg.summarizer)
+               ),
+             turnmaster_model:
+               configured_model(
+                 provider,
+                 cfg,
+                 System.get_env("DRAGONEX_TURNMASTER_MODEL", cfg.turnmaster)
+               )
+           ]}
+        rescue
+          ArgumentError ->
+            {:error,
+             dgettext(
+               "ui",
+               "No se pudo confirmar un perfil compatible. Elige otro modelo; tu partida conserva su IA actual."
+             )}
+        end
+    end
+  end
+
+  def prepare_selection(_, _, _), do: {:error, dgettext("ui", "Elige un proveedor disponible.")}
+
   @doc "Max output tokens per DM beat (cost cap). DeepSeek v4 flash tends to
   overwrite when given headroom — multiple markdown sections, initiative tables,
   post-action HP recaps — which blows the cap mid-tool-call. 1500 is enough for
@@ -142,6 +302,20 @@ defmodule Dragonex.Models do
   concise. Bots are capped at 2048 in PCAgent.new/3 (they handle tools + speech)."
   @spec dm_max_tokens() :: pos_integer()
   def dm_max_tokens, do: System.get_env("DRAGONEX_DM_MAX_TOKENS", "1500") |> String.to_integer()
+
+  @doc """
+  Output budget for a TurnMaster request, including provider reasoning tokens.
+  The default 1024 leaves room for the decision tool call; 256 truncated a
+  real request before any decision. DRAGONEX_TURNMASTER_MAX_TOKENS accepts a
+  positive integer. Missing, blank or invalid values keep the default.
+  """
+  @spec turnmaster_max_tokens() :: pos_integer()
+  def turnmaster_max_tokens do
+    case Integer.parse(String.trim(System.get_env("DRAGONEX_TURNMASTER_MAX_TOKENS", ""))) do
+      {tokens, ""} when tokens > 0 -> tokens
+      _ -> 1024
+    end
+  end
 
   @doc """
   Extract cached prompt tokens from a Usage map (OpenRouter/OpenAI report them
@@ -319,7 +493,7 @@ defmodule Dragonex.Models do
 
     %{
       id: id,
-      module: cfg.module,
+      module: if(backend() == :req_llm, do: Models.ReqLLM, else: cfg.module),
       api_key_env: cfg.api_key_env,
       api_key: blank_to_nil(System.get_env(cfg.api_key_env)),
       base_url: base_url(id)
@@ -377,6 +551,11 @@ defmodule Dragonex.Models do
               |> Enum.uniq_by(& &1.id)
               |> Enum.sort_by(&String.downcase(&1.id))
 
+            :persistent_term.put(
+              {__MODULE__, :catalogue, info.base_url},
+              {System.monotonic_time(:millisecond), models}
+            )
+
             {:ok, models}
 
           {:ok, %{status: s, body: body}} ->
@@ -394,7 +573,14 @@ defmodule Dragonex.Models do
   defp to_model_info(%{"id" => id} = m, :openrouter) do
     case m["reasoning"] do
       nil ->
-        %{id: id, reasoning?: false, efforts: nil, default_effort: nil, mandatory: false}
+        %{
+          id: id,
+          reasoning?: false,
+          efforts: nil,
+          default_effort: nil,
+          mandatory: false,
+          metadata: Map.take(m, ["supported_parameters", "reasoning"])
+        }
 
       r ->
         %{
@@ -402,7 +588,8 @@ defmodule Dragonex.Models do
           reasoning?: true,
           efforts: r["supported_efforts"] || nil,
           default_effort: r["default_effort"] || nil,
-          mandatory: r["mandatory"] == true
+          mandatory: r["mandatory"] == true,
+          metadata: Map.take(m, ["supported_parameters", "reasoning"])
         }
     end
   end
@@ -451,7 +638,12 @@ defmodule Dragonex.Models do
   end
 
   defp base_url(:openrouter), do: "https://openrouter.ai/api/v1"
-  defp base_url(:opencode), do: ExAgent.Models.OpenCode.base_url(opencode_plan())
+
+  defp base_url(:opencode) do
+    if opencode_plan() == :zen,
+      do: "https://opencode.ai/zen/v1",
+      else: "https://opencode.ai/zen/go/v1"
+  end
 
   defp opencode_plan do
     case System.get_env("OPENCODE_PLAN", "go") |> to_string() |> String.downcase() do
@@ -479,28 +671,50 @@ defmodule Dragonex.Models do
     end
   end
 
-  defp new_model(cfg, :dm),
-    do:
-      cfg.module.new(
-        model: model(),
-        app_title: System.get_env("DRAGONEX_APP_TITLE", "dragonex")
-      )
+  defp new_model(cfg, role) do
+    id =
+      case role do
+        :dm -> model()
+        :summarizer -> System.get_env("DRAGONEX_SUMMARIZER_MODEL", cfg.summarizer)
+        :turnmaster -> System.get_env("DRAGONEX_TURNMASTER_MODEL", cfg.turnmaster)
+      end
 
-  # The summarizer is a cheap, never-user-facing role: keep it env/default and
-  # out of the override path.
-  defp new_model(cfg, :summarizer),
-    do:
-      cfg.module.new(
-        model: System.get_env("DRAGONEX_SUMMARIZER_MODEL", cfg.summarizer),
-        app_title: System.get_env("DRAGONEX_APP_TITLE", "dragonex")
-      )
+    unless backend() == :legacy or reasoning() == :none,
+      do: raise(ArgumentError, "exAgent v2 admite esta partida con razonamiento desactivado.")
 
-  defp new_model(cfg, :turnmaster),
-    do:
-      cfg.module.new(
-        model: System.get_env("DRAGONEX_TURNMASTER_MODEL", cfg.turnmaster),
-        app_title: System.get_env("DRAGONEX_APP_TITLE", "dragonex")
-      )
+    configured_model(provider(), cfg, id)
+  end
+
+  defp configured_model(provider, cfg, id) do
+    if backend() == :legacy do
+      cfg.module.new(model: id, app_title: System.get_env("DRAGONEX_APP_TITLE", "dragonex"))
+    else
+      metadata = catalogue_metadata!(provider, id)
+      chat_model(provider, id, System.fetch_env!(cfg.api_key_env), metadata)
+    end
+  end
+
+  defp catalogue_metadata!(provider, id) do
+    result =
+      case :persistent_term.get({__MODULE__, :catalogue, base_url(provider)}, nil) do
+        {at, models} ->
+          if System.monotonic_time(:millisecond) - at < 300_000,
+            do: {:ok, models},
+            else: list_models(provider)
+
+        nil ->
+          list_models(provider)
+      end
+
+    with {:ok, models} <- result,
+         %{metadata: metadata} <- Enum.find(models, &(&1.id == id)) do
+      metadata
+    else
+      _ ->
+        raise ArgumentError,
+              "No hay un perfil confirmado para #{id} en el catálogo del proveedor."
+    end
+  end
 
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(value), do: value

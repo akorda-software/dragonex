@@ -152,7 +152,11 @@ defmodule Dragonex.UpcastTest do
 
       # Sin entrada en la tabla no escala (nivel base o ausente).
       assert Upcast.extra_dice("shield of faith", 1, 3) == nil
-      assert Upcast.extra_dice("sleep", 1, 3) == nil
+
+      # Sleep (D96): +2d8 por nivel de casilla sobre 1º.
+      assert Upcast.extra_dice("sleep", 1, 1) == nil
+      assert Upcast.extra_dice("sleep", 1, 2) == "2d8"
+      assert Upcast.extra_dice("sleep", 1, 3) == "4d8"
     end
 
     test "scaled_spell combina base + extra en UNA expresión" do
@@ -179,7 +183,7 @@ defmodule Dragonex.UpcastTest do
       assert {:ok, msg, change} =
                Actions.spell(w, "Lyra", "fireball", "goblin", always(3), nil, 4)
 
-      assert msg =~ "conjura fireball (nivel 4)"
+      assert msg =~ "conjura Bola de fuego (nivel 4)"
       refute msg =~ "(nivel 3)"
 
       {:ok, w2} = change.(w)
@@ -231,7 +235,7 @@ defmodule Dragonex.UpcastTest do
       entries = RollLog.entries(rec)
       dmg = Enum.find(entries, &(&1.kind == :damage))
 
-      assert dmg.reason == "daño de fireball (fire)"
+      assert dmg.reason == "daño de Bola de fuego (fuego)"
       assert dmg.dice == for(_ <- 1..9, do: [6, 3])
       assert dmg.total == 27
 
@@ -341,30 +345,32 @@ defmodule Dragonex.UpcastTest do
       assert w3.spell_slots["Lyra"][6] == 0
     end
 
-    test "spiritual weapon a 4º añade 1d8 (base sin dados en el motor)", %{world: w} do
-      # Ataque mágico: prof 3 + INT 3 = 6. d20=10 → 16 vs CA 12: impacta;
-      # 1d8 con roller 5 = 5.
+    test "spiritual weapon a 4º añade 1d8 sobre la base builtin (D95)", %{world: w} do
+      # Ataque mágico: prof 3 + INT 3 = 6. d20=10 → 16 vs CA 12: impacta.
+      # D95: el overlay rellena la base nil con el builtin 1d8; a 4º añade
+      # 1d8 → 2d8 con roller 5 = 10.
       assert {:ok, msg, change} =
-               Actions.spell(w, "Lyra", "spiritual weapon", "goblin", seq([10, 5]), nil, 4)
+               Actions.spell(w, "Lyra", "spiritual weapon", "goblin", seq([10, 5, 5]), nil, 4)
 
       assert msg =~ "(nivel 4)"
 
       {:ok, w2} = change.(w)
-      assert w2.characters["goblin"].hp == 40 - 5
+      assert w2.characters["goblin"].hp == 40 - 10
       assert w2.spell_slots["Lyra"][4] == 0
     end
 
-    test "sleep OMITIDO de la tabla: consume la casilla pedida sin dados extra" do
-      # El motor modela sleep como 5d8 automáticos; sin entrada en la tabla,
-      # subirlo no escala (ADR D74: escalados no modelados fuera).
+    test "sleep en la tabla (D96): +2d8 por nivel de casilla" do
+      # Nivel 3: 5d8 base + 4d8 extra = 9d8 → always(3) = pool 27 ≥ 20:
+      # el goblin duerme (sin daño, sin salvación).
       w = world([wizard(), goblin(hp: 20)])
 
-      assert {:ok, msg, change} = Actions.spell(w, "Lyra", "sleep", "goblin", always(2), nil, 3)
+      assert {:ok, msg, change} = Actions.spell(w, "Lyra", "sleep", "goblin", always(3), nil, 3)
 
       assert msg =~ "(nivel 3)"
+      assert msg =~ "27"
       {:ok, w2} = change.(w)
-      # 5d8 con roller 2 = 10 + INT 3 = 13 (los mismos dados que en base).
-      assert w2.characters["goblin"].hp == 20 + 13
+      assert w2.characters["goblin"].hp == 20
+      assert Enum.any?(w2.characters["goblin"].conditions, &(&1["condition"] == "unconscious"))
       assert w2.spell_slots["Lyra"][3] == 2
     end
 
@@ -428,7 +434,7 @@ defmodule Dragonex.UpcastTest do
       assert {:ok, msg, change} =
                Actions.spell(w, "dark", "fireball", "goblin", always(2), nil, 5)
 
-      assert msg =~ "conjura fireball (nivel 5)"
+      assert msg =~ "conjura Bola de fuego (nivel 5)"
 
       {:ok, w2} = change.(w)
       assert w2.characters["goblin"].hp == 40 - 20
@@ -460,7 +466,7 @@ defmodule Dragonex.UpcastTest do
       assert {:ok, msg, change} =
                Actions.spell(w, "Sylas", "fireball", "goblin", always(3), nil, 4)
 
-      assert msg =~ "fireball (nivel 4)"
+      assert msg =~ "Bola de fuego (nivel 4)"
       assert msg =~ "goblin"
       assert msg =~ "gob2"
       refute msg =~ "(nivel 3)"
@@ -500,7 +506,7 @@ defmodule Dragonex.UpcastTest do
 
       assert msg =~ "(nivel 4)"
       assert msg =~ "(Metamagia: Empowered)"
-      assert msg =~ "27 de daño fire"
+      assert msg =~ "27 de daño de fuego"
       assert Process.get(:seq) == []
 
       {:ok, w2} = change.(w)
@@ -543,7 +549,7 @@ defmodule Dragonex.UpcastTest do
       dm = %{deps: %{state: SharedState.new(game, "dm"), roller: always(3)}}
 
       assert {:ok, msg} = Dragonex.Tools.cast_spell(dm, "dark", "fireball", "goblin", 4)
-      assert msg =~ "conjura fireball (nivel 4)"
+      assert msg =~ "conjura Bola de fuego (nivel 4)"
       assert Session.read_state(game).spell_slots["dark"][4] == 0
 
       # El string "4" del modelo se coacciona a entero — la casilla de 4º ya

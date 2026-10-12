@@ -11,6 +11,8 @@ defmodule Dragonex.Agent do
   and the PC label narration differently).
   """
 
+  use Gettext, backend: Dragonex.Gettext
+
   @doc """
   Run a cheap `summarizer` model to recap `messages` into a short string.
 
@@ -31,9 +33,54 @@ defmodule Dragonex.Agent do
     body = Enum.map_join(messages, "\n", to_line)
     agent = ExAgent.new(model: summarizer, instructions: instructions)
 
-    case ExAgent.run(agent, "Resume estos turnos anteriores de la partida:\n\n#{body}") do
+    case ExAgent.run(
+           agent,
+           dgettext("prompts", "Resume estos turnos anteriores de la partida:") <> "\n\n" <> body
+         ) do
       {:ok, %{output: text}} when is_binary(text) -> text
       _ -> "(earlier turns recap unavailable)"
     end
+  end
+
+  @doc "Conserva N mensajes anteriores además de la petición activa en v2."
+  def compaction_window(n), do: if(Dragonex.Models.backend() == :req_llm, do: n + 1, else: n)
+
+  @doc "Historial explícito de Game en Server, incluida la versión publicada 1.2."
+  def chat(server, prompt, opts \\ []) do
+    opts =
+      case Keyword.fetch(opts, :message_history) do
+        {:ok, history} ->
+          Keyword.update(
+            opts,
+            :deps,
+            %{shared_history: history},
+            &Map.put(&1, :shared_history, history)
+          )
+
+        :error ->
+          opts
+      end
+
+    ExAgent.Server.chat(server, prompt, opts)
+  end
+
+  @doc false
+  def history_capabilities do
+    if Dragonex.Models.backend() == :legacy do
+      Code.ensure_loaded!(Dragonex.Agent.LegacyHistory)
+      [Dragonex.Agent.LegacyHistory]
+    else
+      []
+    end
+  end
+
+  @doc false
+  def capabilities(capabilities) do
+    Enum.each(capabilities, fn cap ->
+      module = if is_atom(cap), do: cap, else: cap.__struct__
+      Code.ensure_loaded!(module)
+    end)
+
+    capabilities
   end
 end

@@ -7,6 +7,7 @@ defmodule DragonexWeb.UserSessionController do
   """
 
   use DragonexWeb, :controller
+  use Gettext, backend: Dragonex.Gettext
 
   alias Dragonex.Accounts
   alias DragonexWeb.UserAuth
@@ -24,12 +25,15 @@ defmodule DragonexWeb.UserSessionController do
       {:ok, user} ->
         conn
         |> UserAuth.log_in(user)
-        |> put_flash(:info, "¡Bienvenido de nuevo, #{user.display_name}!")
+        |> put_flash(
+          :info,
+          dgettext("ui", "¡Bienvenido de nuevo, %{name}!", name: user.display_name)
+        )
         |> redirect(to: "/")
 
       {:error, :invalid} ->
         conn
-        |> put_flash(:error, "Email o contraseña incorrectos.")
+        |> put_flash(:error, dgettext("ui", "Email o contraseña incorrectos."))
         |> render(:login)
     end
   end
@@ -47,7 +51,10 @@ defmodule DragonexWeb.UserSessionController do
       {:ok, user} ->
         conn
         |> UserAuth.log_in(user)
-        |> put_flash(:info, "¡Cuenta creada! Bienvenido, #{user.display_name}.")
+        |> put_flash(
+          :info,
+          dgettext("ui", "¡Cuenta creada! Bienvenido, %{name}.", name: user.display_name)
+        )
         |> redirect(to: "/")
 
       {:error, changeset} ->
@@ -62,14 +69,9 @@ defmodule DragonexWeb.UserSessionController do
   def logout(conn, _params) do
     conn
     |> UserAuth.log_out()
-    |> put_flash(:info, "Sesión cerrada.")
+    |> put_flash(:info, dgettext("ui", "Sesión cerrada."))
     |> redirect(to: "/login")
   end
 
-  defp format_errors(changeset) do
-    changeset.errors
-    |> Enum.map(fn {_field, {msg, _}} -> msg end)
-    |> Enum.uniq()
-    |> Enum.join("; ")
-  end
+  defp format_errors(changeset), do: DragonexWeb.ErrorTranslation.flash_message(changeset)
 end

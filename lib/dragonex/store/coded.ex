@@ -9,6 +9,10 @@ defmodule Dragonex.Store.Coded do
 
       Session.start_link(store: {Dragonex.Store.Coded, ExAgent.Store.ETS}, ...)
 
+  Con v2 se añade `shared_state_codec: Dragonex.Store.WorldCodec`: la Session
+  reconstruye el World después de validar el snapshot portable completo.
+  Hex 1.2 ignora esa opción y este wrapper conserva su frontera de codec.
+
   The `config` is the ETS table name (defaults to `ExAgent.Store.ETS`).
   """
 
@@ -42,14 +46,17 @@ defmodule Dragonex.Store.Coded do
 
   @impl true
   def save_session_snapshot(table \\ @default_table, %SessionSnapshot{shared_state: ws} = snap) do
-    ETS.save_session_snapshot(table, %{snap | shared_state: Codec.encode(ws)})
+    encoded = if match?(%Dragonex.World{}, ws), do: Codec.encode(ws), else: ws
+    ETS.save_session_snapshot(table, %{snap | shared_state: encoded})
   end
 
   @impl true
   def load_session_snapshot(table \\ @default_table, session_id) do
     with {:ok, %SessionSnapshot{shared_state: raw} = snap} <-
            ETS.load_session_snapshot(table, session_id) do
-      {:ok, %{snap | shared_state: Codec.decode(raw)}}
+      if Dragonex.Models.backend() == :req_llm,
+        do: {:ok, snap},
+        else: {:ok, %{snap | shared_state: Codec.decode(raw)}}
     end
   end
 

@@ -61,8 +61,14 @@ defmodule Dragonex.Flows.CharacterSheetTest do
     schema = ExAgent.OutputSchema.json_schema(Character)
 
     # The validate_number constraints flow into the schema the model sees.
-    assert schema.properties["str"] == %{type: "integer", minimum: 1, maximum: 20}
-    assert schema.properties["level"] == %{type: "integer", minimum: 1, maximum: 20}
-    assert schema.properties["hp"] == %{type: "integer", minimum: 0}
+    for {field, bounded} <- [
+          {"str", %{type: "integer", minimum: 1, maximum: 20}},
+          {"level", %{type: "integer", minimum: 1, maximum: 20}},
+          {"hp", %{type: "integer", minimum: 0}}
+        ] do
+      if Dragonex.Models.backend() == :req_llm,
+        do: assert(schema.properties[field] == %{anyOf: [bounded, %{type: "null"}]}),
+        else: assert(schema.properties[field] == bounded)
+    end
   end
 end

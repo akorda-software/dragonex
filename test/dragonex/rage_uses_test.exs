@@ -171,7 +171,7 @@ defmodule Dragonex.RageUsesTest do
       assert {:ok, _msg, change} = Actions.short_rest(w, "Grok", fixed(5))
       {:ok, w2} = change.(w)
       assert w2.characters["Grok"].rage_uses_used == 4
-      assert w2.characters["Grok"].relentless_rage_successes == 1
+      assert w2.characters["Grok"].relentless_rage_successes == 0
     end
   end
 

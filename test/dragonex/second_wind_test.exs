@@ -95,21 +95,21 @@ defmodule Dragonex.SecondWindTest do
       assert msg =~ "no existe"
     end
 
-    test "no toca temp_hp; death saves si hp>0" do
+    test "no toca temp_hp al curar a un guerrero consciente" do
       w =
         world([
           fighter(
-            hp: 0,
+            hp: 1,
             max_hp: 22,
             temp_hp: 4,
-            death_saves: %{successes: 1, fails: 2}
+            death_saves: %{successes: 0, fails: 0}
           )
         ])
 
       {:ok, _, change} = Actions.second_wind(w, "Thane", fixed(6))
       {:ok, w2} = change.(w)
       c = w2.characters["Thane"]
-      assert c.hp == 7
+      assert c.hp == 8
       assert c.temp_hp == 4
       assert c.death_saves == %{successes: 0, fails: 0}
     end

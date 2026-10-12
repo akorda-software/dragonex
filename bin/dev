@@ -1,24 +1,25 @@
 #!/usr/bin/env sh
 # bin/dev — arranca Phoenix en dev cargando .env.dev ANTES de evaluar mix.exs.
 #
-# ¿Por qué existe esto? mix.exs decide entre deps locales (../exagent, ../dic_ex)
-# o de GitHub mirando DRAGONEX_LOCAL_DEPS. Pero mix.exs se evalúa ANTES que
-# config/runtime.exs, donde Dotenvy cargaría .env.dev. Sin este wrapper, la
-# variable no llegaría a deps/0 y tendrías que exportarla a mano cada vez.
+# mix.exs usa ../exAgent y ../dic_ex en dev/test, y Hex en prod. Este wrapper
+# carga credenciales y rutas personalizadas antes de evaluar el proyecto.
 #
 # Uso:
-#   bin/dev                       # respeta DRAGONEX_LOCAL_DEPS de .env.dev
-#   DRAGONEX_LOCAL_DEPS=1 bin/dev # fuerza deps locales aunque .env.dev diga lo contrario
-#   bin/dev iex -S mix phx.server # pasa argumentos extra a mix
+#   bin/dev                       # arranca Phoenix con los paquetes hermanos
+#   MIX_ENV=test bin/dev test     # suite offline con los paquetes hermanos
+#   MIX_ENV=test DRAGONEX_DEPS_SOURCE=hex bin/dev test # grafo publicado
 #
 # Carga .env.dev si existe (set -a exporta todas las vars definidas después).
-# Las vars que ya estén en el shell ganan (no se sobreescriben con .env.dev:
-# eso permite el override `DRAGONEX_LOCAL_DEPS=1 bin/dev`).
+# .env.dev carga la configuración local; los selectores de dependencias y
+# MIX_ENV explícitos del shell prevalecen sobre el archivo.
 
 set -eu
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_FILE="${DRAGONEX_ENV_FILE:-$ROOT/.env.dev}"
+DEPS_ROOT_OVERRIDE="${DRAGONEX_DEPS_ROOT-}"
+DEPS_SOURCE_OVERRIDE="${DRAGONEX_DEPS_SOURCE-}"
+MIX_ENV_OVERRIDE="${MIX_ENV-}"
 
 if [ -f "$ENV_FILE" ]; then
   set -a
@@ -27,9 +28,10 @@ if [ -f "$ENV_FILE" ]; then
   set +a
 fi
 
-# Re-export por si .env.dev no tenía la línea (mantén valor del shell).
-export DRAGONEX_LOCAL_DEPS="${DRAGONEX_LOCAL_DEPS:-}"
-export DRAGONEX_DEPS_ROOT="${DRAGONEX_DEPS_ROOT:-../}"
+[ -z "$DEPS_ROOT_OVERRIDE" ] || export DRAGONEX_DEPS_ROOT="$DEPS_ROOT_OVERRIDE"
+[ -z "$DEPS_SOURCE_OVERRIDE" ] || export DRAGONEX_DEPS_SOURCE="$DEPS_SOURCE_OVERRIDE"
+[ -z "$MIX_ENV_OVERRIDE" ] || export MIX_ENV="$MIX_ENV_OVERRIDE"
 
 cd "$ROOT"
-exec mix "${@:-phx.server}"
+if [ "$#" -eq 0 ]; then set -- phx.server; fi
+exec mix "$@"

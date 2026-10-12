@@ -1,0 +1,113 @@
+# Cierre de versión jugable — alcance finito
+
+Fecha: 2026-09-26. Estado: **primer corte jugable verificado**, alcance de abajo.
+
+Objetivo: completar una aventura corta, conservar sus resultados y poder
+reanudarla. Este cierre no exige implementar las 319 entradas SRD.
+
+## Cuatro bloques de salida
+
+| Bloque | Criterio de salida | Estado |
+|---|---|---|
+| V1.1 — Acceso y héroe | Registro/login; crear, guardar y volver a abrir un héroe de nivel 1; crear partida con él | Verificado |
+| V1.2 — Partida real | DM/TurnMaster con proveedor real; declaración humana, tiradas, combate y cierre sin bloquear el turno; registrar latencias observadas | Verificado en arena + microaventura |
+| V1.3 — Recursos y continuidad | Daño/curación, descanso, pausa/reanudación y recarga conservan PG, recursos y estado; sin duplicar acciones | Verificado: navegador + oráculo automatizado |
+| V1.4 — Móvil y regresión | Mesa a 390×844 y escritorio; controles alcanzables, sin desbordamiento bloqueante; suite, compile y formato verdes | Verificado; también mesa a 375×812 |
+
+## Mecánicas imprescindibles para este corte
+
+- Héroe humano guerrero de nivel 1 como recorrido mínimo de extremo a extremo.
+- Ataques, CA/PG, iniciativa, turnos y gasto de acción; segundo aliento.
+- Caída, salvaciones de muerte, estabilización y curación verificadas por motor.
+- Descansos, reserva de recursos, persistencia y recuperación de partida.
+- Magia de apoyo del motor cubierta por pruebas existentes: Bless, Shield of
+  Faith, Heal, Spare the Dying, False Life, Lesser Restoration e Imposición
+  de manos. Su cobertura automatizada no implica probar todos en UI en esta partida.
+
+No se añaden nuevos conjuros o rasgos como condición de cierre salvo que un
+fallo reproducible impida este recorrido. El catálogo ampliado, progresión alta,
+geometría táctica, multiclase y dotes siguen sus límites documentados.
+
+## Reglas de aceptación
+
+- Cada bloque necesita evidencia fechada; una suite verde no sustituye el
+  recorrido de navegador ni el proveedor real.
+- Cualquier bloqueo de creación, turno, persistencia o acceso a controles es
+  un defecto de cierre: reproducir, corregir y volver a probar su recorrido.
+- Diferenciar fallo funcional, límite deliberado y mejora estética.
+- Utilizar cuenta/partida de playtest identificables; no modificar partidas ajenas.
+- La versión se declara jugable cuando V1.1–V1.4 están verificados y no quedan
+  defectos bloqueantes abiertos. No equivale a certificar todo el SRD.
+
+## Evidencia y hallazgos
+
+- Inicio: suite anterior 1750 passed / 3 excluded; colisión intermitente de
+  email en fixture de ProtectedRoutesTest documentada en auditoría §14.
+- Entorno local: Phoenix en el puerto ya registrado 4035, arrancado con
+  `bin/dev`. Configuración local dispone de credencial OpenRouter (valor no expuesto).
+- Navegador Orca dedicado al playtest; página inicial accesible.
+
+### Recorridos reales
+
+- Cuenta de prueba `Playtest cierre v1`: registro, logout y login comprobados.
+  Héroe **Bran Cierre**, humano guerrero nivel 1, creado manualmente con los cinco
+  pasos del builder, guardado y reabierto: `/heroes/4755`, 12/12 PG, CA base 18.
+- **Arena**, `/games/12725`: selección de héroe propio, eliminación de compañeros,
+  creación y narración real con OpenRouter `deepseek/deepseek-v4-flash-0731`.
+  Petición de goblin → iniciativa → fallo de ataque → respuesta del goblin →
+  segundo ataque (21 contra CA15, 9 de daño) → enemigo a 0 y fin de combate.
+- Segundo aliento ejecutado y descanso corto de una hora. Estado leído desde
+  Postgres: 12 PG, `elapsed_seconds: 3606`, `second_wind_used: false`;
+  `hit_dice_used: 0` al descansar con PG completos. Pausa, recarga de navegador,
+  reanudación y nueva pausa conservan esos valores. La recuperación tras reinicio
+  de Game y curación desde PG dañados se comprueba además con
+  `game_engine_journey_test.exs`; en esta arena el goblin falló su ataque.
+- **Microaventura**, `/games/12731`, «El anillo del pozo»: escenario personalizado
+  con objetivo finito. Investigación `d20:3 −1 = 2` contra CD10 falla; el DM ofrece
+  una pista, segunda declaración recupera y devuelve el anillo, Ada agradece y
+  el DM confirma el encargo completado. Cierre **narrativo**, no transición automática
+  a `:ended`: la partida queda pausada por el usuario de prueba.
+- Ambas partidas quedan pausadas; no se han alterado partidas ajenas.
+
+### Defectos encontrados y corregidos
+
+1. **Ficha móvil vacía en exploración**, bloqueante: el cajón solo mostraba los
+   asientos derechos; en solo, el personaje estaba en la columna izquierda oculta.
+   Ahora contiene la ficha propia completa en móvil, conservando las columnas de
+   escritorio. Regresión reproducida en rojo en `mobile_player_sheet_test.exs`.
+2. **«Es tu turno / Actuar» durante pausa**, mensaje contradictorio: ahora solo
+   se muestra al estar `:waiting`, corresponder el turno y no procesarse un beat.
+   Durante pausa sigue permitida la declaración de intención, etiquetada «Declarar».
+   Segunda aserción reproducida en rojo en la misma prueba.
+3. El input de acción tenía nombre accesible vacío en móvil (label solo con icono).
+   Se añade `aria-label="Tu acción"`, comprobado por test y árbol de accesibilidad.
+
+### Evidencia visual y automatizada
+
+- Mesa real a 390×844 y 375×812: `scrollWidth == innerWidth`, input visible,
+  ficha propia desplegable. Ficha de héroe y entrada del builder a 390px sin
+  desbordamiento. Mesa de escritorio a 1440×900 sin desbordamiento.
+- Capturas locales en `/tmp/opencode/`: `dragonex-v1-mobile.png` (inicial),
+  `dragonex-v1-mobile-exploration-fixed.png`, `dragonex-v1-desktop-paused.png`
+  (evidencia previa del aviso contradictorio), `dragonex-v1-story-complete.png`.
+  Son artefactos temporales, no archivos versionados.
+- Suite: **1751 passed / 3 excluded**; compile con `--warnings-as-errors`,
+  formato y diff correctos. Log `/tmp/opencode/dragonex-v1-closure-suite.log`.
+- Detector visual ejecutado: avisos sobre estilos preexistentes (animación de
+  ancho, rebote, bordes). No son fallos funcionales de este corte ni se rediseña
+  la identidad pixel-art durante el cierre.
+
+### Límites y siguiente prioridad
+
+- **Latencia perceptible**: entre el evento de declaración y el comienzo del
+  siguiente turno DM: 19/42/40 segundos en arena y 30/35 segundos en microaventura.
+  Son intervalos de turnos con posibles tools/TurnMaster, no latencias puras del
+  proveedor ni percentiles; incluyen más de una llamada. Optimizar antes de
+  pretender una experiencia ágil para más usuarios.
+- El DM llamó una vez «paladín» al guerrero y creó una diana hostil por iniciativa
+  narrativa propia en arena. El descanso se resolvió y volvió a exploración;
+  estas inconsistencias narrativas se registran para una siguiente mejora.
+- No certifica campañas largas, todas las clases/niveles, multijugador real,
+  red móvil física, monedas/recompensas mecánicas ni todo el catálogo SRD.
+- La colisión intermitente de email en fixture de autenticación sigue siendo
+  deuda de aislamiento; no apareció en esta suite final.

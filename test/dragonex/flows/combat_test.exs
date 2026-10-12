@@ -109,7 +109,7 @@ defmodule Dragonex.Flows.CombatTest do
       ExAgent.new(
         model: %ExAgent.Models.Test{script: script},
         instructions: instructions,
-        tools: Dragonex.Tools.tools()
+        tools: Dragonex.Tools.agent_tools()
       )
 
     ExUnit.Callbacks.start_supervised!({S, agent: agent, agent_id: id})

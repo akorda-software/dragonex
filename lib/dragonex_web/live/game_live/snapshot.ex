@@ -4,13 +4,17 @@ defmodule DragonexWeb.GameLive.Snapshot do
 
   Extracted from `DragonexWeb.GameLive.Show`: owns the default assign set
   (`base_assigns/2`) and the viewer-resolution rules (auto-assign the user's
-  own participant, `?as=` override).
+  own participant, with a creator-only `?as=dm` inspection view).
   """
 
   use Phoenix.Component
 
   alias Dragonex.{Game, Games}
-  alias DragonexWeb.GameLive.Chat
+  alias DragonexWeb.GameLive.{Chat, Dice}
+
+  @log_page_size 100
+  @max_log_events 2_000
+  @max_chat_blocks 400
 
   def base_assigns(socket, game_id) do
     assign(socket,
@@ -25,14 +29,19 @@ defmodule DragonexWeb.GameLive.Snapshot do
       participants: %{},
       my_turn: false,
       chat: [],
+      log_limit: 200,
+      history_limited: false,
       busy: false,
       busy_actor: nil,
+      busy_stage: nil,
       live_text: "",
       live_turn_id: nil,
       live_actor: nil,
       live_last_narration_seq: 0,
       has_more_events: false,
       pending: "",
+      input_error: nil,
+      sheet_open: false,
       dice_hand: [],
       dice_groups: [],
       dice_show: false,
@@ -40,6 +49,7 @@ defmodule DragonexWeb.GameLive.Snapshot do
       dice_token: 0,
       dice_flush_ref: nil,
       dice_hide_ref: nil,
+      dice_hide_token: nil,
       dice_engine: nil,
       show_waiting_room: false,
       waiting_heroes: [],
@@ -80,7 +90,7 @@ defmodule DragonexWeb.GameLive.Snapshot do
         # exit and skip this update: the next broadcast will retry.
         snap =
           try do
-            Game.snapshot(pid)
+            Game.snapshot(pid, socket.assigns[:log_limit] || 200)
           catch
             :exit, _ ->
               nil
@@ -93,15 +103,22 @@ defmodule DragonexWeb.GameLive.Snapshot do
           game = Games.get_game(game_id)
           is_creator = user && game && game.user_id == user.id
 
+          # A URL selects a view, never another player's identity. Every input
+          # event uses this assign, so accepting a roster name here would also
+          # allow declaring or toggling auto-play on someone else's character.
           viewer =
-            cond do
-              viewer_param == "dm" and is_creator -> "dm"
-              is_binary(viewer_param) -> validate_viewer(viewer_param, snap.participants)
-              user != nil -> auto_viewer(snap.participants, user.id)
-              true -> nil
+            if viewer_param == "dm" and is_creator do
+              "dm"
+            else
+              if user, do: auto_viewer(snap.participants, user.id)
             end
 
           busy = Chat.busy_actor(snap)
+          blocks = Chat.blocks(snap.events, viewer)
+
+          can_page? =
+            (socket.assigns[:log_limit] || 200) < @max_log_events and
+              length(blocks) < @max_chat_blocks
 
           # Streaming bubble state. We track the seq of the actor's latest
           # persisted narration: when a NEW narration lands while the same beat
@@ -138,14 +155,17 @@ defmodule DragonexWeb.GameLive.Snapshot do
                 text -> text
               end,
             my_turn: viewer != nil and snap.current == viewer,
-            chat: Chat.blocks(snap.events, viewer),
+            chat: Enum.take(blocks, -@max_chat_blocks),
             busy: snap.status == :running,
             busy_actor: busy,
+            busy_stage: Map.get(snap, :busy_stage),
             live_text: live.text,
             live_turn_id: live.turn_id,
             live_actor: live.actor,
             live_last_narration_seq: live.last_seq,
-            has_more_events: Map.get(snap, :has_more_events, false),
+            has_more_events: snap.has_more_events and can_page?,
+            history_limited:
+              length(blocks) > @max_chat_blocks or (snap.has_more_events and not can_page?),
             pending: socket.assigns[:pending] || "",
             dice_hand: socket.assigns[:dice_hand] || [],
             dice_groups: socket.assigns[:dice_groups] || [],
@@ -154,10 +174,22 @@ defmodule DragonexWeb.GameLive.Snapshot do
             dice_token: socket.assigns[:dice_token] || 0,
             dice_flush_ref: socket.assigns[:dice_flush_ref] || nil,
             dice_hide_ref: socket.assigns[:dice_hide_ref] || nil,
-            dice_engine: socket.assigns[:dice_engine] || (game && game.dice_engine) || "2d",
+            dice_hide_token: socket.assigns[:dice_hide_token] || nil,
+            dice_engine:
+              Dice.effective_engine(socket.assigns[:dice_engine] || (game && game.dice_engine)),
             auto_play: viewer != nil and MapSet.member?(snap[:auto] || MapSet.new(), viewer)
           )
         end
+    end
+  end
+
+  def load_more(socket) do
+    if socket.assigns.has_more_events do
+      socket
+      |> assign(log_limit: min(socket.assigns.log_limit + @log_page_size, @max_log_events))
+      |> load(socket.assigns.game_id, socket.assigns.viewer)
+    else
+      socket
     end
   end
 
@@ -169,16 +201,6 @@ defmodule DragonexWeb.GameLive.Snapshot do
     |> case do
       %{name: name} -> name
       nil -> nil
-    end
-  end
-
-  # A valid viewer is the DM or a human participant that exists.
-  defp validate_viewer("dm", _), do: "dm"
-
-  defp validate_viewer(name, participants) when is_binary(name) do
-    case Map.get(participants, name) do
-      %{kind: :human} -> name
-      _ -> nil
     end
   end
 end

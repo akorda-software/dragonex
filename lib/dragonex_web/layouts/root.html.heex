@@ -1,17 +1,21 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang={Atom.to_string(Dragonex.I18n.locale())}>
   <head>
     <meta charset="utf-8" />
     <meta name="csrf-token" content={Plug.CSRFProtection.get_csrf_token()} />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Dragonex</title>
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/assets/fonts/departure-mono.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/assets/fonts/jacquarda-bastarda-9.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/assets/dic_ex.css" />
+    <link rel="stylesheet" href="/assets/dragonex.css" />
     <link rel="stylesheet" href="/assets/game.css" />
     <link rel="stylesheet" href="/assets/wizard.css" />
     <script defer src="/assets/dic_ex.min.js"></script>
     <script type="module">
-      import { Socket } from "https://esm.sh/phoenix@1.7.18";
-      import { LiveSocket } from "https://esm.sh/phoenix_live_view@1.2.3";
+      import { Socket } from "/assets/phoenix.mjs";
+      import { LiveSocket } from "/assets/phoenix_live_view.esm.js";
 
       const csrfToken = document
         .querySelector("meta[name='csrf-token']")
@@ -26,12 +30,119 @@
       const hooks = {
         ...(window.DicExHooks || {}),
         AutoScroll: {
-          mounted() { this.el.scrollTop = this.el.scrollHeight; },
+          mounted() {
+            this.following = true;
+            this.jump = this.el.parentElement.querySelector("#jump-latest");
+            this.track = () => {
+              this.following = this.el.scrollHeight - this.el.scrollTop - this.el.clientHeight < 80;
+              if (this.jump) this.jump.hidden = this.following;
+            };
+            this.latest = () => {
+              this.following = true;
+              this.el.scrollTop = this.el.scrollHeight;
+              this.track();
+            };
+            this.el.addEventListener("scroll", this.track, { passive: true });
+            this.jump?.addEventListener("click", this.latest);
+            this.resize = new ResizeObserver(() => {
+              if (this.following) this.latest();
+            });
+            this.resize.observe(this.el);
+            this.latest();
+            // Font metrics and responsive layout can create overflow after
+            // mount. Keep following only while the reader stays at the end.
+            document.fonts.ready.then(() => {
+              if (this.el.isConnected && this.following) this.latest();
+            });
+          },
+          beforeUpdate() {
+            this.wasFollowing = this.following;
+            const top = this.el.getBoundingClientRect().top;
+            const anchor = Array.from(this.el.querySelectorAll("[data-log-entry]"))
+              .find(el => el.getBoundingClientRect().bottom >= top);
+            this.anchor = anchor && { id: anchor.id, offset: anchor.getBoundingClientRect().top - top };
+          },
           updated() {
-            const el = this.el;
-            if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) {
-              el.scrollTop = this.el.scrollHeight;
+            if (this.wasFollowing) {
+              this.latest();
+            } else if (this.anchor) {
+              const anchor = this.el.querySelector(`#${CSS.escape(this.anchor.id)}`);
+              if (anchor) {
+                this.el.scrollTop += anchor.getBoundingClientRect().top
+                  - this.el.getBoundingClientRect().top - this.anchor.offset;
+              }
+              this.track();
             }
+          },
+          destroyed() {
+            this.resize.disconnect();
+            this.el.removeEventListener("scroll", this.track);
+            this.jump?.removeEventListener("click", this.latest);
+          }
+        },
+        TurnControls: {
+          mounted() {
+            this.revealFocused = event => {
+              const button = event.target.closest(".ctl-btn");
+              if (!button || !this.el.contains(button)) return;
+              const strip = this.el.getBoundingClientRect();
+              const bounds = button.getBoundingClientRect();
+              const inset = 7; // Keep the pixel focus outline inside the strip.
+              const left = strip.left + inset;
+              const right = strip.left + this.el.clientWidth - inset;
+              if (bounds.left < left) this.el.scrollLeft += bounds.left - left;
+              else if (bounds.right > right) this.el.scrollLeft += bounds.right - right;
+            };
+            this.el.addEventListener("focusin", this.revealFocused);
+          },
+          destroyed() {
+            this.el.removeEventListener("focusin", this.revealFocused);
+          }
+        },
+        PlayerSheets: {
+          mounted() {
+            this.open = this.el.classList.contains("is-open");
+          },
+          updated() {
+            const open = this.el.classList.contains("is-open");
+            // Opening Ficha starts at the owner's details. Updates while
+            // reading a sheet keep its scroll position and disclosure state.
+            if (open && !this.open) this.el.scrollTop = 0;
+            this.open = open;
+          }
+        },
+        PlayerDraft: {
+          mounted() {
+            this.input = this.el.querySelector("input[name=text]");
+            this.key = this.el.dataset.draftKey;
+            this.read = () => {
+              try { return sessionStorage.getItem(this.key) || ""; }
+              catch (_) { return ""; }
+            };
+            this.save = () => {
+              try {
+                if (this.input.value) sessionStorage.setItem(this.key, this.input.value);
+                else sessionStorage.removeItem(this.key);
+              } catch (_) {}
+            };
+            this.el.addEventListener("input", this.save);
+            this.el.addEventListener("submit", this.save);
+            this.handleEvent("action_accepted", ({ text }) => {
+              // An acknowledgement must not erase a newer draft written
+              // while the previous submission was in flight.
+              if (this.read() === text) {
+                try { sessionStorage.removeItem(this.key); } catch (_) {}
+              }
+            });
+            const saved = this.read();
+            if (saved && !this.input.value && !this.input.disabled) {
+              this.input.value = saved;
+              this.pushEvent("draft", { text: saved });
+            }
+          },
+          destroyed() {
+            this.el.removeEventListener("input", this.save);
+            this.el.removeEventListener("submit", this.save);
           }
         }
       };
@@ -44,81 +155,48 @@
       liveSocket.connect();
 
       // Copy share URL to clipboard when the game fires "copy_url".
+      // A non-blocking pixel toast instead of alert(): it must not freeze the
+      // table while the game keeps streaming.
       window.addEventListener("phx:copy_url", (e) => {
-        navigator.clipboard.writeText(window.location.origin + e.detail.url);
-        alert("¡Link copiado al portapapeles!");
+        const url = window.location.origin + e.detail.url;
+        const say = (msg) => {
+          const t = document.createElement("div");
+          t.className = "copy-toast";
+          t.setAttribute("role", "status");
+          t.textContent = msg;
+          document.body.appendChild(t);
+          setTimeout(() => t.remove(), 2400);
+        };
+        (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject())
+          .then(() => say(<%= Phoenix.HTML.raw(Jason.encode!(dgettext("ui", "Enlace copiado — pásaselo a tu grupo"))) %>))
+          .catch(() => say(url));
       });
     </script>
-    <style>
-      :root { color-scheme: light dark; }
-      html { height: 100%; overflow: hidden; }
-      body {
-        margin: 0;
-        font-family: Georgia, 'Times New Roman', serif;
-        background: #151311;
-        color: #e8e8e8;
-        background-image:
-          radial-gradient(circle at 20% 80%, rgba(60,40,20,0.4) 0%, transparent 50%),
-          radial-gradient(circle at 80% 20%, rgba(40,30,60,0.3) 0%, transparent 50%);
-        height: 100dvh;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-      }
-      /* LiveView wraps the app layout in a data-phx-main div. That wrapper is the
-         body flex item below the site nav, so it must also receive the remaining
-         viewport height or the game collapses to its content height. */
-      nav.topbar { flex: 0 0 auto; }
-      body > [data-phx-main],
-      body > [data-phx-view],
-      body > div[id^="phx-"] { flex: 1 1 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
-      main.game-layout { flex: 1 1 0; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
-      main.game-layout:has(.game) { overflow: hidden; }
-      h1, h2, h3 { margin: 0 0 .4em; font-family: Georgia, serif; }
-      pre { white-space: pre-wrap; }
-      .muted { color: #888; }
-      a { color: #7ab; }
-      nav.topbar {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        padding: .5rem 1.5rem;
-        background: rgba(20,18,16,0.9);
-        border-bottom: 1px solid #2a2622;
-      }
-      nav.topbar .brand {
-        font-weight: bold;
-        color: #fc8;
-        font-size: 1.1rem;
-        text-decoration: none;
-        letter-spacing: .03em;
-      }
-      nav.topbar .nav-links { display: flex; gap: .8rem; margin-left: auto; align-items: center; }
-      nav.topbar a { color: #7ab; text-decoration: none; font-size: .85rem; }
-      nav.topbar a:hover { color: #9cd; }
-      nav.topbar .user-tag { color: #889; font-size: .8rem; }
-      nav.topbar form { display: inline; }
-      nav.topbar button { background: none; border: none; color: #744; font-size: .8rem; cursor: pointer; font-family: inherit; }
-      nav.topbar button:hover { color: #f99; }
-    </style>
   </head>
   <body>
     <nav class="topbar">
-      <.link href="/" class="brand">⚔ Dragonex</.link>
-      <div class="nav-links">
-        <.link navigate="/">Partidas</.link>
-        <.link navigate="/heroes">Héroes</.link>
+      <.link href="/" class="brand"><i class="px px-torch" aria-hidden="true"></i><img src="/assets/wordmark.svg" alt="Dragonex" class="brand-mark" width="122" height="30" /></.link>
+      <div class={"nav-links#{if @current_user, do: "", else: " is-guest"}"}>
+        <.link navigate="/">{dgettext("ui", "Partidas")}</.link>
+        <.link navigate="/heroes">{dgettext("ui", "Héroes")}</.link>
         <%= if @current_user do %>
-          <span class="user-tag">{@current_user.display_name}</span>
-          <form action="/logout" method="post">
+          <span class="user-tag"><i class="px px-shield" aria-hidden="true"></i>{@current_user.display_name}</span>
+          <form id="logout-form" action="/logout" method="post">
             <input type="hidden" name="_method" value="delete" />
             <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
-            <button type="submit">salir</button>
+            <button type="submit">{dgettext("ui", "salir")}</button>
           </form>
         <% else %>
-          <.link navigate="/login">Entrar</.link>
-          <.link navigate="/register">Registro</.link>
+          <.link navigate="/login">{dgettext("ui", "Entrar")}</.link>
+          <.link navigate="/register">{dgettext("ui", "Registro")}</.link>
         <% end %>
+      </div>
+      <% current_locale = Dragonex.I18n.locale() %>
+      <div class="lang-switch" role="group" aria-label={dgettext("ui", "Idioma")}>
+        <a :for={{code, label, name} <- [{:es, "ES", "Español"}, {:en, "EN", "English"}]}
+           href={"/locale/#{code}"} hreflang={code} lang={code} title={name}
+           class={if current_locale == code, do: "is-current"}
+           aria-current={if current_locale == code, do: "true"}>{label}</a>
       </div>
     </nav>
     <%= @inner_content %>

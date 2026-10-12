@@ -14,21 +14,83 @@ defmodule Dragonex.Actions do
   No exAgent here: deterministic and unit-testable with a fixed roller.
   """
 
+  use Gettext, backend: Dragonex.Gettext
+
   alias Dragonex.{
     Character,
     Dice,
     RollLog,
     Rules.Ability,
+    Rules.Cantrips,
     Rules.Combat,
+    Rules.Effects,
     Rules.Conditions,
+    Rules.Guided,
     Rules.Skills,
     Rules.Upcast,
+    Spell,
     SpellSlots,
+    Terms,
     Weapon,
+    WildShape,
     World
   }
 
   alias Dragonex.Heroes.{Progression, Spells, Translations}
+
+  @resource_fields ~w(ki sorcery_points action_surge_used second_wind_used
+    channel_divinity_used lay_on_hands_pool divine_sense_uses bardic_inspiration_uses
+    wild_shape_uses breath_weapon_used rage_uses_used arcane_recovery_used
+    metamagic inspired smite_slot conditions concentrating)a
+
+  # Validate before rolling, and again against the world receiving the change.
+  # Preparation and application are separate calls; neither may trust the
+  # caller to keep an actor conscious/capable between those calls.
+  defp with_actor(world, who, resolve, cost \\ :free) do
+    with :ok <- World.validate_actor(world, who),
+         :ok <- Dragonex.TurnBudget.check(world, who, cost),
+         {:ok, message, change} <- resolve.() do
+      {:ok, message,
+       fn current ->
+         with :ok <- World.validate_actor(current, who),
+              :ok <- unchanged_turn(world, current),
+              :ok <- unchanged_resources(world, current, who),
+              {:ok, current} <- Dragonex.TurnBudget.spend(current, who, cost),
+              do: change.(current)
+       end}
+    end
+  end
+
+  defp unchanged_resources(before, current, who) do
+    if Map.take(World.present_character(before, who), @resource_fields) ==
+         Map.take(World.present_character(current, who), @resource_fields) and
+         before.spell_slots[who] == current.spell_slots[who] and
+         before.turn_state[who] == current.turn_state[who],
+       do: :ok,
+       else:
+         {:error,
+          dgettext("engine", "los recursos de %{actor} han cambiado; vuelve a resolver la acción",
+            actor: who
+          )}
+  end
+
+  defp unchanged_turn(before, current) do
+    keys = [
+      :phase,
+      :round,
+      :current_combatant,
+      :turn_kind,
+      :turn_owner,
+      :elapsed_seconds,
+      :absent_characters
+    ]
+
+    if Map.take(before, keys) == Map.take(current, keys),
+      do: :ok,
+      else:
+        {:error,
+         dgettext("engine", "ha cambiado el turno o el tiempo; vuelve a resolver la acción")}
+  end
 
   @type roller :: (pos_integer() -> pos_integer())
   @type result ::
@@ -45,12 +107,42 @@ defmodule Dragonex.Actions do
         ) ::
           {:ok, String.t()}
   def roll(count, sides, mode \\ :normal, roller, roll_log \\ nil) do
-    {r, close} = RollLog.open(roll_log, roller, nil, :roll, "tirada de #{count}d#{sides}")
+    # Entradas inválidas (auditoría 7): caras <= 0 crasheaban en Dice.roll
+    # (FunctionClauseError), counts gigantes colgaban la tirada, y un 0
+    # devolvía "0d6 = 0" basura. Rango sano y mensaje accionable.
+    if not is_integer(count) or not is_integer(sides) or count < 1 or count > 100 or
+         sides < 2 or sides > 1000 do
+      {:error,
+       dgettext(
+         "engine",
+         "tirada inválida: %{count} dados de %{sides} caras — usa enteros (1..100 dados, 2..1000 caras)",
+         count: inspect(count),
+         sides: inspect(sides)
+       )}
+    else
+      do_roll(count, sides, mode, roller, roll_log)
+    end
+  end
+
+  defp do_roll(count, sides, mode, roller, roll_log) do
+    {r, close} =
+      RollLog.open(
+        roll_log,
+        roller,
+        nil,
+        :roll,
+        dgettext("engine", "tirada de %{count}d%{sides}", count: count, sides: sides)
+      )
 
     result =
       case mode do
         :normal ->
-          {:ok, "tirada #{count}d#{sides} = #{sum(count, sides, r)}"}
+          {:ok,
+           dgettext("engine", "tirada %{count}d%{sides} = %{total}",
+             count: count,
+             sides: sides,
+             total: sum(count, sides, r)
+           )}
 
         mode when mode in [:advantage, :disadvantage] ->
           kept =
@@ -59,7 +151,13 @@ defmodule Dragonex.Actions do
               k
             end
 
-          {:ok, "tirada #{count}d#{sides} (#{mode}) = #{Enum.sum(kept)}"}
+          {:ok,
+           dgettext("engine", "tirada %{count}d%{sides} (%{mode}) = %{total}",
+             count: count,
+             sides: sides,
+             mode: mode,
+             total: Enum.sum(kept)
+           )}
       end
 
     RollLog.close(close, total: nil, against: nil, outcome: nil)
@@ -101,25 +199,41 @@ defmodule Dragonex.Actions do
           RollLog.t() | nil
         ) :: result()
   def attack(world, attacker, target, weapon_name, roller, mode \\ :normal, roll_log \\ nil) do
-    cond do
-      is_nil(World.character(world, attacker)) ->
-        {:error, "no existe el atacante: #{attacker}"}
+    with_actor(
+      world,
+      attacker,
+      fn ->
+        do_attack(world, attacker, target, weapon_name, roller, mode, roll_log)
+      end,
+      :attack
+    )
+  end
 
-      is_nil(World.character(world, target)) ->
-        {:error, "no existe el objetivo: #{target}"}
+  defp do_attack(world, attacker, target, weapon_name, roller, mode, roll_log) do
+    cond do
+      is_nil(World.present_character(world, attacker)) ->
+        {:error, dgettext("engine", "no existe el atacante: %{attacker}", attacker: attacker)}
+
+      is_nil(World.present_character(world, target)) ->
+        {:error, dgettext("engine", "no existe el objetivo: %{target}", target: target)}
 
       # A downed actor (hp <= 0) cannot take actions — the engine enforces RAW
       # rather than trusting the model not to attack from 0 pg.
-      World.character(world, attacker).hp <= 0 ->
-        {:error, "#{attacker} está caído (0 pg) y no puede atacar"}
+      World.present_character(world, attacker).hp <= 0 ->
+        {:error,
+         dgettext("engine", "%{attacker} está caído (0 pg) y no puede atacar", attacker: attacker)}
 
       true ->
-        a = World.character(world, attacker)
-        t = World.character(world, target)
+        a = World.present_character(world, attacker)
+        t = World.present_character(world, target)
 
         case find_weapon(a, weapon_name) do
           nil ->
-            {:error, "#{attacker} no tiene el arma #{weapon_name}"}
+            {:error,
+             dgettext("engine", "%{attacker} no tiene el arma %{weapon}",
+               attacker: attacker,
+               weapon: weapon_name
+             )}
 
           weapon ->
             effective_mode =
@@ -129,6 +243,12 @@ defmodule Dragonex.Actions do
                 attack_ability: weapon.attack_ability,
                 finesse: weapon.finesse == true
               )
+
+            # D95 Guiding Bolt: la marca del objetivo ventajea SOLO el primer
+            # swing del ataque (RAW: la primera tirada posterior) y se
+            # consume con él acierte o falle.
+            guided? = Guided.active?(world, t)
+            first_mode = if(guided?, do: Guided.combine(effective_mode, true), else: nil)
 
             n = Progression.attack_count(a.class, a.level)
             sneak = sneak_opts(world, a, attacker, target, weapon, effective_mode)
@@ -149,11 +269,13 @@ defmodule Dragonex.Actions do
                 roller,
                 roll_log,
                 effective_mode,
+                first_mode,
                 n,
                 sneak,
                 smite,
                 inspired?,
-                mark?
+                mark?,
+                aura
               )
 
             ac = target_ac(t)
@@ -162,15 +284,39 @@ defmodule Dragonex.Actions do
               pipe_attack_damage(target, swings, roller, roll_log, t, weapon.damage_type, aura)
 
             change = compose_smite_spend(attacker, a.smite_slot, swings, change)
+            change = compose_sneak_spend(attacker, swings, change)
             change = compose_inspired_clear(attacker, inspired?, change)
             # D57: attacking (hit or miss, every swing) reveals a hidden attacker.
             change = compose_hidden_clear(attacker, hidden?, change)
+            # D95: la tirada (el primer swing) consumió la marca guiada.
+            change = consume_guided_change(target, guided?, change)
+            prior = change
+
+            change = fn w ->
+              with {:ok, next} <- prior.(w) do
+                {:ok,
+                 if(a.side != t.side,
+                   do: Dragonex.TurnBudget.mark(next, attacker, "rage_attack"),
+                   else: next
+                 )}
+              end
+            end
 
             {:ok,
              append_notes(
-               format_attack_message(attacker, target, weapon, ac, effective_mode, swings),
+               # D95: el modo mostrado refleja el primer swing (el guiado
+               # ventajea la tirada que consume la marca).
+               format_attack_message(
+                 attacker,
+                 target,
+                 weapon,
+                 ac,
+                 first_mode || effective_mode,
+                 swings
+               ),
                notes
              ), change}
+            |> guard_target_defense(world, target, :attack)
         end
     end
   end
@@ -189,6 +335,10 @@ defmodule Dragonex.Actions do
   slot is still the requested one). Save DC and concentration are unchanged
   (RAW). Errors mutate nothing: `cast_level` below the base level, above 9,
   non-integer, upcast cantrip, or no slot left of the REQUESTED level.
+
+  Lesser Restoration (D90) accepts `condition_to_remove` as the final optional
+  argument. Omit it only when each target has exactly one eligible condition.
+  Other spells reject this selector. No dice, healing or upcast scaling.
   """
   @spec spell(
           World.t(),
@@ -197,7 +347,9 @@ defmodule Dragonex.Actions do
           String.t(),
           roller(),
           RollLog.t() | nil,
-          non_neg_integer() | nil
+          non_neg_integer() | nil,
+          [String.t()] | nil,
+          String.t() | nil
         ) :: result()
   def spell(
         world,
@@ -206,50 +358,269 @@ defmodule Dragonex.Actions do
         target_name,
         roller,
         roll_log \\ nil,
-        cast_level \\ nil
+        cast_level \\ nil,
+        additional_targets \\ nil,
+        condition_to_remove \\ nil
       ) do
-    cond do
-      is_nil(World.character(world, caster_name)) ->
-        {:error, "no existe el conjurador: #{caster_name}"}
+    with_actor(
+      world,
+      caster_name,
+      fn ->
+        do_spell(
+          world,
+          caster_name,
+          spell_name,
+          target_name,
+          roller,
+          roll_log,
+          cast_level,
+          additional_targets,
+          condition_to_remove
+        )
+      end,
+      Dragonex.TurnBudget.spell_cost(
+        case World.present_character(world, caster_name) do
+          nil -> nil
+          c -> find_spell(c, spell_name)
+        end
+      )
+    )
+  end
 
-      is_nil(World.character(world, target_name)) ->
-        {:error, "no existe el objetivo: #{target_name}"}
+  defp do_spell(
+         world,
+         caster_name,
+         spell_name,
+         target_name,
+         roller,
+         roll_log,
+         cast_level,
+         additional_targets,
+         condition_to_remove
+       ) do
+    cond do
+      is_nil(World.present_character(world, caster_name)) ->
+        {:error, dgettext("engine", "no existe el conjurador: %{caster}", caster: caster_name)}
+
+      is_nil(World.present_character(world, target_name)) ->
+        {:error, dgettext("engine", "no existe el objetivo: %{target}", target: target_name)}
 
       # A downed caster cannot cast — the engine enforces RAW.
-      World.character(world, caster_name).hp <= 0 ->
-        {:error, "#{caster_name} está caído (0 pg) y no puede conjurar"}
+      World.present_character(world, caster_name).hp <= 0 ->
+        {:error,
+         dgettext("engine", "%{caster} está caído (0 pg) y no puede conjurar",
+           caster: caster_name
+         )}
 
-      World.character(world, caster_name).raging == true ->
-        {:error, "#{caster_name} está en furia y no puede conjurar"}
+      World.present_character(world, caster_name).raging == true ->
+        {:error,
+         dgettext("engine", "%{caster} está en furia y no puede conjurar", caster: caster_name)}
 
-      World.character(world, caster_name).wild_shape != nil ->
-        {:error, "#{caster_name} no puede conjurar en forma de bestia"}
+      World.present_character(world, caster_name).wild_shape != nil ->
+        {:error,
+         dgettext("engine", "%{caster} no puede conjurar en forma de bestia", caster: caster_name)}
 
       true ->
-        c = World.character(world, caster_name)
-        t = World.character(world, target_name)
+        c = World.present_character(world, caster_name)
+        t = World.present_character(world, target_name)
 
         case find_spell(c, spell_name) do
           nil ->
-            {:error, "#{caster_name} no conoce #{spell_name}"}
+            {:error,
+             dgettext("engine", "%{caster} no conoce %{spell}",
+               caster: caster_name,
+               spell: spell_name
+             )}
 
           spell ->
-            with {:ok, cast_level} <- validate_cast_level(spell, cast_level) do
+            with {:ok, cast_level} <- validate_cast_level(spell, cast_level),
+                 :ok <-
+                   validate_spell_targets(
+                     world,
+                     spell,
+                     target_name,
+                     additional_targets,
+                     cast_level
+                   ),
+                 :ok <- validate_healing_target(spell, t),
+                 :ok <- validate_self_spell_target(spell, caster_name, target_name),
+                 :ok <- validate_condition_selection(spell, condition_to_remove) do
               # Check a slot of the REQUESTED level for leveled spells
               # (cantrips are free; D74 upcasting spends the asked slot).
               if spell.level > 0 and not World.has_slot?(world, caster_name, cast_level) do
                 {:error,
-                 "a #{caster_name} no le quedan casillas de hechizo de nivel #{cast_level} " <>
-                   "(debe descansar para recuperarlas). Los trucos siempre están disponibles."}
+                 dgettext(
+                   "engine",
+                   "a %{caster} no le quedan casillas de hechizo de nivel %{level} (debe descansar para recuperarlas). Los trucos siempre están disponibles.",
+                   caster: caster_name,
+                   level: cast_level
+                 )}
               else
                 # D74: one combined dice expression (base + extra) rides the
                 # normal resolution paths — same roll log, same halving on a
                 # save, crit doubles the extra dice too.
-                scaled = Upcast.scaled_spell(spell, cast_level)
+                # D95: the sheet's nil fields are filled from the catalogue
+                # (builtin wins — stale pre-builtin sheets), and cantrips
+                # scale with the CASTER's level, never with cast_level.
+                scaled =
+                  spell
+                  |> overlay_catalog()
+                  |> Upcast.scaled_spell(cast_level)
+                  |> Cantrips.scaled_spell(c.level)
 
                 result =
-                  case twinned_target(world, c, caster_name, target_name) do
-                    nil ->
+                  case {if(false_life?(spell), do: "false life", else: spell.name),
+                        twinned_target(world, c, caster_name, target_name)} do
+                    {"false life", _} ->
+                      resolve_false_life(caster_name, spell, cast_level, roller, roll_log)
+
+                    {"sleep", _} ->
+                      # D96: pool de sueño RAW. Twinned no duplica el pool:
+                      # se resuelve una vez y la opción no se aplica ni se
+                      # consume (mismo criterio que los self-buffs).
+                      resolve_sleep(world, c, caster_name, scaled, roller, roll_log)
+
+                    {"shield", _} ->
+                      # D96: postura armable en el turno propio (patrón D64).
+                      resolve_shield(world, caster_name, target_name)
+
+                    {"spiritual weapon", twin_name} ->
+                      # D99: el ataque inicial queda como está (rama genérica
+                      # de ataque de conjuro) y la lanzadura DEJA la postura
+                      # persistente. Twin conserva el flujo previo.
+                      attack =
+                        if is_nil(twin_name),
+                          do:
+                            resolve_spell(
+                              world,
+                              c,
+                              caster_name,
+                              t,
+                              target_name,
+                              scaled,
+                              roller,
+                              roll_log
+                            ),
+                          else:
+                            resolve_twinned(
+                              world,
+                              c,
+                              caster_name,
+                              target_name,
+                              twin_name,
+                              scaled,
+                              roller,
+                              roll_log
+                            )
+
+                      chain_spiritual_weapon_posture(attack, caster_name, scaled, c)
+
+                    {"spirit guardians", _} ->
+                      # D99: sin daño inmediato; marca el aura vinculada a
+                      # concentración (patrón D97). Twinned no aplica ni
+                      # consume (alcance self, mismo criterio que D96 sleep).
+                      resolve_spirit_guardians(caster_name, scaled, c)
+
+                    {"bless", _} ->
+                      targets = [target_name | additional_targets || []]
+
+                      {:ok,
+                       dgettext(
+                         "engine",
+                         "%{caster} conjura %{spell} sobre %{targets}: +1d4 a ataques y salvaciones durante 1 minuto. %{caster} concentra en %{spell}.",
+                         caster: caster_name,
+                         spell: Terms.spell("bless"),
+                         targets: Enum.join(targets, ", ")
+                       ), World.bless(caster_name, targets, cast_level)}
+
+                    {"shield of faith", twin_name} ->
+                      targets =
+                        if is_nil(twin_name), do: [target_name], else: [target_name, twin_name]
+
+                      with :ok <- World.validate_shield_of_faith_targets(world, targets) do
+                        {:ok,
+                         dgettext(
+                           "engine",
+                           "%{caster} conjura %{spell} sobre %{targets}: +2 CA durante 10 minutos. %{caster} concentra en %{spell}.",
+                           caster: caster_name,
+                           spell: Terms.spell("shield of faith"),
+                           targets: Enum.join(targets, ", ")
+                         ), World.shield_of_faith(caster_name, targets)}
+                        |> consume_metamagic(caster_name, not is_nil(twin_name))
+                      end
+
+                    {"hold person", twin_name} ->
+                      targets =
+                        if is_nil(twin_name), do: [target_name], else: [target_name, twin_name]
+
+                      resolve_hold_person(world, c, caster_name, spell, targets, roller, roll_log)
+                      |> consume_metamagic(
+                        caster_name,
+                        metamagic_applied?(c, spell, target_name, twin_name)
+                      )
+
+                    {"faerie fire", twin_name} ->
+                      targets =
+                        if is_nil(twin_name), do: [target_name], else: [target_name, twin_name]
+
+                      resolve_faerie_fire(world, c, caster_name, spell, targets, roller, roll_log)
+                      |> consume_metamagic(
+                        caster_name,
+                        metamagic_applied?(c, spell, target_name, twin_name)
+                      )
+
+                    {"mage armor", twin_name} ->
+                      targets =
+                        if is_nil(twin_name), do: [target_name], else: [target_name, twin_name]
+
+                      resolve_mage_armor(world, caster_name, targets)
+                      |> consume_metamagic(caster_name, not is_nil(twin_name))
+
+                    {"charm person", twin_name} ->
+                      targets =
+                        if is_nil(twin_name), do: [target_name], else: [target_name, twin_name]
+
+                      resolve_charm_person(
+                        world,
+                        c,
+                        caster_name,
+                        spell,
+                        targets,
+                        roller,
+                        roll_log
+                      )
+                      |> consume_metamagic(
+                        caster_name,
+                        metamagic_applied?(c, spell, target_name, twin_name)
+                      )
+
+                    {"spare the dying", twin_name} ->
+                      targets =
+                        if is_nil(twin_name), do: [target_name], else: [target_name, twin_name]
+
+                      Dragonex.Actions.SpareTheDying.prepare(world, caster_name, targets)
+                      |> consume_metamagic(caster_name, not is_nil(twin_name))
+
+                    {"lesser restoration", twin_name} ->
+                      targets =
+                        if is_nil(twin_name), do: [target_name], else: [target_name, twin_name]
+
+                      Dragonex.Actions.LesserRestoration.prepare(
+                        world,
+                        caster_name,
+                        targets,
+                        condition_to_remove
+                      )
+                      |> consume_metamagic(caster_name, not is_nil(twin_name))
+
+                    {"heal", twin_name} ->
+                      targets =
+                        if is_nil(twin_name), do: [target_name], else: [target_name, twin_name]
+
+                      Dragonex.Actions.HealSpell.prepare(world, caster_name, targets, cast_level)
+                      |> consume_metamagic(caster_name, not is_nil(twin_name))
+
+                    {_, nil} ->
                       resolve_spell(
                         world,
                         c,
@@ -261,7 +632,7 @@ defmodule Dragonex.Actions do
                         roll_log
                       )
 
-                    twin_name ->
+                    {_, twin_name} ->
                       resolve_twinned(
                         world,
                         c,
@@ -287,11 +658,61 @@ defmodule Dragonex.Actions do
   # D74: validate the requested cast level against the spell's base. nil →
   # base (backwards compat). Cantrips never upcast (they cost no slot). All
   # errors leave the world untouched.
+  defp validate_spell_targets(world, %{name: "bless"}, target, additional, level) do
+    if is_nil(additional) or is_list(additional),
+      do: World.validate_bless_targets(world, [target | additional || []], level),
+      else: {:error, dgettext("engine", "additional_targets debe ser una lista de nombres")}
+  end
+
+  defp validate_spell_targets(_world, _spell, _target, additional, _level) do
+    if additional in [nil, []],
+      do: :ok,
+      else: {:error, dgettext("engine", "additional_targets solo está disponible para Bless")}
+  end
+
+  defp validate_healing_target(spell, target) do
+    healing? =
+      spell.kind == :automatic and spell.damage_type == nil and
+        spell.dice != nil and not false_life?(spell)
+
+    if healing? and target.death_saves.fails >= 3,
+      do:
+        {:error,
+         dgettext("engine", "%{target} está muerto; la curación no resucita", target: target.name)},
+      else: :ok
+  end
+
+  defp validate_self_spell_target(spell, caster, target) do
+    cond do
+      false_life?(spell) and caster != target ->
+        {:error,
+         dgettext("engine", "False Life solo puede tener como objetivo al propio lanzador")}
+
+      shield_spell?(spell) and caster != target ->
+        {:error, dgettext("engine", "Shield solo puede tener como objetivo al propio lanzador")}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_condition_selection(%{name: "lesser restoration"}, _), do: :ok
+  defp validate_condition_selection(_, nil), do: :ok
+
+  defp validate_condition_selection(_, _),
+    do:
+      {:error,
+       dgettext(
+         "engine",
+         "condition_to_remove solo está disponible para Lesser Restoration; para este hechizo omite el parámetro o envía null"
+       )}
+
   defp validate_cast_level(%{level: 0}, nil), do: {:ok, 0}
 
   defp validate_cast_level(%{level: 0}, cast_level)
        when is_integer(cast_level) and cast_level >= 1,
-       do: {:error, "los trucos (nivel 0) no se pueden lanzar a nivel superior"}
+       do:
+         {:error, dgettext("engine", "los trucos (nivel 0) no se pueden lanzar a nivel superior")}
 
   defp validate_cast_level(%{level: base}, nil) when base > 0, do: {:ok, base}
 
@@ -299,15 +720,27 @@ defmodule Dragonex.Actions do
     cond do
       not is_integer(cast_level) ->
         {:error,
-         "nivel de lanzamiento inválido (cast_level): #{inspect(cast_level)} " <>
-           "— debe ser un entero entre #{base} y 9"}
+         dgettext(
+           "engine",
+           "nivel de lanzamiento inválido (cast_level): %{level} — debe ser un entero entre %{base} y 9",
+           level: inspect(cast_level),
+           base: base
+         )}
 
       cast_level < base ->
         {:error,
-         "no se puede lanzar a nivel #{cast_level}: el nivel mínimo de este hechizo es #{base}"}
+         dgettext(
+           "engine",
+           "no se puede lanzar a nivel %{level}: el nivel mínimo de este hechizo es %{base}",
+           level: cast_level,
+           base: base
+         )}
 
       cast_level > 9 ->
-        {:error, "nivel de lanzamiento inválido: #{cast_level} (máximo 9)"}
+        {:error,
+         dgettext("engine", "nivel de lanzamiento inválido: %{level} (máximo 9)",
+           level: cast_level
+         )}
 
       true ->
         {:ok, cast_level}
@@ -319,8 +752,14 @@ defmodule Dragonex.Actions do
   # the Twinned outer message).
   defp tag_upcast_level({:ok, msg, change}, caster_name, spell, cast_level)
        when is_integer(cast_level) and cast_level > 0 and cast_level > spell.level do
-    prefix = "#{caster_name} conjura #{spell.name}"
-    {:ok, String.replace_prefix(msg, prefix, prefix <> " (nivel #{cast_level})"), change}
+    prefix =
+      dgettext("engine", "%{caster} conjura %{spell}",
+        caster: caster_name,
+        spell: Terms.spell(spell.name)
+      )
+
+    tag = dgettext("engine", " (nivel %{level})", level: cast_level)
+    {:ok, String.replace_prefix(msg, prefix, prefix <> tag), change}
   end
 
   defp tag_upcast_level(result, _caster_name, _spell, _cast_level), do: result
@@ -344,15 +783,40 @@ defmodule Dragonex.Actions do
   Roll initiative for every conscious combatant (hp > 0), highest total first,
   and produce a `begin_combat` change. Ties break by DEX score desc, then name
   asc (D39). 5e would then roll off — skipped so fixed rollers stay deterministic.
+  The committed roster and DEX scores must still match those that were rolled;
+  concurrent spawns or departures cannot leave creatures out of initiative.
   """
   @spec initiative(World.t(), roller(), RollLog.t() | nil) :: result()
   def initiative(world, roller, roll_log \\ nil) do
+    roster = initiative_roster(world)
+
+    # 19451/33–40: initiative rolled before the narrated rats had sheets opened a
+    # fight with no foe, and the creatures later joined last without a roll.
+    if Enum.any?(roster, fn {_name, c} -> c.side == "enemy" end),
+      do: roll_initiative(world, roster, roller, roll_log),
+      else:
+        {:error,
+         dgettext(
+           "engine",
+           "No hay criaturas hostiles registradas en la escena: regístralas primero con spawn_monster y después pide iniciativa."
+         )}
+  end
+
+  defp roll_initiative(_world, roster, roller, roll_log) do
+    rolled_roster = Enum.map(roster, fn {name, c} -> {name, c.dex} end)
+
     ordered =
-      world.characters
-      |> Enum.filter(fn {_, %Character{hp: hp}} -> hp > 0 end)
-      |> Enum.sort_by(fn {name, _} -> name end)
+      roster
       |> Enum.map(fn {name, c} ->
-        {r, close} = RollLog.open(roll_log, roller, name, :initiative, "tirada de iniciativa")
+        {r, close} =
+          RollLog.open(
+            roll_log,
+            roller,
+            name,
+            :initiative,
+            dgettext("engine", "tirada de iniciativa")
+          )
+
         rolled = Combat.roll_initiative(c, r)
         {_d20, total} = rolled
         RollLog.close(close, total: total, against: nil, outcome: nil)
@@ -365,43 +829,95 @@ defmodule Dragonex.Actions do
 
     names = Enum.map(ordered, &elem(&1, 0))
 
-    {:ok, "Iniciativa — #{summary}.", World.begin_combat(names)}
+    change = fn committed ->
+      current_roster =
+        committed |> initiative_roster() |> Enum.map(fn {name, c} -> {name, c.dex} end)
+
+      if current_roster == rolled_roster,
+        do: World.begin_combat(names).(committed),
+        else:
+          {:error,
+           dgettext(
+             "engine",
+             "La lista de combatientes o su Destreza cambió después de preparar la iniciativa. Vuelve a pedir iniciativa con el estado actual; esta tirada no se aplicó."
+           )}
+    end
+
+    {:ok, dgettext("engine", "Iniciativa — %{summary}.", summary: summary), change}
+  end
+
+  defp initiative_roster(world) do
+    world
+    |> World.present_characters()
+    |> Enum.filter(fn {_, %Character{hp: hp}} -> hp > 0 end)
+    |> Enum.sort_by(fn {name, _} -> name end)
   end
 
   @doc "Make a death saving throw for a down character and apply the result."
   @spec death_save(World.t(), String.t(), roller(), RollLog.t() | nil) :: result()
   def death_save(world, name, roller, roll_log \\ nil) do
-    case World.character(world, name) do
+    with :ok <- Dragonex.TurnBudget.check(world, name, :death_save),
+         do: do_death_save(world, name, roller, roll_log)
+  end
+
+  defp do_death_save(world, name, roller, roll_log) do
+    case World.present_character(world, name) do
       nil ->
-        {:error, "no existe el personaje: #{name}"}
+        {:error, dgettext("engine", "no existe el personaje: %{name}", name: name)}
 
       %Character{hp: hp} when hp > 0 ->
-        {:error, "#{name} no está caído (pg #{hp})"}
+        {:error, dgettext("engine", "%{name} no está caído (pg %{hp})", name: name, hp: hp)}
 
       %Character{death_saves: %{fails: fails}} when fails >= 3 ->
         {:error,
-         "#{name} ya está muerto (3 fallos de salvación de muerte) — no puede tirar más salvaciones"}
+         dgettext(
+           "engine",
+           "%{name} ya está muerto (3 fallos de salvación de muerte) — no puede tirar más salvaciones",
+           name: name
+         )}
 
       %Character{death_saves: %{successes: successes}} when successes >= 3 ->
         {:error,
-         "#{name} ya está estable (3 salvaciones de muerte) — no necesita tirar más salvaciones"}
+         dgettext(
+           "engine",
+           "%{name} ya está estable (3 salvaciones de muerte) — no necesita tirar más salvaciones",
+           name: name
+         )}
 
       %Character{} = c ->
         inspired? = c.inspired == true
         # D61 Aura of Protection applies to death saves (RAW).
         aura = aura_save_bonus(world, name)
-        {r, close} = RollLog.open(roll_log, roller, name, :death_save, "salvación de muerte")
-        result = Combat.death_save(r, aura)
-        {result, bardic} = apply_inspired_death(c, result, r, aura)
+
+        {r, close} =
+          RollLog.open(
+            roll_log,
+            roller,
+            name,
+            :death_save,
+            dgettext("engine", "salvación de muerte")
+          )
+
+        d20 = r.(20)
+        bless = Effects.bless_bonus(c, r)
+        result = Combat.death_save(fn _ -> d20 end, aura + bless)
+        {result, bardic} = apply_inspired_death(c, result, r, aura + bless)
 
         RollLog.close(close,
-          total: elem(result, 1) + aura,
+          total: elem(result, 1) + aura + bless + bardic,
           against: {:dc, 10},
           outcome: elem(result, 0)
         )
 
         change = compose_inspired_clear(name, inspired?, World.apply_death_save(name, result))
-        {:ok, describe_death_save(name, result, bardic, aura), change}
+
+        {:ok,
+         describe_death_save(name, result, bardic, aura) <> lucky_suffix(Effects.tag(nil, bless)),
+         fn current ->
+           with :ok <- unchanged_turn(world, current),
+                :ok <- unchanged_resources(world, current, name),
+                do: change.(current)
+         end}
     end
   end
 
@@ -411,18 +927,53 @@ defmodule Dragonex.Actions do
   """
   @spec heal(World.t(), String.t(), String.t(), roller(), RollLog.t() | nil) :: result()
   def heal(world, target, dice_expr, roller, roll_log \\ nil) do
-    case World.character(world, target) do
+    # Entradas inválidas (auditoría 7): el DM/LLM envía strings libres
+    # ("2d", "d6", "1d8+abc", "5", "") — sin esta guarda Dice.parse_expr
+    # crasheaba con ArgumentError en vez de devolver un error accionable.
+    cond do
+      not is_binary(dice_expr) or not Dice.valid?(dice_expr) ->
+        {:error,
+         dgettext(
+           "engine",
+           "expresión de dados inválida: %{dice} — usa NdM o NdM±K (p. ej. \"1d8+3\")",
+           dice: inspect(dice_expr)
+         )}
+
+      true ->
+        do_heal(world, target, dice_expr, roller, roll_log)
+    end
+  end
+
+  defp do_heal(world, target, dice_expr, roller, roll_log) do
+    case World.present_character(world, target) do
       nil ->
-        {:error, "no existe el personaje: #{target}"}
+        {:error, dgettext("engine", "no existe el personaje: %{target}", target: target)}
+
+      %Character{death_saves: %{fails: fails}} when fails >= 3 ->
+        {:error,
+         dgettext("engine", "%{target} está muerto; la curación no resucita", target: target)}
 
       %Character{hp: hp, max_hp: max_hp} ->
-        {r, close} = RollLog.open(roll_log, roller, target, :heal, "curación (#{dice_expr})")
-        rolled = Dice.roll_expr(dice_expr, r)
+        {r, close} =
+          RollLog.open(
+            roll_log,
+            roller,
+            target,
+            :heal,
+            dgettext("engine", "curación (%{dice})", dice: dice_expr)
+          )
+
+        rolled = max(0, Dice.roll_expr(dice_expr, r))
         RollLog.close(close, total: rolled, against: nil, outcome: nil)
         applied = min(rolled, max_hp - hp)
 
-        {:ok, "#{target} se cura #{applied} pg (#{hp} → #{hp + applied}).",
-         World.heal(target, rolled)}
+        {:ok,
+         dgettext("engine", "%{target} se cura %{amount} pg (%{hp} → %{new_hp}).",
+           target: target,
+           amount: applied,
+           hp: hp,
+           new_hp: hp + applied
+         ), World.heal(target, rolled)}
     end
   end
 
@@ -434,15 +985,28 @@ defmodule Dragonex.Actions do
   """
   @spec second_wind(World.t(), String.t(), roller(), RollLog.t() | nil) :: result()
   def second_wind(world, who, roller, roll_log \\ nil) do
-    case World.character(world, who) do
+    with_actor(
+      world,
+      who,
+      fn -> do_second_wind(world, who, roller, roll_log) end,
+      {:delegated, :bonus}
+    )
+  end
+
+  defp do_second_wind(world, who, roller, roll_log) do
+    case World.present_character(world, who) do
       nil ->
-        {:error, "no existe el personaje: #{who}"}
+        {:error, dgettext("engine", "no existe el personaje: %{actor}", actor: who)}
 
       %Character{class: class} when class != "fighter" ->
-        {:error, "#{who} no es guerrero y no puede usar Segundo aliento"}
+        {:error,
+         dgettext("engine", "%{actor} no es guerrero y no puede usar Segundo aliento", actor: who)}
 
       %Character{second_wind_used: true} ->
-        {:error, "#{who} ya ha usado Segundo aliento (se recarga con un descanso)"}
+        {:error,
+         dgettext("engine", "%{actor} ya ha usado Segundo aliento (se recarga con un descanso)",
+           actor: who
+         )}
 
       %Character{hp: hp, max_hp: max_hp, level: level} ->
         hp = hp || 0
@@ -450,15 +1014,29 @@ defmodule Dragonex.Actions do
         level = level || 1
 
         {r, close} =
-          RollLog.open(roll_log, roller, who, :heal, "Segundo aliento (1d10+#{level})")
+          RollLog.open(
+            roll_log,
+            roller,
+            who,
+            :heal,
+            dgettext("engine", "Segundo aliento (1d10+%{level})", level: level)
+          )
 
         rolled = r.(10) + level
         RollLog.close(close, total: rolled, against: nil, outcome: nil)
         applied = min(rolled, max(0, max_hp - hp))
 
         {:ok,
-         "#{who} usa Segundo aliento y se cura #{applied} pg (1d10+#{level} = #{rolled}, ahora #{hp + applied}/#{max_hp}).",
-         World.second_wind(who, rolled)}
+         dgettext(
+           "engine",
+           "%{actor} usa Segundo aliento y se cura %{amount} pg (1d10+%{level} = %{total}, ahora %{new_hp}/%{max_hp}).",
+           actor: who,
+           amount: applied,
+           level: level,
+           total: rolled,
+           new_hp: hp + applied,
+           max_hp: max_hp
+         ), World.second_wind(who, rolled)}
     end
   end
 
@@ -469,16 +1047,42 @@ defmodule Dragonex.Actions do
   Spends `applied`, not the requested amount. Capped at max_hp; same heal
   path (clears death saves if hp > 0). Does not touch temp_hp.
   """
-  @spec lay_on_hands(World.t(), String.t(), String.t(), term()) :: result()
-  def lay_on_hands(world, who, target, amount) do
-    case World.character(world, who) do
+  @spec lay_on_hands(World.t(), String.t(), String.t(), term(), [String.t()] | nil) :: result()
+  def lay_on_hands(world, who, target, amount, conditions_to_remove \\ nil) do
+    purify? = conditions_to_remove not in [nil, []]
+
+    with_actor(
+      world,
+      who,
+      fn ->
+        if purify?,
+          do:
+            Dragonex.Actions.LayOnHandsPurify.prepare(
+              world,
+              who,
+              target,
+              amount,
+              conditions_to_remove
+            ),
+          else: do_lay_on_hands(world, who, target, amount)
+      end,
+      if(purify?, do: :action, else: {:delegated, :action})
+    )
+  end
+
+  defp do_lay_on_hands(world, who, target, amount) do
+    case World.present_character(world, who) do
       nil ->
-        {:error, "no existe el personaje: #{who}"}
+        {:error, dgettext("engine", "no existe el personaje: %{actor}", actor: who)}
 
       %Character{} ->
-        case World.character(world, target) do
+        case World.present_character(world, target) do
           nil ->
-            {:error, "no existe el personaje: #{target}"}
+            {:error, dgettext("engine", "no existe el personaje: %{target}", target: target)}
+
+          %Character{death_saves: %{fails: fails}} when fails >= 3 ->
+            {:error,
+             dgettext("engine", "%{target} está muerto; la curación no resucita", target: target)}
 
           %Character{} = tgt ->
             lay_on_hands_apply(world, who, target, amount, tgt)
@@ -487,26 +1091,42 @@ defmodule Dragonex.Actions do
   end
 
   defp lay_on_hands_apply(world, who, target, amount, tgt) do
-    case World.character(world, who) do
+    case World.present_character(world, who) do
       %Character{class: class} when class != "paladin" ->
-        {:error, "#{who} no es paladín y no puede usar Manos impositoras"}
+        {:error,
+         dgettext("engine", "%{actor} no es paladín y no puede usar Manos impositoras",
+           actor: who
+         )}
 
       %Character{lay_on_hands_pool: pool} ->
         pool = pool || 0
 
         cond do
           not is_integer(amount) or amount < 1 ->
-            {:error, "la cantidad de Manos impositoras debe ser un entero ≥ 1"}
+            {:error,
+             dgettext("engine", "la cantidad de Manos impositoras debe ser un entero ≥ 1")}
 
           pool == 0 ->
-            {:error, "#{who} no tiene puntos de Manos impositoras"}
+            {:error,
+             dgettext("engine", "%{actor} no tiene puntos de Manos impositoras", actor: who)}
 
           amount > pool ->
             {:error,
-             "#{who} no tiene suficientes puntos de Manos impositoras (pide #{amount}, quedan #{pool})"}
+             dgettext(
+               "engine",
+               "%{actor} no tiene suficientes puntos de Manos impositoras (pide %{amount}, quedan %{pool})",
+               actor: who,
+               amount: amount,
+               pool: pool
+             )}
 
           lay_on_hands_blocked_race?(tgt.race) ->
-            {:error, "#{target} no puede recibir Manos impositoras (no-muerto o constructo)"}
+            {:error,
+             dgettext(
+               "engine",
+               "%{target} no puede recibir Manos impositoras (no-muerto o constructo)",
+               target: target
+             )}
 
           true ->
             hp = tgt.hp || 0
@@ -514,13 +1134,22 @@ defmodule Dragonex.Actions do
             applied = min(amount, min(pool, max(0, max_hp - hp)))
 
             if applied == 0 do
-              {:error, "#{target} ya está a tope de puntos de golpe"}
+              {:error,
+               dgettext("engine", "%{target} ya está a tope de puntos de golpe", target: target)}
             else
               remaining = pool - applied
 
               {:ok,
-               "#{who} usa Manos impositoras en #{target} y cura #{applied} pg (ahora #{hp + applied}/#{max_hp}, pool #{remaining}).",
-               World.lay_on_hands(who, target, applied)}
+               dgettext(
+                 "engine",
+                 "%{actor} usa Manos impositoras en %{target} y cura %{amount} pg (ahora %{new_hp}/%{max_hp}, pool %{remaining}).",
+                 actor: who,
+                 target: target,
+                 amount: applied,
+                 new_hp: hp + applied,
+                 max_hp: max_hp,
+                 remaining: remaining
+               ), World.lay_on_hands(who, target, applied)}
             end
         end
     end
@@ -533,11 +1162,6 @@ defmodule Dragonex.Actions do
   defp lay_on_hands_blocked_race?(_), do: false
 
   @divine_sense_races ~w(celestial fiend undead)
-  @divine_sense_labels %{
-    "celestial" => "celestial",
-    "fiend" => "infernal",
-    "undead" => "no-muerto"
-  }
 
   @doc """
   Divine Sense (5e, D52): a paladin spends 1 use and the engine reports
@@ -547,18 +1171,23 @@ defmodule Dragonex.Actions do
   """
   @spec divine_sense(World.t(), String.t()) :: result()
   def divine_sense(world, who) do
-    case World.character(world, who) do
+    with_actor(world, who, fn -> do_divine_sense(world, who) end, :action)
+  end
+
+  defp do_divine_sense(world, who) do
+    case World.present_character(world, who) do
       nil ->
-        {:error, "no existe el personaje: #{who}"}
+        {:error, dgettext("engine", "no existe el personaje: %{actor}", actor: who)}
 
       %Character{class: class} when class != "paladin" ->
-        {:error, "#{who} no es paladín y no puede usar Sentido divino"}
+        {:error,
+         dgettext("engine", "%{actor} no es paladín y no puede usar Sentido divino", actor: who)}
 
       %Character{divine_sense_uses: uses} ->
         uses = uses || 0
 
         if uses < 1 do
-          {:error, "#{who} no tiene usos de Sentido divino"}
+          {:error, dgettext("engine", "%{actor} no tiene usos de Sentido divino", actor: who)}
         else
           remaining = uses - 1
           detected = divine_sense_targets(world, who)
@@ -568,8 +1197,8 @@ defmodule Dragonex.Actions do
     end
   end
 
-  defp divine_sense_targets(%World{characters: chars}, who) do
-    chars
+  defp divine_sense_targets(%World{} = world, who) do
+    World.present_characters(world)
     |> Enum.reject(fn {name, _} -> name == who end)
     |> Enum.map(fn {_name, c} -> c end)
     |> Enum.filter(&divine_sense_race?(&1.race))
@@ -583,11 +1212,21 @@ defmodule Dragonex.Actions do
   defp divine_sense_race?(_), do: false
 
   defp divine_sense_label(race) when is_binary(race) do
-    Map.get(@divine_sense_labels, String.downcase(race), String.downcase(race))
+    case String.downcase(race) do
+      "celestial" -> dgettext("engine", "celestial")
+      "fiend" -> dgettext("engine", "infernal")
+      "undead" -> dgettext("engine", "no-muerto")
+      other -> other
+    end
   end
 
   defp divine_sense_message(who, [], remaining) do
-    "#{who} usa Sentido divino y no percibe celestiales, infernales ni no-muertos (usos restantes #{remaining})."
+    dgettext(
+      "engine",
+      "%{actor} usa Sentido divino y no percibe celestiales, infernales ni no-muertos (usos restantes %{remaining}).",
+      actor: who,
+      remaining: remaining
+    )
   end
 
   defp divine_sense_message(who, detected, remaining) do
@@ -596,7 +1235,13 @@ defmodule Dragonex.Actions do
       |> Enum.map(fn c -> "#{c.name} (#{divine_sense_label(c.race)})" end)
       |> Enum.join(", ")
 
-    "#{who} usa Sentido divino y percibe: #{listed} (usos restantes #{remaining})."
+    dgettext(
+      "engine",
+      "%{actor} usa Sentido divino y percibe: %{detected} (usos restantes %{remaining}).",
+      actor: who,
+      detected: listed,
+      remaining: remaining
+    )
   end
 
   @doc """
@@ -611,18 +1256,31 @@ defmodule Dragonex.Actions do
   """
   @spec turn_undead(World.t(), String.t(), roller(), RollLog.t() | nil) :: result()
   def turn_undead(world, who, roller, roll_log \\ nil) do
-    case World.character(world, who) do
+    with_actor(world, who, fn -> do_turn_undead(world, who, roller, roll_log) end, :action)
+  end
+
+  defp do_turn_undead(world, who, roller, roll_log) do
+    case World.present_character(world, who) do
       nil ->
-        {:error, "no existe el personaje: #{who}"}
+        {:error, dgettext("engine", "no existe el personaje: %{actor}", actor: who)}
 
       %Character{class: class} when class != "cleric" ->
-        {:error, "#{who} no es clérigo y no puede usar Expulsar no-muertos"}
+        {:error,
+         dgettext("engine", "%{actor} no es clérigo y no puede usar Expulsar no-muertos",
+           actor: who
+         )}
 
       %Character{level: level} when not is_integer(level) or level < 2 ->
-        {:error, "#{who} no tiene Expulsar no-muertos (nivel 2)"}
+        {:error,
+         dgettext("engine", "%{actor} no tiene Expulsar no-muertos (nivel 2)", actor: who)}
 
       %Character{channel_divinity_used: true} ->
-        {:error, "#{who} ya ha usado Canalizar divinidad (se recarga con un descanso)"}
+        {:error,
+         dgettext(
+           "engine",
+           "%{actor} ya ha usado Canalizar divinidad (se recarga con un descanso)",
+           actor: who
+         )}
 
       %Character{} = cleric ->
         dc = 8 + Ability.proficiency(cleric.level) + Character.modifier(cleric, :wis)
@@ -658,8 +1316,8 @@ defmodule Dragonex.Actions do
     end)
   end
 
-  defp turn_undead_targets(%World{characters: chars}, who) do
-    chars
+  defp turn_undead_targets(%World{} = world, who) do
+    World.present_characters(world)
     |> Enum.reject(fn {name, _} -> name == who end)
     |> Enum.map(fn {_name, c} -> c end)
     |> Enum.filter(&turn_undead_target?/1)
@@ -690,7 +1348,7 @@ defmodule Dragonex.Actions do
             roller,
             target.name,
             :save,
-            "salvación de Sabiduría contra Expulsar no-muertos"
+            dgettext("engine", "salvación de Sabiduría contra Expulsar no-muertos")
           )
 
         {_d20, total, _success?} = Combat.saving_throw(target, :wis, dc, r, save_mode)
@@ -714,7 +1372,12 @@ defmodule Dragonex.Actions do
   end
 
   defp turn_undead_message(who, dc, [], [], []) do
-    "#{who} usa Expulsar no-muertos (CD #{dc}) y no hay no-muertos que Expulsar no-muertos pueda afectar (usos restantes 0)."
+    dgettext(
+      "engine",
+      "%{actor} usa Expulsar no-muertos (CD %{dc}) y no hay no-muertos que Expulsar no-muertos pueda afectar (usos restantes 0).",
+      actor: who,
+      dc: dc
+    )
   end
 
   defp turn_undead_message(who, dc, failed, saved, immune) do
@@ -722,24 +1385,41 @@ defmodule Dragonex.Actions do
       [frightened_clause(failed), saved_clause(saved), immune_clause(immune)]
       |> Enum.reject(&is_nil/1)
 
-    "#{who} usa Expulsar no-muertos (CD #{dc}): #{Enum.join(bits, "; ")} (usos restantes 0)."
+    dgettext(
+      "engine",
+      "%{actor} usa Expulsar no-muertos (CD %{dc}): %{effects} (usos restantes 0).",
+      actor: who,
+      dc: dc,
+      effects: Enum.join(bits, "; ")
+    )
   end
 
   # Entries are {name, indomitable_tag} (D68): the tag renders next to the
   # name when the reroll fired ("X (Indomitable: 9→15)"), nothing otherwise.
   defp frightened_clause([]), do: nil
 
-  defp frightened_clause([{name, tag}]), do: "#{name}#{indom_suffix(tag)} queda asustado"
+  defp frightened_clause([{name, tag}]),
+    do:
+      dgettext("engine", "%{name}%{indomitable} queda asustado",
+        name: name,
+        indomitable: indom_suffix(tag)
+      )
 
   defp frightened_clause(entries) do
-    "#{turn_names(entries)} quedan asustados"
+    dgettext("engine", "%{names} quedan asustados", names: turn_names(entries))
   end
 
   defp saved_clause([]), do: nil
 
-  defp saved_clause([{name, tag}]), do: "#{name}#{indom_suffix(tag)} supera la salvación"
+  defp saved_clause([{name, tag}]),
+    do:
+      dgettext("engine", "%{name}%{indomitable} supera la salvación",
+        name: name,
+        indomitable: indom_suffix(tag)
+      )
 
-  defp saved_clause(entries), do: "#{turn_names(entries)} superan la salvación"
+  defp saved_clause(entries),
+    do: dgettext("engine", "%{names} superan la salvación", names: turn_names(entries))
 
   defp turn_names(entries),
     do: Enum.map_join(entries, ", ", fn {name, tag} -> "#{name}#{indom_suffix(tag)}" end)
@@ -747,9 +1427,14 @@ defmodule Dragonex.Actions do
   # D62: immunity is an outcome, not an error — the message says so.
   defp immune_clause([]), do: nil
 
-  defp immune_clause([name]), do: "#{name} es inmune al miedo (Aura de Coraje)"
+  defp immune_clause([name]),
+    do: dgettext("engine", "%{name} es inmune al miedo (Aura de Coraje)", name: name)
 
-  defp immune_clause(names), do: "#{Enum.join(names, ", ")} son inmunes al miedo (Aura de Coraje)"
+  defp immune_clause(names),
+    do:
+      dgettext("engine", "%{names} son inmunes al miedo (Aura de Coraje)",
+        names: Enum.join(names, ", ")
+      )
 
   defp compose_turn_undead(who, failed, saved) do
     # D68: every target whose Indomitable reroll fired (saved OR frightened)
@@ -760,7 +1445,7 @@ defmodule Dragonex.Actions do
       with {:ok, w} <- World.set_channel_divinity_used(who, true).(w),
            {:ok, w} <- mark_indomitable_all(w, rerolled) do
         Enum.reduce_while(failed, {:ok, w}, fn {name, _tag}, {:ok, acc} ->
-          case World.apply_condition(name, "frightened").(acc) do
+          case World.apply_condition(name, "frightened", 60).(acc) do
             {:ok, w2} -> {:cont, {:ok, w2}}
             err -> {:halt, err}
           end
@@ -786,32 +1471,45 @@ defmodule Dragonex.Actions do
   """
   @spec bardic_inspiration(World.t(), String.t(), String.t()) :: result()
   def bardic_inspiration(world, who, target) do
-    case World.character(world, who) do
+    with_actor(world, who, fn -> do_bardic_inspiration(world, who, target) end, :bonus)
+  end
+
+  defp do_bardic_inspiration(world, who, target) do
+    case World.present_character(world, who) do
       nil ->
-        {:error, "no existe el personaje: #{who}"}
+        {:error, dgettext("engine", "no existe el personaje: %{actor}", actor: who)}
 
       %Character{class: class} when class != "bard" ->
-        {:error, "#{who} no es bardo y no puede usar Inspiración bárdica"}
+        {:error,
+         dgettext("engine", "%{actor} no es bardo y no puede usar Inspiración bárdica",
+           actor: who
+         )}
 
       %Character{bardic_inspiration_uses: uses} ->
         uses = uses || 0
 
-        case World.character(world, target) do
+        case World.present_character(world, target) do
           nil ->
-            {:error, "no existe el personaje: #{target}"}
+            {:error, dgettext("engine", "no existe el personaje: %{target}", target: target)}
 
           %Character{inspired: true} ->
-            {:error, "#{target} ya está inspirado"}
+            {:error, dgettext("engine", "%{target} ya está inspirado", target: target)}
 
           %Character{} when uses < 1 ->
-            {:error, "#{who} no tiene usos de Inspiración bárdica"}
+            {:error,
+             dgettext("engine", "%{actor} no tiene usos de Inspiración bárdica", actor: who)}
 
           %Character{} ->
             remaining = uses - 1
 
             {:ok,
-             "#{who} inspira a #{target} (Inspiración bárdica d6, usos restantes #{remaining}).",
-             World.spend_bardic(who, target)}
+             dgettext(
+               "engine",
+               "%{actor} inspira a %{target} (Inspiración bárdica d6, usos restantes %{remaining}).",
+               actor: who,
+               target: target,
+               remaining: remaining
+             ), World.spend_bardic(who, target)}
         end
     end
   end
@@ -823,18 +1521,24 @@ defmodule Dragonex.Actions do
   """
   @spec arcane_recovery(World.t(), String.t()) :: result()
   def arcane_recovery(world, who) do
-    case World.character(world, who) do
+    case World.present_character(world, who) do
       nil ->
-        {:error, "no existe el personaje: #{who}"}
+        {:error, dgettext("engine", "no existe el personaje: %{actor}", actor: who)}
 
       %Character{} when world.phase == :combat ->
-        {:error, "no se puede usar Recuperación arcana en combate"}
+        {:error, dgettext("engine", "no se puede usar Recuperación arcana en combate")}
 
       %Character{class: class} when class != "wizard" ->
-        {:error, "#{who} no es mago y no puede usar Recuperación arcana"}
+        {:error,
+         dgettext("engine", "%{actor} no es mago y no puede usar Recuperación arcana", actor: who)}
 
       %Character{arcane_recovery_used: true} ->
-        {:error, "#{who} ya ha usado Recuperación arcana (se recarga con un descanso largo)"}
+        {:error,
+         dgettext(
+           "engine",
+           "%{actor} ya ha usado Recuperación arcana (se recarga con un descanso largo)",
+           actor: who
+         )}
 
       %Character{} ->
         case World.arcane_recovery_plan(world, who) do
@@ -849,7 +1553,10 @@ defmodule Dragonex.Actions do
   end
 
   defp arcane_recovery_message(who, restored) do
-    "#{who} usa Recuperación arcana y recupera #{format_restored_slots(restored)}."
+    dgettext("engine", "%{actor} usa Recuperación arcana y recupera %{slots}.",
+      actor: who,
+      slots: format_restored_slots(restored)
+    )
   end
 
   defp format_restored_slots(restored) do
@@ -864,22 +1571,31 @@ defmodule Dragonex.Actions do
         only
 
       [first, last] ->
-        "#{first} y #{last}"
+        dgettext("engine", "%{first} y %{last}", first: first, last: last)
 
       [first | rest] ->
         {last, mids} = List.pop_at(rest, -1)
-        "#{first}, #{Enum.join(mids, ", ")} y #{last}"
+
+        dgettext("engine", "%{first}, %{middle} y %{last}",
+          first: first,
+          middle: Enum.join(mids, ", "),
+          last: last
+        )
     end
   end
 
   defp slot_fragment(n, level, true) do
-    noun = if n == 1, do: "hueco", else: "huecos"
-    "#{n} #{noun} de nivel #{level}"
+    dngettext(
+      "engine",
+      "%{count} hueco de nivel %{level}",
+      "%{count} huecos de nivel %{level}",
+      n,
+      level: level
+    )
   end
 
-  defp slot_fragment(n, level, false), do: "#{n} de nivel #{level}"
-
-  @wild_shape_names_es %{"cat" => "gato", "wolf" => "lobo", "black_bear" => "oso negro"}
+  defp slot_fragment(n, level, false),
+    do: dgettext("engine", "%{n} de nivel %{level}", n: n, level: level)
 
   @doc """
   Wild Shape (5e, D63): a druid of level 2+ transforms into a beast from
@@ -894,23 +1610,29 @@ defmodule Dragonex.Actions do
   """
   @spec wild_shape(World.t(), String.t(), String.t()) :: result()
   def wild_shape(world, who, beast_key) do
+    with_actor(world, who, fn -> do_wild_shape(world, who, beast_key) end, :action)
+  end
+
+  defp do_wild_shape(world, who, beast_key) do
     beasts = Dragonex.Monsters.wild_shape_beasts()
 
-    case World.character(world, who) do
+    case World.present_character(world, who) do
       nil ->
-        {:error, "no existe el personaje: #{who}"}
+        {:error, dgettext("engine", "no existe el personaje: %{actor}", actor: who)}
 
       %Character{hp: hp} when hp <= 0 ->
-        {:error, "#{who} está caído (0 pg) y no puede transformarse"}
+        {:error,
+         dgettext("engine", "%{actor} está caído (0 pg) y no puede transformarse", actor: who)}
 
       %Character{class: class} when class != "druid" ->
-        {:error, "#{who} no es druida y no puede usar Forma salvaje"}
+        {:error,
+         dgettext("engine", "%{actor} no es druida y no puede usar Forma salvaje", actor: who)}
 
       %Character{level: level} when not is_integer(level) or level < 2 ->
-        {:error, "#{who} no tiene Forma salvaje (nivel 2)"}
+        {:error, dgettext("engine", "%{actor} no tiene Forma salvaje (nivel 2)", actor: who)}
 
       %Character{wild_shape: ws} when ws != nil ->
-        {:error, "#{who} ya está en forma de bestia"}
+        {:error, dgettext("engine", "%{actor} ya está en forma de bestia", actor: who)}
 
       %Character{wild_shape_uses: uses} = c ->
         uses = uses || 0
@@ -920,45 +1642,74 @@ defmodule Dragonex.Actions do
         cond do
           is_nil(cr) ->
             {:error,
-             "bestia desconocida: #{beast_key} (disponibles: #{Enum.join(Enum.sort(Map.keys(beasts)), ", ")})"}
+             dgettext("engine", "bestia desconocida: %{beast} (disponibles: %{options})",
+               beast: beast_key,
+               options: Enum.join(Enum.sort(Map.keys(beasts)), ", ")
+             )}
 
           cr > max ->
             {:error,
-             "#{who} no puede adoptar la forma de #{beast_key} (ND #{cr}) a nivel #{c.level} (máximo ND #{max})"}
+             dgettext(
+               "engine",
+               "%{actor} no puede adoptar la forma de %{beast} (ND %{cr}) a nivel %{level} (máximo ND %{max_cr})",
+               actor: who,
+               beast: beast_key,
+               cr: cr,
+               level: c.level,
+               max_cr: max
+             )}
 
           uses < 1 ->
-            {:error, "#{who} no tiene usos de Forma salvaje (se recargan con un descanso)"}
+            {:error,
+             dgettext(
+               "engine",
+               "%{actor} no tiene usos de Forma salvaje (se recargan con un descanso)",
+               actor: who
+             )}
 
           true ->
             beast = Dragonex.Monsters.get(beast_key).(name: who)
-            name_es = Map.get(@wild_shape_names_es, beast_key, beast_key)
+            name_es = WildShape.beast_name(beast_key)
 
             {:ok,
-             "#{who} adopta la forma de un #{name_es} (usos de forma salvaje restantes: #{uses - 1}).",
-             World.transform_wild_shape(who, beast_key, beast)}
+             dgettext(
+               "engine",
+               "%{actor} adopta la forma de un %{beast} (usos de forma salvaje restantes: %{remaining}).",
+               actor: who,
+               beast: name_es,
+               remaining: uses - 1
+             ), World.transform_wild_shape(who, beast_key, beast)}
         end
     end
   end
 
   @doc """
   End Wild Shape (5e, D63): the transformed druid returns to their original
-  form with the exact hit points they had when transforming. Errors (no
+  form with its saved hit points, including native Constitution vitality
+  gained while transformed (D129). Errors (no
   mutation): missing who, not transformed. Everything else (attack with the
   beast weapons, ability checks, rests) works normally while transformed;
   only `cast_spell` is blocked.
   """
   @spec end_wild_shape(World.t(), String.t()) :: result()
   def end_wild_shape(world, who) do
-    case World.character(world, who) do
+    with_actor(world, who, fn -> do_end_wild_shape(world, who) end, :bonus)
+  end
+
+  defp do_end_wild_shape(world, who) do
+    case World.present_character(world, who) do
       nil ->
-        {:error, "no existe el personaje: #{who}"}
+        {:error, dgettext("engine", "no existe el personaje: %{actor}", actor: who)}
 
       %Character{wild_shape: nil} ->
-        {:error, "#{who} no está en forma de bestia"}
+        {:error, dgettext("engine", "%{actor} no está en forma de bestia", actor: who)}
 
       %Character{wild_shape: %{} = ws} ->
-        {:ok, "#{who} vuelve a su forma original (PG #{ws[:orig_hp]}).",
-         World.revert_wild_shape(who)}
+        {:ok,
+         dgettext("engine", "%{actor} vuelve a su forma original (PG %{hp}).",
+           actor: who,
+           hp: ws[:orig_hp]
+         ), World.revert_wild_shape(who)}
     end
   end
 
@@ -984,23 +1735,44 @@ defmodule Dragonex.Actions do
           RollLog.t() | nil
         ) :: result()
   def action_surge(world, who, target, weapon_name, roller, mode \\ :normal, roll_log \\ nil) do
-    case World.character(world, who) do
+    with_actor(
+      world,
+      who,
+      fn ->
+        do_action_surge(world, who, target, weapon_name, roller, mode, roll_log)
+      end,
+      :surge
+    )
+  end
+
+  defp do_action_surge(world, who, target, weapon_name, roller, mode, roll_log) do
+    case World.present_character(world, who) do
       nil ->
-        {:error, "no existe el personaje: #{who}"}
+        {:error, dgettext("engine", "no existe el personaje: %{actor}", actor: who)}
 
       %Character{class: class} when class != "fighter" ->
-        {:error, "#{who} no es guerrero y no puede usar Oleada de acción"}
+        {:error,
+         dgettext("engine", "%{actor} no es guerrero y no puede usar Oleada de acción",
+           actor: who
+         )}
 
       %Character{level: level} when not is_integer(level) or level < 2 ->
-        {:error, "#{who} no tiene Oleada de acción (nivel 2)"}
+        {:error, dgettext("engine", "%{actor} no tiene Oleada de acción (nivel 2)", actor: who)}
 
       %Character{action_surge_used: true} ->
-        {:error, "#{who} ya ha usado Oleada de acción (se recarga con un descanso)"}
+        {:error,
+         dgettext("engine", "%{actor} ya ha usado Oleada de acción (se recarga con un descanso)",
+           actor: who
+         )}
 
       %Character{} ->
-        case attack(world, who, target, weapon_name, roller, mode, roll_log) do
+        case do_attack(world, who, target, weapon_name, roller, mode, roll_log) do
           {:ok, msg, change} ->
-            {:ok, "#{who} usa Oleada de acción. #{msg}", compose_mark_action_surge(who, change)}
+            {:ok,
+             dgettext("engine", "%{actor} usa Oleada de acción. %{result}",
+               actor: who,
+               result: msg
+             ), compose_mark_action_surge(who, change)}
 
           {:error, _} = err ->
             err
@@ -1028,29 +1800,42 @@ defmodule Dragonex.Actions do
           RollLog.t() | nil
         ) :: result()
   def flurry_of_blows(world, who, target, roller, mode \\ :normal, roll_log \\ nil) do
-    monk = World.character(world, who)
+    with_actor(
+      world,
+      who,
+      fn ->
+        do_flurry_of_blows(world, who, target, roller, mode, roll_log)
+      end,
+      :flurry
+    )
+  end
+
+  defp do_flurry_of_blows(world, who, target, roller, mode, roll_log) do
+    monk = World.present_character(world, who)
 
     cond do
       is_nil(monk) ->
-        {:error, "no existe el personaje: #{who}"}
+        {:error, dgettext("engine", "no existe el personaje: %{actor}", actor: who)}
 
-      is_nil(World.character(world, target)) ->
-        {:error, "no existe el objetivo: #{target}"}
+      is_nil(World.present_character(world, target)) ->
+        {:error, dgettext("engine", "no existe el objetivo: %{target}", target: target)}
 
       (monk.hp || 0) <= 0 ->
-        {:error, "#{who} está caído (0 pg) y no puede atacar"}
+        {:error, dgettext("engine", "%{actor} está caído (0 pg) y no puede atacar", actor: who)}
 
       monk.class != "monk" ->
-        {:error, "#{who} no es monje y no puede usar Ráfaga de golpes"}
+        {:error,
+         dgettext("engine", "%{actor} no es monje y no puede usar Ráfaga de golpes", actor: who)}
 
       not is_integer(monk.level) or monk.level < 2 ->
-        {:error, "#{who} no tiene Ráfaga de golpes (nivel 2)"}
+        {:error, dgettext("engine", "%{actor} no tiene Ráfaga de golpes (nivel 2)", actor: who)}
 
       (monk.ki || 0) < 1 ->
-        {:error, "#{who} no tiene ki (se recarga con un descanso)"}
+        {:error,
+         dgettext("engine", "%{actor} no tiene ki (se recarga con un descanso)", actor: who)}
 
       true ->
-        t = World.character(world, target)
+        t = World.present_character(world, target)
         weapon = unarmed_strike(monk.level)
         inspired? = monk.inspired == true
         # D61: the target's concentration saves ride this aura.
@@ -1064,6 +1849,11 @@ defmodule Dragonex.Actions do
             finesse: true
           )
 
+        # D95 Guiding Bolt: mismo criterio que do_attack — ventaja solo al
+        # primer golpe, consumo acierte o falle.
+        guided? = Guided.active?(world, t)
+        first_mode = if(guided?, do: Guided.combine(effective_mode, true), else: nil)
+
         # N=2 fijo (D54): sin sneak, sin smite, sin Extra Attack, sin marca (D55).
         swings =
           resolve_swings(
@@ -1075,11 +1865,13 @@ defmodule Dragonex.Actions do
             roller,
             roll_log,
             effective_mode,
+            first_mode,
             2,
             nil,
             nil,
             inspired?,
-            false
+            false,
+            aura
           )
 
         ac = target_ac(t)
@@ -1088,13 +1880,28 @@ defmodule Dragonex.Actions do
           pipe_attack_damage(target, swings, roller, roll_log, t, weapon.damage_type, aura)
 
         change = compose_inspired_clear(who, inspired?, change)
+        change = consume_guided_change(target, guided?, change)
 
         {:ok,
          append_notes(
-           "#{who} usa Ráfaga de golpes (ki restantes #{(monk.ki || 0) - 1}). " <>
-             format_attack_message(who, target, weapon, ac, effective_mode, swings),
+           dgettext(
+             "engine",
+             "%{actor} usa Ráfaga de golpes (ki restantes %{remaining}). %{attack}",
+             actor: who,
+             remaining: (monk.ki || 0) - 1,
+             attack:
+               format_attack_message(
+                 who,
+                 target,
+                 weapon,
+                 ac,
+                 first_mode || effective_mode,
+                 swings
+               )
+           ),
            notes
          ), compose_spend_ki(who, change)}
+        |> guard_target_defense(world, target, :attack)
     end
   end
 
@@ -1123,39 +1930,61 @@ defmodule Dragonex.Actions do
   @spec hunters_mark(World.t(), String.t(), String.t(), roller(), RollLog.t() | nil) ::
           result()
   def hunters_mark(world, who, target, _roller, _roll_log \\ nil) do
-    hunter = World.character(world, who)
+    with_actor(world, who, fn -> do_hunters_mark(world, who, target) end, :bonus)
+  end
+
+  defp do_hunters_mark(world, who, target) do
+    hunter = World.present_character(world, who)
 
     cond do
       is_nil(hunter) ->
-        {:error, "no existe el personaje: #{who}"}
+        {:error, dgettext("engine", "no existe el personaje: %{actor}", actor: who)}
 
-      is_nil(World.character(world, target)) ->
-        {:error, "no existe el objetivo: #{target}"}
+      is_nil(World.present_character(world, target)) ->
+        {:error, dgettext("engine", "no existe el objetivo: %{target}", target: target)}
 
       (hunter.hp || 0) <= 0 ->
-        {:error, "#{who} está caído (0 pg) y no puede marcar presa"}
+        {:error,
+         dgettext("engine", "%{actor} está caído (0 pg) y no puede marcar presa", actor: who)}
 
       hunter.class != "ranger" ->
-        {:error, "#{who} no es explorador y no puede usar Marca del cazador"}
+        {:error,
+         dgettext("engine", "%{actor} no es explorador y no puede usar Marca del cazador",
+           actor: who
+         )}
 
       not is_integer(hunter.level) or hunter.level < 2 ->
-        {:error, "#{who} no tiene Marca del cazador (nivel 2)"}
+        {:error, dgettext("engine", "%{actor} no tiene Marca del cazador (nivel 2)", actor: who)}
 
-      (World.character(world, target).hp || 0) <= 0 ->
-        {:error, "#{target} está caído (0 pg) y no puede ser presa"}
+      (World.present_character(world, target).hp || 0) <= 0 ->
+        {:error,
+         dgettext("engine", "%{target} está caído (0 pg) y no puede ser presa", target: target)}
 
       not World.has_slot?(world, who, 1) ->
         {:error,
-         "a #{who} no le quedan casillas de hechizo de nivel 1 " <>
-           "(debe descansar para recuperarlas)."}
+         dgettext(
+           "engine",
+           "a %{actor} no le quedan casillas de hechizo de nivel 1 (debe descansar para recuperarlas).",
+           actor: who
+         )}
 
       not is_nil(hunter.concentrating) ->
         {:error,
-         "#{who} ya concentra en #{hunter.concentrating} — debe soltar la concentración antes (drop_concentration)"}
+         dgettext(
+           "engine",
+           "%{actor} ya concentra en %{effect} — debe soltar la concentración antes (drop_concentration)",
+           actor: who,
+           effect: hunter.concentrating
+         )}
 
       true ->
         {:ok,
-         "#{who} marca a #{target} como presa (Hunter's Mark, concentración, casilla nivel 1 gastada).",
+         dgettext(
+           "engine",
+           "%{actor} marca a %{target} como presa (Hunter's Mark, concentración, casilla nivel 1 gastada).",
+           actor: who,
+           target: target
+         ),
          fn w ->
            with {:ok, w} <- World.consume_slot(who, 1).(w) do
              World.set_concentration(who, "hunter's mark:#{target}").(w)
@@ -1180,23 +2009,29 @@ defmodule Dragonex.Actions do
   """
   @spec cunning_action_hide(World.t(), String.t(), roller(), RollLog.t() | nil) :: result()
   def cunning_action_hide(world, who, roller, roll_log \\ nil) do
-    rogue = World.character(world, who)
+    with_actor(world, who, fn -> do_cunning_action_hide(world, who, roller, roll_log) end, :bonus)
+  end
+
+  defp do_cunning_action_hide(world, who, roller, roll_log) do
+    rogue = World.present_character(world, who)
 
     cond do
       is_nil(rogue) ->
-        {:error, "no existe el personaje: #{who}"}
+        {:error, dgettext("engine", "no existe el personaje: %{actor}", actor: who)}
 
       (rogue.hp || 0) <= 0 ->
-        {:error, "#{who} está caído (0 pg) y no puede esconderse"}
+        {:error,
+         dgettext("engine", "%{actor} está caído (0 pg) y no puede esconderse", actor: who)}
 
       rogue.class != "rogue" ->
-        {:error, "#{who} no es pícaro y no puede usar Astucia de pícaro"}
+        {:error,
+         dgettext("engine", "%{actor} no es pícaro y no puede usar Astucia de pícaro", actor: who)}
 
       not is_integer(rogue.level) or rogue.level < 2 ->
-        {:error, "#{who} no tiene Astucia de pícaro (nivel 2)"}
+        {:error, dgettext("engine", "%{actor} no tiene Astucia de pícaro (nivel 2)", actor: who)}
 
       World.has_condition?(world, who, "hidden") ->
-        {:error, "#{who} ya está oculto"}
+        {:error, dgettext("engine", "%{actor} ya está oculto", actor: who)}
 
       true ->
         hide_check(rogue, world, who, roller, roll_log)
@@ -1209,7 +2044,7 @@ defmodule Dragonex.Actions do
     mode = Conditions.check_mode(rogue, :dex, :normal)
 
     {r, close} =
-      RollLog.open(roll_log, roller, who, :check, "Sigilo para esconderse")
+      RollLog.open(roll_log, roller, who, :check, dgettext("engine", "Sigilo para esconderse"))
 
     # D73: stealth expertise doubles the proficiency in this roll too.
     {d20, total, success?, lucky} =
@@ -1230,16 +2065,28 @@ defmodule Dragonex.Actions do
       |> then(fn p ->
         cond do
           prof == 0 -> p
-          prof_kind == :expert -> p ++ ["+#{prof} (experto)"]
+          prof_kind == :expert -> p ++ [dgettext("engine", "+%{bonus} (experto)", bonus: prof)]
           true -> p ++ ["+#{prof}"]
         end
       end)
       |> Enum.join("")
 
-    verdict = if success?, do: "oculto", else: "falla y sigue a la vista"
+    verdict =
+      if success?,
+        do: dgettext("engine", "oculto"),
+        else: dgettext("engine", "falla y sigue a la vista")
 
-    {:ok, "#{who} se esconde: #{breakdown}=#{total} vs #{dc} — #{verdict}#{lucky_suffix(lucky)}",
-     if(success?, do: World.apply_condition(who, "hidden"), else: noop())}
+    {:ok,
+     dgettext(
+       "engine",
+       "%{actor} se esconde: %{breakdown}=%{total} vs %{dc} — %{verdict}%{lucky}",
+       actor: who,
+       breakdown: breakdown,
+       total: total,
+       dc: dc,
+       verdict: verdict,
+       lucky: lucky_suffix(lucky)
+     ), if(success?, do: World.apply_condition(who, "hidden"), else: noop())}
   end
 
   @doc """
@@ -1254,26 +2101,37 @@ defmodule Dragonex.Actions do
   """
   @spec start_uncanny_dodge(World.t(), String.t()) :: result()
   def start_uncanny_dodge(world, who) do
-    case World.character(world, who) do
+    with_actor(world, who, fn -> do_start_uncanny_dodge(world, who) end, :reaction)
+  end
+
+  defp do_start_uncanny_dodge(world, who) do
+    case World.present_character(world, who) do
       nil ->
-        {:error, "no existe el personaje: #{who}"}
+        {:error, dgettext("engine", "no existe el personaje: %{actor}", actor: who)}
 
       %Character{hp: hp} when hp <= 0 ->
-        {:error, "#{who} está caído (0 pg) y no puede prepararse para esquivar"}
+        {:error,
+         dgettext("engine", "%{actor} está caído (0 pg) y no puede prepararse para esquivar",
+           actor: who
+         )}
 
       %Character{class: class} when class != "rogue" ->
-        {:error, "#{who} no es pícaro y no puede usar Esquiva asombrosa"}
+        {:error,
+         dgettext("engine", "%{actor} no es pícaro y no puede usar Esquiva asombrosa", actor: who)}
 
       %Character{level: level} when not is_integer(level) or level < 5 ->
-        {:error, "#{who} no tiene Esquiva asombrosa (nivel 5)"}
+        {:error, dgettext("engine", "%{actor} no tiene Esquiva asombrosa (nivel 5)", actor: who)}
 
       %Character{uncanny_dodge: true} ->
-        {:error, "#{who} ya tiene Esquiva asombrosa armada"}
+        {:error, dgettext("engine", "%{actor} ya tiene Esquiva asombrosa armada", actor: who)}
 
       %Character{} ->
         {:ok,
-         "#{who} se prepara para esquivar (Uncanny Dodge armado: el próximo daño se reduce a la mitad).",
-         World.set_uncanny_dodge(who, true)}
+         dgettext(
+           "engine",
+           "%{actor} se prepara para esquivar (Uncanny Dodge armado: el próximo daño se reduce a la mitad).",
+           actor: who
+         ), World.set_uncanny_dodge(who, true)}
     end
   end
 
@@ -1293,37 +2151,52 @@ defmodule Dragonex.Actions do
   """
   @spec gain_expertise(World.t(), String.t(), atom() | String.t()) :: result()
   def gain_expertise(world, who, skill) do
-    c = World.character(world, who)
+    c = World.present_character(world, who)
 
     cond do
       is_nil(c) ->
-        {:error, "no existe el personaje: #{who}"}
+        {:error, dgettext("engine", "no existe el personaje: %{actor}", actor: who)}
 
       (c.hp || 0) <= 0 ->
-        {:error, "#{who} está caído (0 pg) y no puede elegir Expertise"}
+        {:error,
+         dgettext("engine", "%{actor} está caído (0 pg) y no puede elegir Expertise", actor: who)}
 
       c.class not in ["rogue", "bard"] ->
-        {:error, "#{who} no puede elegir Expertise (sólo pícaros y bardos)"}
+        {:error,
+         dgettext("engine", "%{actor} no puede elegir Expertise (sólo pícaros y bardos)",
+           actor: who
+         )}
 
       not expertise_eligible_level?(c) ->
-        {:error, "#{who} aún no tiene Expertise (llega a nivel 3)"}
+        {:error,
+         dgettext("engine", "%{actor} aún no tiene Expertise (llega a nivel 3)", actor: who)}
 
       not Skills.known?(skill) ->
         {:error, unknown_expertise_error(skill)}
 
       not skill_trained?(c, Skills.normalize(skill)) ->
         {:error,
-         "#{who} no tiene competencia en #{Translations.skill(Skills.normalize(skill))} " <>
-           "(Expertise sólo aplica a skills entrenadas)"}
+         dgettext(
+           "engine",
+           "%{actor} no tiene competencia en %{skill} (Expertise sólo aplica a skills entrenadas)",
+           actor: who,
+           skill: Translations.skill(Skills.normalize(skill))
+         )}
 
       skill_expertised?(c, Skills.normalize(skill)) ->
-        {:error, "#{who} ya tiene Expertise en #{Translations.skill(Skills.normalize(skill))}"}
+        {:error,
+         dgettext("engine", "%{actor} ya tiene Expertise en %{skill}",
+           actor: who,
+           skill: Translations.skill(Skills.normalize(skill))
+         )}
 
       length(c.expertise || []) >= Progression.expertise_count(c.class, c.level) ->
         {:error,
-         "#{who} ya ha elegido sus #{Progression.expertise_count(c.class, c.level)} " <>
-           "expertises (" <>
-           Enum.map_join(c.expertise || [], ", ", &Translations.skill/1) <> ")"}
+         dgettext("engine", "%{actor} ya ha elegido sus %{count} expertises (%{skills})",
+           actor: who,
+           count: Progression.expertise_count(c.class, c.level),
+           skills: Enum.map_join(c.expertise || [], ", ", &Translations.skill/1)
+         )}
 
       true ->
         normalized = Skills.normalize(skill)
@@ -1331,8 +2204,14 @@ defmodule Dragonex.Actions do
         position = length(c.expertise || []) + 1
 
         {:ok,
-         "#{who} profundiza su dominio de #{Translations.skill(normalized)} " <>
-           "(Expertise #{position}/#{cap}).", World.add_expertise(who, normalized)}
+         dgettext(
+           "engine",
+           "%{actor} profundiza su dominio de %{skill} (Expertise %{position}/%{cap}).",
+           actor: who,
+           skill: Translations.skill(normalized),
+           position: position,
+           cap: cap
+         ), World.add_expertise(who, normalized)}
     end
   end
 
@@ -1350,14 +2229,16 @@ defmodule Dragonex.Actions do
   defp skill_expertised?(_, _), do: false
 
   defp unknown_expertise_error(skill) do
-    "skill desconocida: #{inspect(skill)} — usa un skill entrenado " <>
-      "(#{Skills.examples()}, …)"
+    dgettext("engine", "skill desconocida: %{skill} — usa un skill entrenado (%{examples}, …)",
+      skill: inspect(skill),
+      examples: Skills.examples()
+    )
   end
 
   # DC: the highest passive perception among conscious enemies; 10 when
   # there is none (RAW minimum).
   defp hide_dc(%World{} = world, %Character{} = who) do
-    world.characters
+    World.present_characters(world)
     |> Map.values()
     |> Enum.filter(fn c -> c.side != who.side and (c.hp || 0) > 0 end)
     |> Enum.map(&passive_perception/1)
@@ -1389,35 +2270,59 @@ defmodule Dragonex.Actions do
   """
   @spec create_spell_slot(World.t(), String.t(), integer()) :: result()
   def create_spell_slot(world, who, level) do
-    sorcerer = World.character(world, who)
+    with_actor(world, who, fn -> do_create_spell_slot(world, who, level) end, :bonus)
+  end
+
+  defp do_create_spell_slot(world, who, level) do
+    sorcerer = World.present_character(world, who)
     cost = Progression.sorcery_slot_cost(level)
 
     cond do
       is_nil(sorcerer) ->
-        {:error, "no existe el personaje: #{who}"}
+        {:error, dgettext("engine", "no existe el personaje: %{actor}", actor: who)}
 
       (sorcerer.hp || 0) <= 0 ->
-        {:error, "#{who} está caído (0 pg) y no puede usar Fuente de magia"}
+        {:error,
+         dgettext("engine", "%{actor} está caído (0 pg) y no puede usar Fuente de magia",
+           actor: who
+         )}
 
       sorcerer.class != "sorcerer" ->
-        {:error, "#{who} no es hechicero y no puede usar Fuente de magia"}
+        {:error,
+         dgettext("engine", "%{actor} no es hechicero y no puede usar Fuente de magia",
+           actor: who
+         )}
 
       not is_integer(sorcerer.level) or sorcerer.level < 2 ->
-        {:error, "#{who} no tiene Fuente de magia (nivel 2)"}
+        {:error, dgettext("engine", "%{actor} no tiene Fuente de magia (nivel 2)", actor: who)}
 
       is_nil(cost) ->
-        {:error, "nivel de casilla inválido: #{inspect(level)} (1 a 5)"}
+        {:error,
+         dgettext("engine", "nivel de casilla inválido: %{level} (1 a 5)", level: inspect(level))}
 
       (sorcerer.sorcery_points || 0) < cost ->
         {:error,
-         "#{who} no tiene suficientes puntos de hechicería (le quedan #{sorcerer.sorcery_points || 0}; la casilla de nivel #{level} cuesta #{cost})"}
+         dgettext(
+           "engine",
+           "%{actor} no tiene suficientes puntos de hechicería (le quedan %{points}; la casilla de nivel %{level} cuesta %{cost})",
+           actor: who,
+           points: sorcerer.sorcery_points || 0,
+           level: level,
+           cost: cost
+         )}
 
       true ->
         remaining = (sorcerer.sorcery_points || 0) - cost
 
         {:ok,
-         "#{who} teje magia: convierte #{cost} puntos de hechicería en 1 casilla de nivel #{level} (quedan #{remaining} puntos).",
-         compose_create_slot(who, level, cost)}
+         dgettext(
+           "engine",
+           "%{actor} teje magia: convierte %{cost} puntos de hechicería en 1 casilla de nivel %{level} (quedan %{remaining} puntos).",
+           actor: who,
+           cost: cost,
+           level: level,
+           remaining: remaining
+         ), compose_create_slot(who, level, cost)}
     end
   end
 
@@ -1431,38 +2336,65 @@ defmodule Dragonex.Actions do
   """
   @spec convert_to_sorcery_points(World.t(), String.t(), integer()) :: result()
   def convert_to_sorcery_points(world, who, level) do
-    sorcerer = World.character(world, who)
+    with_actor(world, who, fn -> do_convert_to_sorcery_points(world, who, level) end, :bonus)
+  end
+
+  defp do_convert_to_sorcery_points(world, who, level) do
+    sorcerer = World.present_character(world, who)
 
     cond do
       is_nil(sorcerer) ->
-        {:error, "no existe el personaje: #{who}"}
+        {:error, dgettext("engine", "no existe el personaje: %{actor}", actor: who)}
 
       (sorcerer.hp || 0) <= 0 ->
-        {:error, "#{who} está caído (0 pg) y no puede usar Fuente de magia"}
+        {:error,
+         dgettext("engine", "%{actor} está caído (0 pg) y no puede usar Fuente de magia",
+           actor: who
+         )}
 
       sorcerer.class != "sorcerer" ->
-        {:error, "#{who} no es hechicero y no puede usar Fuente de magia"}
+        {:error,
+         dgettext("engine", "%{actor} no es hechicero y no puede usar Fuente de magia",
+           actor: who
+         )}
 
       not is_integer(sorcerer.level) or sorcerer.level < 2 ->
-        {:error, "#{who} no tiene Fuente de magia (nivel 2)"}
+        {:error, dgettext("engine", "%{actor} no tiene Fuente de magia (nivel 2)", actor: who)}
 
       not (is_integer(level) and level >= 1 and level <= 5) ->
-        {:error, "nivel de casilla inválido: #{inspect(level)} (1 a 5)"}
+        {:error,
+         dgettext("engine", "nivel de casilla inválido: %{level} (1 a 5)", level: inspect(level))}
 
       not World.has_slot?(world, who, level) ->
-        {:error, "#{who} no le quedan casillas de nivel #{level}"}
+        {:error,
+         dgettext("engine", "%{actor} no le quedan casillas de nivel %{level}",
+           actor: who,
+           level: level
+         )}
 
       true ->
         max = Progression.sorcery_points("sorcerer", sorcerer.level)
         before = sorcerer.sorcery_points || 0
         after_points = min(before + level, max)
         gained = after_points - before
-        cap_note = if before + level > max, do: " El exceso se disipa en la Fuente.", else: ""
+
+        cap_note =
+          if before + level > max,
+            do: dgettext("engine", " El exceso se disipa en la Fuente."),
+            else: ""
 
         {:ok,
-         "#{who} drena una casilla de nivel #{level} y recupera #{gained} " <>
-           "punto#{if gained == 1, do: "", else: "s"} de hechicería " <>
-           "(#{after_points}/#{max} máx).#{cap_note}", compose_convert_slot(who, level)}
+         dngettext(
+           "engine",
+           "%{actor} drena una casilla de nivel %{level} y recupera %{count} punto de hechicería (%{points}/%{max} máx).%{note}",
+           "%{actor} drena una casilla de nivel %{level} y recupera %{count} puntos de hechicería (%{points}/%{max} máx).%{note}",
+           gained,
+           actor: who,
+           level: level,
+           points: after_points,
+           max: max,
+           note: cap_note
+         ), compose_convert_slot(who, level)}
     end
   end
 
@@ -1488,65 +2420,95 @@ defmodule Dragonex.Actions do
   def arm_metamagic(world, who, option, target \\ "")
 
   def arm_metamagic(world, who, option, target) do
-    sorcerer = World.character(world, who)
+    with_actor(world, who, fn -> do_arm_metamagic(world, who, option, target) end)
+  end
+
+  defp do_arm_metamagic(world, who, option, target) do
+    sorcerer = World.present_character(world, who)
     opt = normalize_metamagic_option(option)
     target = if is_binary(target), do: String.trim(target), else: ""
 
     cond do
       is_nil(sorcerer) ->
-        {:error, "no existe el personaje: #{who}"}
+        {:error, dgettext("engine", "no existe el personaje: %{actor}", actor: who)}
 
       (sorcerer.hp || 0) <= 0 ->
-        {:error, "#{who} está caído (0 pg) y no puede usar Metamagia"}
+        {:error,
+         dgettext("engine", "%{actor} está caído (0 pg) y no puede usar Metamagia", actor: who)}
 
       sorcerer.class != "sorcerer" ->
-        {:error, "#{who} no es hechicero y no puede usar Metamagia"}
+        {:error,
+         dgettext("engine", "%{actor} no es hechicero y no puede usar Metamagia", actor: who)}
 
       not is_integer(sorcerer.level) or sorcerer.level < 3 ->
-        {:error, "#{who} no tiene Metamagia (nivel 3)"}
+        {:error, dgettext("engine", "%{actor} no tiene Metamagia (nivel 3)", actor: who)}
 
       is_nil(opt) ->
         {:error,
-         "opción de Metamagia desconocida: #{option} " <>
-           "(válidas: empowered, heightened, twinned)"}
+         dgettext(
+           "engine",
+           "opción de Metamagia desconocida: %{option} (válidas: empowered, heightened, twinned)",
+           option: option
+         )}
 
       sorcerer.metamagic != nil ->
         {:error,
-         "#{who} ya tiene Metamagia armada: " <>
-           "#{metamagic_es(sorcerer.metamagic)} — se consume con su próximo " <>
-           "hechizo que califique (espera a que se consuma antes de armar otra)"}
+         dgettext(
+           "engine",
+           "%{actor} ya tiene Metamagia armada: %{option} — se consume con su próximo hechizo que califique (espera a que se consuma antes de armar otra)",
+           actor: who,
+           option: metamagic_es(sorcerer.metamagic)
+         )}
 
       (sorcerer.sorcery_points || 0) < metamagic_cost(opt) ->
         {:error,
-         "#{who} no tiene suficientes puntos de hechicería " <>
-           "(le quedan #{sorcerer.sorcery_points || 0}; " <>
-           "#{metamagic_es(opt)} cuesta #{metamagic_cost(opt)})"}
+         dgettext(
+           "engine",
+           "%{actor} no tiene suficientes puntos de hechicería (le quedan %{points}; %{option} cuesta %{cost})",
+           actor: who,
+           points: sorcerer.sorcery_points || 0,
+           option: metamagic_es(opt),
+           cost: metamagic_cost(opt)
+         )}
 
       opt == "heightened" and target == "" ->
-        {:error, "heightened requiere un objetivo (target)"}
+        {:error, dgettext("engine", "heightened requiere un objetivo (target)")}
 
       opt == "twinned" and target == "" ->
-        {:error, "twinned requiere un segundo objetivo (target)"}
+        {:error, dgettext("engine", "twinned requiere un segundo objetivo (target)")}
 
-      opt == "twinned" and is_nil(World.character(world, target)) ->
-        {:error, "no existe el objetivo: #{target}"}
+      opt == "twinned" and is_nil(World.present_character(world, target)) ->
+        {:error, dgettext("engine", "no existe el objetivo: %{target}", target: target)}
 
       opt == "twinned" and target == who ->
-        {:error, "twinned no puede gemarse a sí mismo (target debe ser otro personaje)"}
+        {:error,
+         dgettext(
+           "engine",
+           "twinned no puede gemarse a sí mismo (target debe ser otro personaje)"
+         )}
 
       true ->
         cost = metamagic_cost(opt)
         remaining = (sorcerer.sorcery_points || 0) - cost
 
         points_label =
-          if cost == 1, do: "1 punto de hechicería", else: "#{cost} puntos de hechicería"
+          if cost == 1,
+            do: dgettext("engine", "1 punto de hechicería"),
+            else: dgettext("engine", "%{cost} puntos de hechicería", cost: cost)
 
-        target_bit = if target == "", do: "", else: " sobre #{target}"
+        target_bit =
+          if target == "", do: "", else: dgettext("engine", " sobre %{target}", target: target)
 
         {:ok,
-         "#{who} arma Metamagia: #{metamagic_es(opt)} (#{points_label}, quedan #{remaining})" <>
-           "#{target_bit}. El próximo hechizo que califique la aplicará.",
-         compose_arm_metamagic(who, cost, opt, target)}
+         dgettext(
+           "engine",
+           "%{actor} arma Metamagia: %{option} (%{points}, quedan %{remaining})%{target_note}. El próximo hechizo que califique la aplicará.",
+           actor: who,
+           option: metamagic_es(opt),
+           points: points_label,
+           remaining: remaining,
+           target_note: target_bit
+         ), compose_arm_metamagic(who, cost, opt, target)}
     end
   end
 
@@ -1595,21 +2557,37 @@ defmodule Dragonex.Actions do
   @spec breath_weapon(World.t(), String.t(), String.t(), roller(), RollLog.t() | nil) ::
           result()
   def breath_weapon(world, who, target, roller, roll_log \\ nil) do
+    with_actor(
+      world,
+      who,
+      fn -> do_breath_weapon(world, who, target, roller, roll_log) end,
+      :action
+    )
+  end
+
+  defp do_breath_weapon(world, who, target, roller, roll_log) do
     cond do
-      is_nil(World.character(world, who)) ->
-        {:error, "no existe el personaje: #{who}"}
+      is_nil(World.present_character(world, who)) ->
+        {:error, dgettext("engine", "no existe el personaje: %{actor}", actor: who)}
 
-      is_nil(World.character(world, target)) ->
-        {:error, "no existe el objetivo: #{target}"}
+      is_nil(World.present_character(world, target)) ->
+        {:error, dgettext("engine", "no existe el objetivo: %{target}", target: target)}
 
-      (World.character(world, who).hp || 0) <= 0 ->
-        {:error, "#{who} está caído (0 pg) y no puede usar su aliento"}
+      (World.present_character(world, who).hp || 0) <= 0 ->
+        {:error,
+         dgettext("engine", "%{actor} está caído (0 pg) y no puede usar su aliento", actor: who)}
 
-      not dragonborn?(World.character(world, who)) ->
-        {:error, "#{who} no es dragontino y no tiene aliento de dragón"}
+      not dragonborn?(World.present_character(world, who)) ->
+        {:error,
+         dgettext("engine", "%{actor} no es dragontino y no tiene aliento de dragón", actor: who)}
 
-      World.character(world, who).breath_weapon_used == true ->
-        {:error, "#{who} ya ha usado su aliento de dragón (se recarga con un descanso)"}
+      World.present_character(world, who).breath_weapon_used == true ->
+        {:error,
+         dgettext(
+           "engine",
+           "%{actor} ya ha usado su aliento de dragón (se recarga con un descanso)",
+           actor: who
+         )}
 
       true ->
         resolve_breath_weapon(world, who, target, roller, roll_log)
@@ -1617,8 +2595,8 @@ defmodule Dragonex.Actions do
   end
 
   defp resolve_breath_weapon(world, who, target_name, roller, roll_log) do
-    source = World.character(world, who)
-    t = World.character(world, target_name)
+    source = World.present_character(world, who)
+    t = World.present_character(world, target_name)
     level = source.level || 1
     dice = Progression.breath_dice(level)
     # CD pattern of spells, keyed on the dragonborn's CON (D70).
@@ -1630,16 +2608,30 @@ defmodule Dragonex.Actions do
     case Conditions.save_mode(t, :dex) do
       :auto_fail ->
         {r, close_dmg} =
-          RollLog.open(roll_log, roller, who, :damage, "daño de aliento de dragón (fire)")
+          RollLog.open(
+            roll_log,
+            roller,
+            who,
+            :damage,
+            dgettext("engine", "daño de aliento de dragón (%{damage_type})",
+              damage_type: Terms.damage_type("fire")
+            )
+          )
 
         full = Dice.roll_expr(dice, r)
         RollLog.close(close_dmg, total: full, against: nil, outcome: nil)
 
         {:ok, msg, change} =
           with_conc_damage(
-            "#{who} exhala aliento de dragón (fuego, usos restantes: 0): " <>
-              "#{target_name} falla automáticamente la salvación de Destreza vs CD #{dc} — " <>
-              "#{full} de daño fire.",
+            dgettext(
+              "engine",
+              "%{actor} exhala aliento de dragón (fuego, usos restantes: 0): %{target} falla automáticamente la salvación de Destreza vs CD %{dc} — %{amount} de %{damage}.",
+              actor: who,
+              target: target_name,
+              dc: dc,
+              amount: full,
+              damage: Terms.damage("fire")
+            ),
             target_name,
             full,
             roller,
@@ -1658,7 +2650,7 @@ defmodule Dragonex.Actions do
             roller,
             target_name,
             :save,
-            "salvación de Destreza contra aliento de dragón"
+            dgettext("engine", "salvación de Destreza contra aliento de dragón")
           )
 
         inspired? = t.inspired == true
@@ -1675,7 +2667,9 @@ defmodule Dragonex.Actions do
         {d20, stotal, success?, indom} =
           maybe_indomitable(t, :dex, dc, r, save_mode, {d20, stotal, success?}, aura)
 
+        before_save = t
         t = if indom, do: %{t | indomitable_used: true}, else: t
+        t = if inspired?, do: %{t | inspired: false}, else: t
 
         RollLog.close(close_save,
           total: stotal,
@@ -1684,7 +2678,15 @@ defmodule Dragonex.Actions do
         )
 
         {r2, close_dmg} =
-          RollLog.open(roll_log, roller, who, :damage, "daño de aliento de dragón (fire)")
+          RollLog.open(
+            roll_log,
+            roller,
+            who,
+            :damage,
+            dgettext("engine", "daño de aliento de dragón (%{damage_type})",
+              damage_type: Terms.damage_type("fire")
+            )
+          )
 
         full = Dice.roll_expr(dice, r2)
         RollLog.close(close_dmg, total: full, against: nil, outcome: nil)
@@ -1701,7 +2703,11 @@ defmodule Dragonex.Actions do
             true -> full
           end
 
-        bardic_bit = if bardic != 0, do: " +#{bardic} inspiración", else: ""
+        bardic_bit =
+          if bardic != 0,
+            do: dgettext("engine", " +%{bardic} inspiración", bardic: bardic),
+            else: ""
+
         aura_b = aura_bit(aura)
         lucky_b = lucky_suffix(lucky)
         indom_b = indom_suffix(indom)
@@ -1709,28 +2715,81 @@ defmodule Dragonex.Actions do
         verdict =
           cond do
             success? and evasion? ->
-              "supera la salvación de Destreza (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)} (Evasión: sin daño)"
+              dgettext(
+                "engine",
+                "supera la salvación de Destreza (d20 %{d20}%{lucky}%{indomitable}: %{total} vs CD %{dc}%{aura}%{bardic})%{mode} (Evasión: sin daño)",
+                d20: d20,
+                lucky: lucky_b,
+                indomitable: indom_b,
+                total: stotal,
+                dc: dc,
+                aura: aura_b,
+                bardic: bardic_bit,
+                mode: mode_tag(save_mode)
+              )
 
             success? ->
-              "supera la salvación de Destreza (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}, mitad de daño"
+              dgettext(
+                "engine",
+                "supera la salvación de Destreza (d20 %{d20}%{lucky}%{indomitable}: %{total} vs CD %{dc}%{aura}%{bardic})%{mode}, mitad de daño",
+                d20: d20,
+                lucky: lucky_b,
+                indomitable: indom_b,
+                total: stotal,
+                dc: dc,
+                aura: aura_b,
+                bardic: bardic_bit,
+                mode: mode_tag(save_mode)
+              )
 
             evasion? ->
-              "falla la salvación de Destreza (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)} (Evasión: mitad)"
+              dgettext(
+                "engine",
+                "falla la salvación de Destreza (d20 %{d20}%{lucky}%{indomitable}: %{total} vs CD %{dc}%{aura}%{bardic})%{mode} (Evasión: mitad)",
+                d20: d20,
+                lucky: lucky_b,
+                indomitable: indom_b,
+                total: stotal,
+                dc: dc,
+                aura: aura_b,
+                bardic: bardic_bit,
+                mode: mode_tag(save_mode)
+              )
 
             true ->
-              "falla la salvación de Destreza (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_tag(save_mode)}"
+              dgettext(
+                "engine",
+                "falla la salvación de Destreza (d20 %{d20}%{lucky}%{indomitable}: %{total} vs CD %{dc}%{aura}%{bardic})%{mode}",
+                d20: d20,
+                lucky: lucky_b,
+                indomitable: indom_b,
+                total: stotal,
+                dc: dc,
+                aura: aura_b,
+                bardic: bardic_bit,
+                mode: mode_tag(save_mode)
+              )
           end
 
         {:ok, msg, change} =
           with_conc_damage(
-            "#{who} exhala aliento de dragón (fuego, usos restantes: 0): #{target_name} #{verdict} — #{dmg} de daño fire.",
+            dgettext(
+              "engine",
+              "%{actor} exhala aliento de dragón (fuego, usos restantes: 0): %{target} %{verdict} — %{amount} de %{damage}.",
+              actor: who,
+              target: target_name,
+              verdict: verdict,
+              amount: dmg,
+              damage: Terms.damage("fire")
+            ),
             target_name,
             dmg,
             roller,
             roll_log,
             t,
             "fire",
-            aura
+            aura,
+            before_save
           )
 
         {:ok, msg,
@@ -1739,7 +2798,11 @@ defmodule Dragonex.Actions do
            compose_indomitable_mark(
              target_name,
              indom,
-             compose_inspired_clear(target_name, inspired?, change)
+             compose_inspired_clear(
+               target_name,
+               inspired?,
+               change
+             )
            )
          )}
     end
@@ -1767,39 +2830,78 @@ defmodule Dragonex.Actions do
   Warlocks (D40) also restore Pact Magic slots; other casters do not.
   """
   @spec short_rest(World.t(), String.t(), roller(), RollLog.t() | nil) :: result()
-  def short_rest(world, name, roller, roll_log \\ nil) do
-    case World.character(world, name) do
+  def short_rest(world, name, roller, roll_log \\ nil, hit_dice \\ nil) do
+    with :ok <- Dragonex.Rest.validate(world, name, :short) do
+      available = Dragonex.Rest.remaining(world, name)
+      count = if is_nil(hit_dice), do: min(1, available), else: hit_dice
+
+      if is_integer(count) and count >= 0 and count <= available,
+        do: guard_rest(do_short_rest(world, name, roller, roll_log, count), world),
+        else:
+          {:error,
+           dgettext("engine", "dados de golpe inválidos; disponibles %{available}",
+             available: available
+           )}
+    end
+  end
+
+  defp do_short_rest(world, name, roller, roll_log, count) do
+    # Dice are spent at the end of the rest, after timed forms/effects expire.
+    projected = Dragonex.WorldClock.advance(world, 3600)
+
+    case World.present_character(projected, name) do
       nil ->
-        {:error, "no existe el personaje: #{name}"}
+        {:error, dgettext("engine", "no existe el personaje: %{name}", name: name)}
 
       %Character{} when world.phase == :combat ->
-        {:error, "no se puede descansar en combate"}
+        {:error, dgettext("engine", "no se puede descansar en combate")}
 
       %Character{hp: hp, max_hp: max_hp} = c ->
         if hp <= 0 do
-          {:error, "#{name} está caído y no puede descansar"}
+          {:error, dgettext("engine", "%{name} está caído y no puede descansar", name: name)}
         else
           hit_die = World.hit_die_size(c.class)
           con_mod = Character.modifier(c, :con)
 
           {r, close} =
-            RollLog.open(roll_log, roller, name, :heal, "descanso corto (1d#{hit_die})")
+            RollLog.open(
+              roll_log,
+              roller,
+              name,
+              :heal,
+              dgettext("engine", "descanso corto (1d%{hit_die})", hit_die: hit_die)
+            )
 
-          rolled = r.(hit_die) + con_mod
+          rolled =
+            if count == 0,
+              do: 0,
+              else: Enum.sum(for _ <- 1..count, do: max(0, r.(hit_die) + con_mod))
+
           RollLog.close(close, total: rolled, against: nil, outcome: nil)
           applied = min(rolled, max_hp - hp)
 
           msg =
-            "#{name} hace un descanso corto y recupera #{applied} pg (1d#{hit_die}#{signed(con_mod)} = #{rolled}, ahora #{hp + applied}/#{max_hp})."
+            dgettext(
+              "engine",
+              "%{name} hace un descanso corto y recupera %{amount} pg (%{count} dados de golpe d%{hit_die}, CON %{con} por dado = %{total}, ahora %{new_hp}/%{max_hp}).",
+              name: name,
+              amount: applied,
+              count: count,
+              hit_die: hit_die,
+              con: signed(con_mod),
+              total: rolled,
+              new_hp: hp + applied,
+              max_hp: max_hp
+            )
 
           {msg, restore?} =
             if SpellSlots.pact_caster?(c.class) do
-              {msg <> " Casillas de pacto recuperadas.", true}
+              {msg <> dgettext("engine", " Casillas de pacto recuperadas."), true}
             else
               {msg, false}
             end
 
-          {:ok, msg, compose_rest(name, applied, restore?)}
+          {:ok, msg, compose_rest(name, rolled, restore?, :short, count)}
         end
     end
   end
@@ -1815,24 +2917,106 @@ defmodule Dragonex.Actions do
   """
   @spec long_rest(World.t(), String.t()) :: result()
   def long_rest(world, name) do
-    case World.character(world, name) do
+    with :ok <- Dragonex.Rest.validate(world, name, :long),
+         do: guard_rest(do_long_rest(world, name), world)
+  end
+
+  defp guard_rest({:ok, message, change}, before) do
+    {:ok, message,
+     fn current ->
+       with :ok <- unchanged_turn(before, current), do: change.(current)
+     end}
+  end
+
+  defp guard_rest(error, _before), do: error
+
+  defp do_long_rest(world, name) do
+    # Report the body that will receive healing after the rest's timed
+    # effects expire, as short_rest does. Projection does not commit time.
+    projected = Dragonex.WorldClock.advance(world, 28800)
+
+    case World.present_character(projected, name) do
       nil ->
-        {:error, "no existe el personaje: #{name}"}
+        {:error, dgettext("engine", "no existe el personaje: %{name}", name: name)}
 
       %Character{} when world.phase == :combat ->
-        {:error, "no se puede descansar en combate"}
+        {:error, dgettext("engine", "no se puede descansar en combate")}
 
       %Character{hp: hp, max_hp: max_hp} ->
         if hp <= 0 do
-          {:error, "#{name} está caído y no puede descansar"}
+          {:error, dgettext("engine", "%{name} está caído y no puede descansar", name: name)}
         else
           healed = max_hp - hp
 
           {:ok,
-           "#{name} hace un descanso largo y recupera #{healed} pg (#{hp} → #{max_hp}, recuperación completa). Casillas de hechizo recuperadas.",
-           compose_long_rest(name, healed)}
+           dgettext(
+             "engine",
+             "%{name} hace un descanso largo y recupera %{healed} pg (%{hp} → %{max_hp}, recuperación completa). Casillas de hechizo recuperadas.",
+             name: name,
+             healed: healed,
+             hp: hp,
+             max_hp: max_hp
+           ), compose_long_rest(name, healed)}
         end
     end
+  end
+
+  @doc "Simultaneous party rest: each member recovers, but world time advances only once."
+  def rest_party(world, names, kind, roller, roll_log \\ nil) do
+    cond do
+      not is_list(names) or names == [] or Enum.any?(names, &(not is_binary(&1))) ->
+        {:error, dgettext("engine", "indica una lista de personajes")}
+
+      length(Enum.uniq(names)) != length(names) ->
+        {:error, dgettext("engine", "un personaje no puede descansar dos veces a la vez")}
+
+      kind not in ["short", "long"] ->
+        {:error, dgettext("engine", "descanso inválido: short o long")}
+
+      true ->
+        with :ok <- validate_party_rest(world, names, kind) do
+          Enum.reduce_while(names, {:ok, [], []}, fn name, {:ok, messages, changes} ->
+            result =
+              if kind == "short",
+                do: short_rest(world, name, roller, roll_log),
+                else: long_rest(world, name)
+
+            case result do
+              {:ok, message, change} -> {:cont, {:ok, messages ++ [message], changes ++ [change]}}
+              error -> {:halt, error}
+            end
+          end)
+          |> case do
+            {:ok, messages, changes} ->
+              {:ok, Enum.join(messages, " "),
+               fn current ->
+                 if current.elapsed_seconds != world.elapsed_seconds do
+                   {:error,
+                    dgettext("engine", "ha transcurrido tiempo desde la preparación del descanso")}
+                 else
+                   Enum.reduce_while(changes, {:ok, current}, fn change, {:ok, acc} ->
+                     case change.(%{acc | elapsed_seconds: current.elapsed_seconds}) do
+                       {:ok, next} -> {:cont, {:ok, next}}
+                       error -> {:halt, error}
+                     end
+                   end)
+                 end
+               end}
+
+            error ->
+              error
+          end
+        end
+    end
+  end
+
+  defp validate_party_rest(world, names, kind) do
+    Enum.reduce_while(names, :ok, fn name, :ok ->
+      case Dragonex.Rest.validate(world, name, if(kind == "short", do: :short, else: :long)) do
+        :ok -> {:cont, :ok}
+        error -> {:halt, error}
+      end
+    end)
   end
 
   @doc """
@@ -1871,14 +3055,24 @@ defmodule Dragonex.Actions do
         mode \\ :normal,
         roll_log \\ nil
       ) do
-    case World.character(world, who) do
+    with_actor(
+      world,
+      who,
+      fn -> do_check(world, who, ability_or_skill, dc, proficient, roller, mode, roll_log) end,
+      :action
+    )
+  end
+
+  defp do_check(world, who, ability_or_skill, dc, proficient, roller, mode, roll_log) do
+    case World.present_character(world, who) do
       nil ->
-        {:error, "no existe el personaje: #{who}"}
+        {:error, dgettext("engine", "no existe el personaje: %{actor}", actor: who)}
 
       # A downed character cannot make ability checks (death saves use their
       # own path); enforce RAW rather than trusting the model.
       %Character{hp: hp} when hp <= 0 ->
-        {:error, "#{who} está caído (0 pg) y no puede hacer chequeos"}
+        {:error,
+         dgettext("engine", "%{actor} está caído (0 pg) y no puede hacer chequeos", actor: who)}
 
       %Character{} = c ->
         with {:ok, %{ability: ability, proficient?: prof?, skill: skill}} <-
@@ -1888,7 +3082,13 @@ defmodule Dragonex.Actions do
           label = check_label(ability, skill)
 
           {r, close} =
-            RollLog.open(roll_log, roller, who, :check, "chequeo de #{label}")
+            RollLog.open(
+              roll_log,
+              roller,
+              who,
+              :check,
+              dgettext("engine", "chequeo de %{label}", label: label)
+            )
 
           {d20, total, _success?, lucky} =
             Combat.ability_check_tagged(c, ability, dc, r, prof?, effective_mode, skill)
@@ -1904,13 +3104,24 @@ defmodule Dragonex.Actions do
 
           mod = Character.modifier(c, ability)
           {prof_bonus, prof_kind} = Combat.check_proficiency(c, prof?, skill)
-          verdict = if success?, do: "éxito", else: "fallo"
+
+          verdict =
+            if success?, do: dgettext("engine", "éxito"), else: dgettext("engine", "fallo")
 
           parts = check_parts(d20, mod, ability, prof_bonus, prof_kind, bardic, skill, lucky)
 
           {:ok,
-           "#{who} hace un chequeo de #{label}#{mode_tag(effective_mode)}: #{Enum.join(parts, " + ")} = #{total} vs CD #{dc} — #{verdict}.",
-           compose_inspired_clear(who, inspired?, noop())}
+           dgettext(
+             "engine",
+             "%{actor} hace un chequeo de %{label}%{mode}: %{parts} = %{total} vs CD %{dc} — %{verdict}.",
+             actor: who,
+             label: label,
+             mode: mode_tag(effective_mode),
+             parts: Enum.join(parts, " + "),
+             total: total,
+             dc: dc,
+             verdict: verdict
+           ), compose_inspired_clear(who, inspired?, noop())}
         end
     end
   end
@@ -1940,8 +3151,12 @@ defmodule Dragonex.Actions do
   end
 
   defp unknown_check_input_error(input) do
-    "característica o skill desconocidos: #{inspect(input)} — usa un skill " <>
-      "(#{Skills.examples()}, …) o una característica str/dex/con/int/wis/cha"
+    dgettext(
+      "engine",
+      "característica o skill desconocidos: %{input} — usa un skill (%{examples}, …) o una característica str/dex/con/int/wis/cha",
+      input: inspect(input),
+      examples: Skills.examples()
+    )
   end
 
   # Roll-log label: "Sigilo (DES)" for a named skill, "Destreza" for a raw
@@ -1961,12 +3176,16 @@ defmodule Dragonex.Actions do
     |> then(fn p -> if mod != 0, do: p ++ ["#{signed(mod)} (#{ability})"], else: p end)
     |> then(fn p ->
       case prof_kind do
-        :prof -> p ++ ["#{prof_bonus} (competencia)"]
+        :prof -> p ++ [dgettext("engine", "%{bonus} (competencia)", bonus: prof_bonus)]
         :joat -> p ++ ["#{prof_bonus} (JoaT)"]
         :none -> p
       end
     end)
-    |> then(fn p -> if bardic != 0, do: p ++ ["#{bardic} (inspiración)"], else: p end)
+    |> then(fn p ->
+      if bardic != 0,
+        do: p ++ [dgettext("engine", "%{bardic} (inspiración)", bardic: bardic)],
+        else: p
+    end)
   end
 
   defp check_parts(d20, mod, ability, prof_bonus, prof_kind, bardic, skill, lucky)
@@ -1977,16 +3196,989 @@ defmodule Dragonex.Actions do
     |> then(fn p -> if mod != 0, do: p ++ ["#{abbr} #{mod}"], else: p end)
     |> then(fn p ->
       case prof_kind do
-        :expert -> p ++ ["prof #{prof_bonus} (experto)"]
-        :prof -> p ++ ["prof #{prof_bonus}"]
+        :expert -> p ++ [dgettext("engine", "prof %{bonus} (experto)", bonus: prof_bonus)]
+        :prof -> p ++ [dgettext("engine", "prof %{bonus}", bonus: prof_bonus)]
         :joat -> p ++ ["JoaT #{prof_bonus}"]
         :none -> p
       end
     end)
-    |> then(fn p -> if bardic != 0, do: p ++ ["inspiración #{bardic}"], else: p end)
+    |> then(fn p ->
+      if bardic != 0,
+        do: p ++ [dgettext("engine", "inspiración %{bardic}", bardic: bardic)],
+        else: p
+    end)
   end
 
   # ------------------------------------------------------------- spell helpers
+
+  @humanoid_races ~w(human elf dwarf halfling gnome half-elf half-orc dragonborn tiefling humanoid goblinoid orc reptilian)
+
+  defp resolve_mage_armor(world, caster_name, targets) do
+    with :ok <- validate_condition_targets(world, targets, :any) do
+      twin = if length(targets) > 1, do: dgettext("engine", " (Metamagia: Twinned)"), else: ""
+
+      {:ok,
+       dgettext(
+         "engine",
+         "%{caster} conjura %{spell}%{twin} sobre %{targets}: CA 13 + DES durante 8 horas, sin concentración.",
+         caster: caster_name,
+         spell: Terms.spell("mage armor"),
+         twin: twin,
+         targets: Enum.join(targets, ", ")
+       ), World.grant_mage_armor(targets)}
+    end
+  end
+
+  defp resolve_charm_person(world, caster, caster_name, spell, targets, roller, roll_log) do
+    with :ok <- validate_condition_targets(world, targets, :humanoid) do
+      requested = if world.phase == :combat, do: :advantage, else: :normal
+
+      {bits, failed, marks} =
+        Enum.reduce(targets, {[], [], []}, fn name, {bits, failed, marks} ->
+          target = World.present_character(world, name)
+
+          save =
+            condition_save(world, caster, spell, target, :wis, roller, roll_log,
+              requested: requested
+            )
+
+          bit =
+            condition_verdict(name, ability_es(:wis), save, dgettext("engine", "queda encantado"))
+
+          bit =
+            if length(targets) > 1,
+              do: dgettext("engine", "en %{name}: %{result}", name: name, result: bit),
+              else: bit
+
+          failed = if save.success?, do: failed, else: failed ++ [name]
+          {bits ++ [bit], failed, marks ++ [save_mark(name, save)]}
+        end)
+
+      {:ok,
+       dgettext("engine", "%{caster} conjura %{spell}: %{effects}.",
+         caster: caster_name,
+         spell: Terms.spell("charm person"),
+         effects: Enum.join(bits, "; ")
+       ), compose_save_marks(marks, World.grant_charm(caster_name, caster.side, failed))}
+    end
+  end
+
+  defp resolve_hold_person(world, caster, caster_name, spell, targets, roller, roll_log) do
+    with :ok <- validate_condition_targets(world, targets, :humanoid) do
+      {bits, failed, marks} =
+        Enum.reduce(targets, {[], [], []}, fn name, {bits, failed, marks} ->
+          target = World.present_character(world, name)
+          save = condition_save(world, caster, spell, target, :wis, roller, roll_log)
+
+          bit =
+            condition_verdict(
+              name,
+              ability_es(:wis),
+              save,
+              dgettext("engine", "queda paralizado")
+            )
+
+          bit =
+            if length(targets) > 1,
+              do: dgettext("engine", "en %{name}: %{result}", name: name, result: bit),
+              else: bit
+
+          failed = if save.success?, do: failed, else: failed ++ [{name, save.dc}]
+          {bits ++ [bit], failed, marks ++ [save_mark(name, save)]}
+        end)
+
+      {:ok, hold_person_message(caster_name, bits, failed),
+       compose_save_marks(marks, hold_person_change(caster_name, failed))}
+    end
+  end
+
+  defp resolve_faerie_fire(world, caster, caster_name, spell, targets, roller, roll_log) do
+    with :ok <- validate_condition_targets(world, targets, :any) do
+      {bits, failed, marks} =
+        Enum.reduce(targets, {[], [], []}, fn name, {bits, failed, marks} ->
+          target = World.present_character(world, name)
+          save = condition_save(world, caster, spell, target, :dex, roller, roll_log)
+
+          bit =
+            condition_verdict(name, ability_es(:dex), save, dgettext("engine", "queda marcado"))
+
+          bit =
+            if length(targets) > 1,
+              do: dgettext("engine", "en %{name}: %{result}", name: name, result: bit),
+              else: bit
+
+          failed = if save.success?, do: failed, else: failed ++ [name]
+          {bits ++ [bit], failed, marks ++ [save_mark(name, save)]}
+        end)
+
+      {:ok, faerie_fire_message(caster_name, bits, failed),
+       compose_save_marks(marks, faerie_fire_change(caster_name, failed))}
+    end
+  end
+
+  defp hold_person_message(caster, bits, failed) do
+    twin = if length(bits) > 1, do: dgettext("engine", " (Metamagia: Twinned)"), else: ""
+
+    conc =
+      if failed == [],
+        do: "",
+        else:
+          dgettext("engine", " %{caster} concentra en %{spell}.",
+            caster: caster,
+            spell: Terms.spell("hold person")
+          )
+
+    dgettext("engine", "%{caster} conjura %{spell}%{twin}: %{effects}.%{concentration}",
+      caster: caster,
+      spell: Terms.spell("hold person"),
+      twin: twin,
+      effects: Enum.join(bits, "; "),
+      concentration: conc
+    )
+  end
+
+  defp faerie_fire_message(caster, bits, failed) do
+    twin = if length(bits) > 1, do: dgettext("engine", " (Metamagia: Twinned)"), else: ""
+
+    conc =
+      if failed == [],
+        do: "",
+        else:
+          dgettext("engine", " %{caster} concentra en %{spell}.",
+            caster: caster,
+            spell: Terms.spell("faerie fire")
+          )
+
+    dgettext("engine", "%{caster} conjura %{spell}%{twin}: %{effects}.%{concentration}",
+      caster: caster,
+      spell: Terms.spell("faerie fire"),
+      twin: twin,
+      effects: Enum.join(bits, "; "),
+      concentration: conc
+    )
+  end
+
+  defp hold_person_change(_caster, []), do: fn w -> {:ok, w} end
+
+  defp hold_person_change(caster, failed) do
+    effects =
+      Enum.map(failed, fn {name, dc} ->
+        {name,
+         %{
+           "condition" => "paralyzed",
+           "source" => "hold_person:#{caster}",
+           "concentration" => "hold person",
+           "dc" => dc
+         }}
+      end)
+
+    World.impose_sourced_conditions(caster, "hold person", effects)
+  end
+
+  defp faerie_fire_change(_caster, []), do: fn w -> {:ok, w} end
+
+  defp faerie_fire_change(caster, failed) do
+    effects =
+      Enum.map(failed, fn name ->
+        {name,
+         %{
+           "condition" => "faerie_fire",
+           "source" => "faerie_fire:#{caster}",
+           "concentration" => "faerie fire"
+         }}
+      end)
+
+    World.impose_sourced_conditions(caster, "faerie fire", effects)
+  end
+
+  defp validate_condition_targets(world, targets, kind) do
+    cond do
+      Enum.any?(targets, &(World.present_character(world, &1) == nil)) ->
+        {:error, dgettext("engine", "no existe el objetivo")}
+
+      Enum.any?(targets, fn name ->
+        c = World.present_character(world, name)
+        c.death_saves.fails >= 3
+      end) ->
+        {:error, dgettext("engine", "el objetivo está muerto")}
+
+      kind == :humanoid and
+          Enum.any?(targets, &(not humanoid?(World.present_character(world, &1)))) ->
+        {:error, dgettext("engine", "el conjuro solo afecta a humanoides")}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp humanoid?(%Character{race: race}) when race in [nil, ""], do: true
+
+  defp humanoid?(%Character{race: race}) when is_binary(race) do
+    down = String.downcase(race)
+    down in @humanoid_races or String.contains?(down, "humanoid")
+  end
+
+  defp humanoid?(_), do: true
+
+  # Same mode/bonus pipeline as resolve_save_spell: Heightened, Gnome Cunning,
+  # Dwarven Resilience, aura, bardic inspiration, Indomitable and a :save RollLog.
+  defp condition_save(world, caster, spell, target, ability, roller, roll_log, opts \\ []) do
+    dc = Keyword.get(opts, :dc) || Combat.spell_save_dc(caster, spell)
+    aura = World.aura_save_bonus(world, target.name)
+    height? = heightened?(caster, target.name, %{kind: :save})
+    requested = condition_requested(Keyword.get(opts, :requested, :normal), height?)
+    gnome? = gnome_cunning?(target, ability)
+    dwarf? = dwarven_resilience?(target, spell)
+
+    base = %{
+      dc: dc,
+      aura: aura,
+      gnome?: gnome?,
+      height_tag: if(height?, do: dgettext("engine", " (Metamagia: Heightened)"), else: ""),
+      indom: nil,
+      inspired?: false,
+      bardic: 0,
+      mode: :normal
+    }
+
+    case Conditions.save_mode(target, ability, requested,
+           gnome_advantage: gnome?,
+           dwarf_advantage: dwarf?
+         ) do
+      :auto_fail ->
+        Map.merge(base, %{d20: 0, total: 0, success?: false, auto?: true})
+
+      {:roll, mode} ->
+        {r, close} =
+          RollLog.open(
+            roll_log,
+            roller,
+            target.name,
+            :save,
+            dgettext("engine", "salvación de %{ability} contra %{spell}",
+              ability: ability_es(ability),
+              spell: Terms.spell(spell.name)
+            )
+          )
+
+        inspired? = target.inspired == true
+        {d20, total, _, _lucky} = Combat.saving_throw_tagged(target, ability, dc, r, mode)
+        total = total + aura
+        {total, success?, bardic} = apply_inspired_vs_dc(target, total, dc, r)
+
+        {d20, total, success?, indom} =
+          maybe_indomitable(target, ability, dc, r, mode, {d20, total, success?}, aura)
+
+        RollLog.close(close,
+          total: total,
+          against: {:dc, dc},
+          outcome: if(success?, do: :success, else: :failure)
+        )
+
+        Map.merge(base, %{
+          d20: d20,
+          total: total,
+          success?: success?,
+          auto?: false,
+          mode: mode,
+          indom: indom,
+          inspired?: inspired?,
+          bardic: bardic
+        })
+    end
+  end
+
+  defp metamagic_applied?(caster, spell, target, twin) do
+    not is_nil(twin) or heightened?(caster, target, spell) or heightened?(caster, twin, spell)
+  end
+
+  defp condition_requested(:advantage, true), do: :normal
+  defp condition_requested(_requested, true), do: :disadvantage
+  defp condition_requested(requested, false), do: requested
+
+  defp condition_verdict(name, ability, save, stuck) do
+    tail = save_tail(save)
+
+    cond do
+      save.auto? ->
+        dgettext(
+          "engine",
+          "%{name} falla automáticamente la salvación de %{ability} vs CD %{dc} y %{effect}",
+          name: name,
+          ability: ability,
+          dc: save.dc,
+          effect: stuck
+        )
+
+      save.success? ->
+        dgettext(
+          "engine",
+          "%{name} supera la salvación de %{ability} (d20 %{d20}: %{total} vs CD %{dc}%{tail})",
+          name: name,
+          ability: ability,
+          d20: save.d20,
+          total: save.total,
+          dc: save.dc,
+          tail: tail
+        )
+
+      true ->
+        dgettext(
+          "engine",
+          "%{name} falla la salvación de %{ability} (d20 %{d20}: %{total} vs CD %{dc}%{tail}) y %{effect}",
+          name: name,
+          ability: ability,
+          d20: save.d20,
+          total: save.total,
+          dc: save.dc,
+          tail: tail,
+          effect: stuck
+        )
+    end
+  end
+
+  defp save_tail(save) do
+    bardic =
+      if save.bardic != 0,
+        do: dgettext("engine", " +%{bardic} inspiración", bardic: save.bardic),
+        else: ""
+
+    mode =
+      if save.gnome? and save.mode == :advantage,
+        do: dgettext("engine", " (Astucia gnoma: ventaja)"),
+        else: mode_tag(save.mode)
+
+    "#{aura_bit(save.aura)}#{bardic}#{indom_suffix(save.indom)}#{mode}#{save.height_tag}"
+  end
+
+  defp save_mark(name, save), do: %{name: name, indom: save.indom, inspired?: save.inspired?}
+
+  defp compose_save_marks(marks, change) do
+    Enum.reduce(marks, change, fn mark, acc ->
+      acc
+      |> then(&compose_inspired_clear(mark.name, mark.inspired?, &1))
+      |> then(&compose_indomitable_mark(mark.name, mark.indom, &1))
+    end)
+  end
+
+  @doc false
+  def reroll_hold_person(world, name, roller, roll_log \\ nil) do
+    case World.present_character(world, name) do
+      %Character{conditions: conds} = target ->
+        if Enum.any?(conds, &hold_repeat_entry?/1) do
+          {kept, notes, marks, freed} =
+            Enum.reduce(conds, {[], [], [], []}, fn entry, {kept, notes, marks, freed} ->
+              if hold_repeat_entry?(entry) do
+                caster_name = hold_caster(entry)
+
+                caster =
+                  World.present_character(world, caster_name) ||
+                    %Character{name: caster_name, level: 1}
+
+                spell = %{name: "hold person", kind: :save, save_ability: :wis, damage_type: nil}
+
+                save =
+                  condition_save(world, caster, spell, target, :wis, roller, roll_log,
+                    dc: entry["dc"]
+                  )
+
+                note =
+                  if save.success?,
+                    do:
+                      dgettext(
+                        "engine",
+                        "%{name} supera Hold Person (d20 %{d20}: %{total} vs CD %{dc}%{tail}) y deja de estar paralizado",
+                        name: name,
+                        d20: save.d20,
+                        total: save.total,
+                        dc: save.dc,
+                        tail: save_tail(save)
+                      ),
+                    else:
+                      dgettext(
+                        "engine",
+                        "%{name} falla Hold Person (d20 %{d20}: %{total} vs CD %{dc}%{tail}) y sigue paralizado",
+                        name: name,
+                        d20: save.d20,
+                        total: save.total,
+                        dc: save.dc,
+                        tail: save_tail(save)
+                      )
+
+                if save.success? do
+                  {kept, notes ++ [note], marks ++ [save_mark(name, save)],
+                   freed ++ [caster_name]}
+                else
+                  {kept ++ [entry], notes ++ [note], marks ++ [save_mark(name, save)], freed}
+                end
+              else
+                {kept ++ [entry], notes, marks, freed}
+              end
+            end)
+
+          {:ok, world} = World.set_conditions(name, kept).(world)
+          world = Enum.reduce(notes, world, &World.note(&2, "dm", &1))
+          world = apply_repeat_marks(world, marks)
+          drop_orphan_hold(world, freed)
+        else
+          world
+        end
+
+      _ ->
+        world
+    end
+  end
+
+  defp hold_repeat_entry?(%{
+         "condition" => "paralyzed",
+         "source" => "hold_person:" <> _,
+         "dc" => dc
+       })
+       when is_integer(dc),
+       do: true
+
+  defp hold_repeat_entry?(_), do: false
+
+  defp hold_caster(%{"source" => "hold_person:" <> caster}), do: caster
+
+  defp apply_repeat_marks(world, marks) do
+    Enum.reduce(marks, world, fn mark, acc ->
+      acc =
+        if mark.inspired? do
+          {:ok, acc} = World.set_inspired(mark.name, false).(acc)
+          acc
+        else
+          acc
+        end
+
+      if mark.indom do
+        {:ok, acc} = World.set_indomitable(mark.name, true).(acc)
+        acc
+      else
+        acc
+      end
+    end)
+  end
+
+  defp drop_orphan_hold(world, casters) do
+    Enum.reduce(Enum.uniq(casters), world, fn caster, acc ->
+      still? =
+        Enum.any?(acc.characters, fn {_n, c} ->
+          Enum.any?(c.conditions || [], fn
+            %{"source" => "hold_person:" <> name} -> name == caster
+            _ -> false
+          end)
+        end)
+
+      if still? do
+        acc
+      else
+        case World.clear_concentration(caster).(acc) do
+          {:ok, next} -> next
+          _ -> acc
+        end
+      end
+    end)
+  end
+
+  # ------------------------------------------------------ D99: spiritual weapon
+
+  # La lanzadura resuelve el ataque inicial por la rama genérica y ADEMÁS
+  # deja la postura persistente (D99): sin concentración, 1 minuto.
+  defp chain_spiritual_weapon_posture({:ok, msg, change}, caster_name, spell, c) do
+    mod = if spell.casting_ability, do: Character.modifier(c, spell.casting_ability), else: 0
+    dice = spell.dice || "1d8"
+
+    combined = fn w ->
+      with {:ok, w} <- change.(w) do
+        World.grant_spiritual_weapon(caster_name, dice, mod, 10).(w)
+      end
+    end
+
+    {:ok, msg <> dgettext("engine", " El arma espiritual lo acompañará durante 1 minuto."),
+     combined}
+  end
+
+  defp chain_spiritual_weapon_posture(error, _caster_name, _spell, _c), do: error
+
+  @doc """
+  D99 Spiritual Weapon: repeat attack with the persistent spectral weapon.
+  One BONUS action (TurnBudget, patrón D82): melee spell attack of
+  `dice + mod` force damage through the standard spell-attack pipeline
+  (RollLog `:attack`, a crit doubles the DICE — never the mod, guided D95,
+  faerie fire advantage via `attack_mode`, bless on the d20, effective AC).
+  Errors (no active weapon, missing/dead target, no bonus action left) never
+  mutate nor spend anything.
+  """
+  @spec spiritual_weapon_attack(World.t(), String.t(), String.t(), roller(), RollLog.t() | nil) ::
+          result()
+  def spiritual_weapon_attack(world, who, target_name, roller, roll_log \\ nil) do
+    with_actor(
+      world,
+      who,
+      fn ->
+        do_spiritual_weapon_attack(world, who, target_name, roller, roll_log)
+      end,
+      :bonus
+    )
+  end
+
+  defp do_spiritual_weapon_attack(world, who, target_name, roller, roll_log) do
+    c = World.present_character(world, who)
+
+    cond do
+      is_nil(spiritual_weapon_entry(c)) ->
+        {:error,
+         dgettext(
+           "engine",
+           "%{actor} no tiene un arma espiritual activa (lanza spiritual weapon primero)",
+           actor: who
+         )}
+
+      is_nil(World.present_character(world, target_name)) ->
+        {:error, dgettext("engine", "no existe el objetivo: %{target}", target: target_name)}
+
+      World.present_character(world, target_name).death_saves.fails >= 3 ->
+        {:error, dgettext("engine", "%{target} está muerto", target: target_name)}
+
+      true ->
+        t = World.present_character(world, target_name)
+        spiritual_weapon_swing(world, c, who, t, target_name, roller, roll_log)
+    end
+  end
+
+  defp spiritual_weapon_entry(%Character{conditions: conds}) do
+    Enum.find(conds || [], fn
+      %{"condition" => "spiritual_weapon", "rounds_left" => n}
+      when is_integer(n) and n > 0 ->
+        true
+
+      _ ->
+        false
+    end)
+  end
+
+  defp spiritual_weapon_entry(_), do: nil
+
+  # Espejo de la rama :attack de resolve_spell (pipeline de ataque de
+  # conjuro existente, D99), con el mod guardado en la postura.
+  defp spiritual_weapon_swing(world, c, who, t, target_name, roller, roll_log) do
+    entry = spiritual_weapon_entry(c)
+    mod = entry["mod"] || 0
+    dice = entry["dice"] || "1d8"
+    bonus = Ability.proficiency(c.level) + mod
+    base_mode = Conditions.attack_mode(c, t, requested: :normal, ranged: false)
+    guided? = Guided.active?(world, t)
+    effective_mode = Guided.combine(base_mode, guided?)
+
+    {r, close} =
+      RollLog.open(
+        roll_log,
+        roller,
+        who,
+        :attack,
+        dgettext("engine", "ataque con arma espiritual")
+      )
+
+    d20 = kept_d20(r, effective_mode)
+    bless = Effects.bless_bonus(c, r)
+    bless_tag = lucky_suffix(Effects.tag(nil, bless))
+    total = d20 + bonus + bless
+    ac = target_ac(t)
+    hit? = d20 == 20 or (d20 != 1 and total >= ac)
+    crit? = d20 == 20
+
+    outcome =
+      cond do
+        crit? -> :crit
+        hit? -> :hit
+        true -> :miss
+      end
+
+    RollLog.close(close,
+      total: total,
+      against: {:ac, ac},
+      outcome: outcome
+    )
+
+    result =
+      if hit? do
+        {r2, close_dmg} =
+          RollLog.open(
+            roll_log,
+            roller,
+            who,
+            :damage,
+            dgettext("engine", "daño de arma espiritual (%{damage_type})",
+              damage_type: Terms.damage_type("force")
+            )
+          )
+
+        base = Dice.roll_expr(dice, r2)
+        dmg = if crit?, do: base + base + mod, else: base + mod
+        RollLog.close(close_dmg, total: dmg, against: nil, outcome: nil)
+
+        aura = aura_save_bonus(world, target_name)
+        verb = if crit?, do: dgettext("engine", "CRÍTICO"), else: dgettext("engine", "acierta")
+
+        with_conc_damage(
+          dgettext(
+            "engine",
+            "%{actor} %{verb} a %{target} con su arma espiritual (d20 %{d20}%{bless}: %{total} vs CA %{ac}) por %{amount} de %{damage}%{mode}.",
+            actor: who,
+            verb: verb,
+            target: target_name,
+            d20: d20,
+            bless: bless_tag,
+            total: total,
+            ac: ac,
+            amount: dmg,
+            damage: Terms.damage("force"),
+            mode: mode_tag(effective_mode)
+          ),
+          target_name,
+          dmg,
+          roller,
+          roll_log,
+          t,
+          "force",
+          aura
+        )
+      else
+        {:ok,
+         dgettext(
+           "engine",
+           "%{actor} lanza su arma espiritual contra %{target} — fallo (d20 %{d20}%{bless}: %{total} vs CA %{ac})%{mode}.",
+           actor: who,
+           target: target_name,
+           d20: d20,
+           bless: bless_tag,
+           total: total,
+           ac: ac,
+           mode: mode_tag(effective_mode)
+         ), noop()}
+      end
+
+    consume_guided_after_roll(result, target_name, guided?)
+  end
+
+  # ---------------------------------------------------- D99: spirit guardians
+
+  # Sin daño inmediato: marca el aura en el lanzador vinculada a la
+  # concentración (patrón D97). `target` se ignora (alcance self).
+  defp resolve_spirit_guardians(caster_name, spell, c) do
+    dc = Combat.spell_save_dc(c, %{spell | casting_ability: spell.casting_ability || :wis})
+    dice = spell.dice || "3d8"
+
+    {:ok,
+     dgettext(
+       "engine",
+       "%{caster} conjura %{spell}: espíritus revolotean a su alrededor y golpearán a sus enemigos al inicio de cada uno de sus turnos (SAB vs CD %{dc}, la mitad al superararla). %{caster} concentra en %{spell}.",
+       caster: caster_name,
+       spell: Terms.spell("spirit guardians"),
+       dc: dc
+     ),
+     World.impose_sourced_conditions(caster_name, "spirit guardians", [
+       {caster_name,
+        %{
+          "condition" => "spirit_guardians",
+          "source" => "spirit_guardians:#{caster_name}",
+          "dice" => dice,
+          "dc" => dc
+        }}
+     ])}
+  end
+
+  @doc false
+  # D99 tick, llamado por World.set_current_combatant al inicio del turno
+  # NUEVO del lanzador (cuello D44). El Game aporta roller y RollLog también
+  # fuera de un beat de IA. Guardas: concentra, vivo y consciente; si no, no
+  # tickea. Cada enemigo vivo y consciente tira SAB con el stack completo
+  # de condition_save; fallo = dados completos, éxito = mitad (floor).
+  def spirit_guardians_tick(world, caster_name, roller, roll_log \\ nil) do
+    case World.present_character(world, caster_name) do
+      %Character{hp: hp, death_saves: %{fails: fails}} = c when hp > 0 and fails < 3 ->
+        if c.concentrating == "spirit guardians" and
+             not incapacitated?(c) and guardians_entry(c) != nil do
+          tick_guardians(world, c, caster_name, roller, roll_log)
+        else
+          world
+        end
+
+      _ ->
+        world
+    end
+  end
+
+  defp guardians_entry(%Character{} = c) do
+    Enum.find(c.conditions || [], fn
+      %{"condition" => "spirit_guardians", "source" => "spirit_guardians:" <> _, "dc" => dc}
+      when is_integer(dc) ->
+        true
+
+      _ ->
+        false
+    end)
+  end
+
+  defp incapacitated?(%Character{} = c) do
+    Enum.any?(
+      Character.condition_names(c),
+      &(&1 in ~w(incapacitated stunned paralyzed petrified unconscious))
+    )
+  end
+
+  defp tick_guardians(world, caster, _caster_name, roller, roll_log) do
+    entry = guardians_entry(caster)
+    pseudo = %Spell{name: "spirit guardians", level: 3, kind: :save, save_ability: :wis}
+
+    enemies =
+      World.present_characters(world)
+      |> Enum.filter(fn {_name, ch} ->
+        match?(%Character{}, ch) and ch.side != caster.side and ch.hp > 0 and
+          ch.death_saves.fails < 3 and "unconscious" not in Character.condition_names(ch)
+      end)
+      |> Enum.sort_by(fn {name, _} -> name end)
+
+    {world, notes} =
+      Enum.reduce(enemies, {world, []}, fn {name, t}, {w, notes} ->
+        save = condition_save(w, caster, pseudo, t, :wis, roller, roll_log, dc: entry["dc"])
+
+        # The spell save spends resources before the damage's concentration
+        # save. Commit still validates against the original, pre-save target.
+        after_save = if save.indom, do: %{t | indomitable_used: true}, else: t
+        after_save = if save.inspired?, do: %{after_save | inspired: false}, else: after_save
+
+        {r2, close_dmg} =
+          RollLog.open(
+            roll_log,
+            roller,
+            name,
+            :damage,
+            dgettext("engine", "daño de %{spell} (%{damage_type})",
+              spell: Terms.spell("spirit guardians"),
+              damage_type: Terms.damage_type("radiant")
+            )
+          )
+
+        full = Dice.roll_expr(entry["dice"] || "3d8", r2)
+        RollLog.close(close_dmg, total: full, against: nil, outcome: nil)
+
+        dmg = if save.success?, do: div(full, 2), else: full
+
+        verb =
+          if save.success?, do: dgettext("engine", "supera"), else: dgettext("engine", "falla")
+
+        {:ok, _msg, change} =
+          with_conc_damage(
+            dgettext("engine", "%{verb}%{tail} — recibe %{amount} de %{damage}",
+              verb: verb,
+              tail: save_tail(save),
+              amount: dmg,
+              damage: Terms.damage("radiant")
+            ) <>
+              if(save.success?, do: dgettext("engine", " (la mitad)"), else: ""),
+            name,
+            dmg,
+            roller,
+            roll_log,
+            after_save,
+            "radiant",
+            World.aura_save_bonus(w, name),
+            t
+          )
+
+        change = compose_save_marks([save_mark(name, save)], change)
+
+        case change.(w) do
+          {:ok, w} ->
+            note =
+              dgettext(
+                "engine",
+                "%{name} %{verb} la salvación de Sabiduría de spirit guardians (d20 %{d20}: %{total} vs CD %{dc}%{tail})",
+                name: name,
+                verb: verb,
+                d20: save.d20,
+                total: save.total,
+                dc: save.dc,
+                tail: save_tail(save)
+              )
+
+            {w, notes ++ [note]}
+
+          _ ->
+            {w, notes}
+        end
+      end)
+
+    Enum.reduce(notes, world, &World.note(&2, "dm", &1))
+  end
+
+  defp resolve_false_life(caster, spell, level, roller, roll_log) do
+    {r, close} =
+      RollLog.open(
+        roll_log,
+        roller,
+        caster,
+        :spell,
+        dgettext("engine", "conjura %{spell}", spell: Terms.spell(spell.name))
+      )
+
+    rolled = Dice.roll_expr(Upcast.false_life_dice(level), r)
+
+    RollLog.close(close,
+      kind: :heal,
+      reason: dgettext("engine", "pg temporales de %{spell}", spell: Terms.spell(spell.name)),
+      total: rolled,
+      outcome: nil
+    )
+
+    {:ok,
+     dgettext(
+       "engine",
+       "%{caster} conjura %{spell}; genera %{total} pg temporales durante 1 hora (no se acumulan; conserva el mayor valor).",
+       caster: caster,
+       spell: Terms.spell(spell.name),
+       total: rolled
+     ), World.apply_temp_hp_for(caster, rolled, 3600)}
+  end
+
+  # D96 Sleep: pool RAW (5d8 + 2d8/nivel sobre 1, ya combinado en
+  # `scaled.dice`), SIN salvación. Área abstracta: todos los enemigos vivos
+  # y conscientes del lanzador, ordenados por PG ascendente; quien cabe
+  # entero en el pool restante duerme y descuenta TODO su pg; el primero
+  # que no cabe detiene el reparto.
+  defp resolve_sleep(world, %Character{} = caster, caster_name, spell, roller, roll_log) do
+    enemies = sleep_targets(world, caster)
+
+    {r, close} =
+      RollLog.open(
+        roll_log,
+        roller,
+        caster_name,
+        :spell,
+        dgettext("engine", "conjura %{spell} (%{dice})",
+          spell: Terms.spell(spell.name),
+          dice: spell.dice
+        )
+      )
+
+    pool = dice_with(spell, r, 0)
+
+    RollLog.close(close,
+      kind: :spell,
+      reason: dgettext("engine", "pool de sueño de %{spell}", spell: Terms.spell(spell.name)),
+      total: pool,
+      outcome: nil
+    )
+
+    {sleepers, spent, leftover} = assign_sleep(enemies, pool, [])
+    names = Enum.map_join(sleepers, ", ", & &1.name)
+
+    msg =
+      case sleepers do
+        [] ->
+          dgettext(
+            "engine",
+            "%{caster} conjura %{spell} (pool %{pool}): no hay enemigos que duerman.",
+            caster: caster_name,
+            spell: Terms.spell(spell.name),
+            pool: pool
+          )
+
+        _ ->
+          detail =
+            case enemies -- sleepers do
+              [first | _] ->
+                dgettext(
+                  "engine",
+                  "; %{name} (%{hp} pg) resiste — el resto del pool (%{leftover}) no alcanza",
+                  name: first.name,
+                  hp: first.hp,
+                  leftover: leftover
+                )
+
+              [] ->
+                dgettext("engine", "; queda %{leftover} de pool sin gastar", leftover: leftover)
+            end
+
+          dngettext(
+            "engine",
+            "%{caster} conjura %{spell} (pool %{pool}): %{names} cae inconsciente (%{spent} pg del pool)%{detail}.",
+            "%{caster} conjura %{spell} (pool %{pool}): %{names} caen inconscientes (%{spent} pg del pool)%{detail}.",
+            length(sleepers),
+            caster: caster_name,
+            spell: Terms.spell(spell.name),
+            pool: pool,
+            names: names,
+            spent: spent,
+            detail: detail
+          )
+      end
+
+    {:ok, msg,
+     if(sleepers == [],
+       do: noop(),
+       else: World.apply_sleep(caster_name, Enum.map(sleepers, & &1.name))
+     )}
+  end
+
+  # Enemigos vivos y conscientes del lanzador, por PG ascendente (empates
+  # por nombre: orden determinista para los oráculos).
+  defp sleep_targets(world, %Character{} = caster) do
+    World.present_characters(world)
+    |> Enum.filter(fn
+      {_name, %Character{} = ch} ->
+        ch.side != nil and ch.side != caster.side and (ch.hp || 0) > 0 and
+          "unconscious" not in Character.condition_names(ch)
+
+      _ ->
+        false
+    end)
+    |> Enum.map(fn {_name, ch} -> ch end)
+    |> Enum.sort_by(&{&1.hp, &1.name})
+  end
+
+  defp assign_sleep([], _pool, acc), do: {Enum.reverse(acc), 0, 0}
+
+  defp assign_sleep([%Character{hp: hp} | _rest] = enemies, pool, acc) do
+    if hp <= pool do
+      [first | rest] = enemies
+      {sleepers, spent, leftover} = assign_sleep(rest, pool - hp, [first | acc])
+      {sleepers, spent + hp, leftover}
+    else
+      # RAW: la primera criatura que no cabe detiene el reparto.
+      {Enum.reverse(acc), Enum.sum(Enum.map(acc, & &1.hp)), pool}
+    end
+  end
+
+  # D96 Shield: postura armable en el turno propio (simplificación D64: no
+  # hay economía de reacción para uno mismo). +5 CA efectiva hasta el inicio
+  # del siguiente turno; rearmar renueva. La casilla de nivel 1 la validan y
+  # gastan los caminos genéricos de cast_spell.
+  defp resolve_shield(world, caster_name, target_name) do
+    if world.phase != :combat do
+      {:error,
+       dgettext("engine", "Shield solo puede tejerse en combate (reacción abstracta, D96)")}
+    else
+      {:ok,
+       dgettext(
+         "engine",
+         "%{caster} teje un escudo arcano: +5 CA hasta el inicio de su siguiente turno; los dardos de magic missile no le dañarán.",
+         caster: caster_name
+       ), World.arm_shield(target_name)}
+    end
+  end
+
+  defp shield_spell?(%{name: name}) when is_binary(name),
+    do: name |> String.downcase() |> String.replace(~r/[\s_-]+/, "") == "shield"
+
+  defp shield_spell?(_), do: false
+
+  defp magic_missile?(%{name: name}) when is_binary(name),
+    do: name |> String.downcase() |> String.replace(~r/[\s_-]+/, "") == "magicmissile"
+
+  defp magic_missile?(_), do: false
 
   defp resolve_spell(world, c, caster_name, t, target_name, spell, roller, roll_log) do
     # D61: the aura covers the save target and the target's concentration
@@ -2002,7 +4194,14 @@ defmodule Dragonex.Actions do
 
     case spell.kind do
       :automatic ->
-        {r, close} = RollLog.open(roll_log, roller, caster_name, :spell, "conjura #{spell.name}")
+        {r, close} =
+          RollLog.open(
+            roll_log,
+            roller,
+            caster_name,
+            :spell,
+            dgettext("engine", "conjura %{spell}", spell: Terms.spell(spell.name))
+          )
 
         amount =
           case spell do
@@ -2013,35 +4212,52 @@ defmodule Dragonex.Actions do
           end
 
         cond do
-          # False Life (SRD): 1d4+4 temp_hp on the caster. No Spell-shape change (D36).
-          false_life?(spell) ->
-            rolled = Dice.roll_expr("1d4+4", r)
-
+          # D96 Shield: mientras la postura vive, magic missile hace 0 daño
+          # al portador (los dardos se disipan; el pool no se recalcula).
+          magic_missile?(spell) and Effects.shielded?(t) ->
             RollLog.close(close,
-              kind: :heal,
-              reason: "pg temporales de #{spell.name}",
-              total: rolled,
+              kind: :damage,
+              reason:
+                dgettext("engine", "dardos de %{spell} contra escudo",
+                  spell: Terms.spell(spell.name)
+                ),
+              total: 0,
               outcome: nil
             )
 
-            {:ok, "#{caster_name} conjura #{spell.name}; obtiene #{rolled} pg temporales.",
-             World.apply_temp_hp(caster_name, rolled)}
+            {:ok,
+             dgettext(
+               "engine",
+               "%{caster} conjura %{spell}; los dardos se disipan contra el escudo arcano de %{target} — 0 de %{damage}.",
+               caster: caster_name,
+               spell: Terms.spell(spell.name),
+               target: target_name,
+               damage: Terms.damage("force")
+             ), noop()}
 
           # Healing spell: no damage_type but has dice → heal the target
           spell.damage_type == nil and amount > 0 ->
             cast_mod = Character.modifier(c, spell.casting_ability)
-            total_heal = amount + cast_mod
+            total_heal = max(0, amount + cast_mod)
 
             RollLog.close(close,
               kind: :heal,
-              reason: "curación de #{spell.name}",
+              reason: dgettext("engine", "curación de %{spell}", spell: Terms.spell(spell.name)),
               total: total_heal,
               outcome: nil
             )
 
             {:ok,
-             "#{caster_name} conjura #{spell.name}; #{target_name} se cura #{total_heal} pg (#{amount} + #{cast_mod}).",
-             World.heal(target_name, total_heal)}
+             dgettext(
+               "engine",
+               "%{caster} conjura %{spell}; %{target} se cura %{total} pg (%{amount} + %{modifier}).",
+               caster: caster_name,
+               spell: Terms.spell(spell.name),
+               target: target_name,
+               total: total_heal,
+               amount: amount,
+               modifier: cast_mod
+             ), World.heal(target_name, total_heal)}
 
           # Damage spell (magic missile, etc.)
           amount > 0 ->
@@ -2049,13 +4265,27 @@ defmodule Dragonex.Actions do
 
             RollLog.close(close,
               kind: :damage,
-              reason: "daño de #{spell.name} (#{spell.damage_type})",
+              reason:
+                dgettext("engine", "daño de %{spell} (%{damage_type})",
+                  spell: Terms.spell(spell.name),
+                  damage_type: Terms.damage_type(spell.damage_type)
+                ),
               total: amount,
               outcome: nil
             )
 
             with_conc_damage(
-              "#{caster_name} conjura #{spell.name}; #{target_name} recibe #{amount} de daño #{spell.damage_type}#{verb}#{emp_tag}.",
+              dgettext(
+                "engine",
+                "%{caster} conjura %{spell}; %{target} recibe %{amount} de %{damage}%{verb}%{empowered}.",
+                caster: caster_name,
+                spell: Terms.spell(spell.name),
+                target: target_name,
+                amount: amount,
+                damage: Terms.damage(spell.damage_type),
+                verb: verb,
+                empowered: emp_tag
+              ),
               target_name,
               amount,
               roller,
@@ -2065,32 +4295,49 @@ defmodule Dragonex.Actions do
               aura
             )
 
-          # Utility spell (shield, bless, etc.): no dice → just report
+          # Other utility spells without executable effects: no dice → report.
           true ->
             RollLog.close(close, total: 0, outcome: nil)
 
             {:ok,
-             "#{caster_name} conjura #{spell.name} sobre #{target_name}. #{spell.effect || ""}",
-             noop()}
+             dgettext("engine", "%{caster} conjura %{spell} sobre %{target}. %{effect}",
+               caster: caster_name,
+               spell: Terms.spell(spell.name),
+               target: target_name,
+               effect: spell.effect || ""
+             ), noop()}
         end
 
       :attack ->
         bonus = Combat.spell_attack_bonus(c, spell)
-        effective_mode = Conditions.attack_mode(c, t, requested: :normal, ranged: true)
+        base_mode = Conditions.attack_mode(c, t, requested: :normal, ranged: true)
+        # D95: un objetivo guiado por guiding bolt concede ventaja a esta
+        # tirada (combinable/cancelable vía combine, patrón D57).
+        guided? = Guided.active?(world, t)
+        effective_mode = Guided.combine(base_mode, guided?)
         # D57: a hidden caster keeps the advantage for free (attack_mode),
         # but the spell attack reveals them just like a weapon swing.
         hidden? = "hidden" in Character.condition_names(c)
 
         {r, close_atk} =
-          RollLog.open(roll_log, roller, caster_name, :attack, "ataque con #{spell.name}")
+          RollLog.open(
+            roll_log,
+            roller,
+            caster_name,
+            :attack,
+            dgettext("engine", "ataque con %{spell}", spell: Terms.spell(spell.name))
+          )
 
         d20 = kept_d20(r, effective_mode)
-        total = d20 + bonus
-        hit? = d20 == 20 or (d20 != 1 and total >= t.ac)
+        bless = Effects.bless_bonus(c, r)
+        bless_tag = lucky_suffix(Effects.tag(nil, bless))
+        total = d20 + bonus + bless
+        ac = target_ac(t)
+        hit? = d20 == 20 or (d20 != 1 and total >= ac)
 
         RollLog.close(close_atk,
           total: total,
-          against: {:ac, t.ac},
+          against: {:ac, ac},
           outcome: if(d20 == 20, do: :crit, else: if(hit?, do: :hit, else: :miss))
         )
 
@@ -2101,7 +4348,10 @@ defmodule Dragonex.Actions do
               roller,
               caster_name,
               :damage,
-              "daño de #{spell.name} (#{spell.damage_type})"
+              dgettext("engine", "daño de %{spell} (%{damage_type})",
+                spell: Terms.spell(spell.name),
+                damage_type: Terms.damage_type(spell.damage_type)
+              )
             )
 
           dmg =
@@ -2122,7 +4372,21 @@ defmodule Dragonex.Actions do
           RollLog.close(close_dmg, total: dmg, against: nil, outcome: nil)
 
           with_conc_damage(
-            "#{caster_name} conjura #{spell.name}; impacta a #{target_name} (d20 #{d20}: #{total} vs CA #{t.ac}) por #{dmg} de daño #{spell.damage_type}#{emp_tag}#{mode_tag(effective_mode)}.",
+            dgettext(
+              "engine",
+              "%{caster} conjura %{spell}; impacta a %{target} (d20 %{d20}%{bless}: %{total} vs CA %{ac}) por %{amount} de %{damage}%{empowered}%{mode}.",
+              caster: caster_name,
+              spell: Terms.spell(spell.name),
+              target: target_name,
+              d20: d20,
+              bless: bless_tag,
+              total: total,
+              ac: ac,
+              amount: dmg,
+              damage: Terms.damage(spell.damage_type),
+              empowered: emp_tag,
+              mode: mode_tag(effective_mode)
+            ),
             target_name,
             dmg,
             roller,
@@ -2131,11 +4395,28 @@ defmodule Dragonex.Actions do
             spell.damage_type,
             aura
           )
+          # D95: esta tirada consume la marca guiada (una marca fresca de
+          # guiding bolt se aplica DESPUÉS, dentro del mark).
+          |> consume_guided_after_roll(target_name, guided?)
+          |> mark_guided_on_hit(spell, caster_name, target_name)
           |> clear_hidden_after_attack_spell(caster_name, hidden?)
         else
           {:ok,
-           "#{caster_name} conjura #{spell.name}; falla contra #{target_name} (d20 #{d20}: #{total} vs CA #{t.ac})#{mode_tag(effective_mode)}.",
-           noop()}
+           dgettext(
+             "engine",
+             "%{caster} conjura %{spell}; falla contra %{target} (d20 %{d20}%{bless}: %{total} vs CA %{ac})%{mode}.",
+             caster: caster_name,
+             spell: Terms.spell(spell.name),
+             target: target_name,
+             d20: d20,
+             bless: bless_tag,
+             total: total,
+             ac: ac,
+             mode: mode_tag(effective_mode)
+           ), noop()}
+          # D95: la marca guiada se consume también al fallar (RAW: la
+          # primera tirada de ataque posterior, acierte o falle).
+          |> consume_guided_after_roll(target_name, guided?)
           |> clear_hidden_after_attack_spell(caster_name, hidden?)
         end
 
@@ -2154,6 +4435,7 @@ defmodule Dragonex.Actions do
         )
     end
     |> consume_metamagic(caster_name, emp > 0 or heightened?)
+    |> guard_target_defense(world, target_name, spell.kind)
   end
 
   # D65 Heightened: applies when a save spell targets EXACTLY the armed
@@ -2206,7 +4488,7 @@ defmodule Dragonex.Actions do
 
   defp metamagic_tag(0), do: ""
 
-  defp metamagic_tag(_emp), do: " (Metamagia: Empowered)"
+  defp metamagic_tag(_emp), do: dgettext("engine", " (Metamagia: Empowered)")
 
   # D65 Twinned: applies when the armed twin target exists and differs from
   # the caster, and the spell targets someone other than the caster
@@ -2215,7 +4497,7 @@ defmodule Dragonex.Actions do
     case c.metamagic do
       %{option: "twinned", target: twin} when is_binary(twin) and twin != "" ->
         if twin != caster_name and target_name != caster_name and
-             not is_nil(World.character(world, twin)) do
+             not is_nil(World.present_character(world, twin)) do
           twin
         else
           nil
@@ -2232,8 +4514,8 @@ defmodule Dragonex.Actions do
   # set once (both composed by the caller in spell/5). The option is
   # consumed here, once.
   defp resolve_twinned(world, c, caster_name, target_name, twin_name, spell, roller, roll_log) do
-    t1 = World.character(world, target_name)
-    t2 = World.character(world, twin_name)
+    t1 = World.present_character(world, target_name)
+    t2 = World.present_character(world, twin_name)
 
     {:ok, msg1, change1} =
       resolve_spell(world, c, caster_name, t1, target_name, spell, roller, roll_log)
@@ -2249,16 +4531,25 @@ defmodule Dragonex.Actions do
     end
 
     {:ok,
-     "#{caster_name} conjura #{spell.name} (Metamagia: Twinned): " <>
-       "#{twin_block(caster_name, spell, target_name, msg1)}; " <>
-       "#{twin_block(caster_name, spell, twin_name, msg2)}.", change}
+     dgettext("engine", "%{caster} conjura %{spell} (Metamagia: Twinned): %{first}; %{second}.",
+       caster: caster_name,
+       spell: Terms.spell(spell.name),
+       first: twin_block(caster_name, spell, target_name, msg1),
+       second: twin_block(caster_name, spell, twin_name, msg2)
+     ), change}
   end
 
   # Per-target block of a Twinned message: strip the shared
   # "X conjura Y; " prefix (or "X conjura Y sobre <target>. ") so the outer
   # message reads "en <target>: <resolution>".
   defp twin_block(caster_name, spell, target_name, msg) do
-    prefix = "#{caster_name} conjura #{spell.name}"
+    prefix =
+      dgettext("engine", "%{caster} conjura %{spell}",
+        caster: caster_name,
+        spell: Terms.spell(spell.name)
+      )
+
+    over = dgettext("engine", " sobre ")
 
     body =
       cond do
@@ -2267,9 +4558,9 @@ defmodule Dragonex.Actions do
           |> String.replace_prefix(prefix <> "; ", "")
           |> String.replace_prefix("#{target_name} ", "")
 
-        String.starts_with?(msg, prefix <> " sobre ") ->
+        String.starts_with?(msg, prefix <> over) ->
           msg
-          |> String.replace_prefix(prefix <> " sobre ", "")
+          |> String.replace_prefix(prefix <> over, "")
           |> String.replace_prefix("#{target_name}. ", "")
 
         true ->
@@ -2277,7 +4568,7 @@ defmodule Dragonex.Actions do
       end
       |> String.trim_trailing(".")
 
-    "en #{target_name}: #{body}"
+    dgettext("engine", "en %{name}: %{result}", name: target_name, result: body)
   end
 
   defp resolve_save_spell(
@@ -2303,7 +4594,7 @@ defmodule Dragonex.Actions do
     gnome? = gnome_cunning?(t, spell.save_ability)
     dwarf? = dwarven_resilience?(t, spell)
     requested = if heightened?, do: :disadvantage, else: :normal
-    height_tag = if heightened?, do: " (Metamagia: Heightened)", else: ""
+    height_tag = if heightened?, do: dgettext("engine", " (Metamagia: Heightened)"), else: ""
     emp_tag = metamagic_tag(emp)
 
     case Conditions.save_mode(t, spell.save_ability, requested,
@@ -2317,14 +4608,29 @@ defmodule Dragonex.Actions do
             roller,
             caster_name,
             :damage,
-            "daño de #{spell.name} (#{spell.damage_type})"
+            dgettext("engine", "daño de %{spell} (%{damage_type})",
+              spell: Terms.spell(spell.name),
+              damage_type: Terms.damage_type(spell.damage_type)
+            )
           )
 
         full = dice_with(spell, r2, emp)
         RollLog.close(close_dmg, total: full, against: nil, outcome: nil)
 
         with_conc_damage(
-          "#{caster_name} conjura #{spell.name}; #{target_name} falla automáticamente la salvación de #{ability_es(spell.save_ability)} vs CD #{dc}#{height_tag} — #{full} de daño #{spell.damage_type}#{emp_tag}.",
+          dgettext(
+            "engine",
+            "%{caster} conjura %{spell}; %{target} falla automáticamente la salvación de %{ability} vs CD %{dc}%{heightened} — %{amount} de %{damage}%{empowered}.",
+            caster: caster_name,
+            spell: Terms.spell(spell.name),
+            target: target_name,
+            ability: ability_es(spell.save_ability),
+            dc: dc,
+            heightened: height_tag,
+            amount: full,
+            damage: Terms.damage(spell.damage_type),
+            empowered: emp_tag
+          ),
           target_name,
           full,
           roller,
@@ -2341,7 +4647,10 @@ defmodule Dragonex.Actions do
             roller,
             target_name,
             :save,
-            "salvación de #{ability_es(spell.save_ability)} contra #{spell.name}"
+            dgettext("engine", "salvación de %{ability} contra %{spell}",
+              ability: ability_es(spell.save_ability),
+              spell: Terms.spell(spell.name)
+            )
           )
 
         inspired? = t.inspired == true
@@ -2372,7 +4681,9 @@ defmodule Dragonex.Actions do
         # The reroll spends Indomitable: the updated struct rides into the
         # concentration simulation so a later CON save this same resolution
         # can't double-spend it.
+        before_save = t
         t = if indom, do: %{t | indomitable_used: true}, else: t
+        t = if inspired?, do: %{t | inspired: false}, else: t
 
         RollLog.close(close_save,
           total: stotal,
@@ -2386,7 +4697,10 @@ defmodule Dragonex.Actions do
             roller,
             caster_name,
             :damage,
-            "daño de #{spell.name} (#{spell.damage_type})"
+            dgettext("engine", "daño de %{spell} (%{damage_type})",
+              spell: Terms.spell(spell.name),
+              damage_type: Terms.damage_type(spell.damage_type)
+            )
           )
 
         full = dice_with(spell, r2, emp)
@@ -2405,7 +4719,11 @@ defmodule Dragonex.Actions do
             true -> full
           end
 
-        bardic_bit = if bardic != 0, do: " +#{bardic} inspiración", else: ""
+        bardic_bit =
+          if bardic != 0,
+            do: dgettext("engine", " +%{bardic} inspiración", bardic: bardic),
+            else: ""
+
         aura_b = aura_bit(aura)
         lucky_b = lucky_suffix(lucky)
         indom_b = indom_suffix(indom)
@@ -2415,36 +4733,100 @@ defmodule Dragonex.Actions do
         # (Heightened/condition) leaves the plain mode_tag (normal = "").
         mode_b =
           cond do
-            gnome? and save_mode == :advantage -> " (Astucia gnoma: ventaja)"
-            dwarf? and save_mode == :advantage -> " (Resistencia enana: ventaja)"
-            true -> mode_tag(save_mode)
+            gnome? and save_mode == :advantage ->
+              dgettext("engine", " (Astucia gnoma: ventaja)")
+
+            dwarf? and save_mode == :advantage ->
+              dgettext("engine", " (Resistencia enana: ventaja)")
+
+            true ->
+              mode_tag(save_mode)
           end
 
         verdict =
           cond do
             success? and evasion? ->
-              "supera la salvación (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_b}#{height_tag} (Evasión: sin daño)"
+              dgettext(
+                "engine",
+                "supera la salvación (d20 %{d20}%{lucky}%{indomitable}: %{total} vs CD %{dc}%{aura}%{bardic})%{mode}%{heightened} (Evasión: sin daño)",
+                d20: d20,
+                lucky: lucky_b,
+                indomitable: indom_b,
+                total: stotal,
+                dc: dc,
+                aura: aura_b,
+                bardic: bardic_bit,
+                mode: mode_b,
+                heightened: height_tag
+              )
 
             success? ->
-              "supera la salvación (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_b}#{height_tag}, mitad de daño"
+              dgettext(
+                "engine",
+                "supera la salvación (d20 %{d20}%{lucky}%{indomitable}: %{total} vs CD %{dc}%{aura}%{bardic})%{mode}%{heightened}, mitad de daño",
+                d20: d20,
+                lucky: lucky_b,
+                indomitable: indom_b,
+                total: stotal,
+                dc: dc,
+                aura: aura_b,
+                bardic: bardic_bit,
+                mode: mode_b,
+                heightened: height_tag
+              )
 
             evasion? ->
-              "falla la salvación (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_b}#{height_tag} (Evasión: mitad)"
+              dgettext(
+                "engine",
+                "falla la salvación (d20 %{d20}%{lucky}%{indomitable}: %{total} vs CD %{dc}%{aura}%{bardic})%{mode}%{heightened} (Evasión: mitad)",
+                d20: d20,
+                lucky: lucky_b,
+                indomitable: indom_b,
+                total: stotal,
+                dc: dc,
+                aura: aura_b,
+                bardic: bardic_bit,
+                mode: mode_b,
+                heightened: height_tag
+              )
 
             true ->
-              "falla la salvación (d20 #{d20}#{lucky_b}#{indom_b}: #{stotal} vs CD #{dc}#{aura_b}#{bardic_bit})#{mode_b}#{height_tag}"
+              dgettext(
+                "engine",
+                "falla la salvación (d20 %{d20}%{lucky}%{indomitable}: %{total} vs CD %{dc}%{aura}%{bardic})%{mode}%{heightened}",
+                d20: d20,
+                lucky: lucky_b,
+                indomitable: indom_b,
+                total: stotal,
+                dc: dc,
+                aura: aura_b,
+                bardic: bardic_bit,
+                mode: mode_b,
+                heightened: height_tag
+              )
           end
 
         {:ok, msg, change} =
           with_conc_damage(
-            "#{caster_name} conjura #{spell.name}; #{target_name} #{verdict} — #{dmg} de daño #{spell.damage_type}#{emp_tag}.",
+            dgettext(
+              "engine",
+              "%{caster} conjura %{spell}; %{target} %{verdict} — %{amount} de %{damage}%{empowered}.",
+              caster: caster_name,
+              spell: Terms.spell(spell.name),
+              target: target_name,
+              verdict: verdict,
+              amount: dmg,
+              damage: Terms.damage(spell.damage_type),
+              empowered: emp_tag
+            ),
             target_name,
             dmg,
             roller,
             roll_log,
             t,
             spell.damage_type,
-            aura
+            aura,
+            before_save
           )
 
         {:ok, msg,
@@ -2529,33 +4911,59 @@ defmodule Dragonex.Actions do
   # upcast), so the verb always reports the real number of darts.
   defp spell_damage_verb(%{name: "magic missile", dice: dice}, _dmg) when is_binary(dice) do
     {count, _sides, _mod} = Dice.parse_expr(dice)
-    " (#{count} dardos de fuerza)"
+    dgettext("engine", " (%{count} dardos de fuerza)", count: count)
   end
 
-  defp spell_damage_verb(%{name: "magic missile"}, _dmg), do: " (3 dardos de fuerza)"
+  defp spell_damage_verb(%{name: "magic missile"}, _dmg),
+    do: dgettext("engine", " (3 dardos de fuerza)")
+
   defp spell_damage_verb(_spell, _dmg), do: ""
 
   defp describe_death_save(name, {:revive, _d20, _, _}, bardic, aura),
     do:
-      "#{name} saca un 20 natural#{aura_death_bit(aura)}#{bardic_death_bit(bardic)} — ¡revive con 1 pg!"
+      dgettext("engine", "%{name} saca un 20 natural%{aura}%{bardic} — ¡revive con 1 pg!",
+        name: name,
+        aura: aura_death_bit(aura),
+        bardic: bardic_death_bit(bardic)
+      )
 
   defp describe_death_save(name, {:crit_fail, 1, _, _}, bardic, aura),
     do:
-      "#{name} saca un 1 natural#{aura_death_bit(aura)}#{bardic_death_bit(bardic)} — ¡dos fallos de salvación de muerte!"
+      dgettext(
+        "engine",
+        "%{name} saca un 1 natural%{aura}%{bardic} — ¡dos fallos de salvación de muerte!",
+        name: name,
+        aura: aura_death_bit(aura),
+        bardic: bardic_death_bit(bardic)
+      )
 
   defp describe_death_save(name, {:fail, d20, _, _}, bardic, aura),
     do:
-      "#{name} saca #{d20}#{aura_death_bit(aura)}#{bardic_death_bit(bardic)} — un fallo de salvación de muerte."
+      dgettext("engine", "%{name} saca %{d20}%{aura}%{bardic} — un fallo de salvación de muerte.",
+        name: name,
+        d20: d20,
+        aura: aura_death_bit(aura),
+        bardic: bardic_death_bit(bardic)
+      )
 
   defp describe_death_save(name, {:success, d20, _, _}, bardic, aura),
     do:
-      "#{name} saca #{d20}#{aura_death_bit(aura)}#{bardic_death_bit(bardic)} — un éxito de salvación de muerte."
+      dgettext("engine", "%{name} saca %{d20}%{aura}%{bardic} — un éxito de salvación de muerte.",
+        name: name,
+        d20: d20,
+        aura: aura_death_bit(aura),
+        bardic: bardic_death_bit(bardic)
+      )
 
   # D61: the aura shifts the 10 threshold, so the breakdown shows it.
-  defp aura_death_bit(aura) when aura != 0, do: " (#{signed(aura)} aura)"
+  defp aura_death_bit(aura) when aura != 0,
+    do: dgettext("engine", " (%{aura} aura)", aura: signed(aura))
+
   defp aura_death_bit(_), do: ""
 
-  defp bardic_death_bit(n) when is_integer(n) and n > 0, do: " (+#{n} inspiración)"
+  defp bardic_death_bit(n) when is_integer(n) and n > 0,
+    do: dgettext("engine", " (+%{bardic} inspiración)", bardic: n)
+
   defp bardic_death_bit(_), do: ""
 
   # ----------------------------------------------------------------- helpers
@@ -2569,55 +4977,99 @@ defmodule Dragonex.Actions do
          roller,
          roll_log,
          mode,
+         first_mode,
          n,
          sneak,
          smite,
          inspired?,
-         mark?
+         mark?,
+         aura
        ) do
-    {swings, _hp, _sneak, _smite, _inspired} =
-      Enum.reduce_while(1..n, {[], t.hp, sneak, smite, inspired?}, fn _i,
-                                                                      {acc, hp, sneak_left,
-                                                                       smite_left, inspired_left} ->
+    {swings, _target, _sneak, _smite, _inspired} =
+      Enum.reduce_while(1..n, {[], t, sneak, smite, inspired?}, fn i,
+                                                                   {acc, current_target,
+                                                                    sneak_left, smite_left,
+                                                                    inspired_left} ->
         # A target that DROPS mid-action stops the remaining swings (no
         # retarget) — but a target that was ALREADY downed when the action
         # started keeps receiving every swing (RAW: you can attack a dying
         # creature; each hit registers death-save fails via apply_damage).
-        if hp <= 0 and t.hp > 0 do
-          {:halt, {acc, hp, sneak_left, smite_left, inspired_left}}
+        if current_target.hp <= 0 and t.hp > 0 do
+          {:halt, {acc, current_target, sneak_left, smite_left, inspired_left}}
         else
+          # D95: solo el PRIMER swing hereda la ventaja de la marca guiada.
+          swing_mode = if(i == 1 and first_mode != nil, do: first_mode, else: mode)
+
           swing =
             resolve_one_swing(
-              a,
-              t,
+              if(t.concentrating == "bless" and current_target.concentrating != "bless",
+                do: Effects.without_source(a, target),
+                else: a
+              ),
+              current_target,
               attacker,
               target,
               weapon,
               roller,
               roll_log,
-              mode,
+              swing_mode,
               sneak_left,
               smite_left,
               inspired_left,
               mark?
             )
 
-          incoming =
-            Character.incoming_damage(t, swing.dmg, weapon.damage_type) +
-              Character.incoming_damage(t, swing.smite, "radiant")
+          {notes, change, next_target} =
+            if swing.dmg + swing.smite > 0 do
+              Dragonex.Damage.prepare(current_target, swing.dmg, weapon.damage_type, roller,
+                crit: swing.kind == :crit,
+                additional_damage: [{swing.smite, "radiant"}],
+                aura: aura,
+                roll_log: roll_log,
+                attacker: attacker,
+                attacker_side: a.side
+              )
+            else
+              {[], noop(), current_target}
+            end
 
-          new_hp = if incoming > 0, do: max(0, hp - incoming), else: hp
+          swing = Map.merge(swing, %{damage_notes: notes, damage_change: change})
           sneak_left = if swing.sneak > 0, do: nil, else: sneak_left
           smite_left = if swing.smite > 0, do: nil, else: smite_left
-          {:cont, {acc ++ [swing], new_hp, sneak_left, smite_left, false}}
+          {:cont, {acc ++ [swing], next_target, sneak_left, smite_left, false}}
         end
       end)
 
     swings
   end
 
-  defp target_ac(%Character{fighting_style: "defense", ac: ac}), do: ac + 1
-  defp target_ac(%Character{ac: ac}), do: ac
+  defp target_ac(%Character{} = c), do: Effects.effective_ac(c)
+
+  defp guard_target_defense({:ok, message, change}, before, target, :attack) do
+    keys = [:ac, :fighting_style, :conditions]
+    expected = Map.take(World.present_character(before, target), keys)
+
+    {:ok, message,
+     fn current ->
+       case World.present_character(current, target) do
+         %Character{} = c ->
+           if Map.take(c, keys) == expected,
+             do: change.(current),
+             else:
+               {:error,
+                dgettext(
+                  "engine",
+                  "la defensa de %{target} ha cambiado; vuelve a resolver el ataque",
+                  target: target
+                )}
+
+         nil ->
+           {:error, dgettext("engine", "no existe el objetivo: %{target}", target: target)}
+       end
+     end}
+  end
+
+  defp guard_target_defense(result, _world, _target, _kind), do: result
 
   # RAW auto-crit vs incapacitating conditions: a melee HIT against a
   # paralyzed or unconscious target is a critical (doubled damage dice —
@@ -2652,7 +5104,10 @@ defmodule Dragonex.Actions do
         roller,
         attacker,
         :attack,
-        "ataque a #{target} con #{weapon.name}"
+        dgettext("engine", "ataque a %{target} con %{weapon}",
+          target: target,
+          weapon: Terms.weapon(weapon.name)
+        )
       )
 
     ac = target_ac(t)
@@ -2669,6 +5124,7 @@ defmodule Dragonex.Actions do
       :miss ->
         %{
           kind: :miss,
+          ac: ac,
           d20: d20,
           total: total,
           dmg: 0,
@@ -2689,25 +5145,37 @@ defmodule Dragonex.Actions do
             roller,
             attacker,
             :damage,
-            "daño #{weapon.damage_type} a #{target}"
+            dgettext("engine", "%{damage} a %{target}",
+              damage: Terms.damage(weapon.damage_type),
+              target: target
+            )
           )
 
         {dmg, savage_dmg} = Combat.damage_roll_tagged(a, weapon, k, r2)
         sneak_dmg = sneak_damage(sneak, k, r2)
         rage_dmg = rage_bonus(a, weapon)
         mark_dmg = mark_damage(mark?, k, r2)
-        total_dmg = dmg + sneak_dmg + rage_dmg + mark_dmg
+        raw_dmg = dmg + sneak_dmg + rage_dmg + mark_dmg
+        total_dmg = Combat.damage_total(raw_dmg)
 
-        RollLog.close(close_dmg,
+        damage_summary = [
           total: total_dmg,
           against: nil,
           outcome: if(k == :crit, do: :crit, else: nil)
-        )
+        ]
+
+        damage_summary =
+          if raw_dmg < 0,
+            do: Keyword.put(damage_summary, :raw_total, raw_dmg),
+            else: damage_summary
+
+        RollLog.close(close_dmg, damage_summary)
 
         {smite_dmg, smite_dice} = smite_roll(smite, t, attacker, target, roller, roll_log)
 
         %{
           kind: k,
+          ac: ac,
           d20: d20,
           total: total,
           dmg: total_dmg,
@@ -2724,54 +5192,102 @@ defmodule Dragonex.Actions do
   end
 
   defp format_attack_message(attacker, target, _weapon, ac, mode, [%{kind: :miss} = s]) do
-    "#{attacker} lanza un golpe a #{target} — fallo (d20 #{s.d20}#{lucky_tag(s)}: #{s.total} vs CA #{ac})#{bardic_tag(s)}#{mode_tag(mode)}."
+    dgettext(
+      "engine",
+      "%{attacker} lanza un golpe a %{target} — fallo (d20 %{d20}%{lucky}: %{total} vs CA %{ac})%{bardic}%{mode}.",
+      attacker: attacker,
+      target: target,
+      d20: s.d20,
+      lucky: lucky_tag(s),
+      total: s.total,
+      ac: ac,
+      bardic: bardic_tag(s),
+      mode: mode_tag(mode)
+    )
   end
 
   defp format_attack_message(attacker, target, weapon, ac, mode, [s]) do
-    verb = if s.kind == :crit, do: "CRÍTICO", else: "acierta"
+    verb =
+      if s.kind == :crit, do: dgettext("engine", "CRÍTICO"), else: dgettext("engine", "acierta")
 
-    "#{attacker} #{verb} a #{target} (d20 #{s.d20}#{lucky_tag(s)}: #{s.total} vs CA #{ac}) por #{s.dmg} de daño #{weapon.damage_type}#{savage_tag(s)}#{sneak_tag(s)}#{rage_tag(s)}#{mark_tag(s)}#{smite_tag(s)}#{bardic_tag(s)}#{mode_tag(mode)}."
+    dgettext(
+      "engine",
+      "%{attacker} %{verb} a %{target} (d20 %{d20}%{lucky}: %{total} vs CA %{ac}) por %{amount} de %{damage} en total%{inclusions}%{smite}%{bardic}%{mode}.",
+      attacker: attacker,
+      verb: verb,
+      target: target,
+      d20: s.d20,
+      lucky: lucky_tag(s),
+      total: s.total,
+      ac: ac,
+      amount: s.dmg,
+      damage: Terms.damage(weapon.damage_type),
+      inclusions: damage_inclusions(s),
+      smite: smite_tag(s),
+      bardic: bardic_tag(s),
+      mode: mode_tag(mode)
+    )
   end
 
   defp format_attack_message(attacker, target, weapon, ac, mode, swings) do
     parts = Enum.map_join(swings, "; ", &describe_swing(&1, weapon, ac))
-    "#{attacker} ataca a #{target} (#{length(swings)} golpes)#{mode_tag(mode)}: #{parts}."
+
+    dgettext("engine", "%{attacker} ataca a %{target} (%{count} golpes)%{mode}: %{parts}.",
+      attacker: attacker,
+      target: target,
+      count: length(swings),
+      mode: mode_tag(mode),
+      parts: parts
+    )
   end
 
   defp describe_swing(%{kind: :miss, d20: d20, total: total} = s, _weapon, ac) do
-    "fallo (d20 #{d20}#{lucky_tag(s)}: #{total} vs CA #{ac})#{bardic_tag(s)}"
+    ac = Map.get(s, :ac, ac)
+
+    dgettext("engine", "fallo (d20 %{d20}%{lucky}: %{total} vs CA %{ac})%{bardic}",
+      d20: d20,
+      lucky: lucky_tag(s),
+      total: total,
+      ac: ac,
+      bardic: bardic_tag(s)
+    )
   end
 
   defp describe_swing(%{kind: k, d20: d20, total: total, dmg: dmg} = s, weapon, ac) do
-    verb = if k == :crit, do: "CRÍTICO", else: "acierta"
+    ac = Map.get(s, :ac, ac)
+    verb = if k == :crit, do: dgettext("engine", "CRÍTICO"), else: dgettext("engine", "acierta")
 
-    "#{verb} (d20 #{d20}#{lucky_tag(s)}: #{total} vs CA #{ac}) por #{dmg} de daño #{weapon.damage_type}#{savage_tag(s)}#{sneak_tag(s)}#{rage_tag(s)}#{mark_tag(s)}#{smite_tag(s)}#{bardic_tag(s)}"
+    dgettext(
+      "engine",
+      "%{verb} (d20 %{d20}%{lucky}: %{total} vs CA %{ac}) por %{amount} de %{damage} en total%{inclusions}%{smite}%{bardic}",
+      verb: verb,
+      d20: d20,
+      lucky: lucky_tag(s),
+      total: total,
+      ac: ac,
+      amount: dmg,
+      damage: Terms.damage(weapon.damage_type),
+      inclusions: damage_inclusions(s),
+      smite: smite_tag(s),
+      bardic: bardic_tag(s)
+    )
   end
 
   # Amounts carry the per-hit damage opts for `World.apply_damage/5`: weapon
   # swings pass their crit flag (RAW: a critical registers TWO death-save
   # fails on a downed target); the smite pipe passes `death_fail: false`
   # (the weapon damage of the SAME hit already registered it).
-  defp swing_amounts(swings),
-    do: for(%{dmg: dmg, kind: k} <- swings, dmg > 0, do: {dmg, [crit: k == :crit]})
-
-  defp smite_amounts(swings),
-    do: for(%{smite: n} <- swings, n > 0, do: {n, [death_fail: false]})
-
-  defp pipe_attack_damage(target, swings, roller, roll_log, char, weapon_type, aura) do
-    {weapon_notes, weapon_change, char_after} =
-      pipe_damage(target, swing_amounts(swings), roller, roll_log, char, weapon_type, aura)
-
-    {smite_notes, smite_change, _char} =
-      pipe_damage(target, smite_amounts(swings), roller, roll_log, char_after, "radiant", aura)
-
+  defp pipe_attack_damage(_target, swings, _roller, _roll_log, _char, _weapon_type, _aura) do
     change = fn w ->
-      with {:ok, w} <- weapon_change.(w) do
-        smite_change.(w)
-      end
+      Enum.reduce_while(swings, {:ok, w}, fn swing, {:ok, acc} ->
+        case swing.damage_change.(acc) do
+          {:ok, next} -> {:cont, {:ok, next}}
+          error -> {:halt, error}
+        end
+      end)
     end
 
-    {weapon_notes ++ smite_notes, change}
+    {Enum.flat_map(swings, & &1.damage_notes), change}
   end
 
   defp compose_smite_spend(attacker, slot, swings, change) do
@@ -2787,6 +5303,12 @@ defmodule Dragonex.Actions do
     end
   end
 
+  defp compose_concentration(result, _caster, %{name: "bless"}), do: result
+  defp compose_concentration(result, _caster, %{name: "shield of faith"}), do: result
+  defp compose_concentration(result, _caster, %{name: "hold person"}), do: result
+  defp compose_concentration(result, _caster, %{name: "faerie fire"}), do: result
+  defp compose_concentration(result, _caster, %{name: "spirit guardians"}), do: result
+
   defp compose_concentration({:ok, msg, change}, caster, spell) do
     if Spells.concentration?(spell.name) do
       combined = fn w ->
@@ -2796,7 +5318,12 @@ defmodule Dragonex.Actions do
         end
       end
 
-      {:ok, "#{msg} #{caster} concentra en #{spell.name}.", combined}
+      {:ok,
+       dgettext("engine", "%{result} %{caster} concentra en %{spell}.",
+         result: msg,
+         caster: caster,
+         spell: Terms.spell(spell.name)
+       ), combined}
     else
       {:ok, msg, change}
     end
@@ -2804,9 +5331,28 @@ defmodule Dragonex.Actions do
 
   defp compose_concentration(result, _caster, _spell), do: result
 
-  defp with_conc_damage(msg, target_name, amount, roller, roll_log, target_char, type, aura) do
+  defp with_conc_damage(
+         msg,
+         target_name,
+         amount,
+         roller,
+         roll_log,
+         target_char,
+         type,
+         aura,
+         expected_target \\ nil
+       ) do
     {notes, change, _char} =
-      pipe_damage(target_name, [amount], roller, roll_log, target_char, type, aura)
+      pipe_damage(
+        target_name,
+        [amount],
+        roller,
+        roll_log,
+        target_char,
+        type,
+        aura,
+        expected_target
+      )
 
     {:ok, append_notes(msg, notes), change}
   end
@@ -2821,195 +5367,34 @@ defmodule Dragonex.Actions do
   # when the pipe started keeps taking every amount (RAW: damage at 0 hp
   # registers death-save fails); one that drops mid-pipe stops the rest (no
   # retarget) — `char` is the target at the pipe's start.
-  defp pipe_damage(_target, [], _roller, _roll_log, char, _type, _aura), do: {[], noop(), char}
+  defp pipe_damage(_target, amounts, roller, roll_log, char, type, aura, expected_target) do
+    Enum.reduce(Enum.with_index(amounts), {[], noop(), char}, fn {entry, index},
+                                                                 {notes, prior, c} ->
+      {amount, opts} = if is_tuple(entry), do: entry, else: {entry, []}
 
-  defp pipe_damage(target, amounts, roller, roll_log, char, type, aura) do
-    amounts =
-      amounts
-      |> Enum.map(fn
-        {amount, opts} when is_integer(amount) and is_list(opts) -> {amount, opts}
-        amount when is_integer(amount) -> {amount, []}
-      end)
-      |> Enum.filter(fn {amount, _opts} -> amount > 0 end)
-
-    {pairs, final_char} =
-      Enum.map_reduce(amounts, char, fn {amount, dmg_opts}, c ->
-        {note, break?, c2, clear_inspired?, mark_indomitable?} =
-          one_hit_concentration(c, amount, roller, roll_log, type, aura)
-
-        {{note, break?, clear_inspired?, mark_indomitable?, dmg_opts}, c2}
-      end)
-
-    notes = pairs |> Enum.map(&elem(&1, 0)) |> Enum.reject(&is_nil/1)
-
-    flags =
-      Enum.map(pairs, fn {_, break?, clear_inspired?, mark_indomitable?, _dmg_opts} ->
-        {break?, clear_inspired?, mark_indomitable?}
-      end)
-
-    started_up? = (char.hp || 0) > 0
-
-    change = fn w ->
-      Enum.reduce_while(
-        Enum.zip(amounts, flags),
-        {:ok, w},
-        fn {{amount, dmg_opts}, {break?, clear_inspired?, mark_indomitable?}}, {:ok, acc} ->
-          case World.character(acc, target) do
-            %Character{hp: hp} when hp <= 0 and not started_up? ->
-              # Already down when the pipe started: keep applying (RAW —
-              # each hit registers death-save fails in apply_damage).
-              apply_pipe_amount(target, amount, type, roller, dmg_opts, acc, %{
-                break?: break?,
-                clear_inspired?: clear_inspired?,
-                mark_indomitable?: mark_indomitable?
-              })
-
-            %Character{hp: hp} when hp <= 0 ->
-              # Dropped mid-pipe: stop the rest (no retarget).
-              {:halt, {:ok, acc}}
-
-            %Character{} ->
-              apply_pipe_amount(target, amount, type, roller, dmg_opts, acc, %{
-                break?: break?,
-                clear_inspired?: clear_inspired?,
-                mark_indomitable?: mark_indomitable?
-              })
-
-            nil ->
-              {:halt, {:error, "no such character: #{target}"}}
-          end
-        end
-      )
-    end
-
-    {notes, change, final_char}
-  end
-
-  # One amount of the damage pipe: apply_damage + the concentration /
-  # inspired / Indomitable side effects the simulation flagged.
-  defp apply_pipe_amount(target, amount, type, roller, dmg_opts, acc, flags) do
-    # D72: the roller threads through so a raging barbarian L11+ takes the
-    # Relentless Rage save with the SAME deterministic roller as the rest
-    # of the action.
-    case World.apply_damage(target, amount, type, roller, dmg_opts).(acc) do
-      {:ok, next} ->
-        next =
-          if flags.break? do
-            case World.clear_concentration(target).(next) do
-              {:ok, cleared} -> cleared
-              _ -> next
-            end
-          else
-            next
-          end
-
-        next =
-          if flags.clear_inspired? do
-            case World.set_inspired(target, false).(next) do
-              {:ok, cleared} -> cleared
-              _ -> next
-            end
-          else
-            next
-          end
-
-        # D68: the Indomitable reroll spent the flag for this long-rest cycle.
-        next =
-          if flags.mark_indomitable? do
-            case World.set_indomitable(target, true).(next) do
-              {:ok, marked} -> marked
-              _ -> next
-            end
-          else
-            next
-          end
-
-        {:cont, {:ok, next}}
-
-      error ->
-        {:halt, error}
-    end
-  end
-
-  defp one_hit_concentration(
-         %Character{concentrating: nil} = c,
-         amount,
-         _roller,
-         _roll_log,
-         type,
-         _aura
-       ) do
-    {nil, false, simulate_damage(c, amount, type), false, false}
-  end
-
-  defp one_hit_concentration(%Character{} = c, amount, roller, roll_log, type, aura) do
-    incoming = Character.incoming_damage(c, amount, type)
-    c2 = simulate_damage(c, amount, type)
-
-    cond do
-      c2.hp <= 0 ->
-        {"#{c.name} cae a 0 pg y pierde la concentración en #{c.concentrating}.", true,
-         %{c2 | concentrating: nil}, false, false}
-
-      incoming > 0 ->
-        dc = max(10, div(incoming, 2))
-        {:roll, mode} = Conditions.save_mode(c, :con)
-        inspired? = c.inspired == true
-
-        {r, close} =
-          RollLog.open(
-            roll_log,
+      if amount <= 0 or (char.hp > 0 and c.hp <= 0) do
+        {notes, prior, c}
+      else
+        {more, change, next} =
+          Dragonex.Damage.prepare(
+            c,
+            amount,
+            type,
             roller,
-            c.name,
-            :save,
-            "salvación de Constitución (concentración)"
+            Keyword.merge(opts,
+              aura: aura,
+              roll_log: roll_log,
+              expected_target: if(index == 0, do: expected_target || c, else: c)
+            )
           )
 
-        {d20, total, _success?, lucky} = Combat.saving_throw_tagged(c, :con, dc, r, mode)
-        # D61: concentration is a CON save — the aura applies (RAW).
-        total = total + aura
-        {total, success?, bardic} = apply_inspired_vs_dc(c, total, dc, r)
-
-        # D68 Indomitable: a fighter L9+ rerolls a failed concentration
-        # save once per long rest — the reroll decides whether it holds.
-        {d20, total, success?, indom} =
-          maybe_indomitable(c, :con, dc, r, mode, {d20, total, success?}, aura)
-
-        # The reroll spends Indomitable on the simulated char too, so a
-        # second hit this action can't double-spend it.
-        c2 = if indom, do: %{c2 | indomitable_used: true}, else: c2
-
-        RollLog.close(close,
-          total: total,
-          against: {:dc, dc},
-          outcome: if(success?, do: :success, else: :failure)
-        )
-
-        aura_b = aura_bit(aura)
-        bardic_bit = if bardic != 0, do: " +#{bardic} inspiración", else: ""
-        lucky_b = lucky_suffix(lucky)
-        indom_b = indom_suffix(indom)
-        c2 = if inspired?, do: %{c2 | inspired: false}, else: c2
-
-        if success? do
-          {"#{c.name} mantiene la concentración en #{c.concentrating} (d20 #{d20}#{lucky_b}#{indom_b}: #{total} vs CD #{dc}#{aura_b}#{bardic_bit}).",
-           false, c2, inspired?, indom != nil}
-        else
-          {"#{c.name} pierde la concentración en #{c.concentrating} (d20 #{d20}#{lucky_b}#{indom_b}: #{total} vs CD #{dc}#{aura_b}#{bardic_bit}).",
-           true, %{c2 | concentrating: nil}, inspired?, indom != nil}
+        combined = fn w ->
+          with {:ok, w} <- prior.(w), do: change.(w)
         end
 
-      true ->
-        {nil, false, c2, false, false}
-    end
-  end
-
-  defp simulate_damage(%Character{} = c, amount, type) do
-    incoming = Character.incoming_damage(c, amount, type)
-    temp = c.temp_hp || 0
-    absorbed = min(temp, incoming)
-    rest = incoming - absorbed
-    %{c | temp_hp: temp - absorbed, hp: max(0, (c.hp || 0) - rest)}
+        {notes ++ more, combined, next}
+      end
+    end)
   end
 
   defp append_notes(msg, []), do: msg
@@ -3028,16 +5413,37 @@ defmodule Dragonex.Actions do
         _ -> conscious_ally?(world, attacker, attacker_name, target_name)
       end
 
-    if dice > 0 and weapon_ok? and circumstance?, do: %{dice: dice}, else: nil
+    spent? =
+      world.phase == :combat and
+        get_in(world.turn_state, [attacker_name, "sneak_turn"]) ==
+          Dragonex.TurnBudget.turn_id(world)
+
+    if dice > 0 and weapon_ok? and circumstance? and not spent?, do: %{dice: dice}, else: nil
+  end
+
+  defp compose_sneak_spend(name, swings, change) do
+    fn w ->
+      with {:ok, next} <- change.(w) do
+        if next.phase == :combat and Enum.any?(swings, &(&1.sneak > 0)) do
+          state =
+            Map.get(next.turn_state, name, %{})
+            |> Map.put("sneak_turn", Dragonex.TurnBudget.turn_id(next))
+
+          {:ok, %{next | turn_state: Map.put(next.turn_state, name, state)}}
+        else
+          {:ok, next}
+        end
+      end
+    end
   end
 
   defp conscious_ally?(
-         %World{characters: chars},
+         %World{} = world,
          %Character{} = attacker,
          attacker_name,
          target_name
        ) do
-    Enum.any?(chars, fn {name, c} ->
+    Enum.any?(World.present_characters(world), fn {name, c} ->
       name != attacker_name and name != target_name and c.side == attacker.side and
         (c.hp || 0) > 0 and
         not Enum.any?(Character.condition_names(c), &(&1 in @incapacitating_ally))
@@ -3051,13 +5457,25 @@ defmodule Dragonex.Actions do
     Enum.sum(for _ <- 1..count, do: roller.(6))
   end
 
-  defp sneak_tag(%{sneak: n}) when is_integer(n) and n > 0, do: " (+#{n} sneak)"
-  defp sneak_tag(_), do: ""
+  # These physical contributions are already in dmg; presenting them as +N
+  # after that total invites the narrator to add them twice. Smite is separate.
+  defp damage_inclusions(swing) do
+    included =
+      for key <- [:savage, :sneak, :rage, :mark],
+          amount = Map.get(swing, key, 0),
+          is_integer(amount) and amount > 0 do
+        "#{amount} #{inclusion_label(key)}"
+      end
 
-  # D69 Savage Attacks: the extra weapon die rides the swing map (0 when the
-  # attack wasn't a melee crit by a half-orc).
-  defp savage_tag(%{savage: n}) when is_integer(n) and n > 0, do: " (+#{n} Savage)"
-  defp savage_tag(_), do: ""
+    if included == [],
+      do: "",
+      else: dgettext("engine", " (incluye %{items})", items: Enum.join(included, ", "))
+  end
+
+  defp inclusion_label(:savage), do: dgettext("engine", "Savage")
+  defp inclusion_label(:sneak), do: dgettext("engine", "sneak")
+  defp inclusion_label(:rage), do: dgettext("engine", "furia")
+  defp inclusion_label(:mark), do: dgettext("engine", "presa marcada")
 
   @mark_prefix "hunter's mark:"
 
@@ -3083,17 +5501,11 @@ defmodule Dragonex.Actions do
     Enum.sum(for _ <- 1..count, do: roller.(6))
   end
 
-  defp mark_tag(%{mark: n}) when is_integer(n) and n > 0, do: " (+#{n} presa marcada)"
-  defp mark_tag(_), do: ""
-
   defp rage_bonus(%Character{raging: true, level: level}, weapon) when weapon.ranged != true do
     Progression.rage_damage(level)
   end
 
   defp rage_bonus(_, _), do: 0
-
-  defp rage_tag(%{rage: n}) when is_integer(n) and n > 0, do: " (+#{n} furia)"
-  defp rage_tag(_), do: ""
 
   defp smite_opts(%Character{class: "paladin", smite_slot: slot}, weapon)
        when is_integer(slot) and slot in 1..5 and weapon.ranged != true,
@@ -3112,7 +5524,7 @@ defmodule Dragonex.Actions do
         roller,
         attacker,
         :damage,
-        "Castigo divino (radiante) a #{tname}"
+        dgettext("engine", "Castigo divino (radiante) a %{target}", target: tname)
       )
 
     amount = Enum.sum(for _ <- 1..n, do: r.(8))
@@ -3133,11 +5545,13 @@ defmodule Dragonex.Actions do
   defp smite_foe?(_), do: false
 
   defp smite_tag(%{smite: n, smite_dice: d}) when is_integer(n) and n > 0 do
-    " (+#{n} smite #{d}d8 radiante)"
+    dgettext("engine", " (+%{amount} smite %{dice}d8 radiante, adicional)", amount: n, dice: d)
   end
 
   defp smite_tag(_), do: ""
-  defp bardic_tag(%{bardic: n}) when is_integer(n) and n > 0, do: " (+#{n} inspiración)"
+
+  defp bardic_tag(%{bardic: n}) when is_integer(n) and n > 0,
+    do: dgettext("engine", " (ataque: incluye %{bardic} inspiración)", bardic: n)
 
   defp bardic_tag(_), do: ""
 
@@ -3177,7 +5591,11 @@ defmodule Dragonex.Actions do
         Combat.saving_throw_tagged(t, ability, dc, roller, mode)
 
       total_2 = total_2 + extra
-      tag = "(Indomitable: #{total}→#{total_2})" <> lucky_suffix(lucky_2)
+
+      tag =
+        dgettext("engine", "(Indomitable: %{before}→%{after})", before: total, after: total_2) <>
+          lucky_suffix(lucky_2)
+
       {d20_2, total_2, total_2 >= dc, tag}
     end
   end
@@ -3257,7 +5675,7 @@ defmodule Dragonex.Actions do
   defp aura_save_bonus(%World{} = world, name), do: World.aura_save_bonus(world, name)
 
   # Breakdown bit for save messages: " +3 aura" / " -1 aura".
-  defp aura_bit(aura) when aura != 0, do: " #{signed(aura)} aura"
+  defp aura_bit(aura) when aura != 0, do: dgettext("engine", " %{aura} aura", aura: signed(aura))
   defp aura_bit(_), do: ""
 
   defp compose_inspired_clear(_name, false, change), do: change
@@ -3282,9 +5700,92 @@ defmodule Dragonex.Actions do
     end
   end
 
+  # D95: hojas rancias — rellena SOLO los campos nil de la ficha con el
+  # catálogo (`Heroes.Spells.get/1`, builtin gana al SRD). Las hojas
+  # persistidas antes de los builtin (sacred flame con `dice: null`) se
+  # corrigen al lanzar sin migración. `custom_*` queda fuera: su definición
+  # vive en el bundle inyectado, no en el catálogo.
+  defp overlay_catalog(%Spell{name: name} = spell) do
+    if String.starts_with?(name, "custom_") do
+      spell
+    else
+      case Spells.get(name) do
+        %{dice: dice, save_ability: save_ability, damage_type: damage_type} ->
+          %{
+            spell
+            | dice: non_empty(spell.dice) || dice,
+              save_ability: spell.save_ability || save_ability,
+              damage_type: non_empty(spell.damage_type) || damage_type
+          }
+
+        nil ->
+          spell
+      end
+    end
+  end
+
+  defp non_empty(""), do: nil
+  defp non_empty(value), do: value
+
+  # D95 Guiding Bolt: al IMPACTAR, el objetivo queda guiado — la próxima
+  # tirada de ataque contra él gana ventaja. Compone tras el daño.
+  defp mark_guided_on_hit({:ok, msg, change}, %Spell{} = spell, caster, target) do
+    if guiding_bolt?(spell) do
+      {:ok, msg,
+       fn w ->
+         with {:ok, w} <- change.(w) do
+           World.mark_guided(target, caster).(w)
+         end
+       end}
+    else
+      {:ok, msg, change}
+    end
+  end
+
+  defp mark_guided_on_hit(result, _spell, _caster, _target), do: result
+
+  defp guiding_bolt?(%Spell{name: name}),
+    do: name |> String.downcase() |> String.replace(~r/[\s_-]+/, "") == "guidingbolt"
+
+  # D95 Guiding Bolt: la tirada de ataque que consumió la marca la retira
+  # acierte o falle — compónela SIEMPRE detrás de un eventual mark nuevo
+  # (consume la marca vieja, aplica la fresca).
+  defp consume_guided_after_roll({:ok, msg, change}, target, true) do
+    {:ok, msg,
+     fn w ->
+       with {:ok, w} <- change.(w) do
+         World.consume_guided(target).(w)
+       end
+     end}
+  end
+
+  defp consume_guided_after_roll(result, _target, false), do: result
+
+  # D95: variante de compose para la cadena de cambios de do_attack (la
+  # marca la consumió el primer swing de esta acción, acierte o falle).
+  defp consume_guided_change(_target, false, change), do: change
+
+  defp consume_guided_change(target, true, change) do
+    fn w ->
+      with {:ok, w} <- change.(w) do
+        World.consume_guided(target).(w)
+      end
+    end
+  end
+
   defp find_weapon(%Character{weapons: weapons}, name), do: match_named(weapons, name)
 
   defp find_spell(%Character{spells: spells}, name), do: match_named(spells, name)
+
+  @doc "Read the same spell definition/name used by resolution, without rolling or mutating."
+  def spell_definition(%World{} = world, caster, name) when is_binary(name) do
+    case World.present_character(world, caster) do
+      %Character{} = character -> find_spell(character, name)
+      _ -> nil
+    end
+  end
+
+  def spell_definition(_world, _caster, _name), do: nil
 
   defp false_life?(%{name: name, dice: dice}) when dice in [nil, ""] and is_binary(name) do
     name
@@ -3310,24 +5811,34 @@ defmodule Dragonex.Actions do
       end)
   end
 
-  defp compose_rest(name, heal_amount, restore_slots?) do
+  defp compose_rest(name, heal_amount, restore_slots?, kind, dice_spent) do
     fn w ->
-      with {:ok, w} <- World.heal(name, heal_amount).(w),
+      with {:ok, w} <- Dragonex.Rest.complete(w, name, kind, dice_spent),
+           {:ok, w} <-
+             World.heal(
+               name,
+               if(kind == :long, do: World.present_character(w, name).max_hp, else: heal_amount)
+             ).(w),
            {:ok, w} <- maybe_restore_slots(w, name, restore_slots?),
            {:ok, w} <- World.set_second_wind_used(name, false).(w),
            {:ok, w} <- World.set_action_surge_used(name, false).(w),
            {:ok, w} <- World.set_channel_divinity_used(name, false).(w),
            {:ok, w} <- World.restore_ki(name).(w),
            {:ok, w} <- World.restore_wild_shape_uses(name).(w),
-           {:ok, w} <- World.set_breath_weapon_used(name, false).(w) do
-        {:ok, w}
+           {:ok, w} <- World.set_breath_weapon_used(name, false).(w),
+           {:ok, w} <- World.set_relentless_rage_successes(name, 0).(w) do
+        c = World.present_character(w, name)
+
+        if c.class == "bard" and c.level >= 5,
+          do: World.restore_bardic_inspiration(name).(w),
+          else: {:ok, w}
       end
     end
   end
 
   defp compose_long_rest(name, heal_amount) do
     fn w ->
-      with {:ok, w} <- compose_rest(name, heal_amount, true).(w),
+      with {:ok, w} <- compose_rest(name, heal_amount, true, :long, 0).(w),
            {:ok, w} <- World.restore_lay_on_hands(name).(w),
            {:ok, w} <- World.restore_divine_sense(name).(w),
            {:ok, w} <- World.restore_bardic_inspiration(name).(w),
@@ -3337,7 +5848,8 @@ defmodule Dragonex.Actions do
            {:ok, w} <- World.set_relentless_endurance(name, false).(w),
            {:ok, w} <- World.set_indomitable(name, false).(w),
            {:ok, w} <- World.set_rage_uses_used(name, 0).(w),
-           {:ok, w} <- World.set_relentless_rage_successes(name, 0).(w) do
+           {:ok, w} <- World.set_relentless_rage_successes(name, 0).(w),
+           {:ok, w} <- World.clear_temp_hp(name).(w) do
         {:ok, w}
       end
     end
@@ -3387,21 +5899,15 @@ defmodule Dragonex.Actions do
   defp signed(n) when n >= 0, do: "+#{n}"
   defp signed(n), do: "#{n}"
 
-  defp mode_tag(:advantage), do: " (ventaja)"
-  defp mode_tag(:disadvantage), do: " (desventaja)"
+  defp mode_tag(:advantage), do: dgettext("engine", " (ventaja)")
+  defp mode_tag(:disadvantage), do: dgettext("engine", " (desventaja)")
   defp mode_tag(_), do: ""
 
-  @abilities_es %{
-    str: "Fuerza",
-    dex: "Destreza",
-    con: "Constitución",
-    int: "Inteligencia",
-    wis: "Sabiduría",
-    cha: "Carisma"
-  }
+  @ability_keys ~w(str dex con int wis cha)a
 
   # Spanish label for roll reasons (shown to players in the chat & dice modal).
-  defp ability_es(a) when is_atom(a), do: Map.get(@abilities_es, a, inspect(a))
+  defp ability_es(a) when is_atom(a),
+    do: if(a in @ability_keys, do: Translations.ability(a), else: inspect(a))
 
   defp ability_es(s) when is_binary(s) do
     case Dragonex.Rules.Ability.parse(s) do

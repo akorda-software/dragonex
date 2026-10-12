@@ -2,7 +2,6 @@ defmodule Dragonex.GamesContextSmokeTest do
   use ExUnit.Case, async: true
 
   alias Dragonex.{Archetypes, Games, Monsters}
-  alias Dragonex.Games.{GameEvent, Participant}
 
   setup do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(Dragonex.Repo)

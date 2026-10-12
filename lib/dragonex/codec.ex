@@ -22,15 +22,27 @@ defmodule Dragonex.Codec do
   def encode(%World{} = w) do
     %{
       "scene" => w.scene,
+      "scene_refresh_pending" => Map.get(w, :scene_refresh_pending, false),
+      "actor_checkpoint" => Map.get(w, :actor_checkpoint),
+      "wait_resolution" => Map.get(w, :wait_resolution),
       "phase" => Atom.to_string(w.phase),
       "round" => w.round,
       "characters" => Map.new(w.characters, fn {name, c} -> {name, encode_character(c)} end),
+      "absent_characters" => Map.get(w, :absent_characters, %{}),
+      "conversation" => Map.get(w, :conversation),
       "initiative_order" => w.initiative_order,
       "log" => Enum.map(w.log, fn {actor, entry} -> [actor, entry] end),
       "spell_slots" => w.spell_slots,
       "facts" => w.facts,
       "acted_this_round" => encode_acted(w.acted_this_round),
-      "current_combatant" => w.current_combatant
+      "current_combatant" => w.current_combatant,
+      "pending_turn" => Map.get(w, :pending_turn),
+      "turn_state" => w.turn_state,
+      "turn_kind" => w.turn_kind,
+      "turn_owner" => w.turn_owner,
+      "rest_state" => w.rest_state,
+      "elapsed_seconds" => w.elapsed_seconds,
+      "effect_expiries" => w.effect_expiries
     }
   end
 
@@ -42,19 +54,79 @@ defmodule Dragonex.Codec do
   def decode(nil), do: %World{}
 
   def decode(%{} = m) do
-    %World{
+    w = %World{
       scene: m["scene"],
+      actor_checkpoint: if(is_map(m["actor_checkpoint"]), do: m["actor_checkpoint"], else: nil),
+      wait_resolution: decode_wait_resolution(m["wait_resolution"]),
+      scene_refresh_pending:
+        Map.get(
+          m,
+          "scene_refresh_pending",
+          (m["elapsed_seconds"] || 0) > 0 or (m["facts"] || []) != []
+        ) == true,
       phase: decode_phase(m["phase"]),
       round: m["round"],
       characters: Map.new(m["characters"], fn {name, c} -> {name, decode_character(c)} end),
+      absent_characters:
+        if(is_map(m["absent_characters"]), do: m["absent_characters"], else: %{}),
+      conversation: Dragonex.Conversation.decode(m["conversation"]),
       initiative_order: m["initiative_order"] || [],
       log: Enum.map(m["log"] || [], fn [actor, entry] -> {actor, entry} end),
       spell_slots: decode_spell_slots(m["spell_slots"]),
       facts: m["facts"] || [],
       acted_this_round: decode_acted(m["acted_this_round"]),
-      current_combatant: m["current_combatant"]
+      current_combatant: m["current_combatant"],
+      pending_turn: decode_pending_turn(m["pending_turn"], m),
+      turn_state: m["turn_state"] || %{},
+      turn_kind: m["turn_kind"] || "main",
+      turn_owner: Map.get(m, "turn_owner", m["current_combatant"]),
+      rest_state: m["rest_state"] || %{},
+      elapsed_seconds: m["elapsed_seconds"] || 0,
+      effect_expiries: m["effect_expiries"] || %{}
     }
+
+    if Map.has_key?(m, "effect_expiries"), do: w, else: Dragonex.WorldClock.seed_legacy(w)
   end
+
+  defp decode_wait_resolution(
+         %{
+           "source_turn_id" => source,
+           "declared_seconds" => declared,
+           "elapsed_seconds" => elapsed,
+           "clock_before" => before,
+           "clock_after" => after_clock
+         } = receipt
+       )
+       when is_binary(source) and source != "" and is_integer(declared) and declared > 0 and
+              declared <= 86400 and is_integer(elapsed) and elapsed >= 0 and elapsed <= declared and
+              is_integer(before) and before >= 0 and after_clock == before + elapsed do
+    decoded =
+      Map.take(
+        receipt,
+        ~w(source_turn_id declared_seconds elapsed_seconds clock_before clock_after)
+      )
+
+    case receipt["scene_review_fingerprint"] do
+      fingerprint when is_binary(fingerprint) ->
+        if Regex.match?(~r/\A[0-9a-f]{64}\z/, fingerprint),
+          do: Map.put(decoded, "scene_review_fingerprint", fingerprint),
+          else: decoded
+
+      _ ->
+        decoded
+    end
+  end
+
+  defp decode_wait_resolution(_), do: nil
+
+  defp decode_pending_turn(%{"combatant" => name, "kind" => kind}, world)
+       when is_binary(name) and kind in ["main", "reaction"] do
+    if world["phase"] == "combat" and Map.has_key?(world["characters"] || %{}, name) and
+         not Map.has_key?(world["absent_characters"] || %{}, name),
+       do: %{"combatant" => name, "kind" => kind}
+  end
+
+  defp decode_pending_turn(_, _), do: nil
 
   defp encode_acted(%MapSet{} = set), do: MapSet.to_list(set)
   defp encode_acted(list) when is_list(list), do: list

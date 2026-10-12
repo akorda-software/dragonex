@@ -15,7 +15,7 @@ defmodule Dragonex.DMTest do
 
     assert brief =~ "Exploración"
     assert brief =~ "Es el turno de Thane (jugador humano)"
-    assert brief =~ "Thane (fighter, pc)"
+    assert brief =~ "Thane (raza human/Humano, clase fighter/Guerrero, nivel 1, pc)"
     assert brief =~ "12/12 pg, CA 16"
     assert brief =~ "Armas: longsword, javelin"
     assert String.contains?(brief, "<- ACTÚA AHORA")
@@ -33,7 +33,7 @@ defmodule Dragonex.DMTest do
     assert brief =~ "Combate -- ronda 1"
     assert brief =~ "iniciativa: goblin -> Thane"
     assert brief =~ "Es TU turno (DM) -- actúa por: goblin."
-    assert brief =~ "goblin (monster, enemy)"
+    assert brief =~ "goblin (raza goblinoid, clase monster, nivel 1, enemy)"
   end
 
   test "combat brief with current_combatant names only that monster" do
@@ -49,7 +49,7 @@ defmodule Dragonex.DMTest do
 
     assert brief =~ "Es TU turno (DM) -- actúa por: orc."
     refute brief =~ "actúa por: goblin, orc"
-    assert brief =~ "orc (monster, enemy)"
+    assert brief =~ "orc (raza humanoid, clase monster, nivel 1, enemy)"
     assert brief =~ "<- ACTÚA AHORA"
   end
 

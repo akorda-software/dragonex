@@ -1,7 +1,8 @@
 defmodule Dragonex.ConcentrationTest do
   @moduledoc """
   Concentration 5e (D37): state on the caster, CON save on damage, break on
-  0 hp / incapacitated-class conditions. No duration clock, no Bless +1d4.
+  0 hp / incapacitated-class conditions. Duration and Bless bonuses have
+  dedicated coverage in rest_clock_test and bless_test (D83/D85).
   """
 
   use ExUnit.Case, async: true
@@ -114,7 +115,7 @@ defmodule Dragonex.ConcentrationTest do
         |> then_apply(World.add_character(goblin()))
 
       assert {:ok, msg, change} = Actions.spell(w, "Cleric", "bless", "goblin", always(10))
-      assert msg =~ "concentra en bless"
+      assert msg =~ "concentra en Bendición"
       {:ok, w2} = change.(w)
       assert w2.characters["Cleric"].concentrating == "bless"
     end
@@ -130,7 +131,7 @@ defmodule Dragonex.ConcentrationTest do
       assert w.characters["Cleric"].concentrating == "bless"
 
       {:ok, msg, change} = Actions.spell(w, "Cleric", "shield of faith", "Cleric", always(10))
-      assert msg =~ "concentra en shield of faith"
+      assert msg =~ "concentra en Escudo de la fe"
       {:ok, w} = change.(w)
       assert w.characters["Cleric"].concentrating == "shield of faith"
     end
@@ -304,7 +305,7 @@ defmodule Dragonex.ConcentrationTest do
 
       # L5: +6. d20=10 hit; d8=4 +3 = 7. Twice. Saves 15 (keep) then 5 (lose).
       assert {:ok, msg, change} =
-               Actions.attack(w, "Thane", "goblin", "longsword", seq([10, 4, 10, 4, 15, 5]))
+               Actions.attack(w, "Thane", "goblin", "longsword", seq([10, 4, 15, 10, 4, 5]))
 
       assert msg =~ "d20 15"
       assert msg =~ "d20 5"

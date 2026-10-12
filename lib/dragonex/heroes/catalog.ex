@@ -230,12 +230,18 @@ defmodule Dragonex.Heroes.Catalog do
           dice: data.dice,
           damage_type: data.damage_type,
           damage_type_label: Translations.damage_type(data.damage_type, locale),
-          effect: data.effect
+          effect: spell_effect(data, locale)
         }
       end
 
     builtin ++ custom_spell_entries(custom_list(opts[:custom], :spells), locale, level)
   end
+
+  # SRD entries carry the original English text next to the Spanish one; the
+  # few builtin-only spells carry a Spanish text next to their English one (D236).
+  defp spell_effect(%{effect_en: en}, :en) when is_binary(en), do: en
+  defp spell_effect(%{effect_es: es}, :es) when is_binary(es), do: es
+  defp spell_effect(data, _locale), do: data.effect
 
   defp custom_spell_entries(entries, locale, level) do
     for %{key: key, name: name, definition: d} <- entries,
@@ -333,7 +339,7 @@ defmodule Dragonex.Heroes.Catalog do
           dice: data.dice,
           damage_type: data.damage_type,
           damage_type_label: Translations.damage_type(data.damage_type, locale),
-          effect: data.effect,
+          effect: spell_effect(data, locale),
           default: MapSet.member?(defaults, data.name)
         }
       end

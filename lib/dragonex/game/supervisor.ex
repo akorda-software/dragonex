@@ -6,9 +6,12 @@ defmodule Dragonex.Game.Supervisor do
   the partida is closed/paused; its state is always safe in Postgres, so a fresh
   process rehydrates the same `game_id` after a crash. The `DynamicSupervisor`
   lets any number of partidas run concurrently, each registered by `game_id`.
+  Each table has its own supervisor and restart budget, so repeated failures
+  in one table cannot close the others.
   """
 
   use DynamicSupervisor
+  alias Dragonex.Game.TableSupervisor
 
   @registry Dragonex.Game.Registry
 
@@ -26,16 +29,37 @@ defmodule Dragonex.Game.Supervisor do
   """
   @spec start_game(term(), keyword()) :: DynamicSupervisor.on_start_child()
   def start_game(game_id, opts \\ []) do
-    spec = {Dragonex.Game, {game_id, opts}}
-    DynamicSupervisor.start_child(__MODULE__, spec)
+    case DynamicSupervisor.start_child(__MODULE__, {TableSupervisor, {game_id, opts}}) do
+      {:ok, owner} ->
+        TableSupervisor.game_pid(owner)
+
+      {:error, {:already_started, owner}} ->
+        case TableSupervisor.game_pid(owner) do
+          {:ok, pid} -> {:error, {:already_started, pid}}
+          other -> other
+        end
+
+      {:error, {:shutdown, {:failed_to_start_child, _child, reason}}} ->
+        {:error, reason}
+
+      other ->
+        other
+    end
   end
 
   @doc "Stop a Game process (its state is already persisted)."
   @spec stop_game(term()) :: :ok | {:error, :not_found}
   def stop_game(game_id) do
-    case whereis(game_id) do
-      nil -> {:error, :not_found}
-      pid -> DynamicSupervisor.terminate_child(__MODULE__, pid)
+    case TableSupervisor.whereis(game_id) do
+      owner when is_pid(owner) ->
+        DynamicSupervisor.terminate_child(__MODULE__, owner)
+
+      nil ->
+        # Existing development Games may predate the table supervisors.
+        case whereis(game_id) do
+          nil -> {:error, :not_found}
+          pid -> DynamicSupervisor.terminate_child(__MODULE__, pid)
+        end
     end
   end
 

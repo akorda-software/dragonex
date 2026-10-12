@@ -31,6 +31,26 @@ defmodule Dragonex.HistoryTest do
 
   defp text_of(%Response{parts: [%ExAgent.Message.Part.Text{content: c}]}), do: c
 
+  test "agent history preserves the actual weapon penalty and explains a zero damage minimum" do
+    event = %GameEvent{
+      type: :dice,
+      actor: "Arden",
+      seq: 1,
+      payload: %{
+        "kind" => "damage",
+        "who" => "Arden",
+        "reason" => "daño del arma",
+        "dice" => [[4, 1]],
+        "total" => 0,
+        "raw_total" => -1
+      }
+    }
+
+    context = inspect(History.from_events([event]), limit: :infinity)
+    assert context =~ "d4:1 -2 = 0 (mínimo 0)"
+    refute context =~ "d4:1 -1 = 0"
+  end
+
   test "narrations from DIFFERENT actors stay as separate assistant turns" do
     events = [
       turn("dm", 1, :exploration, 1),

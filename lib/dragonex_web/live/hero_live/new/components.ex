@@ -11,6 +11,7 @@ defmodule DragonexWeb.HeroLive.New.Components do
   """
 
   use Phoenix.Component
+  use Gettext, backend: Dragonex.Gettext
 
   alias Dragonex.{Character, Heroes, I18n}
   alias Dragonex.Heroes.{Catalog, Classes, Draft, Races, Scoring, Translations}
@@ -21,48 +22,54 @@ defmodule DragonexWeb.HeroLive.New.Components do
   def identity_step(assigns) do
     ~H"""
     <div>
-      <div class="step-label">Nombre</div>
-      <input type="text" name="name" value={@form.name} phx-change="change" placeholder="Lyra, Thane, Vex…" />
+      <label class="step-label" for="hero-name">{dgettext("ui", "Nombre")}</label>
+      <input id="hero-name" type="text" name="name" value={@form.name} phx-change="change" placeholder="Lyra, Thane, Vex…" />
 
-      <div class="step-label">Sexo</div>
-      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));">
+      <div class="step-label">{dgettext("ui", "Sexo")}</div>
+      <div class="grid grid-3">
         <%= for sex <- ["hombre", "mujer", "no binario"] do %>
-          <div class={"opt #{if @form.sex == sex, do: "sel", else: ""}"}
+          <button type="button" id={choice_id("sex", sex)} value={sex}
+               class={"opt #{if @form.sex == sex, do: "sel", else: ""}"}
+               aria-pressed={to_string(@form.sex == sex)}
                phx-click="select" phx-value-field="sex" phx-value-value={sex}>
-            <div class="on">{String.capitalize(sex)}</div>
-          </div>
+            <span class="on">{sex_label(sex)}</span>
+          </button>
         <% end %>
       </div>
 
-      <div class="step-label">Raza</div>
+      <div class="step-label">{dgettext("ui", "Raza")}</div>
       <div class="grid">
         <%= for race <- Catalog.races(@locale) do %>
-          <div class={"opt #{if @form.race == race.key, do: "sel", else: ""}"}
+          <button type="button" id={choice_id("race", race.key)} value={race.key}
+               class={"opt #{if @form.race == race.key, do: "sel", else: ""}"}
+               aria-pressed={to_string(@form.race == race.key)}
                phx-click="select" phx-value-field="race" phx-value-value={race.key}>
-            <div class="on">{race.label}</div>
-            <div class="od">{subrace_hint(race)}</div>
-          </div>
+            <span class="on">{race.label}</span>
+            <span class="od">{subrace_hint(race)}</span>
+          </button>
         <% end %>
       </div>
 
       <div :if={@form.race && subraces_for(@form.race, @locale) != []}>
-        <div class="step-label">Subraza</div>
-        <select class="select-row" name="subrace" phx-change="change">
-          <option value="">(elige subraza)</option>
+        <label class="step-label" for="hero-subrace">{dgettext("ui", "Subraza")}</label>
+        <select id="hero-subrace" class="select-row" name="subrace" phx-change="change">
+          <option value="">{dgettext("ui", "(elige subraza)")}</option>
           <%= for sr <- subraces_for(@form.race, @locale) do %>
             <option value={sr.key} selected={@form.subrace == sr.key}>{sr.label}</option>
           <% end %>
         </select>
       </div>
 
-      <div class="step-label">Clase</div>
+      <div class="step-label">{dgettext("ui", "Clase")}</div>
       <div class="grid">
         <%= for class <- Catalog.classes(@locale) do %>
-          <div class={"opt #{if @form.class == class.key, do: "sel", else: ""}"}
+          <button type="button" id={choice_id("class", class.key)} value={class.key}
+               class={"opt #{if @form.class == class.key, do: "sel", else: ""}"}
+               aria-pressed={to_string(@form.class == class.key)}
                phx-click="select" phx-value-field="class" phx-value-value={class.key}>
-            <div class="on">{class.label}</div>
-            <div class="od">{class_hint(class)}</div>
-          </div>
+            <span class="on">{class.label}</span>
+            <span class="od">{class_hint(class)}</span>
+          </button>
         <% end %>
       </div>
     </div>
@@ -72,33 +79,39 @@ defmodule DragonexWeb.HeroLive.New.Components do
   def heritage_step(assigns) do
     ~H"""
     <div>
-      <div class="step-label">Trasfondo</div>
+      <div class="step-label">{dgettext("ui", "Trasfondo")}</div>
       <div class="grid">
         <%= for bg <- Catalog.backgrounds(@locale) do %>
-          <div class={"opt #{if @form.background == bg.key, do: "sel", else: ""}"}
+          <button type="button" id={choice_id("background", bg.key)} value={bg.key}
+               class={"opt #{if @form.background == bg.key, do: "sel", else: ""}"}
+               aria-pressed={to_string(@form.background == bg.key)}
                phx-click="select" phx-value-field="background" phx-value-value={bg.key}>
-            <div class="on">{bg.label}</div>
-          </div>
+            <span class="on">{bg.label}</span>
+          </button>
         <% end %>
       </div>
 
-      <div class="step-label">Puntuaciones de característica</div>
-      <div class="grid" style="grid-template-columns:1fr 1fr;">
-        <div class={"opt #{if @form.score_method == "auto", do: "sel", else: ""}"}
+      <div class="step-label">{dgettext("ui", "Puntuaciones de característica")}</div>
+      <div class="grid grid-2">
+        <button type="button" id={choice_id("score-method", "auto")} value="auto"
+             class={"opt #{if @form.score_method == "auto", do: "sel", else: ""}"}
+             aria-pressed={to_string(@form.score_method == "auto")}
              phx-click="select" phx-value-field="score_method" phx-value-value="auto">
-          <div class="on">Standard Array</div>
-          <div class="od">Auto: 15·14·13·12·10·8</div>
-        </div>
-        <div class={"opt #{if @form.score_method == "pointbuy", do: "sel", else: ""}"}
+          <span class="on">{dgettext("ui", "Standard Array")}</span>
+          <span class="od">{dgettext("ui", "Auto: 15·14·13·12·10·8")}</span>
+        </button>
+        <button type="button" id={choice_id("score-method", "pointbuy")} value="pointbuy"
+             class={"opt #{if @form.score_method == "pointbuy", do: "sel", else: ""}"}
+             aria-pressed={to_string(@form.score_method == "pointbuy")}
              phx-click="select" phx-value-field="score_method" phx-value-value="pointbuy">
-          <div class="on">Point Buy</div>
-          <div class="od">27 pts · rango 8–15</div>
-        </div>
+          <span class="on">{dgettext("ui", "Point Buy")}</span>
+          <span class="od">{dgettext("ui", "27 pts · rango 8–15")}</span>
+        </button>
       </div>
 
-      <div :if={@form.score_method == "pointbuy"} style="margin-top:1rem;">
+      <div :if={@form.score_method == "pointbuy"}>
         <div class="step-label">
-          Point Buy — Restantes: <strong style="color:#fc8;">{Scoring.point_buy_remaining(@form.pb)}</strong> pts
+          {dgettext("ui", "Point Buy — Restantes:")} <strong>{Scoring.point_buy_remaining(@form.pb)}</strong> {dgettext("ui", "pts")}
         </div>
         <div class="pb-grid">
           <%= for ab <- [:str, :dex, :con, :int, :wis, :cha] do %>
@@ -107,21 +120,19 @@ defmodule DragonexWeb.HeroLive.New.Components do
                ab_label = Translations.ability_short(ab, @locale) %>
             <div class="pb-row">
               <span class="pb-ab">{ab_label}</span>
-              <button type="button" class="pb-btn" phx-click="pb_adjust" phx-value-ability={ab} phx-value-delta="-1">−</button>
+              <button type="button" class="btn pb-btn" aria-label={dgettext("ui", "Disminuir %{ability}", ability: Translations.ability(ab, @locale))} phx-click="pb_adjust" phx-value-ability={ab} phx-value-delta="-1">−</button>
               <span class="pb-val">{val}</span>
-              <button type="button" class="pb-btn" phx-click="pb_adjust" phx-value-ability={ab} phx-value-delta="1">+</button>
+              <button type="button" class="btn pb-btn" aria-label={dgettext("ui", "Aumentar %{ability}", ability: Translations.ability(ab, @locale))} phx-click="pb_adjust" phx-value-ability={ab} phx-value-delta="1">+</button>
               <span class="pb-cost">({cost}p)</span>
             </div>
           <% end %>
         </div>
-        <div class="od" style="color:#555;font-size:.72rem;margin-top:.3rem;">
-          Costes: 8→0, 9→1, 10→2, 11→3, 12→4, 13→5, 14→7, 15→9
-        </div>
+        <p class="hint-text">{dgettext("ui", "Costes: 8→0, 9→1, 10→2, 11→3, 12→4, 13→5, 14→7, 15→9")}</p>
       </div>
 
-      <div :if={@form.score_method == "auto"} class="od" style="text-align:center;color:#555;font-size:.78rem;margin-top:.3rem;">
-        Asignado automáticamente según la prioridad de la clase.
-      </div>
+      <p :if={@form.score_method == "auto"} class="hint-text">
+        {dgettext("ui", "Asignado automáticamente según la prioridad de la clase.")}
+      </p>
 
       <.skill_picker :if={@form.class} form={@form} locale={@locale} />
       <.language_picker :if={extra_langs(@form) > 0} form={@form} locale={@locale} count={extra_langs(@form)} />
@@ -132,16 +143,14 @@ defmodule DragonexWeb.HeroLive.New.Components do
 
   defp skill_picker(assigns) do
     ~H"""
-    <div style="margin-top:1rem;">
+    <div>
       <div class="step-label">
-        Habilidades
-        <span :if={skill_opts(@form.class)} style="color:#889;font-weight:normal;font-size:.78rem;">
-          ({skill_selected_count(@form)}/{skill_opts(@form.class).count}) · el trasfondo añade las suyas gratis
+        {dgettext("ui", "Habilidades")}
+        <span :if={skill_opts(@form.class)} class="count">
+          ({skill_selected_count(@form)}/{skill_opts(@form.class).count}) · {dgettext("ui", "el trasfondo añade las suyas gratis")}
         </span>
       </div>
-      <div class="od" style="color:#555;font-size:.78rem;margin-bottom:.4rem;">
-        Elige las habilidades de tu clase. Las del trasfondo se suman automáticamente.
-      </div>
+      <p class="hint-text">{dgettext("ui", "Elige las habilidades de tu clase. Las del trasfondo se suman automáticamente.")}</p>
       <div class="spell-chips">
         <%= with %{count: count, options: options} <- skill_opts(@form.class) do %>
           <% selected = @form.skills_choice || [] %>
@@ -151,6 +160,7 @@ defmodule DragonexWeb.HeroLive.New.Components do
                locked = full and not on %>
             <button type="button"
                     class={"spell-chip #{if on, do: "sel", else: ""} #{if locked, do: "locked", else: ""}"}
+                    aria-pressed={to_string(on)}
                     disabled={locked}
                     phx-click={if not locked, do: "skill_toggle"}
                     phx-value-skill={opt.key}>
@@ -165,22 +175,21 @@ defmodule DragonexWeb.HeroLive.New.Components do
 
   defp language_picker(assigns) do
     ~H"""
-    <div style="margin-top:1rem;">
+    <div>
       <div class="step-label">
-        Idiomas adicionales
-        <span style="color:#889;font-weight:normal;font-size:.78rem;">
+        {dgettext("ui", "Idiomas adicionales")}
+        <span class="count">
           ({lang_selected_count(@form)}/{@count})
         </span>
       </div>
-      <div class="od" style="color:#555;font-size:.78rem;margin-bottom:.4rem;">
-        Tu raza o trasfondo te deja elegir idiomas extra.
-      </div>
+      <p class="hint-text">{dgettext("ui", "Tu raza o trasfondo te deja elegir idiomas extra.")}</p>
       <div class="spell-chips">
         <%= for key <- extra_language_choices(@form, @locale) do %>
           <% on = key in (@form.extra_langs || [])
              locked = lang_selected_count(@form) >= @count and not on %>
           <button type="button"
                   class={"spell-chip #{if on, do: "sel", else: ""} #{if locked, do: "locked", else: ""}"}
+                  aria-pressed={to_string(on)}
                   disabled={locked}
                   phx-click={if not locked, do: "lang_toggle"}
                   phx-value-lang={key}>
@@ -195,57 +204,53 @@ defmodule DragonexWeb.HeroLive.New.Components do
   def equipment_step(assigns) do
     ~H"""
     <div>
-      <div :if={is_nil(@form.class)}>
-        <div class="od" style="text-align:center;color:#555;font-size:.85rem;">
-          Elige una clase en el paso de Identidad para configurar su equipo.
-        </div>
-      </div>
+      <p :if={is_nil(@form.class)} class="hint-text">
+        {dgettext("ui", "Elige una clase en el paso de Identidad para configurar su equipo.")}
+      </p>
 
       <div :if={@form.class}>
-        <div class="step-label">Equipo inicial de {Translations.class(@form.class, @locale)}</div>
-        <div class="od" style="color:#555;font-size:.78rem;margin-bottom:.6rem;">
-          Elige una opción en cada grupo. Es el equipo inicial según D&D 5e.
-        </div>
+        <div class="step-label">{dgettext("ui", "Equipo inicial de %{class}", class: Translations.class(@form.class, @locale))}</div>
+        <p class="hint-text">{dgettext("ui", "Elige una opción en cada grupo. Es el equipo inicial según D&D 5e.")}</p>
 
         <%= for group <- Catalog.equipment_for_class(@form.class, @locale) do %>
           <% selected = Map.get(@form.equipment, group.id, 0) %>
           <div class="equip-group">
             <div class="equip-group-label">
               <%= case group.id do %>
-                <% :weapon -> %> Arma
-                <% :side -> %> Secundaria
-                <% :defense -> %> Defensa
-                <% :armor -> %> Armadura
-                <% :shield -> %> Escudo
-                <% :ranged -> %> A distancia
-                <% :thrown -> %> Arrojadiza
-                <% :bow -> %> Arco
-                <% :focus -> %> Foco
-                <% :pack -> %> Mochila
-                <% :ammo -> %> Munición
-                <% :darts -> %> Dardos
-                <% :daggers -> %> Dagas
-                <% :tools -> %> Herramientas
-                <% :dagger -> %> Daga
-                <% :simple -> %> Arma simple
-                <% :spellbook -> %> Grimorio
-                <% _ -> %> Otro
+                <% :weapon -> %> {dgettext("ui", "Arma")}
+                <% :side -> %> {dgettext("ui", "Secundaria")}
+                <% :defense -> %> {dgettext("ui", "Defensa")}
+                <% :armor -> %> {dgettext("ui", "Armadura")}
+                <% :shield -> %> {dgettext("ui", "Escudo")}
+                <% :ranged -> %> {dgettext("ui", "A distancia")}
+                <% :thrown -> %> {dgettext("ui", "Arrojadiza")}
+                <% :bow -> %> {dgettext("ui", "Arco")}
+                <% :focus -> %> {dgettext("ui", "Foco")}
+                <% :pack -> %> {dgettext("ui", "Mochila")}
+                <% :ammo -> %> {dgettext("ui", "Munición")}
+                <% :darts -> %> {dgettext("ui", "Dardos")}
+                <% :daggers -> %> {dgettext("ui", "Dagas")}
+                <% :tools -> %> {dgettext("ui", "Herramientas")}
+                <% :dagger -> %> {dgettext("ui", "Daga")}
+                <% :simple -> %> {dgettext("ui", "Arma simple")}
+                <% :spellbook -> %> {dgettext("ui", "Grimorio")}
+                <% _ -> %> {dgettext("ui", "Otro")}
               <% end %>
             </div>
-            <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+            <div class="grid grid-equip">
               <%= for opt <- group.options do %>
-                <div class={"opt #{if selected == opt.index, do: "sel", else: ""}"}
+                <button type="button" id={choice_id("equipment-#{group.id}", opt.index)}
+                     class={"opt #{if selected == opt.index, do: "sel", else: ""}"}
+                     aria-pressed={to_string(selected == opt.index)}
                      phx-click="equip" phx-value-group={group.id} phx-value-index={opt.index}>
-                  <div class="on">{opt.label}</div>
-                </div>
+                  <span class="on">{opt.label}</span>
+                </button>
               <% end %>
             </div>
           </div>
         <% end %>
 
-        <div class="od" style="color:#555;font-size:.72rem;margin-top:.6rem;">
-          El equipo del trasfondo se añade automáticamente más adelante.
-        </div>
+        <p class="hint-text">{dgettext("ui", "El equipo del trasfondo se añade automáticamente más adelante.")}</p>
       </div>
     </div>
     """
@@ -257,12 +262,15 @@ defmodule DragonexWeb.HeroLive.New.Components do
       <.spell_picker :if={Classes.caster?(@form.class)} form={@form} locale={@locale} custom={@custom} />
       <.custom_picker :if={has_custom?(@custom)} form={@form} custom={@custom} locale={@locale} />
 
-      <div class="step-label">Historia (opcional)</div>
-      <textarea name="backstory" phx-change="change" placeholder="Un ex-soldado que empuñó la espada de nuevo cuando su aldea ardió…">{@form.backstory}</textarea>
-      <div class="od" style="color:#555;font-size:.78rem;margin-top:.3rem;">Vacío = se genera una por defecto.</div>
+      <label class="step-label" for="hero-backstory">{dgettext("ui", "Historia (opcional)")}</label>
+      <textarea id="hero-backstory" name="backstory" phx-change="change" placeholder={dgettext("ui", "Un ex-soldado que empuñó la espada de nuevo cuando su aldea ardió…")}>{@form.backstory}</textarea>
+      <p class="hint-text">{dgettext("ui", "Si lo dejas vacío, se genera una por defecto.")}</p>
     </div>
     """
   end
+
+  defp choice_id(field, value),
+    do: "hero-choice-#{field}-#{String.replace(to_string(value), " ", "-")}"
 
   defp has_custom?(custom) do
     (custom[:weapons] || []) != [] or (custom[:items] || []) != []
@@ -275,17 +283,16 @@ defmodule DragonexWeb.HeroLive.New.Components do
   defp custom_picker(assigns) do
     ~H"""
     <div>
-      <div class="step-label">Mi contenido (custom)</div>
-      <div class="od" style="color:#555;font-size:.78rem;margin-bottom:.4rem;">
-        Equipo que has creado en tu biblioteca. Toca para equipárselo (se añade al inicial).
-      </div>
+      <div class="step-label">{dgettext("ui", "Mi contenido (custom)")}</div>
+      <p class="hint-text">{dgettext("ui", "Equipo que has creado en tu biblioteca. Toca para equipárselo (se añade al inicial).")}</p>
 
       <div :if={@custom.weapons != []} class="spell-group">
-        <strong style="color:#7ab;font-size:.75rem;">ARMAS</strong>
+        <strong>{dgettext("ui", "ARMAS")}</strong>
         <div class="spell-chips">
           <%= for w <- Enum.filter(Catalog.weapons(@locale, custom: @custom), &(&1.source == :custom)) do %>
             <% selected = w.key in extra_weapons(@form) %>
             <button type="button" class={"spell-chip #{if selected, do: "sel", else: ""}"}
+                    aria-pressed={to_string(selected)}
                     title={w.dice}
                     phx-click="extra_weapon_toggle" phx-value-key={w.key}>
               {w.label}
@@ -294,12 +301,13 @@ defmodule DragonexWeb.HeroLive.New.Components do
         </div>
       </div>
 
-      <div :if={@custom.items != []} class="spell-group" style="margin-top:.6rem;">
-        <strong style="color:#7ab;font-size:.75rem;">OBJETOS</strong>
+      <div :if={@custom.items != []} class="spell-group">
+        <strong>{dgettext("ui", "OBJETOS")}</strong>
         <div class="spell-chips">
           <%= for it <- Catalog.items(@locale, custom: @custom) do %>
             <% selected = it.key in extra_item_keys(@form) %>
             <button type="button" class={"spell-chip #{if selected, do: "sel", else: ""}"}
+                    aria-pressed={to_string(selected)}
                     phx-click="extra_item_toggle" phx-value-key={it.key}>
               {it.label}
             </button>
@@ -323,10 +331,8 @@ defmodule DragonexWeb.HeroLive.New.Components do
   defp spell_picker(assigns) do
     ~H"""
     <div>
-      <div class="step-label">Hechizos</div>
-      <div class="od" style="color:#555;font-size:.78rem;margin-bottom:.4rem;">
-        Toca para seleccionar/deseleccionar. No puedes pasar del cupo de tu clase.
-      </div>
+      <div class="step-label">{dgettext("ui", "Hechizos")}</div>
+      <p class="hint-text">{dgettext("ui", "Toca para seleccionar o quitar. No puedes pasar del cupo de tu clase.")}</p>
       <%= with {:ok, class} <- Classes.get(@form.class),
                 sc <- class.spellcasting,
                 picks <- Catalog.spells_for_class(@form.class, @locale, custom: @custom),
@@ -334,13 +340,14 @@ defmodule DragonexWeb.HeroLive.New.Components do
         <% cantrips_full = Draft.count_selected(@form, 0, custom) >= sc.cantrips
            level1_full = Draft.count_selected(@form, 1, custom) >= sc.spells_level1 %>
         <div class="spell-group">
-          <strong style="color:#7ab;font-size:.75rem;">TRUCOS ({Draft.count_selected(@form, 0, custom)}/{sc.cantrips})</strong>
+          <strong>{dgettext("ui", "TRUCOS")} ({Draft.count_selected(@form, 0, custom)}/{sc.cantrips})</strong>
           <div class="spell-chips">
             <%= for entry <- picks.cantrips do %>
               <% selected = Draft.spell_selected?(@form, entry.key)
                  locked = cantrips_full and not selected %>
               <button type="button"
                       class={"spell-chip #{if selected, do: "sel", else: ""} #{if locked, do: "locked", else: ""}"}
+                      aria-pressed={to_string(selected)}
                       disabled={locked}
                       title={entry.effect}
                       phx-click={if not locked, do: "spell_toggle"}
@@ -350,14 +357,15 @@ defmodule DragonexWeb.HeroLive.New.Components do
             <% end %>
           </div>
         </div>
-        <div class="spell-group" style="margin-top:.6rem;">
-          <strong style="color:#7ab;font-size:.75rem;">NIVEL 1 ({Draft.count_selected(@form, 1, custom)}/{sc.spells_level1})</strong>
+        <div class="spell-group">
+          <strong>{dgettext("ui", "NIVEL %{level}", level: 1)} ({Draft.count_selected(@form, 1, custom)}/{sc.spells_level1})</strong>
           <div class="spell-chips">
             <%= for entry <- picks.level1 do %>
               <% selected = Draft.spell_selected?(@form, entry.key)
                  locked = level1_full and not selected %>
               <button type="button"
                       class={"spell-chip #{if selected, do: "sel", else: ""} #{if locked, do: "locked", else: ""}"}
+                      aria-pressed={to_string(selected)}
                       disabled={locked}
                       title={entry.effect}
                       phx-click={if not locked, do: "spell_toggle"}
@@ -377,11 +385,9 @@ defmodule DragonexWeb.HeroLive.New.Components do
     <div>
       <%= if @preview do %>
         <.preview_card preview={@preview} locale={@locale} />
-        <div style="text-align:center;color:#889;font-size:.85rem;margin-top:1rem;">
-          Si todo está bien, ¡guarda tu héroe!
-        </div>
+        <p class="review-note">{dgettext("ui", "Si todo está bien, ¡guarda tu héroe!")}</p>
       <% else %>
-        <div class="error">Revisa los pasos anteriores.</div>
+        <div class="error">{dgettext("ui", "Revisa los pasos anteriores.")}</div>
       <% end %>
     </div>
     """
@@ -396,52 +402,54 @@ defmodule DragonexWeb.HeroLive.New.Components do
     ~H"""
     <div class="pv">
       <h3>{@preview.name}</h3>
-      <div style="color:#fc8;font-size:.85rem;">
-        {Catalog.race_label(@preview.race)} · {Catalog.class_label(@preview.class)} · Nivel {@preview.level}
-        <span :if={@preview.sex}>· {String.capitalize(@preview.sex)}</span>
+      <div class="pv-role">
+        {Catalog.race_label(@preview.race)} · {Catalog.class_label(@preview.class)} · {dgettext("ui", "Nivel %{level}", level: @preview.level)}
+        <span :if={@preview.sex}>· {sex_label(@preview.sex)}</span>
       </div>
       <div class="stats">
         <%= for ab <- [:str, :dex, :con, :int, :wis, :cha] do %>
           <% m = Character.modifier(@preview, ab)
              sign = if m >= 0, do: "+", else: "" %>
-          <div>
+          <div class="stat-box">
             <strong>{Map.get(@preview, ab)}</strong>
-            {Translations.ability_short(ab)} {sign}{m}
+            <span>{Translations.ability_short(ab)} {sign}{m}</span>
           </div>
         <% end %>
       </div>
       <div class="derived">
-        <span>❤ {@preview.hp}/{@preview.max_hp}</span>
-        <span>🛡 AC {@preview.ac}</span>
-        <span>👁 {@preview.speed} ft</span>
-        <span>Salvar: {Catalog.saving_throws(@preview.saving_proficiencies)}</span>
+        <span class="tag" title={dgettext("ui", "Puntos de golpe")}><i class="px px-heart" aria-hidden="true"></i>{dgettext("ui", "%{hp}/%{max_hp} PG", hp: @preview.hp, max_hp: @preview.max_hp)}</span>
+        <span class="tag" title={dgettext("ui", "Clase de armadura")}><i class="px px-shield" aria-hidden="true"></i>{dgettext("ui", "CA %{ac}", ac: @preview.ac)}</span>
+        <span class="tag" title={dgettext("ui", "Velocidad")}><i class="px px-boot" aria-hidden="true"></i>{@preview.speed} ft</span>
+        <span class="tag">{dgettext("ui", "Salvaciones: %{saves}", saves: Catalog.saving_throws(@preview.saving_proficiencies))}</span>
       </div>
       <div :if={@preview.weapons != []} class="spells">
-        <strong>Armas:</strong> <%= Enum.map_join(@preview.weapons, ", ", fn w ->
+        <strong>{dgettext("ui", "Armas:")}</strong> <%= Enum.map_join(@preview.weapons, ", ", fn w ->
           "#{Catalog.weapon_label(w)} (#{w.dice})"
         end) %>
       </div>
       <div :if={@preview.spells != []} class="spells">
-        <strong>Hechizos:</strong>
+        <strong>{dgettext("ui", "Hechizos:")}</strong>
         <%= Enum.map_join(@preview.spells, ", ", fn s ->
           label = Catalog.spell_label(s)
-          if s.level == 0, do: "#{label} (truco)", else: "#{label} (N#{s.level})"
+          if s.level == 0,
+            do: dgettext("ui", "%{spell} (truco)", spell: label),
+            else: dgettext("ui", "%{spell} (N%{level})", spell: label, level: s.level)
         end) %>
       </div>
       <div :if={@preview.skill_proficiencies != []} class="spells">
-        <strong>Habilidades:</strong> {Catalog.skills(@preview.skill_proficiencies)}
+        <strong>{dgettext("ui", "Habilidades:")}</strong> {Catalog.skills(@preview.skill_proficiencies)}
       </div>
       <div :if={@preview.languages != []} class="spells">
-        <strong>Idiomas:</strong> {Catalog.languages(@preview.languages)}
+        <strong>{dgettext("ui", "Idiomas:")}</strong> {Catalog.languages(@preview.languages)}
       </div>
       <div :if={@preview.racial_traits != []} class="spells">
-        <strong>Rasgos raciales:</strong> {Enum.join(Catalog.racial_traits(@preview.racial_traits), ", ")}
+        <strong>{dgettext("ui", "Rasgos raciales:")}</strong> {Enum.join(Catalog.racial_traits(@preview.racial_traits), ", ")}
       </div>
       <div :if={@preview.class_features != []} class="spells">
-        <strong>Características de clase:</strong> {Enum.join(Catalog.class_features(@preview.class_features), ", ")}
+        <strong>{dgettext("ui", "Características de clase:")}</strong> {Enum.join(Catalog.class_features(@preview.class_features), ", ")}
       </div>
       <div :if={@preview.background_feature} class="spells">
-        <strong>Trasfondo:</strong> {Translations.background_feature(@preview.background_feature)}
+        <strong>{dgettext("ui", "Trasfondo:")}</strong> {Translations.background_feature(@preview.background_feature)}
       </div>
     </div>
     """
@@ -452,10 +460,23 @@ defmodule DragonexWeb.HeroLive.New.Components do
   defp subraces_for(race_key, locale), do: Catalog.subraces(race_key, locale)
 
   defp subrace_hint(%{subraces: []}), do: ""
-  defp subrace_hint(%{subraces: subs}), do: "#{length(subs)} subrazas"
 
-  defp class_hint(%{caster: true, hit_die: d}), do: "conjurador · d#{d}"
+  defp subrace_hint(%{subraces: subs}),
+    do: dgettext("ui", "%{count} subrazas", count: length(subs))
+
+  defp class_hint(%{caster: true, hit_die: d}),
+    do: dgettext("ui", "conjurador · d%{die}", die: d)
+
   defp class_hint(%{caster: false, hit_die: d}), do: "d#{d}"
+
+  @doc """
+  Etiqueta visible del sexo del héroe. Los valores guardados (`"hombre"`,
+  `"mujer"`, `"no binario"`) son datos y no se traducen; solo su etiqueta.
+  """
+  def sex_label("hombre"), do: dgettext("ui", "Hombre")
+  def sex_label("mujer"), do: dgettext("ui", "Mujer")
+  def sex_label("no binario"), do: dgettext("ui", "No binario")
+  def sex_label(sex) when is_binary(sex), do: String.capitalize(sex)
 
   # nº de idiomas extra que tocan según raza+subraza+trasfondo actuales
   defp extra_langs(form) do

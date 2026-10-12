@@ -23,6 +23,11 @@ nuevo. Se puede forzar re-traducir borrando la cache.
 Uso:
   export $(grep OPENROUTER_API_KEY .env | xargs)
   python3 scripts/import_srd_spells.py
+
+  python3 scripts/import_srd_spells.py --english
+    Solo rellena `effect_en` (descripción original del SRD) en el JSON
+    existente, sin traducir ni tocar el resto de campos (D236). No necesita
+    OPENROUTER_API_KEY.
 """
 
 from __future__ import annotations
@@ -283,6 +288,7 @@ def build_output(spells: list[dict], cache: dict) -> list[dict]:
                 "dice": s["dice"],
                 "damage_type": s["damage_type"],
                 "effect": t.get("desc_es") or s["desc_en"],  # descripción en español
+                "effect_en": s["desc_en"],  # descripción original del SRD (D236)
                 "classes": s["classes"],
                 "range": s["range_text"],
                 "casting_time": s["casting_time"],
@@ -306,7 +312,31 @@ def _write_output(spells: list[dict], cache: dict) -> None:
     return None
 
 
+def add_english() -> None:
+    """Rellena `effect_en` en el JSON existente sin re-traducir nada."""
+    english = {}
+    for r in fetch_all_srd_spells():
+        s = normalize(r)
+        if s["key"] and s["desc_en"]:
+            english[s["key"]] = s["desc_en"]
+    out = json.loads(OUT.read_text("utf-8"))
+    missing = []
+    for entry in out:
+        desc = english.get(entry["key"])
+        if desc:
+            entry["effect_en"] = desc
+        else:
+            missing.append(entry["key"])
+    OUT.write_text(json.dumps(out, ensure_ascii=False, indent=2), "utf-8")
+    print(f"==> effect_en en {len(out) - len(missing)}/{len(out)} hechizos", file=sys.stderr)
+    for key in missing:
+        print(f"    sin descripción inglesa: {key}", file=sys.stderr)
+
+
 def main():
+    if "--english" in sys.argv[1:]:
+        add_english()
+        return
     print("==> descargando SRD 5.1 spells…", file=sys.stderr)
     raw = fetch_all_srd_spells()
     print(f"==> {len(raw)} hechizos crudos", file=sys.stderr)

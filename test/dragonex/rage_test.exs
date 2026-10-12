@@ -109,7 +109,7 @@ defmodule Dragonex.RageTest do
                Actions.attack(w, "Grok", "goblin", "longsword", seq([10, 4]))
 
       assert msg =~ "acierta"
-      assert msg =~ "+2 furia"
+      assert msg =~ "incluye 2 furia"
       {:ok, w2} = change.(w)
       assert w2.characters["goblin"].hp == 30 - 9
     end
@@ -196,7 +196,7 @@ defmodule Dragonex.RageTest do
                Actions.attack(w, "Grok", "goblin", "longsword", seq([10, 4, 10, 4]))
 
       assert msg =~ "2 golpes"
-      assert msg =~ "+2 furia"
+      assert msg =~ "incluye 2 furia"
       {:ok, w2} = change.(w)
       assert w2.characters["goblin"].hp == 30 - 18
     end

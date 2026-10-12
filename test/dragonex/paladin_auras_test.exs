@@ -312,7 +312,7 @@ defmodule Dragonex.PaladinAurasTest do
       # max(10, 3) = 10; CON 7 + 3 (aura) = 10 → mantiene.
       {:ok, msg, _change} = Actions.spell(w, "mage", "acid splash", "Thane", fixed(7))
 
-      assert msg =~ "Thane mantiene la concentración en bless (d20 7: 10 vs CD 10 +3 aura)"
+      assert msg =~ "Thane mantiene la concentración en Bendición (d20 7: 10 vs CD 10 +3 aura)"
     end
 
     test "sin paladín la misma tirada rompe la concentración" do
@@ -320,7 +320,7 @@ defmodule Dragonex.PaladinAurasTest do
 
       {:ok, msg, change} = Actions.spell(w, "mage", "acid splash", "Thane", fixed(7))
 
-      assert msg =~ "Thane pierde la concentración en bless (d20 7: 7 vs CD 10)"
+      assert msg =~ "Thane pierde la concentración en Bendición (d20 7: 7 vs CD 10)"
       refute msg =~ "aura"
       {:ok, w2} = change.(w)
       assert w2.characters["Thane"].concentrating == nil
@@ -445,7 +445,7 @@ defmodule Dragonex.PaladinAurasTest do
 
       dm = %{deps: %{state: SharedState.new(game, "dm"), roller: fixed_roller(1)}}
       assert {:ok, msg} = Tools.apply_condition(dm, "Thane", "prone")
-      assert msg == "Thane ahora está prone"
+      assert msg == "Thane ahora está derribado"
       assert World.has_condition?(Session.read_state(game), "Thane", "prone")
     end
   end

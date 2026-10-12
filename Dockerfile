@@ -5,8 +5,8 @@
 # ------------------------------------------------------------------------------
 FROM hexpm/elixir:1.20.2-erlang-29.0.2-alpine-3.24.1 AS builder
 
-# build-base: NIFs de bcrypt/etc.  git: deps exagent/dic_ex (git over HTTPS, públicas)
-RUN apk add --no-cache build-base git
+# build-base: NIFs de bcrypt/etc. Las dependencias de producción vienen de Hex.
+RUN apk add --no-cache build-base
 
 WORKDIR /app
 
@@ -15,17 +15,16 @@ ENV LANG=C.UTF-8
 
 RUN mix local.hex --force && mix local.rebar --force
 
-# Capa cache de deps: solo mix.exs/mix.lock. Reproducible (git deps fijadas por commit en mix.lock).
-COPY mix.exs mix.lock ./
+# Lock independiente del checkout local v2, con versiones/checksums de Hex.
+COPY mix.exs mix.hex.lock ./
 RUN mix deps.get --only prod
 RUN mix deps.compile
 
 # Trae el código de la app
 COPY . .
 
-# Los assets de dicEx (priv/static/assets/*) son build artifacts gitignored,
-# así que en un clone limpio no existen. Se regeneran desde la propia dep.
-RUN mkdir -p priv/static/assets && cp deps/dic_ex/priv/static/* priv/static/assets/
+# Endpoint sirve JS/CSS desde priv/static del dic_ex realmente resuelto.
+# El release incluye los assets publicados de esa dependencia.
 
 RUN mix compile
 RUN mix release

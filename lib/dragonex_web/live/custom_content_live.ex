@@ -6,8 +6,9 @@ defmodule DragonexWeb.CustomContentLive do
   """
 
   use Phoenix.LiveView, layout: {DragonexWeb.Layouts, :app}
+  use Gettext, backend: Dragonex.Gettext
 
-  alias Dragonex.{Accounts, Heroes.Catalog, Heroes.Translations}
+  alias Dragonex.{Accounts, Heroes.Catalog, Heroes.Translations, I18n}
   alias Dragonex.Accounts.CustomContent
 
   @tabs CustomContent.kinds()
@@ -43,7 +44,7 @@ defmodule DragonexWeb.CustomContentLive do
   def handle_event("edit", %{"id" => id}, socket) do
     case Accounts.get_custom_content(socket.assigns.current_user, id) do
       nil ->
-        {:noreply, assign(socket, :error, "No encontrado.")}
+        {:noreply, assign(socket, :error, dgettext("ui", "No encontrado."))}
 
       cc ->
         {:noreply,
@@ -108,13 +109,15 @@ defmodule DragonexWeb.CustomContentLive do
             {:noreply, socket |> assign(editing: nil, error: nil) |> load_items()}
 
           {:error, :conflict} ->
-            {:noreply, assign(socket, :error, "Ya tienes un contenido con ese nombre.")}
+            {:noreply,
+             assign(socket, :error, dgettext("ui", "Ya tienes un contenido con ese nombre."))}
 
           {:error, reason} when is_binary(reason) ->
             {:noreply, assign(socket, :error, reason)}
 
           {:error, _} ->
-            {:noreply, assign(socket, :error, "No se pudo guardar. Revisa las mecánicas.")}
+            {:noreply,
+             assign(socket, :error, dgettext("ui", "No se pudo guardar. Revisa las mecánicas."))}
         end
 
       {:error, msg} ->
@@ -127,7 +130,7 @@ defmodule DragonexWeb.CustomContentLive do
     error =
       case Accounts.delete_custom_content(socket.assigns.current_user, id) do
         {:ok, _} -> nil
-        {:error, _} -> "No se pudo borrar."
+        {:error, _} -> dgettext("ui", "No se pudo borrar.")
       end
 
     {:noreply, socket |> assign(:error, error) |> load_items()}
@@ -184,13 +187,13 @@ defmodule DragonexWeb.CustomContentLive do
     })
   end
 
-  defp editing_to_attrs(nil), do: {:error, "Nada que guardar."}
+  defp editing_to_attrs(nil), do: {:error, dgettext("ui", "Nada que guardar.")}
 
   defp editing_to_attrs(%{kind: kind, name: name} = e) do
     name = String.trim(name || "")
 
     if name == "",
-      do: {:error, "El nombre es obligatorio."},
+      do: {:error, dgettext("ui", "El nombre es obligatorio.")},
       else:
         {:ok, %{kind: kind, name_es: name, notes: e.notes, definition: definition_for(kind, e)}}
   end
@@ -229,31 +232,36 @@ defmodule DragonexWeb.CustomContentLive do
 
   # --------------------------------------------------------- helpers de render
 
-  defp tab_label("weapon"), do: "Armas"
-  defp tab_label("spell"), do: "Hechizos"
-  defp tab_label("item"), do: "Objetos"
+  defp tab_label("weapon"), do: dgettext("ui", "Armas")
+  defp tab_label("spell"), do: dgettext("ui", "Hechizos")
+  defp tab_label("item"), do: dgettext("ui", "Objetos")
 
-  defp tab_singular("weapon"), do: "arma"
-  defp tab_singular("spell"), do: "hechizo"
-  defp tab_singular("item"), do: "objeto"
+  defp create_label("weapon"), do: dgettext("ui", "+ Crear arma")
+  defp create_label("spell"), do: dgettext("ui", "+ Crear hechizo")
+  defp create_label("item"), do: dgettext("ui", "+ Crear objeto")
 
-  defp confirm_msg(name), do: "¿Borrar \"#{name}\"? Esta acción no se puede deshacer."
+  defp empty_label("weapon"), do: dgettext("ui", "Aún no tienes armas.")
+  defp empty_label("spell"), do: dgettext("ui", "Aún no tienes hechizos.")
+  defp empty_label("item"), do: dgettext("ui", "Aún no tienes objetos.")
+
+  defp confirm_msg(name),
+    do: dgettext("ui", "¿Borrar \"%{name}\"? Esta acción no se puede deshacer.", name: name)
 
   defp classes_list, do: Dragonex.Heroes.Classes.keys()
 
   defp ability_label(a) when a in [nil, "", :none], do: "—"
-  defp ability_label(a), do: Translations.ability(a, :es)
+  defp ability_label(a), do: Translations.ability(a, I18n.locale())
 
   defp damage_label(d) when d in [nil, ""], do: "—"
-  defp damage_label(d), do: Translations.damage_type(d, :es)
+  defp damage_label(d), do: Translations.damage_type(d, I18n.locale())
 
   defp dice_label(d) when d in [nil, ""], do: "—"
   defp dice_label(d), do: d
 
   defp weapon_props(d) do
     []
-    |> maybe_prop(d["finesse"] == true, "sutil")
-    |> maybe_prop(d["ranged"] == true, "a distancia")
+    |> maybe_prop(d["finesse"] == true, dgettext("ui", "sutil"))
+    |> maybe_prop(d["ranged"] == true, dgettext("ui", "a distancia"))
   end
 
   defp maybe_prop(list, true, label), do: list ++ [label]
@@ -262,7 +270,7 @@ defmodule DragonexWeb.CustomContentLive do
   defp class_labels(nil), do: []
 
   defp class_labels(classes) do
-    Enum.map(classes, &Translations.class(to_string(&1), :es))
+    Enum.map(classes, &Translations.class(to_string(&1), I18n.locale()))
   end
 
   attr(:cc, :map, required: true)
@@ -277,10 +285,10 @@ defmodule DragonexWeb.CustomContentLive do
 
     ~H"""
     <div class="detail-grid">
-      <.dc label="Dados" value={dice_label(@d["dice"])} />
-      <.dc label="Daño" value={damage_label(@d["damage_type"])} />
-      <.dc label="Ataque" value={ability_label(@d["attack_ability"])} />
-      <.dc label="Propiedades" value={if @props == [], do: "—", else: Enum.join(@props, ", ")} />
+      <.dc label={dgettext("ui", "Dados")} value={dice_label(@d["dice"])} />
+      <.dc label={dgettext("ui", "Daño")} value={damage_label(@d["damage_type"])} />
+      <.dc label={dgettext("ui", "Ataque")} value={ability_label(@d["attack_ability"])} />
+      <.dc label={dgettext("ui", "Propiedades")} value={if @props == [], do: "—", else: Enum.join(@props, ", ")} />
     </div>
     <div :if={@notes} class="note">{@notes}</div>
     """
@@ -288,7 +296,11 @@ defmodule DragonexWeb.CustomContentLive do
 
   defp detail(%{cc: %CustomContent{kind: "spell"} = cc} = assigns) do
     d = cc.definition
-    level_label = if d["level"] == 0, do: "Truco", else: "Nivel #{d["level"]}"
+
+    level_label =
+      if d["level"] == 0,
+        do: dgettext("ui", "Truco"),
+        else: dgettext("ui", "Nivel %{level}", level: d["level"])
 
     assigns =
       assign(assigns,
@@ -300,13 +312,13 @@ defmodule DragonexWeb.CustomContentLive do
 
     ~H"""
     <div class="detail-grid">
-      <.dc label="Nivel" value={@level_label} />
-      <.dc label="Tipo" value={Translations.kind(@d["kind"], :es)} />
-      <.dc label="Salvación" value={ability_label(@d["save_ability"])} />
-      <.dc label="Dados" value={dice_label(@d["dice"])} />
-      <.dc label="Daño" value={damage_label(@d["damage_type"])} />
+      <.dc label={dgettext("ui", "Nivel")} value={@level_label} />
+      <.dc label={dgettext("ui", "Tipo")} value={Translations.kind(@d["kind"], I18n.locale())} />
+      <.dc label={dgettext("ui", "Salvación")} value={ability_label(@d["save_ability"])} />
+      <.dc label={dgettext("ui", "Dados")} value={dice_label(@d["dice"])} />
+      <.dc label={dgettext("ui", "Daño")} value={damage_label(@d["damage_type"])} />
     </div>
-    <div :if={@classes != []} class="note"><span class="note-label">Clases:</span> {Enum.join(@classes, ", ")}</div>
+    <div :if={@classes != []} class="note"><span class="note-label">{dgettext("ui", "Clases:")}</span> {Enum.join(@classes, ", ")}</div>
     <div :if={@d["effect"]} class="note">{@d["effect"]}</div>
     <div :if={@notes} class="note">{@notes}</div>
     """
@@ -317,8 +329,8 @@ defmodule DragonexWeb.CustomContentLive do
 
     ~H"""
     <div class="detail-grid">
-      <.dc label="Cantidad" value={to_string(@d["qty"])} />
-      <.dc label="Tipo" value={Catalog.item_kind_label(@d["kind"], :es)} />
+      <.dc label={dgettext("ui", "Cantidad")} value={to_string(@d["qty"])} />
+      <.dc label={dgettext("ui", "Tipo")} value={Catalog.item_kind_label(@d["kind"], I18n.locale())} />
     </div>
     <div :if={@d["effect"]} class="note">{@d["effect"]}</div>
     <div :if={@notes} class="note">{@notes}</div>
@@ -344,55 +356,15 @@ defmodule DragonexWeb.CustomContentLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="cc">
-      <style>
-        .cc{width:min(1100px,calc(100% - 3rem));margin:0 auto;padding:clamp(1rem,2vw,2rem) 0 2.5rem;font-family:Georgia,'Times New Roman',serif;color:#ccc;}
-        .cc *{box-sizing:border-box;}
-        .cc h1{font-size:clamp(1.4rem,2vw,1.9rem);color:#fc8;margin:.5rem 0 .2rem;}
-        .cc .sub{color:#889;font-size:.9rem;margin-bottom:1rem;}
-        .tabs{display:flex;gap:.4rem;margin-bottom:1rem;}
-        .tab{padding:.5rem 1rem;border-radius:8px 8px 0 0;border:1px solid #333;border-bottom:none;background:#1c1c1c;color:#889;cursor:pointer;font-family:inherit;font-size:.9rem;}
-        .tab.active{background:#241c14;color:#fc8;border-color:#a72;}
-        .panel{background:rgba(22,22,22,.92);border:1px solid #333;border-radius:0 10px 10px;padding:1.2rem;}
-        .item-row{padding:.7rem .2rem;border-bottom:1px solid #2a2a2a;}
-        .item-row:last-child{border-bottom:none;}
-        .item-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem;flex-wrap:wrap;}
-        .item-head .name{color:#fc8;font-size:1rem;}
-        .detail-grid{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.5rem;}
-        .dc{background:#222;border:1px solid #333;border-radius:6px;padding:.3rem .6rem;display:flex;flex-direction:column;gap:.12rem;min-width:54px;}
-        .dc span{font-size:.62rem;color:#779;text-transform:uppercase;letter-spacing:.05em;}
-        .dc strong{font-size:.82rem;color:#ccc;font-weight:normal;overflow-wrap:anywhere;}
-        .note{font-size:.8rem;color:#889;margin-top:.35rem;line-height:1.4;overflow-wrap:anywhere;}
-        .note-label{color:#667;}
-        .btn{display:inline-flex;align-items:center;padding:.45rem .9rem;border-radius:8px;border:1px solid #a72;background:#3a2a1a;color:#fc8;font-size:.85rem;cursor:pointer;font-family:inherit;text-decoration:none;}
-        .btn:hover{background:#4a3520;}
-        .btn-sm{padding:.3rem .6rem;font-size:.75rem;}
-        .btn-danger{background:#2a1a1a;border-color:#744;color:#f99;}
-        .btn-danger:hover{background:#3a2222;}
-        .btn-ghost{background:#202020;border-color:#3a3a3a;color:#9cd;}
-        .btn-primary{background:#3a2a1a;}
-        .error{margin:.8rem 0;color:#f99;background:#2a1a1a;border:1px solid #633;border-radius:8px;padding:.7rem;font-size:.85rem;}
-        .empty{text-align:center;color:#666;font-style:italic;padding:2rem;}
-        .form-card{margin-top:1rem;background:#181410;border:1px solid #443;border-radius:10px;padding:1.1rem;}
-        .field{margin-bottom:.8rem;}
-        .field label{display:block;font-size:.8rem;color:#aa9;margin-bottom:.25rem;}
-        .field input,.field select,.field textarea{width:100%;padding:.5rem .6rem;background:#111;border:1px solid #333;border-radius:6px;color:#ddd;font-family:inherit;font-size:.9rem;}
-        .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:#a72;}
-        .field textarea{min-height:60px;resize:vertical;}
-        .hint{display:block;font-size:.74rem;margin-top:.25rem;}
-        .hint.bad{color:#f99;}
-        .hint.ok{color:#9c9;}
-        .inline{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;}
-        .check{display:flex;align-items:center;gap:.4rem;font-size:.85rem;color:#aa9;}
-        .chips{display:flex;flex-wrap:wrap;gap:.35rem;}
-        .chip{padding:.25rem .6rem;border-radius:999px;border:1px solid #333;background:#1a1a1a;color:#889;font-size:.78rem;cursor:pointer;font-family:inherit;}
-        .chip.sel{background:#3a2a1a;border-color:#a72;color:#fc8;}
-        .nav-link{color:#7ab;text-decoration:none;font-size:.85rem;}
-      </style>
+    <div class="page cc">
 
-      <div><.link navigate="/" class="nav-link">← partidas</.link></div>
-      <h1>Mi contenido</h1>
-      <div class="sub">Armas, hechizos y objetos que no existen en el SRD. Tu héroe puede llevarlos a la partida.</div>
+      <div><.link navigate="/" class="nav-link">{dgettext("ui", "← partidas")}</.link></div>
+      <header class="page-head">
+        <div>
+          <h1 class="page-title">{dgettext("ui", "Mi contenido")}</h1>
+          <p class="sub">{dgettext("ui", "Armas, hechizos y objetos que no existen en el SRD. Tus héroes pueden llevarlos a la partida.")}</p>
+        </div>
+      </header>
 
       <div class="tabs">
         <%= for t <- tabs() do %>
@@ -403,18 +375,18 @@ defmodule DragonexWeb.CustomContentLive do
       </div>
 
       <div class="panel">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;">
-          <strong style="color:#aa9;">{tab_label(@tab)} ({length(@items)})</strong>
-          <button class="btn btn-sm" phx-click="new" :if={is_nil(@editing)}>+ Crear {tab_singular(@tab)}</button>
+        <div class="panel-head">
+          <strong>{tab_label(@tab)} ({length(@items)})</strong>
+          <button class="btn btn-primary btn-sm" phx-click="new" :if={is_nil(@editing)}>{create_label(@tab)}</button>
         </div>
 
         <div :if={@error} class="error">{@error}</div>
 
-        <form :if={@editing} phx-change="change" phx-submit="save" class="form-card">
+        <form :if={@editing} id="custom-content-form" phx-change="change" phx-submit="save" class="form-card">
           <.form_fields editing={@editing} />
-          <div style="display:flex;gap:.5rem;margin-top:.6rem;">
-            <button class="btn btn-primary" type="submit">{if @editing.id, do: "Guardar cambios", else: "Crear"}</button>
-            <button class="btn btn-ghost" type="button" phx-click="cancel">Cancelar</button>
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit">{if @editing.id, do: dgettext("ui", "Guardar cambios"), else: dgettext("ui", "Crear")}</button>
+            <button class="btn btn-ghost" type="button" phx-click="cancel">{dgettext("ui", "Cancelar")}</button>
           </div>
         </form>
 
@@ -422,14 +394,14 @@ defmodule DragonexWeb.CustomContentLive do
           <div :for={cc <- @items} :key={cc.id} class="item-row">
             <div class="item-head">
               <div class="name">{cc.name_es}</div>
-              <div style="display:flex;gap:.4rem;">
-                <button class="btn btn-ghost btn-sm" phx-click="edit" phx-value-id={cc.id}>editar</button>
-                <button class="btn btn-danger btn-sm" phx-click="delete" phx-value-id={cc.id} data-confirm={confirm_msg(cc.name_es)}>borrar</button>
+              <div class="item-head-actions">
+                <button class="btn btn-ghost btn-sm" phx-click="edit" phx-value-id={cc.id}>{dgettext("ui", "Editar")}</button>
+                <button class="btn btn-danger btn-sm" phx-click="delete" phx-value-id={cc.id} data-confirm={confirm_msg(cc.name_es)}>{dgettext("ui", "Borrar")}</button>
               </div>
             </div>
             <.detail cc={cc} />
           </div>
-          <div :if={@items == []} class="empty">Aún no tienes {tab_label(@tab) |> String.downcase()}.</div>
+          <div :if={@items == []} class="empty">{empty_label(@tab)}</div>
         </div>
       </div>
     </div>
@@ -441,48 +413,48 @@ defmodule DragonexWeb.CustomContentLive do
   defp form_fields(%{editing: %{kind: "weapon"}} = assigns) do
     ~H"""
     <div class="field">
-      <label>Nombre</label>
+      <label>{dgettext("ui", "Nombre")}</label>
       <input type="text" name="name" value={@editing.name} />
     </div>
     <div class="inline">
       <div class="field">
-        <label>Dados (p. ej. 2d6, 1d8+2)</label>
+        <label>{dgettext("ui", "Dados (p. ej. 2d6, 1d8+2)")}</label>
         <input type="text" name="dice" value={@editing.dice} />
-        <span :if={dice_status(@editing.dice) == :invalid} class="hint bad">no válido (usa 2d6, 1d8+2…)</span>
-        <span :if={dice_status(@editing.dice) == :valid} class="hint ok">✓ válido</span>
+        <span :if={dice_status(@editing.dice) == :invalid} class="hint bad">{dgettext("ui", "no válido (usa 2d6, 1d8+2…)")}</span>
+        <span :if={dice_status(@editing.dice) == :valid} class="hint ok">{dgettext("ui", "✓ válido")}</span>
       </div>
       <div class="field">
-        <label>Tipo de daño</label>
+        <label>{dgettext("ui", "Tipo de daño")}</label>
         <select name="damage_type">
           <%= for dt <- damage_types() do %>
-            <option value={dt} selected={@editing.damage_type == dt}>{Translations.damage_type(dt, :es)}</option>
+            <option value={dt} selected={@editing.damage_type == dt}>{Translations.damage_type(dt, I18n.locale())}</option>
           <% end %>
         </select>
       </div>
     </div>
     <div class="inline">
       <div class="field">
-        <label>Característica de ataque</label>
+        <label>{dgettext("ui", "Característica de ataque")}</label>
         <select name="attack_ability">
           <%= for a <- abilities() do %>
-            <option value={a} selected={@editing.attack_ability == a}>{Translations.ability(a, :es)}</option>
+            <option value={a} selected={@editing.attack_ability == a}>{Translations.ability(a, I18n.locale())}</option>
           <% end %>
         </select>
       </div>
       <div class="field">
-        <label>Propiedades</label>
-        <div style="display:flex;gap:1rem;padding-top:.4rem;">
+        <label>{dgettext("ui", "Propiedades")}</label>
+        <div class="checks">
           <label class="check">
-            <input type="checkbox" name="finesse" checked={@editing.finesse} /> Agilidad (finesse)
+            <input type="checkbox" name="finesse" checked={@editing.finesse} /> {dgettext("ui", "Agilidad (finesse)")}
           </label>
           <label class="check">
-            <input type="checkbox" name="ranged" checked={@editing.ranged} /> A distancia
+            <input type="checkbox" name="ranged" checked={@editing.ranged} /> {dgettext("ui", "A distancia")}
           </label>
         </div>
       </div>
     </div>
     <div class="field">
-      <label>Notas (opcional)</label>
+      <label>{dgettext("ui", "Notas (opcional)")}</label>
       <textarea name="notes">{@editing.notes}</textarea>
     </div>
     """
@@ -491,12 +463,12 @@ defmodule DragonexWeb.CustomContentLive do
   defp form_fields(%{editing: %{kind: "spell"}} = assigns) do
     ~H"""
     <div class="field">
-      <label>Nombre</label>
+      <label>{dgettext("ui", "Nombre")}</label>
       <input type="text" name="name" value={@editing.name} />
     </div>
     <div class="inline">
       <div class="field">
-        <label>Nivel (0–9)</label>
+        <label>{dgettext("ui", "Nivel (0–9)")}</label>
         <select name="level">
           <%= for n <- 0..9 do %>
             <option value={n} selected={@editing.level == n}>{n}</option>
@@ -504,50 +476,50 @@ defmodule DragonexWeb.CustomContentLive do
         </select>
       </div>
       <div class="field">
-        <label>Tipo de tirada</label>
+        <label>{dgettext("ui", "Tipo de tirada")}</label>
         <select name="spell_kind">
           <%= for k <- spell_kinds() do %>
-            <option value={k} selected={@editing.spell_kind == k}>{Translations.kind(k, :es)}</option>
+            <option value={k} selected={@editing.spell_kind == k}>{Translations.kind(k, I18n.locale())}</option>
           <% end %>
         </select>
       </div>
     </div>
     <div class="inline">
       <div class="field">
-        <label>Característica de salvación (si aplica)</label>
+        <label>{dgettext("ui", "Característica de salvación (si aplica)")}</label>
         <select name="save_ability">
-          <option value="" selected={@editing.save_ability in ["", nil]}>(ninguna)</option>
+          <option value="" selected={@editing.save_ability in ["", nil]}>{dgettext("ui", "(ninguna)")}</option>
           <%= for a <- abilities() do %>
-            <option value={a} selected={@editing.save_ability == a}>{Translations.ability(a, :es)}</option>
+            <option value={a} selected={@editing.save_ability == a}>{Translations.ability(a, I18n.locale())}</option>
           <% end %>
         </select>
       </div>
       <div class="field">
-        <label>Dados (opcional)</label>
+        <label>{dgettext("ui", "Dados (opcional)")}</label>
         <input type="text" name="dice" value={@editing.dice} placeholder="6d6" />
-        <span :if={dice_status(@editing.dice) == :invalid} class="hint bad">no válido (usa 6d6, 3d8+2…)</span>
+        <span :if={dice_status(@editing.dice) == :invalid} class="hint bad">{dgettext("ui", "no válido (usa 6d6, 3d8+2…)")}</span>
       </div>
     </div>
     <div class="field">
-      <label>Tipo de daño (opcional)</label>
+      <label>{dgettext("ui", "Tipo de daño (opcional)")}</label>
       <select name="damage_type">
-        <option value="" selected={@editing.damage_type in ["", nil]}>(ninguno)</option>
+        <option value="" selected={@editing.damage_type in ["", nil]}>{dgettext("ui", "(ninguno)")}</option>
         <%= for dt <- damage_types() do %>
-          <option value={dt} selected={@editing.damage_type == dt}>{Translations.damage_type(dt, :es)}</option>
+          <option value={dt} selected={@editing.damage_type == dt}>{Translations.damage_type(dt, I18n.locale())}</option>
         <% end %>
       </select>
     </div>
     <div class="field">
-      <label>Efecto / descripción</label>
+      <label>{dgettext("ui", "Efecto / descripción")}</label>
       <textarea name="effect">{@editing.effect}</textarea>
     </div>
     <div class="field">
-      <label>Clases que pueden elegirlo</label>
+      <label>{dgettext("ui", "Clases que pueden elegirlo")}</label>
       <div class="chips">
         <%= for c <- classes_list() do %>
           <button type="button" class={chip_class(@editing.classes, c)}
                   phx-click="toggle_class" phx-value-class={c}>
-            {Translations.class(c, :es)}
+            {Translations.class(c, I18n.locale())}
           </button>
         <% end %>
       </div>
@@ -558,29 +530,29 @@ defmodule DragonexWeb.CustomContentLive do
   defp form_fields(%{editing: %{kind: "item"}} = assigns) do
     ~H"""
     <div class="field">
-      <label>Nombre</label>
+      <label>{dgettext("ui", "Nombre")}</label>
       <input type="text" name="name" value={@editing.name} />
     </div>
     <div class="inline">
       <div class="field">
-        <label>Cantidad</label>
+        <label>{dgettext("ui", "Cantidad")}</label>
         <input type="number" name="qty" value={@editing.qty} min="1" />
       </div>
       <div class="field">
-        <label>Tipo de objeto</label>
+        <label>{dgettext("ui", "Tipo de objeto")}</label>
         <select name="item_kind">
           <%= for k <- item_kinds() do %>
-            <option value={k} selected={@editing.item_kind == k}>{Catalog.item_kind_label(k, :es)}</option>
+            <option value={k} selected={@editing.item_kind == k}>{Catalog.item_kind_label(k, I18n.locale())}</option>
           <% end %>
         </select>
       </div>
     </div>
     <div class="field">
-      <label>Efecto / notas (opcional)</label>
+      <label>{dgettext("ui", "Efecto / notas (opcional)")}</label>
       <textarea name="effect">{@editing.effect}</textarea>
     </div>
     <div class="field">
-      <label>Notas</label>
+      <label>{dgettext("ui", "Notas")}</label>
       <textarea name="notes">{@editing.notes}</textarea>
     </div>
     """

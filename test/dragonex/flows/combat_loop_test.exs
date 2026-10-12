@@ -33,7 +33,11 @@ defmodule Dragonex.Flows.CombatLoopTest do
 
   defp agent(script, instructions),
     do:
-      ExAgent.new(model: %Test{script: script}, instructions: instructions, tools: Tools.tools())
+      ExAgent.new(
+        model: %Test{script: script},
+        instructions: instructions,
+        tools: Tools.agent_tools()
+      )
 
   defp seed(world, change) do
     assert {:ok, w} = change.(world)

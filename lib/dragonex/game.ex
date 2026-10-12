@@ -3,7 +3,8 @@ defmodule Dragonex.Game do
   The process that owns one partida's turn loop — the application layer above the
   `ExAgent.Session` motor.
 
-  The Game is the **single source of durability**: after every beat it persists
+  The Game is the **single source of durability**: before acknowledging a rule
+  tool and after every beat it persists
   the live `Dragonex.World` (jsonb via Codec), the turn position and an appended
   event to Postgres. The `ExAgent.Session` runs in-memory as the engine; if the
   Game process dies, a fresh one rehydrates the same `game_id` from Postgres and
@@ -78,8 +79,12 @@ defmodule Dragonex.Game do
             dm: nil,
             # TurnMaster agent server (D25) — decides who acts next.
             turnmaster: nil,
+            # Ordinary combat follows initiative without a model request.
+            # :turnmaster retains consultation for deterministic diagnostics.
+            combat_handoffs: :initiative,
             pc_agents: %{},
             model: nil,
+            scene_model: nil,
             roller: nil,
             participants: %{},
             # Pending declared intents: %{participant_name => text}. A human can
@@ -123,6 +128,7 @@ defmodule Dragonex.Game do
 
     * `:model`  — the LLM model for the DM agent (defaults to env/provider config in `Dragonex.Models`).
     * `:roller` — a `(sides -> value)` dice fn (defaults to `Dragonex.Dice.roll`).
+    * `:combat_handoffs` — `:initiative` (default) or `:turnmaster` for consultation tests.
   """
   @spec start_link({term(), keyword()}) :: GenServer.on_start()
   def start_link({game_id, opts}),
@@ -157,7 +163,8 @@ defmodule Dragonex.Game do
   is baked into the DM agent at start, so a config change needs a fresh process
   to pick it up. The partida's world + turn position are persisted, so it
   resumes at the same point with the new model wired in. Any in-flight beat is
-  discarded (its pre-beat state was already persisted).
+  discarded. Acknowledged rule effects are retained; pending narration is not
+  required to finish before those effects are saved.
   """
   @spec restart(term(), keyword()) :: {:ok, pid()} | {:error, term()}
   def restart(game_id, opts \\ []) do
@@ -181,8 +188,9 @@ defmodule Dragonex.Game do
   defp wait_until_gone(_game_id, 0), do: :ok
 
   defp wait_until_gone(game_id, n) do
-    case Dragonex.Game.Supervisor.whereis(game_id) do
-      nil ->
+    case {Dragonex.Game.Supervisor.whereis(game_id),
+          Dragonex.Game.TableSupervisor.whereis(game_id)} do
+      {nil, nil} ->
         :ok
 
       _ ->
@@ -203,9 +211,11 @@ defmodule Dragonex.Game do
   @spec status(GenServer.server()) :: atom()
   def status(server), do: GenServer.call(server, :status)
 
-  @doc "A snapshot for rendering: world, current, status, round."
-  @spec snapshot(GenServer.server()) :: map()
-  def snapshot(server), do: GenServer.call(server, :snapshot)
+  @doc "A snapshot for rendering, with a bounded recent history window (default 200 events)."
+  @spec snapshot(GenServer.server(), pos_integer()) :: map()
+  def snapshot(server, event_limit \\ @chat_window)
+      when is_integer(event_limit) and event_limit > 0,
+      do: GenServer.call(server, {:snapshot, min(event_limit, 2_000)})
 
   @doc """
   Sincroniza una subida de nivel del héroe al `Character` vivo de la partida,
@@ -314,11 +324,17 @@ defmodule Dragonex.Game do
 
   @impl true
   def init({game_id, opts}) do
+    # Let OTP process supervisor shutdown after the current callback replies,
+    # instead of interrupting an in-progress SQL operation.
+    Process.flag(:trap_exit, true)
+
     case Games.get_game(game_id) do
       nil ->
         {:stop, {:not_found, game_id}}
 
       %Games.Game{} = game ->
+        # Every message this table produces follows its language (D236).
+        Dragonex.I18n.put_locale(game.locale)
         state = Bootstrap.rehydrate(game_id, game, opts)
         send(self(), @tick)
         {:ok, state}
@@ -327,7 +343,31 @@ defmodule Dragonex.Game do
 
   # --------------------------------------------------------------- calls
 
+  @doc "Apply and save a live actor tool's world change before acknowledging it."
+  def commit_rule_change(server, deps, change) when is_function(change, 1),
+    do: GenServer.call(server, {:commit_rule_change, deps, change})
+
   @impl true
+  def handle_call({:tool_replay, deps, key}, _from, state) do
+    {reply, state} = Dragonex.Game.ToolReplay.lookup(state, deps, key)
+    {:reply, reply, state}
+  end
+
+  def handle_call({:remember_tool_result, deps, key, result}, _from, state) do
+    {reply, state} = Dragonex.Game.ToolReplay.remember(state, deps, key, result)
+    {:reply, reply, state}
+  end
+
+  def handle_call({:commit_rule_change, deps, change}, _from, state) do
+    {reply, state} = Dragonex.Game.RuleCheckpoint.commit(state, deps, change)
+    {:reply, reply, state}
+  end
+
+  def handle_call({:publish_narration, deps, raw, complete}, _from, state) do
+    {reply, state} = Dragonex.Game.NarrationCheckpoint.commit(state, deps, raw, complete)
+    {:reply, reply, state}
+  end
+
   def handle_call(:current, _from, state),
     do: {:reply, Session.current(state.session), state}
 
@@ -336,7 +376,10 @@ defmodule Dragonex.Game do
 
   def handle_call(:status, _from, state), do: {:reply, state.status, state}
 
-  def handle_call(:snapshot, _from, state) do
+  def handle_call(:snapshot, from, state),
+    do: handle_call({:snapshot, @chat_window}, from, state)
+
+  def handle_call({:snapshot, event_limit}, _from, state) do
     world = Session.read_state(state.session)
 
     snap = %{
@@ -344,6 +387,7 @@ defmodule Dragonex.Game do
       world: world,
       current: Session.current(state.session),
       status: state.status,
+      busy_stage: snapshot_busy_stage(state),
       round: world.round,
       # The roster {name => kind} so a viewer can claim a human participant.
       participants: state.participants,
@@ -353,12 +397,12 @@ defmodule Dragonex.Game do
       auto: Participants.auto_humans(state),
       # The chat timeline: recent visible events, oldest-first. Bundled here so
       # the LiveView renders purely from the snapshot (no direct Repo access).
-      # Capped at @chat_window; the LiveView paginates older events on demand
-      # via Games.events_before/3 when the user scrolls to the top.
-      events: Games.recent_events(state.game_id, @chat_window),
+      # The LiveView expands its retained window when paging upward. Reading
+      # that whole window on updates also removes narrations deleted by retry.
+      events: Games.recent_events(state.game_id, event_limit),
       # Whether older events exist beyond the loaded window — drives the
       # "cargar más" button at the top of the log.
-      has_more_events: Games.count_events(state.game_id) > @chat_window
+      has_more_events: Games.count_events(state.game_id) > event_limit
     }
 
     {:reply, snap, state}
@@ -425,11 +469,17 @@ defmodule Dragonex.Game do
     do: {:reply, {:error, {:not_running, state.status}}, state}
 
   def handle_call(:resume, _from, %{status: :paused} = state) do
-    {:ok, _} = Games.set_status(state.game_id, :running)
-    state = %{state | status: :running}
-    Persistence.broadcast_updated(state)
-    send(self(), @tick)
-    {:reply, :ok, state}
+    case Dragonex.Game.Combat.recover_hostile_initiative(state) do
+      {:ok, state} ->
+        {:ok, _} = Games.set_status(state.game_id, :running)
+        state = %{state | status: :running}
+        Persistence.broadcast_updated(state)
+        send(self(), @tick)
+        {:reply, :ok, state}
+
+      {:error, reason, paused} ->
+        {:reply, {:error, reason}, paused}
+    end
   end
 
   def handle_call(:resume, _from, state),
@@ -517,7 +567,11 @@ defmodule Dragonex.Game do
           actor = Session.current(state.session) || gc.name
 
           change = fn world ->
-            {:ok, Games.merge_character_level_up(world, gc.name, new_sheet)}
+            case world.characters[gc.name] do
+              nil -> {:error, :not_found}
+              live when new_sheet.level < live.level -> {:error, :stale_level}
+              _ -> {:ok, Games.merge_character_level_up(world, gc.name, new_sheet)}
+            end
           end
 
           case Session.update_state(state.session, actor, change) do
@@ -525,6 +579,9 @@ defmodule Dragonex.Game do
               {:ok, _} = Games.update_character_sheet(state.game_id, hero_id, new_sheet)
               Persistence.persist(state, state.status)
               :ok
+
+            {:error, :stale_level} = err ->
+              err
 
             {:error, _} = err ->
               Logger.warning(
@@ -557,11 +614,27 @@ defmodule Dragonex.Game do
       )
 
       {:stop, :normal, state}
+  catch
+    :throw, {:combat_end_commit_failed, paused} ->
+      {:noreply, paused}
   end
 
-  # A beat Task finished successfully. Guarded on `is_reference/1` so the
-  # clause only matches real Task monitor refs — otherwise it would shadow the
-  # `{:retry_beat, turn_id}` tuple below (a 2-tuple carrying an atom, not a ref).
+  # The narrator finished and its current Task is starting read-only scene
+  # review. Old tasks/turns and repeated stage notifications are ignored.
+  def handle_info(
+        {:scene_review_started, pid, turn_id},
+        %{
+          busy: %Beat{pid: pid, turn_id: turn_id, participant: "dm", kind: :actor, stage: :acting}
+        } = state
+      )
+      when is_pid(pid) and is_binary(turn_id) do
+    state = %{state | busy: %{state.busy | stage: :scene_review}}
+    Persistence.broadcast_updated(state)
+    {:noreply, state}
+  end
+
+  # A beat Task finished successfully. Match real Task monitor refs so this
+  # clause does not shadow the atom-tagged retry messages below.
   def handle_info({ref, result}, %{busy: busy} = state) when is_reference(ref) do
     cond do
       match?(%Beat{ref: ^ref}, busy) ->
@@ -599,7 +672,15 @@ defmodule Dragonex.Game do
       } = state.busy
 
       world = Session.read_state(state.session)
-      retries = %{transient_retries: tr, max_token_retries: mr}
+
+      retries = %{
+        transient_retries: tr,
+        max_token_retries: mr,
+        model_retry: state.busy.model_retry,
+        narration_retries: state.busy.narration_retries,
+        tool_results: state.busy.tool_results
+      }
+
       state = %{state | busy: nil, status: :running}
 
       state =
@@ -613,7 +694,25 @@ defmodule Dragonex.Game do
     end
   end
 
+  def handle_info({:EXIT, pid, _reason}, state) do
+    if pid in [state.session, state.dm, state.turnmaster | Map.values(state.pc_agents)] do
+      Logger.warning("dragonex game #{state.game_id} restarting after an auxiliary stopped")
+      {:stop, :game_child_down, state}
+    else
+      # An autoplay server intentionally removed from pc_agents has already
+      # stopped normally. Its queued EXIT must not restart the whole game.
+      {:noreply, state}
+    end
+  end
+
   def handle_info(_msg, state), do: {:noreply, state}
+
+  @impl true
+  def format_status(status) do
+    # A supervised auxiliary failure logs this state. Models can contain
+    # provider credentials, so expose only operational fields in OTP reports.
+    %{status | state: Map.take(status.state, [:game_id, :status, :loop_phase, :last_actor])}
+  end
 
   # The one-step advance: micro-machine actor → turnmaster (D25). Never
   # auto-chains more than one beat per tick (each completed beat schedules the
@@ -623,19 +722,71 @@ defmodule Dragonex.Game do
 
   defp advance(%{busy: b} = state) when b != nil, do: state
 
-  defp advance(%{loop_phase: :turnmaster} = state) do
-    world = Session.read_state(state.session)
-
-    if Turnmaster.exploration_opener?(state, world) do
-      Turnmaster.settle_exploration_opener(state)
-    else
-      turn_id = Beats.generate_turn_id()
-      state = Beats.run_turnmaster_beat(state, turn_id, world)
-      %{state | status: :running}
+  defp advance(state) do
+    case Dragonex.Game.Combat.recover_hostile_initiative(state) do
+      {:ok, state} -> advance_settled(state)
+      {:error, _reason, paused} -> paused
     end
   end
 
-  defp advance(state) do
+  defp advance_settled(state) do
+    case Dragonex.Game.Combat.retry_pending_turn(state) do
+      {:retried, state} ->
+        if state.status == :running, do: send(self(), @tick)
+        state
+
+      :none ->
+        # A saved last-enemy defeat can precede the phase transition. Finish
+        # that transition before waiting/consuming a stale combat declaration.
+        # An unfinished actor first needs its receipt and final feedback.
+        world = Session.read_state(state.session)
+
+        state =
+          if is_nil(Map.get(world, :actor_checkpoint)),
+            do: Dragonex.Game.Combat.maybe_end_combat(state),
+            else: state
+
+        advance_ready(state)
+    end
+  end
+
+  defp advance_ready(%{loop_phase: :turnmaster} = state) do
+    world = Session.read_state(state.session)
+
+    cond do
+      (name = Turnmaster.combat_main_handoff(state, world)) != nil ->
+        Turnmaster.settle_combat_main_handoff(state, name)
+
+      (name = Turnmaster.exploration_conversation_target(state, world)) != nil ->
+        Turnmaster.settle_exploration_conversation(state, name)
+
+      Turnmaster.exploration_opener?(state, world) ->
+        Turnmaster.settle_exploration_opener(state)
+
+      # D30 fast path: the exploration floor rules would force the TM's
+      # decision anyway — settle the handoff without the beat (see
+      # `Game.Turnmaster.exploration_dm_addressed_human/2` for the equivalence).
+      (name = Turnmaster.exploration_dm_addressed_human(state, world)) != nil ->
+        Turnmaster.settle_exploration_dm_addressed_human(state, name)
+
+      (name = Turnmaster.exploration_human_due(state, world)) != nil ->
+        Turnmaster.settle_exploration_dm_addressed_human(state, name)
+
+      true ->
+        turn_id = Beats.generate_turn_id()
+        state = Beats.run_turnmaster_beat(state, turn_id, world)
+        %{state | status: :running}
+    end
+  end
+
+  defp advance_ready(state) do
+    case Dragonex.Game.Conversations.prepare_actor(state) do
+      {state, nil} -> advance_actor(state)
+      {state, name} -> Turnmaster.settle_exploration_conversation(state, name)
+    end
+  end
+
+  defp advance_actor(state) do
     case Session.current(state.session) do
       nil ->
         Persistence.persist(state, :ended)
@@ -651,7 +802,7 @@ defmodule Dragonex.Game do
         cond do
           # Has an AI agent (original AI PC or auto-play enabled human)
           Participants.ai_pc?(state, current) ->
-            turn_id = Beats.generate_turn_id()
+            turn_id = Dragonex.Game.ToolReplay.turn_id(world, current) || Beats.generate_turn_id()
             Beats.append_turn_marker(state.game_id, current, turn_id, world)
 
             character = Participants.world_character(state, current)
@@ -666,29 +817,55 @@ defmodule Dragonex.Game do
             # Prompts alone couldn't stop a bot from re-declaring the same
             # non-action ("¿subimos al círculo?" x N) every turn. This compares
             # its last two narrations and, when they're near-duplicates, stitches
-            # a hard anti-loop nudge onto the instruction forcing a DIFFERENT
-            # concrete action this turn.
-            instruction = Guardrails.with_pc_anti_loop(state.game_id, current, base)
+            # a context-aware nudge onto the instruction. Answering a pending
+            # question needs no new action and may repeat confirmed facts.
+            context =
+              if character && (character.hp || 0) > 0 &&
+                   Dragonex.Conversation.response_for(world, current),
+                 do: :response,
+                 else: :scene
+
+            instruction =
+              Guardrails.with_pc_anti_loop(state.game_id, current, base, context: context)
+
             state = Beats.run_beat(state, current, instruction, turn_id, world)
             %{state | status: :running}
 
           Participants.human?(state, current) ->
-            case Turnmaster.take_ready_intent(state, current, world) do
-              {:ready, state} ->
-                turn_id = Beats.generate_turn_id()
-                Beats.append_turn_marker(state.game_id, current, turn_id, world)
-                state = %{state | status: :running}
-                Beats.consume_intent(state, current, turn_id, world)
+            checkpoint_turn = Dragonex.Game.ToolReplay.turn_id(world, current)
 
-              {:none, state} ->
-                Persistence.persist(state, :waiting)
-                Persistence.broadcast_updated(state)
-                %{state | status: :waiting}
+            declaration =
+              if checkpoint_turn,
+                do: Games.declaration_for_turn(state.game_id, current, checkpoint_turn)
+
+            if declaration do
+              # A manual resolver was interrupted after a durable tool receipt.
+              # Finish that original turn before consuming a newly queued intent.
+              Beats.run_beat(
+                state,
+                current,
+                Instructions.human_instruction(current, declaration, world.conversation),
+                checkpoint_turn,
+                world
+              )
+            else
+              case Turnmaster.take_ready_intent(state, current, world) do
+                {:ready, state} ->
+                  turn_id = Beats.generate_turn_id()
+                  Beats.append_turn_marker(state.game_id, current, turn_id, world)
+                  state = %{state | status: :running}
+                  Beats.consume_intent(state, current, turn_id, world)
+
+                {:none, state} ->
+                  Persistence.persist(state, :waiting)
+                  Persistence.broadcast_updated(state)
+                  %{state | status: :waiting}
+              end
             end
 
           true ->
             # DM's turn (monsters/NPCs).
-            turn_id = Beats.generate_turn_id()
+            turn_id = Dragonex.Game.ToolReplay.turn_id(world, current) || Beats.generate_turn_id()
             Beats.append_turn_marker(state.game_id, current, turn_id, world)
 
             # Detect stalls where the partida loops without progress:
@@ -698,10 +875,17 @@ defmodule Dragonex.Game do
             #     ability check, no spawn, no scene change (the "¿empezamos con
             #     el círculo?" x 10 turns pattern). The DM gets a special
             #     instruction forcing an avance instead of "¿qué hacéis?".
-            events = Games.recent_events(state.game_id, 40)
+            wait_events = Games.recent_events(state.game_id, 400)
+            events = Enum.take(wait_events, -40)
 
             instruction =
               cond do
+                Dragonex.Conversation.world_turn?(world) ->
+                  Instructions.dm_conversation_instruction(world.conversation)
+
+                Dragonex.Game.WaitResolution.request(current, world, wait_events) != nil ->
+                  Instructions.dm_wait_instruction()
+
                 Guardrails.post_combat_limbo?(events) ->
                   Instructions.dm_post_combat_instruction()
 
@@ -723,7 +907,15 @@ defmodule Dragonex.Game do
             instruction = Guardrails.with_dm_no_puppet_nudge(events, world, instruction)
             # Anti-repeat: keep DM narration varied (no "se desvanece en humo
             # sulfúrico" x N). Applied after the puppet nudge so both can stack.
-            instruction = Guardrails.with_dm_anti_repeat(events, instruction)
+            instruction =
+              Guardrails.with_dm_anti_repeat(events, instruction,
+                context:
+                  if(Dragonex.Conversation.world_turn?(world),
+                    do: :conversation,
+                    else: :scene
+                  )
+              )
+
             # Ghost combat v2: if the DM narrated a hostile appearing without
             # spawning it, force a spawn_monster this turn.
             instruction =
@@ -732,6 +924,10 @@ defmodule Dragonex.Game do
             # Language guard: DeepSeek sometimes drifts into English mid-scene.
             # If the DM's last narration reads English, force Spanish this turn.
             instruction = Guardrails.with_dm_spanish_nudge(events, instruction)
+
+            # A human declaration published without any engine roll must not
+            # be narrated by the DM as already resolved.
+            instruction = instruction <> Instructions.unresolved_human_intent(events)
 
             state = Beats.run_beat(state, current, instruction, turn_id, world)
             %{state | status: :running}
@@ -773,6 +969,18 @@ defmodule Dragonex.Game do
         }
     end
   end
+
+  # Only scalar runtime progress leaves the Game. Paused/waiting tables have
+  # no active indicator; the underlying Task may finish normally while paused.
+  defp snapshot_busy_stage(%{status: :running, busy: %Beat{kind: :turnmaster}}),
+    do: :turnmaster
+
+  defp snapshot_busy_stage(%{status: :running, busy: %Beat{stage: :scene_review}}),
+    do: :scene_review
+
+  defp snapshot_busy_stage(%{status: :running, busy: %Beat{}}), do: :acting
+  defp snapshot_busy_stage(%{status: :running, busy: %PendingRetry{}}), do: :retrying
+  defp snapshot_busy_stage(_), do: nil
 
   defp intents_sig(intents) when is_map(intents) do
     intents

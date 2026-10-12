@@ -15,6 +15,7 @@ config :dragonex, DragonexWeb.Endpoint,
   server: true,
   debug_errors: true,
   code_reloader: true,
+  reloadable_apps: [:dragonex, :exagent, :dic_ex],
   check_origin: false,
   watchers: [],
   secret_key_base: "dragonexdevsecretkeybase_for_dev_only_need_64_chars_total_padding1"

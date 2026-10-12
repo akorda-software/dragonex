@@ -16,12 +16,12 @@ defmodule Dragonex.Heroes.SRDSpellsTest do
 
   # El builtin SIEMPRE está, hagan o no SRD.
   describe "builtin preservado (con o sin SRD)" do
-    test "Spells.all incluye los 44 hechizos builtin curados" do
+    test "Spells.all incluye los 45 hechizos builtin curados" do
       names = Enum.map(Spells.builtin(), & &1.name)
       assert "fire bolt" in names
       assert "magic missile" in names
       assert "cure wounds" in names
-      assert length(Spells.builtin()) == 44
+      assert length(Spells.builtin()) == 45
     end
 
     test "la mecánica del builtin gana sobre el SRD (magic missile lleva dado)" do

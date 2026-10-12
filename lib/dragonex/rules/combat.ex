@@ -8,8 +8,9 @@ defmodule Dragonex.Rules.Combat do
   shared world. The Session/tools layer applies the results.
   """
 
+  use Gettext, backend: Dragonex.Gettext
   alias Dragonex.{Character, Spell, Weapon}
-  alias Dragonex.Rules.{Ability, Skills}
+  alias Dragonex.Rules.{Ability, Effects, Skills}
 
   @type roller :: (pos_integer() -> pos_integer())
   @type ability :: :str | :dex | :con | :int | :wis | :cha
@@ -49,7 +50,8 @@ defmodule Dragonex.Rules.Combat do
   @doc """
   Tagged attack roll (D66 Lucky): `attack_roll/5` plus the Lucky reroll tag
   (`nil` when it didn't fire) as a fourth element, so the Actions layer can
-  render the reroll in the chat breakdown. The mechanics live HERE — the
+  render the reroll in the chat breakdown. D85 appends the Bless bonus to
+  the same optional tag. The mechanics live HERE — the
   plain `attack_roll/5` delegates and drops the tag.
   """
   @spec attack_roll_tagged(
@@ -67,10 +69,12 @@ defmodule Dragonex.Rules.Combat do
         mode \\ :normal
       ) do
     {d20, lucky} = maybe_lucky(attacker, roll_d20(roller, mode), roller)
+    bless = Effects.bless_bonus(attacker, roller)
+    lucky = Effects.tag(lucky, bless)
 
     total =
       d20 + Ability.proficiency(attacker.level) + ability_for_weapon(attacker, weapon) +
-        fighting_style_attack_bonus(attacker, weapon)
+        fighting_style_attack_bonus(attacker, weapon) + bless
 
     cond do
       d20 == 20 -> {:crit, d20, total, lucky}
@@ -89,17 +93,22 @@ defmodule Dragonex.Rules.Combat do
   and `weapon.ranged != true`. Savage Attacks (D69): a half-orc's melee crit
   rolls ONE extra weapon die (not doubled).
   """
-  @spec damage_roll(Character.t(), Weapon.t(), :hit | :crit, roller()) :: integer()
+  @spec damage_roll(Character.t(), Weapon.t(), :hit | :crit, roller()) :: non_neg_integer()
   def damage_roll(%Character{} = attacker, %Weapon{} = weapon, outcome, roller) do
     {total, _savage} = damage_roll_tagged(attacker, weapon, outcome, roller)
-    total
+    damage_total(total)
   end
 
+  @doc "Minimum damage is zero, after summing the ability penalty and same-type bonuses."
+  @spec damage_total(integer()) :: non_neg_integer()
+  def damage_total(amount) when is_integer(amount), do: max(0, amount)
+
   @doc """
-  Tagged damage roll (D69 Savage Attacks): `damage_roll/4` plus the extra
+  Tagged weapon subtotal (D69 Savage Attacks): `damage_roll/4` plus the extra
   Savage die (0 when it didn't fire) as a second element, so the Actions
-  layer can render it in the swing breakdown. The mechanics live HERE — the
-  plain `damage_roll/4` delegates and drops the tag.
+  layer can render it in the swing breakdown. The subtotal can be negative:
+  Actions adds Sneak Attack, rage and Hunter's Mark before `damage_total/1`.
+  The plain `damage_roll/4` finalizes damage without those additional bonuses.
   """
   @spec damage_roll_tagged(Character.t(), Weapon.t(), :hit | :crit, roller()) ::
           {integer(), integer()}
@@ -158,7 +167,12 @@ defmodule Dragonex.Rules.Combat do
           {pos_integer(), integer(), boolean(), String.t() | nil}
   def saving_throw_tagged(%Character{} = target, save_ability, dc, roller, mode \\ :normal) do
     {d20, lucky} = maybe_lucky(target, roll_d20(roller, mode), roller)
-    total = d20 + Character.modifier(target, save_ability) + save_prof(target, save_ability)
+    bless = Effects.bless_bonus(target, roller)
+    lucky = Effects.tag(lucky, bless)
+
+    total =
+      d20 + Character.modifier(target, save_ability) + save_prof(target, save_ability) + bless
+
     {d20, total, total >= dc, lucky}
   end
 
@@ -330,7 +344,7 @@ defmodule Dragonex.Rules.Combat do
   # fire.
   defp maybe_lucky(%Character{race: "halfling"}, 1, roller) do
     reroll = roller.(20)
-    {reroll, "(Lucky: 1→#{reroll})"}
+    {reroll, dgettext("engine", "(Lucky: 1→%{reroll})", reroll: reroll)}
   end
 
   defp maybe_lucky(_character, d20, _roller), do: {d20, nil}

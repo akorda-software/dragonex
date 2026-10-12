@@ -17,12 +17,19 @@ defmodule Dragonex.Heroes.LevelUp do
     * ASI en niveles 4/8/12/16/19, validando el cupo (`Progression.asi_points/0`).
     * AC recalculada si cambian DEX / CON / WIS (según equipo y Defensa sin Armadura).
     * Hechizos nuevos (`choices.spells_added`) y features de clase del nuevo nivel.
+    * Pools de clase: añade la capacidad ganada conservando el gasto previo.
 
-  No toca estado transitorio (condiciones, death_saves, temp_hp, concentrating, raging, reckless, second_wind_used, action_surge_used, smite_slot, lay_on_hands_pool, divine_sense_uses, channel_divinity_used, ki, sorcery_points, bardic_inspiration_uses, inspired, arcane_recovery_used, wild_shape_uses, wild_shape, slots usados). El
+  No toca estado transitorio (condiciones, death_saves, temp_hp, concentrating,
+  raging, reckless, second_wind_used, action_surge_used, smite_slot,
+  channel_divinity_used, inspired, arcane_recovery_used, slots
+  usados). Las reservas finitas ganan solo capacidad nueva, sin descanso. El
   hp actual solo sube por la vitalidad retroactiva de CON; un caído (0 hp) sin
   ASI de CON sigue caído tras subir.
+  En Forma salvaje progresa la ficha original guardada, conservando PG,
+  atributos físicos, CA y armas de la bestia activa (D129).
   """
 
+  use Gettext, backend: Dragonex.Gettext
   alias Dragonex.Character
   alias Dragonex.Heroes.{Classes, Equipment, Progression, Races, Spells}
   alias Dragonex.Rules.Ability
@@ -37,7 +44,13 @@ defmodule Dragonex.Heroes.LevelUp do
   """
   @spec apply(Character.t(), map()) :: {:ok, Character.t()} | {:error, String.t()}
   def apply(%Character{level: 20}, _choices),
-    do: {:error, "el personaje ya está en el nivel máximo (20)"}
+    do: {:error, dgettext("engine", "el personaje ya está en el nivel máximo (20)")}
+
+  def apply(%Character{wild_shape: %{}} = active, choices) when is_map(choices) do
+    with {:ok, base} <- __MODULE__.apply(Dragonex.WildShape.base_form(active), choices) do
+      {:ok, Dragonex.WildShape.preserve_form(base, active)}
+    end
+  end
 
   def apply(%Character{} = c, choices) when is_map(choices) do
     new_level = c.level + 1
@@ -50,7 +63,11 @@ defmodule Dragonex.Heroes.LevelUp do
     asi_used = asi |> Map.values() |> Enum.filter(&(is_integer(&1) and &1 > 0)) |> Enum.sum()
 
     if asi_used > Progression.asi_points() do
-      {:error, "el ASI reparte #{asi_used} puntos (máximo #{Progression.asi_points()})"}
+      {:error,
+       dgettext("engine", "el ASI reparte %{used} puntos (máximo %{max})",
+         used: asi_used,
+         max: Progression.asi_points()
+       )}
     else
       new_scores = %{
         str: apply_asi(c.str, asi[:str]),
@@ -109,7 +126,7 @@ defmodule Dragonex.Heroes.LevelUp do
           cha: new_scores[:cha]
       }
 
-      {:ok, updated}
+      {:ok, Dragonex.ClassResources.level_up(c, updated)}
     end
   end
 

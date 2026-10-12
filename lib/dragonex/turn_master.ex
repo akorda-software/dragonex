@@ -11,18 +11,37 @@ defmodule Dragonex.TurnMaster do
   this agent fails or picks an invalid target.
   """
 
+  use Gettext, backend: Dragonex.Gettext
+
   alias Dragonex.TurnMaster.Tools
   alias Dragonex.World
 
   @doc "Orchestration tool set (not the 5e resolution tools)."
   @spec tools() :: [term()]
-  def tools, do: Tools.tools()
+  def tools do
+    Enum.map(Tools.tools(), fn tool ->
+      call = tool.call
+
+      %{
+        tool
+        | call: fn ctx, args ->
+            Dragonex.I18n.adopt(ctx.deps)
+
+            case call.(ctx, args) do
+              {:error, message} when is_binary(message) -> raise ExAgent.ModelRetry, message
+              result -> result
+            end
+          end
+      }
+    end)
+  end
 
   @doc """
   Build the TurnMaster agent.
 
   Options:
-    * `:max_tokens` — output cap (default 256; one tool-call, no prose).
+    * `:max_tokens` — output cap (default 1024, env-overridable; one decision
+      tool-call, including the provider's reasoning budget).
     * `:max_steps`  — agentic loop cap (default 3: one decision + one retry +
       margin). A healthy TM decides in a single tool-call; the exAgent default
       of 50 let a looping LLM stall the beat ~50s and burn ~50 calls before
@@ -30,7 +49,7 @@ defmodule Dragonex.TurnMaster do
   """
   @spec new(term(), keyword()) :: ExAgent.t()
   def new(model, opts \\ []) do
-    max_tokens = Keyword.get(opts, :max_tokens, 256)
+    max_tokens = Keyword.get(opts, :max_tokens, Dragonex.Models.turnmaster_max_tokens())
     max_steps = Keyword.get(opts, :max_steps, 3)
 
     ExAgent.new(
@@ -38,26 +57,28 @@ defmodule Dragonex.TurnMaster do
       instructions: system_prompt(),
       tools: tools(),
       max_steps: max_steps,
-      model_settings: [max_tokens: max_tokens, temperature: 0.3] |> put_request_extra(),
+      model_settings:
+        Dragonex.Models.request_settings(
+          model,
+          [max_tokens: max_tokens, temperature: 0.3],
+          Dragonex.Models.request_extra()
+        ),
       # No Events capability: TurnMaster does not narrate. The Game appends a
       # short :system line when it applies the decision.
-      capabilities: []
+      capabilities:
+        Dragonex.Agent.capabilities(
+          [Dragonex.Game.RunLifecycle] ++
+            Dragonex.Agent.history_capabilities() ++ [Dragonex.AgentInstructions]
+        )
     )
   end
 
   # Provider knobs (reasoning effort + OpenRouter provider order) ride in
   # ModelSettings.extra, the same channel the DM uses.
-  defp put_request_extra(settings) do
-    case Dragonex.Models.request_extra() do
-      nil -> settings
-      extra -> Keyword.put(settings, :extra, extra)
-    end
-  end
-
   @doc "Stable system contract (cacheable prefix)."
   @spec system_prompt() :: String.t()
   def system_prompt do
-    """
+    dgettext("prompts", """
     Eres el TurnMaster de una partida de D&D 5e. Tu ÚNICA salida es decidir quién actúa a continuación llamando a UNA herramienta. Nunca narras ficción, nunca resuelves tiradas, nunca escribes prosa para el jugador.
 
     REGLAS:
@@ -69,7 +90,7 @@ defmodule Dragonex.TurnMaster do
       6. `end_scene` cierra el combate/encuentro y vuelve a exploración (el motor aplica el cambio).
       7. Si el brief lista `acted_this_round`, prioriza a quien aún no haya actuado en la ronda.
       8. INTENCIONES HUMANAS: son declaraciones reales de jugadores (nunca de bots). En EXPLORACIÓN, prioriza a quien tiene algo escrito; si el último actor habló con un PNJ o preguntó algo al mundo, `pass_to_dm` ANTES de ceder a otro PC. En COMBATE, si un humano escribió interrumpo/reacción/me pongo delante/escudo/protejo, DEBES `cut_in` o `react` a ese humano AHORA — no esperes al `initiative_order`. No robes la ronda entera a un humano que encola cada turno.
-    """
+    """)
     |> String.trim()
   end
 
@@ -84,7 +105,11 @@ defmodule Dragonex.TurnMaster do
 
     interrupt =
       if is_binary(interrupted) and interrupted != "" do
-        "Hay un actor interrumpido esperando retomar: #{interrupted}. Tras el mini-turno, devuélvele la palabra salvo nueva excepción."
+        dgettext(
+          "prompts",
+          "Hay un actor interrumpido esperando retomar: %{actor}. Tras el mini-turno, devuélvele la palabra salvo nueva excepción.",
+          actor: interrupted
+        )
       else
         ""
       end
@@ -95,16 +120,27 @@ defmodule Dragonex.TurnMaster do
           ""
 
         names ->
-          "Hay intenciones humanas pendientes de: #{Enum.join(names, ", ")}. En combate, si suenan a reacción (interrumpo, escudo, me pongo delante), usa cut_in/react AHORA. En exploración, priorízalos o pasa al DM si el mundo debe responder."
+          dgettext(
+            "prompts",
+            "Hay intenciones humanas pendientes de: %{names}. En combate, si suenan a reacción (interrumpo, escudo, me pongo delante), usa cut_in/react AHORA. En exploración, priorízalos o pasa al DM si el mundo debe responder.",
+            names: Enum.join(names, ", ")
+          )
       end
 
-    nudge_line = if is_binary(nudge) and nudge != "", do: "AVISO: #{nudge}", else: ""
+    nudge_line =
+      if is_binary(nudge) and nudge != "",
+        do: dgettext("prompts", "AVISO: %{nudge}", nudge: nudge),
+        else: ""
 
     [
       interrupt,
       pending_line,
+      Dragonex.ExplorationTurns.brief(Keyword.get(opts, :exploration)),
       nudge_line,
-      "Decide quién actúa ahora. Una sola tool-call y luego responde «listo»."
+      dgettext(
+        "prompts",
+        "Decide quién actúa ahora. Una sola tool-call y luego responde «listo»."
+      )
     ]
     |> Enum.reject(&(&1 == ""))
     |> Enum.join("\n")
@@ -114,13 +150,23 @@ defmodule Dragonex.TurnMaster do
   Human-readable system note for a applied decision (UI / history).
   """
   @spec decision_note(map()) :: String.t()
-  def decision_note(%{action: :give_turn_to, to: to}), do: "El turno pasa a #{to}."
-  def decision_note(%{action: :cut_in, to: to}), do: "#{to} interrumpe."
-  def decision_note(%{action: :react, to: to}), do: "#{to} reacciona."
-  def decision_note(%{action: :pass_to_dm}), do: "El turno pasa al DM."
-  def decision_note(%{action: :end_scene}), do: "La escena termina. Vuelta a exploración."
+  # System notes (UI + history) belong to the `engine` domain.
+  def decision_note(%{action: :give_turn_to, to: to}),
+    do: dgettext("engine", "El turno pasa a %{next}.", next: to)
+
+  def decision_note(%{action: :cut_in, to: to}),
+    do: dgettext("engine", "%{actor} interrumpe.", actor: to)
+
+  def decision_note(%{action: :react, to: to}),
+    do: dgettext("engine", "%{actor} reacciona.", actor: to)
+
+  def decision_note(%{action: :pass_to_dm}), do: dgettext("engine", "El turno pasa al DM.")
+
+  def decision_note(%{action: :end_scene}),
+    do: dgettext("engine", "La escena termina. Vuelta a exploración.")
+
   def decision_note(%{action: action, to: to}) when is_atom(action), do: "#{action} → #{to}"
-  def decision_note(_), do: "El motor toma el relevo del turno."
+  def decision_note(_), do: dgettext("engine", "El motor toma el relevo del turno.")
 
   defp pending_intent_names(intents) when is_map(intents) do
     intents

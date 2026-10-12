@@ -6,11 +6,10 @@ defmodule DragonexWeb.HeroLevelUpLiveTest do
 
   use DragonexWeb.ConnCase, async: false
 
-  alias Dragonex.{Accounts, Heroes}
+  alias Dragonex.{Accounts, Archetypes, Game, Games, Heroes, World}
 
   setup do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(Dragonex.Repo)
-    Ecto.Adapters.SQL.Sandbox.mode(Dragonex.Repo, {:shared, self()})
+    Dragonex.Test.Sandbox.start_shared!()
 
     {:ok, user} =
       Accounts.register(%{
@@ -61,5 +60,52 @@ defmodule DragonexWeb.HeroLevelUpLiveTest do
 
     assert {:error, {:live_redirect, %{to: to}}} = live(conn, "/heroes/#{hero.id}/level-up")
     assert to == "/heroes/#{hero.id}"
+  end
+
+  test "confirming a caster level-up syncs new capacity without refunding its live expenditure",
+       %{conn: conn, user: user} do
+    sheet = Archetypes.wizard()
+    {:ok, hero} = Accounts.save_hero(user, sheet)
+
+    {:ok, game} =
+      Games.create_game(
+        title: "Live progression",
+        user_id: user.id,
+        roster: [{sheet, :human, hero.id}]
+      )
+
+    before = Games.load_world(game)
+    {:ok, before} = World.consume_slot(sheet.name, 1).(before)
+    {:ok, before} = World.apply_damage(sheet.name, 3).(before)
+    {:ok, _} = Games.save_state(game.id, before, sheet.name, before.round, :paused)
+    pid = Dragonex.Test.GameFixture.start!({Game, {game.id, [model: %ExAgent.Models.Test{}]}})
+    {:ok, view, _} = live(conn, "/heroes/#{hero.id}/level-up")
+    view |> element("button[phx-click=confirm]") |> render_click()
+    assert_redirect(view, "/heroes/#{hero.id}")
+    assert Accounts.get_user_hero(user, hero.id).level == 2
+    assert Game.world(pid).spell_slots[sheet.name] == %{1 => 2}
+    assert Game.world(pid).characters[sheet.name].hp == before.characters[sheet.name].hp
+    assert Games.load_world(Games.get_game(game.id)) == Game.world(pid)
+    assert Game.snapshot(pid).status == :paused
+  end
+
+  test "two tabs cannot confirm an old target level twice", %{conn: conn, user: user, hero: hero} do
+    {:ok, first, _} = live(conn, "/heroes/#{hero.id}/level-up")
+    {:ok, stale, _} = live(conn, "/heroes/#{hero.id}/level-up")
+    render_click(first, "confirm")
+    assert_redirect(first, "/heroes/#{hero.id}")
+    assert Accounts.get_user_hero(user, hero.id).level == 2
+    result = render_click(stale, "confirm")
+    assert Accounts.get_user_hero(user, hero.id).level == 2
+
+    assert %{
+             "info" =>
+               "Tu héroe ya ha cambiado. Revisa su ficha antes de volver a subir de nivel."
+           } = assert_redirect(stale, "/heroes/#{hero.id}")
+
+    {:ok, shown, _} = follow_redirect(result, conn, "/heroes/#{hero.id}")
+    assert has_element?(shown, "#app-flash-info[role=status]", "Tu héroe ya ha cambiado.")
+    shown |> element("#app-flash-info button") |> render_click()
+    refute has_element?(shown, "#app-flash-info")
   end
 end

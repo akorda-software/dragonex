@@ -161,25 +161,25 @@ defmodule Dragonex.LayOnHandsTest do
       assert w.characters["Rhogar"].lay_on_hands_pool == 5
     end
 
-    test "no toca temp_hp; death saves si hp>0" do
+    test "cura a un aliado caído sin tocar temp_hp y borra sus death saves" do
       w =
         world([
-          paladin(
+          paladin([]),
+          ally(
             hp: 0,
             max_hp: 18,
             temp_hp: 4,
-            death_saves: %{successes: 1, fails: 2},
-            lay_on_hands_pool: 5
+            death_saves: %{successes: 1, fails: 2}
           )
         ])
 
-      {:ok, _, change} = Actions.lay_on_hands(w, "Rhogar", "Rhogar", 3)
+      {:ok, _, change} = Actions.lay_on_hands(w, "Rhogar", "Thane", 3)
       {:ok, w2} = change.(w)
-      c = w2.characters["Rhogar"]
+      c = w2.characters["Thane"]
       assert c.hp == 3
       assert c.temp_hp == 4
       assert c.death_saves == %{successes: 0, fails: 0}
-      assert c.lay_on_hands_pool == 2
+      assert w2.characters["Rhogar"].lay_on_hands_pool == 2
     end
   end
 
@@ -222,12 +222,12 @@ defmodule Dragonex.LayOnHandsTest do
     end
   end
 
-  describe "level-up / merge conservan remaining" do
-    test "World.level_up no resetea el pool" do
+  describe "level-up / merge conservan el gasto" do
+    test "World.level_up añade capacidad sin reponer los dos puntos gastados" do
       w = world([paladin(level: 1, lay_on_hands_pool: 3)])
       {:ok, w2} = World.level_up("Rhogar", %{}).(w)
       assert w2.characters["Rhogar"].level == 2
-      assert w2.characters["Rhogar"].lay_on_hands_pool == 3
+      assert w2.characters["Rhogar"].lay_on_hands_pool == 8
     end
 
     test "Games.merge_character_level_up no pisa el pool vivo" do
@@ -236,7 +236,8 @@ defmodule Dragonex.LayOnHandsTest do
       w = world([live])
       w2 = Games.merge_character_level_up(w, "Rhogar", sheet)
       assert w2.characters["Rhogar"].level == 2
-      assert w2.characters["Rhogar"].lay_on_hands_pool == 2
+      # El pool de biblioteca está lleno: el vivo conserva tres gastados.
+      assert w2.characters["Rhogar"].lay_on_hands_pool == 7
       assert w2.characters["Rhogar"].hp == 4
     end
   end

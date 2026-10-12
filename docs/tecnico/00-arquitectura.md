@@ -21,6 +21,26 @@ La segunda idea clave: el **estado** (`World`) tiene **un solo escritor** (el
 `Game` GenServer, `D6`) y vive en Postgres, no en la memoria del modelo. El
 proceso puede morir y la partida rehidrata.
 
+## Proyección de memoria y fuentes (D198)
+
+World.facts conserva las cadenas existentes. NPCStatement.attributed? reconoce
+su envoltura atribuida y Brief proyecta dos secciones para DM/PC/TM, sin mutar
+el estado ni interpretar una fecha/veracidad. Texto y orden por sección son
+estables; las marcas legacy no se inventan. Beats añade guía de fuentes después
+de archivo/inventario/hechos en todas las fases si hay testimonios: prosa o
+resumen anterior no transforma voz del PNJ en observación de los PCs. DM
+conserva la voz del testigo; AgentInstructions sigue LAST y TM no recibe esa
+capacidad. Compacción/contexto verificables; semántica libre no garantizada.
+No hay schema nuevo de recuerdos personales ni extracción automática de prosa.
+
+D199 conserva la misma separación con comparación textual de envolturas
+completas no ambiguas en NPCStatement. Retorna el fact retenido exacto y no
+renueva referencia/posición; nuevas envolturas externas redundantes se quitan,
+citas internas/parciales/apóstrofos conservados. Sin interpretación semántica,
+case folding de fuentes, migración o World/Codec nuevos; entrada/comparación
+acotadas. Game/replay/restart no repite el registro. No cambia el orden de
+capabilities ni genera recuerdos personales a partir de la narración.
+
 ## Subsistemas
 
 ```
@@ -28,7 +48,7 @@ proceso puede morir y la partida rehidrata.
 │ S1  Web / LiveView            lib/dragonex_web/                          │
 │     Phoenix.LiveView: la mesa, el creador de héroes, lobby, auth.        │
 │     NUNCA escribe en Repo datos de partida (D6).                         │
-│     Mesa: grid 3-col ≥721px; ≤720px feed+input y ficha en drawer CSS.    │
+│     Mesa: grid 3-col ≥1024px; ≤1023px feed+input y cajón (D179).       │
 ├──────────────────────────────────────────────────────────────────────────┤
 │ S2  Partida / Game GenServer   lib/dragonex/game.ex + lib/dragonex/game/ │
 │     Un proceso :transient por game_id. Es el ÚNICO escritor del World.  │
@@ -152,6 +172,9 @@ que más impacto tienen en la arquitectura:
 - **`D6`** — single-writer → S2 es el único que escribe `games.world`.
 - **`D19`** — el historial se **reconstruye** desde `game_events` en cada beat, en
   vez de acumularlo por agente. Esto da coherencia entre DM y PCAgent.
+- **`D201`** — la crónica reconstruida se importa como memoria `user` atribuida;
+  respuestas y tools del run actual conservan su continuación nativa. Dev/test
+  usa paquetes hermanos, producción versiones Hex con lockfile separado.
 - **`D20`** — la story bible va horneada en el system prompt (prefijo cacheable).
 
 ## Lectura siguiente

@@ -11,7 +11,17 @@ defmodule Dragonex.Game.Beats do
   """
 
   alias Dragonex.{Brief, Games, Intents}
-  alias Dragonex.Game.{Beat, Bootstrap, Instructions, Participants, Persistence}
+
+  alias Dragonex.Game.{
+    Beat,
+    Bootstrap,
+    Conversations,
+    Instructions,
+    Participants,
+    Persistence,
+    Turnmaster
+  }
+
   alias Dragonex.TurnMaster
   alias Dragonex.TurnMaster.Decision
   alias ExAgent.Server
@@ -24,13 +34,18 @@ defmodule Dragonex.Game.Beats do
   end
 
   def append_turn_marker(game_id, actor, turn_id, world) do
-    {:ok, _} =
-      Games.append_event(game_id, :turn, actor, "all", %{
-        turn_id: turn_id,
-        round: world.round,
-        phase: world.phase,
-        kind: :start
-      })
+    if Dragonex.Game.ToolReplay.turn_id(world, actor) == turn_id do
+      :ok
+    else
+      {:ok, _} =
+        Games.append_event(game_id, :turn, actor, "all", %{
+          turn_id: turn_id,
+          round: world.round,
+          phase: world.phase,
+          turn_kind: world.turn_kind,
+          kind: :start
+        })
+    end
   end
 
   # Consume a participant's pending intent: log the action, run the beat, clear
@@ -40,26 +55,60 @@ defmodule Dragonex.Game.Beats do
     intents = Map.delete(state.intents, participant)
     state = %{state | intents: intents}
 
+    payload = %{
+      text: text,
+      turn_id: turn_id,
+      round: world.round,
+      phase: world.phase
+    }
+
+    payload =
+      if world.phase == :exploration and Dragonex.Game.SceneRefresh.movement_declared?(text),
+        do: Map.put(payload, :scene_before, world.scene),
+        else: payload
+
+    seconds = Dragonex.WaitDeclaration.seconds(text)
+
+    payload =
+      if seconds && world.phase == :exploration && world.conversation == nil &&
+           Participants.human?(state, participant) && not Participants.ai_pc?(state, participant) &&
+           not state.pending_mini do
+        Map.merge(payload, %{wait_seconds: seconds, clock_before: world.elapsed_seconds})
+      else
+        payload
+      end
+
     {:ok, _} =
-      Games.append_event(state.game_id, :action, participant, "all", %{
-        text: text,
-        turn_id: turn_id,
-        round: world.round,
-        phase: world.phase
-      })
+      Games.append_event(state.game_id, :action, participant, "all", payload)
 
     Games.save_intents(state.game_id, intents)
+    world = Conversations.register_declared_question(state, participant, text, world)
 
     state =
       run_beat(
         state,
         participant,
-        Instructions.human_instruction(participant, text),
+        Instructions.human_instruction(participant, text, Map.get(world, :conversation)),
         turn_id,
-        world
+        world,
+        %{max_token_retries: 0, transient_retries: 0},
+        literal_speech: literal_human_speech(state, participant, text, world, payload)
       )
 
     %{state | status: :running}
+  end
+
+  # The engine already owns registered informative questions and reserved waits.
+  # Publish the player's words, never confirmation of elapsed time.
+  # Extra actions, interruptions and mini-turns still need the human's tools.
+  defp literal_human_speech(state, participant, text, world, payload) do
+    Conversations.literal_pc_speech(state, participant, text, world) ||
+      Conversations.literal_npc_speech(state, participant, text, world) ||
+      if Map.has_key?(payload, :wait_seconds) and world.conversation == nil and
+           not state.tm_reeval and not state.last_was_mini and
+           state.interrupted in [nil, ""] do
+        Dragonex.WaitDeclaration.literal_speech(text)
+      end
   end
 
   # Launch one beat as `participant` in a supervised Task. The GenServer stays
@@ -68,7 +117,8 @@ defmodule Dragonex.Game.Beats do
   # The beat context (`turn_id`, `round`, `phase`) is threaded through `deps`
   # so the `Dragonex.Events` capability can attach it to every event it
   # publishes mid-beat, and the `RollLog.on_close` callback can do the same
-  # for each roll the moment it lands. Both publish live via PubSub — the chat
+  # for standalone rolls. Advertised tools buffer groups until Game saves
+  # their effect or successful result. Both publish live via PubSub — the chat
   # fills in as the beat unfolds, not collapsed at the end.
   def run_beat(
         %{session: session, roller: roller, game_id: game_id} = state,
@@ -76,7 +126,8 @@ defmodule Dragonex.Game.Beats do
         instruction,
         turn_id,
         world,
-        retries \\ %{max_token_retries: 0, transient_retries: 0}
+        retries \\ %{max_token_retries: 0, transient_retries: 0},
+        opts \\ []
       ) do
     # `retries` is threaded in from handle_beat_result so a retried beat keeps
     # its retry budget honest — a max_tokens retry that then fails with a 503
@@ -84,10 +135,62 @@ defmodule Dragonex.Game.Beats do
     # then runs long still gets one max_tokens nudge. First attempts pass the
     # default zeroed map.
 
+    restored = Dragonex.Game.ToolReplay.restore(world, participant)
+    restored = if restored && restored.turn_id == turn_id, do: restored, else: nil
+    results = Map.get(retries, :tool_results, if(restored, do: restored.tool_results, else: %{}))
+    completed = if restored, do: Games.completed_narration(game_id, participant, turn_id)
+
+    world =
+      if is_nil(restored) and Map.get(world, :actor_checkpoint) != nil do
+        Dragonex.Game.ToolReplay.clear(state)
+        Dragonex.Game.Persistence.persist(state, state.status)
+        ExAgent.Session.read_state(session)
+      else
+        world
+      end
+
+    game_owner = self()
     agent = agent_for(state, participant)
     # name -> :ai | :human, so the DM knows who auto-acts and who waits for input.
     kinds = state.participants |> Map.new(fn {n, p} -> {n, p.kind} end)
-    prompt = Brief.turn_prompt(world, participant, instruction, "dm", kinds)
+    events = Games.recent_events(game_id, 400)
+    wait_resolution = Dragonex.Game.WaitResolution.request(participant, world, events)
+    npc_memory_resolution = Dragonex.Game.NPCMemoryResolution.request(participant, world)
+    literal = Keyword.get(opts, :literal_speech)
+
+    # The resolver can choose tools, but a manual player's voice comes from
+    # their durable action, never from the model. Re-read the exact turn on
+    # retries/recovery; a nearby declaration or an autoplay beat is not a source.
+    declaration =
+      if Participants.human?(state, participant) and
+           not Participants.ai_pc?(state, participant) and is_nil(literal),
+         do: Games.declaration_for_turn(game_id, participant, turn_id)
+
+    older_rolls =
+      if is_nil(completed) and (not is_binary(literal) or literal == "") do
+        case events do
+          [%{seq: seq} | _] when seq > 1 -> Games.rolls_before(game_id, seq, participant)
+          _ -> []
+        end
+      else
+        []
+      end
+
+    archive = Dragonex.History.roll_archive(events, older_rolls, participant)
+
+    prompt =
+      Brief.turn_prompt(world, participant, instruction, "dm", kinds) <>
+        Dragonex.Game.WaitResolution.instruction(wait_resolution, world, turn_id) <>
+        if(archive == "", do: "", else: "\n\n" <> archive) <>
+        Instructions.inventory_instruction(world, participant, events) <>
+        Instructions.fact_instruction(world, participant) <>
+        Instructions.testimony_instruction(world, participant) <>
+        Dragonex.Game.NPCMemoryResolution.instruction(npc_memory_resolution) <>
+        if(kinds[participant] == :ai,
+          do: Dragonex.PCAgent.response_guidance(world, participant, events),
+          else: ""
+        )
+
     shared = SharedState.new(session, participant)
 
     beat = %{
@@ -97,33 +200,24 @@ defmodule Dragonex.Game.Beats do
       round: world.round,
       phase: world.phase,
       pc_names: Participants.pc_names(world),
+      character_names: Map.keys(world.characters),
+      wait_resolution: wait_resolution,
+      npc_memory_resolution: npc_memory_resolution,
+      human_declaration: declaration,
       wait_for_human: wait_for_human?(state, participant, world)
     }
 
-    # Each finalized roll → persisted as a :dice event (with turn_id) + PubSub
-    # broadcast. Captured here (in the Game's process) so the closure carries
+    # Standalone groups → persisted as a :dice event (with turn_id) + PubSub.
+    # ToolReplay scopes advertised tools to deferred RollLogs; their groups
+    # are saved with the World checkpoint by Persistence instead.
+    # Captured here (in the Game's process) so the closure carries
     # `beat`, then invoked from inside the beat Task via the recorder.
     on_roll_closed = fn entry ->
-      payload = Map.merge(entry, %{turn_id: turn_id, round: world.round, phase: world.phase})
-      {:ok, _} = Games.append_event(game_id, :dice, participant, "all", payload)
-      Persistence.broadcast_roll_group(game_id, entry)
-      Persistence.broadcast_updated(game_id)
-    end
-
-    # Token-level streaming of narration: each text delta the model emits is
-    # broadcast immediately so the chat renders it word-by-word as it's
-    # generated, not collapsed at beat end. The `Events` capability still
-    # persists the FINAL text as a :narration event when the response
-    # completes — the stream is purely a UI live-preview.
-    on_text_delta = fn chunk ->
-      try do
-        Phoenix.PubSub.broadcast(
-          Dragonex.PubSub,
-          Persistence.topic(game_id),
-          {:text_delta, game_id, turn_id, participant, chunk}
-        )
-      catch
-        _, _ -> :ok
+      if Process.alive?(game_owner) do
+        payload = Map.merge(entry, %{turn_id: turn_id, round: world.round, phase: world.phase})
+        {:ok, _} = Games.append_event(game_id, :dice, participant, "all", payload)
+        Persistence.broadcast_roll_group(game_id, entry)
+        Persistence.broadcast_updated(game_id)
       end
     end
 
@@ -134,22 +228,32 @@ defmodule Dragonex.Game.Beats do
     # and the rolling dice outcomes are visible to all. Threading this through
     # as :message_history OVERRIDES the Server's per-agent accumulation, so
     # the Server becomes a stateless runner with the Game owning context.
-    shared_history =
-      game_id
-      |> Games.recent_events(400)
-      |> Dragonex.History.from_events()
+    # AgentInstructions adds that agent's current role to the actual request
+    # after compaction; exAgent does not prepend it to a nonempty history.
+    shared_history = Dragonex.History.import_events(events, participant)
+
+    table_locale = Dragonex.I18n.locale()
 
     task =
       Task.Supervisor.async_nolink(ExAgent.TaskSupervisor, fn ->
-        # Token-level streaming is great UX with a real LLM but the in-process
-        # Test model can't propagate its mutated script index through a stream,
-        # which would hang the loop. Stream only for real providers.
+        # Tasks do not inherit the table language (D236).
+        Dragonex.I18n.put_locale(table_locale)
+        Dragonex.Game.RunLifecycle.watch([game_owner], [self()])
+        beat_owner = self()
+        # Real providers may use streaming transport. Raw deltas remain
+        # private; only explicit narrate and validated final_result publish.
         stream? = stream_text_for(state.model)
 
         # One recorder per beat (linked to this Task, so it can never outlive it).
         # It is addressed by pid, so it crosses the process boundary between this
         # beat Task and ExAgent's run Task / parallel tool tasks unscathed.
-        {:ok, recorder} = Dragonex.RollLog.start(on_close: on_roll_closed)
+        {:ok, recorder} =
+          Dragonex.RollLog.start(
+            on_close: fn entry ->
+              if Process.alive?(beat_owner), do: on_roll_closed.(entry)
+            end
+          )
+
         roll_log = %Dragonex.RollLog{base: roller, recorder: recorder}
 
         # PCs controlados por una persona real (incluso en auto-play). La tool
@@ -158,49 +262,107 @@ defmodule Dragonex.Game.Beats do
           for {name, %{kind: :human}} <- state.participants, into: MapSet.new(), do: name
 
         deps = %{
+          game_owner: game_owner,
+          beat_owner: beat_owner,
           state: shared,
           roller: roller,
           roll_log: roll_log,
           beat: beat,
-          on_text_delta: on_text_delta,
-          human_pcs: human_pcs
+          participant_kinds: kinds,
+          model_retry: Map.get(retries, :model_retry),
+          on_text_delta: fn _chunk -> :ok end,
+          on_tool_call_delta: Dragonex.Narration.Preview.broadcaster(beat),
+          human_pcs: human_pcs,
+          locale: table_locale
         }
 
+        # A response already published before settlement failed is final.
+        # Resume its bookkeeping without another model request or publication;
+        # earlier speech alongside tools remains in the timeline as written.
         result =
-          case Server.chat(agent, prompt,
-                 deps: deps,
-                 stream_text: stream?,
-                 message_history: shared_history
-               ) do
-            {:ok, %{output: narration, usage: usage}} ->
-              {:ok, narration, Dragonex.RollLog.entries(recorder), usage}
+          cond do
+            completed ->
+              {:ok, completed, [], nil}
 
-            {:error, reason} ->
-              {:error, reason}
+            is_binary(literal) and literal != "" ->
+              case Dragonex.Events.publish_completed_speech(deps, literal) do
+                {:ok, speech} -> {:ok, speech, [], nil}
+                {:error, reason} -> {:error, {:narration_contract, reason}}
+              end
+
+            true ->
+              case Dragonex.Agent.chat(agent, prompt,
+                     deps: deps,
+                     stream_text: stream?,
+                     message_history: shared_history
+                   ) do
+                {:ok, %{usage: usage} = result} ->
+                  case Dragonex.Narration.Contract.publish_result(result, deps) do
+                    {:ok, narration} ->
+                      {:ok, narration, Dragonex.RollLog.entries(recorder), usage}
+
+                    {:error, reason} ->
+                      {:error, reason}
+                  end
+
+                {:error, reason} ->
+                  {:error, reason}
+              end
           end
 
         Dragonex.RollLog.stop(recorder)
-        result
+
+        case result do
+          {:ok, narration, rolls, usage} ->
+            refresh =
+              Dragonex.Game.SceneRefresh.after_beat(state, participant, game_owner,
+                turn_id: turn_id,
+                wait_before: world,
+                wait_resolution: wait_resolution
+              )
+
+            {:ok, narration, rolls, usage, refresh}
+
+          error ->
+            error
+        end
       end)
 
-    mini = state.pending_mini == true
+    mini = if restored, do: restored.mini_turn, else: state.pending_mini == true
 
-    %{
+    state = %{
       state
       | pending_mini: false,
         busy: %Beat{
           ref: task.ref,
+          pid: task.pid,
           participant: participant,
-          phase: world.phase,
+          phase: if(restored, do: restored.phase, else: world.phase),
           turn_id: turn_id,
           instruction: instruction,
           kind: :actor,
           mini_turn: mini,
+          wait_resolution: wait_resolution,
+          inventory_scene_before:
+            if(restored,
+              do: restored.inventory_scene_before,
+              else: %{
+                "pending" => world.scene_refresh_pending,
+                "fingerprint" => Dragonex.Rules.Inventory.scene_fingerprint(world)
+              }
+            ),
+          tool_results: results,
+          replay_results: results,
           max_token_retries: retries.max_token_retries,
           transient_retries: retries.transient_retries,
-          enemies_before: Dragonex.World.living_enemies(world)
+          narration_retries: Map.get(retries, :narration_retries, 0),
+          enemies_before:
+            if(restored, do: restored.enemies_before, else: Dragonex.World.living_enemies(world))
         }
     }
+
+    Persistence.broadcast_updated(state)
+    state
   end
 
   # Select the right agent for a turn: AI PCs have their own agent; everything
@@ -237,13 +399,20 @@ defmodule Dragonex.Game.Beats do
         participants: names,
         nudge: state.tm_nudge,
         interrupted: state.interrupted,
+        exploration: Turnmaster.exploration_context(state, world),
         pending_intents: state.intents
       )
 
     prompt = "WORLD:\n#{prompt_body}\n\n#{instruction}"
+    game_owner = self()
+
+    table_locale = Dragonex.I18n.locale()
 
     task =
       Task.Supervisor.async_nolink(ExAgent.TaskSupervisor, fn ->
+        # Tasks do not inherit the table language (D236).
+        Dragonex.I18n.put_locale(table_locale)
+        Dragonex.Game.RunLifecycle.watch([game_owner], [self()])
         {:ok, recorder} = Decision.start()
 
         # Subscribe to the TM server's PubSub topic for TWO jobs: capture the
@@ -253,9 +422,13 @@ defmodule Dragonex.Game.Beats do
         _ = ExAgent.PubSub.subscribe(ExAgent.PubSub.normalize(:local), topic)
 
         deps = %{
+          game_owner: game_owner,
+          beat_owner: self(),
           decision: recorder,
           world: world,
-          participants: names
+          participants: names,
+          model_retry: Map.get(retries, :model_retry),
+          locale: table_locale
         }
 
         # Server.chat blocks until the run finishes, so it runs in a nested
@@ -264,7 +437,16 @@ defmodule Dragonex.Game.Beats do
         # for a final-text response the prompt cannot always obtain.
         chat =
           Task.async(fn ->
-            Server.chat(state.turnmaster, prompt, deps: deps, stream_text: false)
+            Dragonex.I18n.put_locale(table_locale)
+            # This prompt already contains the authoritative world, intents
+            # and interruption context. Previous handoff prompts are obsolete
+            # snapshots: accumulating them grows cost and contradicts the
+            # current round/HP. Keep tool feedback only within this run.
+            Dragonex.Agent.chat(state.turnmaster, prompt,
+              deps: deps,
+              stream_text: false,
+              message_history: []
+            )
           end)
 
         result = watch_tm_run(chat, recorder, state.turnmaster, [])
@@ -273,20 +455,25 @@ defmodule Dragonex.Game.Beats do
         result
       end)
 
-    %{
+    state = %{
       state
       | busy: %Beat{
           ref: task.ref,
+          pid: task.pid,
           participant: "turnmaster",
           phase: world.phase,
           turn_id: turn_id,
           instruction: instruction,
           kind: :turnmaster,
+          stage: :turnmaster,
           max_token_retries: retries.max_token_retries,
           transient_retries: retries.transient_retries,
           enemies_before: MapSet.new()
         }
     }
+
+    Persistence.broadcast_updated(state)
+    state
   end
 
   # Token streaming is only meaningful for real HTTP-backed providers. The

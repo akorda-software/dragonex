@@ -223,7 +223,7 @@ defmodule Dragonex.CunningActionHideTest do
       assert {:ok, msg, change} =
                Actions.attack(w, "Vex", "goblin", "dagger", seq([10, 19, 3, 4]))
 
-      assert msg =~ "+4 sneak"
+      assert msg =~ "incluye 4 sneak"
       refute msg =~ "fallo"
 
       {:ok, w2} = change.(w)

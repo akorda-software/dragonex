@@ -16,6 +16,8 @@ defmodule Dragonex.Heroes.Races do
   vía subraza). El builder los ofrece en el creador.
   """
 
+  use Gettext, backend: Dragonex.Gettext
+
   @type ability :: :str | :dex | :con | :int | :wis | :cha
 
   @type subrace :: %{
@@ -47,7 +49,7 @@ defmodule Dragonex.Heroes.Races do
   def get(race_key, subrace_key \\ nil) do
     case find_race(race_key) do
       nil ->
-        {:error, "unknown race: #{race_key}"}
+        {:error, dgettext("engine", "raza desconocida: %{race}", race: race_key)}
 
       race ->
         if race.subraces == [] do
@@ -56,7 +58,10 @@ defmodule Dragonex.Heroes.Races do
           case find_subrace(race, subrace_key) do
             nil ->
               {:error,
-               "race #{race_key} requires a subrace (#{inspect(Enum.map(race.subraces, & &1.key))})"}
+               dgettext("engine", "la raza %{race} requiere una subraza (%{options})",
+                 race: race_key,
+                 options: inspect(Enum.map(race.subraces, & &1.key))
+               )}
 
             sub ->
               {:ok, merge_subrace(race, sub)}

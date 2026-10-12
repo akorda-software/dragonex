@@ -53,5 +53,45 @@ defmodule Dragonex.Accounts.LevelUpTest do
       assert h4.level == 4
       assert Accounts.hero_sheet(h4).str == min(20, str_before + 2)
     end
+
+    test "an expected level permits one confirmation and rejects a stale retry", %{
+      user: user,
+      hero: hero
+    } do
+      assert {:ok, leveled} = Accounts.level_up_hero(user, hero.id, %{expected_level: 1})
+      assert leveled.level == 2
+      assert {:ok, credited} = Accounts.grant_xp(user, hero.id, 100)
+      assert {:error, :stale_level} = Accounts.level_up_hero(user, hero.id, %{expected_level: 1})
+      assert Accounts.get_user_hero(user, hero.id).sheet == credited.sheet
+      assert Accounts.hero_sheet(credited).level == 2
+      assert Accounts.hero_sheet(credited).xp == 400
+    end
+
+    test "a stale confirmation cannot spend ASI choices on a later level", %{
+      user: user,
+      hero: hero
+    } do
+      assert {:ok, leveled} = Accounts.level_up_hero(user, hero.id, %{expected_level: 1})
+      assert {:ok, third} = Accounts.level_up_hero(user, hero.id, %{expected_level: 2})
+      assert third.level == 3
+
+      assert {:error, :stale_level} =
+               Accounts.level_up_hero(user, hero.id, %{expected_level: 2, asi: %{str: 2}})
+
+      assert Accounts.get_user_hero(user, hero.id).sheet == third.sheet
+      assert Accounts.hero_sheet(third).str == Accounts.hero_sheet(leveled).str
+    end
+
+    test "malformed expected levels return an error without applying a progression", %{
+      user: user,
+      hero: hero
+    } do
+      for value <- [nil, "1", %{}, -1] do
+        assert {:error, :invalid_level} =
+                 Accounts.level_up_hero(user, hero.id, %{expected_level: value})
+      end
+
+      assert Accounts.get_user_hero(user, hero.id).sheet == hero.sheet
+    end
   end
 end

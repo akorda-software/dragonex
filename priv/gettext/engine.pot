@@ -1,0 +1,3184 @@
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+msgid ""
+msgstr ""
+
+#: lib/dragonex/actions/heal_spell.ex:58
+#: lib/dragonex/actions/lesser_restoration.ex:40
+#: lib/dragonex/actions/spare_the_dying.ex:29
+#, elixir-autogen, elixir-format
+msgid "%{caster} conjura %{spell}; %{effects}."
+msgstr ""
+
+#: lib/dragonex/actions/heal_spell.ex:71
+#: lib/dragonex/actions/lesser_restoration.ex:68
+#: lib/dragonex/actions/spare_the_dying.ex:42
+#, elixir-autogen, elixir-format
+msgid "%{spell} requiere objetivos distintos para Twinned"
+msgstr ""
+
+#: lib/dragonex/actions/lesser_restoration.ex:33
+#, elixir-autogen, elixir-format
+msgid "%{target}: elimina %{condition}"
+msgstr ""
+
+#: lib/dragonex/actions/lesser_restoration.ex:58
+#, elixir-autogen, elixir-format
+msgid "condition_to_remove debe ser blinded, deafened, paralyzed, poisoned o diseased"
+msgstr ""
+
+#: lib/dragonex/actions/lesser_restoration.ex:100
+#, elixir-autogen, elixir-format
+msgid "elige condition_to_remove: %{options}"
+msgstr ""
+
+#: lib/dragonex/actions/lesser_restoration.ex:83
+#, elixir-autogen, elixir-format
+msgid "está muerto; %{spell} no resucita"
+msgstr ""
+
+#: lib/dragonex/actions/heal_spell.ex:49
+#: lib/dragonex/actions/lesser_restoration.ex:23
+#, elixir-autogen, elixir-format
+msgid "los objetivos de %{spell} han cambiado; vuelve a resolver el hechizo"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3397
+#: lib/dragonex/actions/lay_on_hands_purify.ex:62
+#: lib/dragonex/actions/lesser_restoration.ex:80
+#: lib/dragonex/tools.ex:165
+#, elixir-autogen, elixir-format
+msgid "no existe el objetivo"
+msgstr ""
+
+#: lib/dragonex/actions/lesser_restoration.ex:109
+#, elixir-autogen, elixir-format
+msgid "no tiene la condición %{condition}"
+msgstr ""
+
+#: lib/dragonex/actions/lesser_restoration.ex:94
+#, elixir-autogen, elixir-format
+msgid "no tiene ninguna condición que %{spell} pueda eliminar"
+msgstr ""
+
+#: lib/dragonex/actions.ex:5678
+#, elixir-autogen, elixir-format
+msgid " %{aura} aura"
+msgstr ""
+
+#: lib/dragonex/world.ex:749
+#, elixir-autogen, elixir-format
+msgid " %{bonus} aura"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3326
+#: lib/dragonex/actions.ex:3347
+#, elixir-autogen, elixir-format
+msgid " %{caster} concentra en %{spell}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:4960
+#, elixir-autogen, elixir-format
+msgid " (%{aura} aura)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4914
+#, elixir-autogen, elixir-format
+msgid " (%{count} dardos de fuerza)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:5548
+#, elixir-autogen, elixir-format
+msgid " (+%{amount} smite %{dice}d8 radiante, adicional)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4965
+#, elixir-autogen, elixir-format
+msgid " (+%{bardic} inspiración)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4918
+#, elixir-autogen, elixir-format
+msgid " (3 dardos de fuerza)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3548
+#: lib/dragonex/actions.ex:4737
+#, elixir-autogen, elixir-format
+msgid " (Astucia gnoma: ventaja)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4491
+#, elixir-autogen, elixir-format
+msgid " (Metamagia: Empowered)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3437
+#: lib/dragonex/actions.ex:4597
+#, elixir-autogen, elixir-format
+msgid " (Metamagia: Heightened)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3218
+#: lib/dragonex/actions.ex:3320
+#: lib/dragonex/actions.ex:3341
+#, elixir-autogen, elixir-format
+msgid " (Metamagia: Twinned)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4740
+#, elixir-autogen, elixir-format
+msgid " (Resistencia enana: ventaja)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:5554
+#, elixir-autogen, elixir-format
+msgid " (ataque: incluye %{bardic} inspiración)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:5903
+#, elixir-autogen, elixir-format
+msgid " (desventaja)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:5472
+#, elixir-autogen, elixir-format
+msgid " (incluye %{items})"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3980
+#, elixir-autogen, elixir-format
+msgid " (la mitad)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:761
+#, elixir-autogen, elixir-format
+msgid " (nivel %{level})"
+msgstr ""
+
+#: lib/dragonex/actions.ex:5902
+#, elixir-autogen, elixir-format
+msgid " (ventaja)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2708
+#: lib/dragonex/actions.ex:3543
+#: lib/dragonex/actions.ex:4724
+#, elixir-autogen, elixir-format
+msgid " +%{bardic} inspiración"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2899
+#, elixir-autogen, elixir-format
+msgid " Casillas de pacto recuperadas."
+msgstr ""
+
+#: lib/dragonex/actions.ex:3698
+#, elixir-autogen, elixir-format
+msgid " El arma espiritual lo acompañará durante 1 minuto."
+msgstr ""
+
+#: lib/dragonex/actions.ex:2383
+#, elixir-autogen, elixir-format
+msgid " El exceso se disipa en la Fuente."
+msgstr ""
+
+#: lib/dragonex/actions.ex:4552
+#, elixir-autogen, elixir-format
+msgid " sobre "
+msgstr ""
+
+#: lib/dragonex/actions.ex:2500
+#, elixir-autogen, elixir-format
+msgid " sobre %{target}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3825
+#, elixir-autogen, elixir-format
+msgid "%{actor} %{verb} a %{target} con su arma espiritual (d20 %{d20}%{bless}: %{total} vs CA %{ac}) por %{amount} de %{damage}%{mode}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:1675
+#, elixir-autogen, elixir-format
+msgid "%{actor} adopta la forma de un %{beast} (usos de forma salvaje restantes: %{remaining})."
+msgstr ""
+
+#: lib/dragonex/actions.ex:2503
+#, elixir-autogen, elixir-format
+msgid "%{actor} arma Metamagia: %{option} (%{points}, quedan %{remaining})%{target_note}. El próximo hechizo que califique la aplicará."
+msgstr ""
+
+#: lib/dragonex/actions.ex:2172
+#, elixir-autogen, elixir-format
+msgid "%{actor} aún no tiene Expertise (llega a nivel 3)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2387
+#, elixir-autogen, elixir-format
+msgid "%{actor} drena una casilla de nivel %{level} y recupera %{count} punto de hechicería (%{points}/%{max} máx).%{note}"
+msgid_plural "%{actor} drena una casilla de nivel %{level} y recupera %{count} puntos de hechicería (%{points}/%{max} máx).%{note}"
+msgstr[0] ""
+msgstr[1] ""
+
+#: lib/dragonex/actions.ex:1824
+#, elixir-autogen, elixir-format
+msgid "%{actor} está caído (0 pg) y no puede atacar"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2162
+#, elixir-autogen, elixir-format
+msgid "%{actor} está caído (0 pg) y no puede elegir Expertise"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2024
+#, elixir-autogen, elixir-format
+msgid "%{actor} está caído (0 pg) y no puede esconderse"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3075
+#, elixir-autogen, elixir-format
+msgid "%{actor} está caído (0 pg) y no puede hacer chequeos"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1948
+#, elixir-autogen, elixir-format
+msgid "%{actor} está caído (0 pg) y no puede marcar presa"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2114
+#, elixir-autogen, elixir-format
+msgid "%{actor} está caído (0 pg) y no puede prepararse para esquivar"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1625
+#, elixir-autogen, elixir-format
+msgid "%{actor} está caído (0 pg) y no puede transformarse"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2286
+#: lib/dragonex/actions.ex:2351
+#, elixir-autogen, elixir-format
+msgid "%{actor} está caído (0 pg) y no puede usar Fuente de magia"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2437
+#, elixir-autogen, elixir-format
+msgid "%{actor} está caído (0 pg) y no puede usar Metamagia"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2578
+#, elixir-autogen, elixir-format
+msgid "%{actor} está caído (0 pg) y no puede usar su aliento"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2776
+#, elixir-autogen, elixir-format
+msgid "%{actor} exhala aliento de dragón (fuego, usos restantes: 0): %{target} %{verdict} — %{amount} de %{damage}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:2626
+#, elixir-autogen, elixir-format
+msgid "%{actor} exhala aliento de dragón (fuego, usos restantes: 0): %{target} falla automáticamente la salvación de Destreza vs CD %{dc} — %{amount} de %{damage}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:3114
+#, elixir-autogen, elixir-format
+msgid "%{actor} hace un chequeo de %{label}%{mode}: %{parts} = %{total} vs CD %{dc} — %{verdict}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:1506
+#, elixir-autogen, elixir-format
+msgid "%{actor} inspira a %{target} (Inspiración bárdica d6, usos restantes %{remaining})."
+msgstr ""
+
+#: lib/dragonex/turn_master.ex:158
+#, elixir-autogen, elixir-format
+msgid "%{actor} interrumpe."
+msgstr ""
+
+#: lib/dragonex/actions.ex:3849
+#, elixir-autogen, elixir-format
+msgid "%{actor} lanza su arma espiritual contra %{target} — fallo (d20 %{d20}%{bless}: %{total} vs CA %{ac})%{mode}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:1982
+#, elixir-autogen, elixir-format
+msgid "%{actor} marca a %{target} como presa (Hunter's Mark, concentración, casilla nivel 1 gastada)."
+msgstr ""
+
+#: lib/dragonex/actions.ex:1484
+#, elixir-autogen, elixir-format
+msgid "%{actor} no es bardo y no puede usar Inspiración bárdica"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1269
+#, elixir-autogen, elixir-format
+msgid "%{actor} no es clérigo y no puede usar Expulsar no-muertos"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2582
+#, elixir-autogen, elixir-format
+msgid "%{actor} no es dragontino y no tiene aliento de dragón"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1629
+#, elixir-autogen, elixir-format
+msgid "%{actor} no es druida y no puede usar Forma salvaje"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1952
+#, elixir-autogen, elixir-format
+msgid "%{actor} no es explorador y no puede usar Marca del cazador"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1755
+#, elixir-autogen, elixir-format
+msgid "%{actor} no es guerrero y no puede usar Oleada de acción"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1003
+#, elixir-autogen, elixir-format
+msgid "%{actor} no es guerrero y no puede usar Segundo aliento"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2292
+#: lib/dragonex/actions.ex:2357
+#, elixir-autogen, elixir-format
+msgid "%{actor} no es hechicero y no puede usar Fuente de magia"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2441
+#, elixir-autogen, elixir-format
+msgid "%{actor} no es hechicero y no puede usar Metamagia"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1533
+#, elixir-autogen, elixir-format
+msgid "%{actor} no es mago y no puede usar Recuperación arcana"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1828
+#, elixir-autogen, elixir-format
+msgid "%{actor} no es monje y no puede usar Ráfaga de golpes"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1097
+#, elixir-autogen, elixir-format
+msgid "%{actor} no es paladín y no puede usar Manos impositoras"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1184
+#, elixir-autogen, elixir-format
+msgid "%{actor} no es paladín y no puede usar Sentido divino"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2028
+#, elixir-autogen, elixir-format
+msgid "%{actor} no es pícaro y no puede usar Astucia de pícaro"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2120
+#, elixir-autogen, elixir-format
+msgid "%{actor} no es pícaro y no puede usar Esquiva asombrosa"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1705
+#, elixir-autogen, elixir-format
+msgid "%{actor} no está en forma de bestia"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2370
+#, elixir-autogen, elixir-format
+msgid "%{actor} no le quedan casillas de nivel %{level}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1652
+#, elixir-autogen, elixir-format
+msgid "%{actor} no puede adoptar la forma de %{beast} (ND %{cr}) a nivel %{level} (máximo ND %{max_cr})"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2166
+#, elixir-autogen, elixir-format
+msgid "%{actor} no puede elegir Expertise (sólo pícaros y bardos)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2031
+#, elixir-autogen, elixir-format
+msgid "%{actor} no tiene Astucia de pícaro (nivel 2)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2123
+#, elixir-autogen, elixir-format
+msgid "%{actor} no tiene Esquiva asombrosa (nivel 5)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1275
+#, elixir-autogen, elixir-format
+msgid "%{actor} no tiene Expulsar no-muertos (nivel 2)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1632
+#, elixir-autogen, elixir-format
+msgid "%{actor} no tiene Forma salvaje (nivel 2)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2297
+#: lib/dragonex/actions.ex:2362
+#, elixir-autogen, elixir-format
+msgid "%{actor} no tiene Fuente de magia (nivel 2)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1957
+#, elixir-autogen, elixir-format
+msgid "%{actor} no tiene Marca del cazador (nivel 2)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2444
+#, elixir-autogen, elixir-format
+msgid "%{actor} no tiene Metamagia (nivel 3)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1760
+#, elixir-autogen, elixir-format
+msgid "%{actor} no tiene Oleada de acción (nivel 2)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1831
+#, elixir-autogen, elixir-format
+msgid "%{actor} no tiene Ráfaga de golpes (nivel 2)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2179
+#, elixir-autogen, elixir-format
+msgid "%{actor} no tiene competencia en %{skill} (Expertise sólo aplica a skills entrenadas)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1835
+#, elixir-autogen, elixir-format
+msgid "%{actor} no tiene ki (se recarga con un descanso)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1111
+#, elixir-autogen, elixir-format
+msgid "%{actor} no tiene puntos de Manos impositoras"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1115
+#, elixir-autogen, elixir-format
+msgid "%{actor} no tiene suficientes puntos de Manos impositoras (pide %{amount}, quedan %{pool})"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2465
+#, elixir-autogen, elixir-format
+msgid "%{actor} no tiene suficientes puntos de hechicería (le quedan %{points}; %{option} cuesta %{cost})"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2305
+#, elixir-autogen, elixir-format
+msgid "%{actor} no tiene suficientes puntos de hechicería (le quedan %{points}; la casilla de nivel %{level} cuesta %{cost})"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3732
+#, elixir-autogen, elixir-format
+msgid "%{actor} no tiene un arma espiritual activa (lanza spiritual weapon primero)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1664
+#, elixir-autogen, elixir-format
+msgid "%{actor} no tiene usos de Forma salvaje (se recargan con un descanso)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1500
+#, elixir-autogen, elixir-format
+msgid "%{actor} no tiene usos de Inspiración bárdica"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1190
+#, elixir-autogen, elixir-format
+msgid "%{actor} no tiene usos de Sentido divino"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2207
+#, elixir-autogen, elixir-format
+msgid "%{actor} profundiza su dominio de %{skill} (Expertise %{position}/%{cap})."
+msgstr ""
+
+#: lib/dragonex/turn_master.ex:161
+#, elixir-autogen, elixir-format
+msgid "%{actor} reacciona."
+msgstr ""
+
+#: lib/dragonex/actions.ex:2080
+#, elixir-autogen, elixir-format
+msgid "%{actor} se esconde: %{breakdown}=%{total} vs %{dc} — %{verdict}%{lucky}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2130
+#, elixir-autogen, elixir-format
+msgid "%{actor} se prepara para esquivar (Uncanny Dodge armado: el próximo daño se reduce a la mitad)."
+msgstr ""
+
+#: lib/dragonex/actions.ex:2318
+#, elixir-autogen, elixir-format
+msgid "%{actor} teje magia: convierte %{cost} puntos de hechicería en 1 casilla de nivel %{level} (quedan %{remaining} puntos)."
+msgstr ""
+
+#: lib/dragonex/actions.ex:1375
+#, elixir-autogen, elixir-format
+msgid "%{actor} usa Expulsar no-muertos (CD %{dc}) y no hay no-muertos que Expulsar no-muertos pueda afectar (usos restantes 0)."
+msgstr ""
+
+#: lib/dragonex/actions.ex:1388
+#, elixir-autogen, elixir-format
+msgid "%{actor} usa Expulsar no-muertos (CD %{dc}): %{effects} (usos restantes 0)."
+msgstr ""
+
+#: lib/dragonex/actions.ex:1143
+#, elixir-autogen, elixir-format
+msgid "%{actor} usa Manos impositoras en %{target} y cura %{amount} pg (ahora %{new_hp}/%{max_hp}, pool %{remaining})."
+msgstr ""
+
+#: lib/dragonex/actions.ex:1772
+#, elixir-autogen, elixir-format
+msgid "%{actor} usa Oleada de acción. %{result}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1556
+#, elixir-autogen, elixir-format
+msgid "%{actor} usa Recuperación arcana y recupera %{slots}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:1887
+#, elixir-autogen, elixir-format
+msgid "%{actor} usa Ráfaga de golpes (ki restantes %{remaining}). %{attack}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1030
+#, elixir-autogen, elixir-format
+msgid "%{actor} usa Segundo aliento y se cura %{amount} pg (1d10+%{level} = %{total}, ahora %{new_hp}/%{max_hp})."
+msgstr ""
+
+#: lib/dragonex/actions.ex:1224
+#, elixir-autogen, elixir-format
+msgid "%{actor} usa Sentido divino y no percibe celestiales, infernales ni no-muertos (usos restantes %{remaining})."
+msgstr ""
+
+#: lib/dragonex/actions.ex:1238
+#, elixir-autogen, elixir-format
+msgid "%{actor} usa Sentido divino y percibe: %{detected} (usos restantes %{remaining})."
+msgstr ""
+
+#: lib/dragonex/actions.ex:1709
+#, elixir-autogen, elixir-format
+msgid "%{actor} vuelve a su forma original (PG %{hp})."
+msgstr ""
+
+#: lib/dragonex/actions.ex:1973
+#, elixir-autogen, elixir-format
+msgid "%{actor} ya concentra en %{effect} — debe soltar la concentración antes (drop_concentration)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1635
+#, elixir-autogen, elixir-format
+msgid "%{actor} ya está en forma de bestia"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2034
+#, elixir-autogen, elixir-format
+msgid "%{actor} ya está oculto"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2195
+#, elixir-autogen, elixir-format
+msgid "%{actor} ya ha elegido sus %{count} expertises (%{skills})"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1279
+#, elixir-autogen, elixir-format
+msgid "%{actor} ya ha usado Canalizar divinidad (se recarga con un descanso)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1764
+#, elixir-autogen, elixir-format
+msgid "%{actor} ya ha usado Oleada de acción (se recarga con un descanso)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1537
+#, elixir-autogen, elixir-format
+msgid "%{actor} ya ha usado Recuperación arcana (se recarga con un descanso largo)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1007
+#, elixir-autogen, elixir-format
+msgid "%{actor} ya ha usado Segundo aliento (se recarga con un descanso)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2586
+#, elixir-autogen, elixir-format
+msgid "%{actor} ya ha usado su aliento de dragón (se recarga con un descanso)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2126
+#, elixir-autogen, elixir-format
+msgid "%{actor} ya tiene Esquiva asombrosa armada"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2188
+#, elixir-autogen, elixir-format
+msgid "%{actor} ya tiene Expertise en %{skill}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2456
+#, elixir-autogen, elixir-format
+msgid "%{actor} ya tiene Metamagia armada: %{option} — se consume con su próximo hechizo que califique (espera a que se consuma antes de armar otra)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:5213
+#, elixir-autogen, elixir-format
+msgid "%{attacker} %{verb} a %{target} (d20 %{d20}%{lucky}: %{total} vs CA %{ac}) por %{amount} de %{damage} en total%{inclusions}%{smite}%{bardic}%{mode}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:5235
+#, elixir-autogen, elixir-format
+msgid "%{attacker} ataca a %{target} (%{count} golpes)%{mode}: %{parts}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:224
+#, elixir-autogen, elixir-format
+msgid "%{attacker} está caído (0 pg) y no puede atacar"
+msgstr ""
+
+#: lib/dragonex/actions.ex:5195
+#, elixir-autogen, elixir-format
+msgid "%{attacker} lanza un golpe a %{target} — fallo (d20 %{d20}%{lucky}: %{total} vs CA %{ac})%{bardic}%{mode}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:233
+#, elixir-autogen, elixir-format
+msgid "%{attacker} no tiene el arma %{weapon}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3186
+#, elixir-autogen, elixir-format
+msgid "%{bardic} (inspiración)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3179
+#, elixir-autogen, elixir-format
+msgid "%{bonus} (competencia)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:756
+#: lib/dragonex/actions.ex:4547
+#, elixir-autogen, elixir-format
+msgid "%{caster} conjura %{spell}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4534
+#, elixir-autogen, elixir-format
+msgid "%{caster} conjura %{spell} (Metamagia: Twinned): %{first}; %{second}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:4105
+#, elixir-autogen, elixir-format
+msgid "%{caster} conjura %{spell} (pool %{pool}): %{names} cae inconsciente (%{spent} pg del pool)%{detail}."
+msgid_plural "%{caster} conjura %{spell} (pool %{pool}): %{names} caen inconscientes (%{spent} pg del pool)%{detail}."
+msgstr[0] ""
+msgstr[1] ""
+
+#: lib/dragonex/actions.ex:4081
+#, elixir-autogen, elixir-format
+msgid "%{caster} conjura %{spell} (pool %{pool}): no hay enemigos que duerman."
+msgstr ""
+
+#: lib/dragonex/actions.ex:528
+#, elixir-autogen, elixir-format
+msgid "%{caster} conjura %{spell} sobre %{targets}: +1d4 a ataques y salvaciones durante 1 minuto. %{caster} concentra en %{spell}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:542
+#, elixir-autogen, elixir-format
+msgid "%{caster} conjura %{spell} sobre %{targets}: +2 CA durante 10 minutos. %{caster} concentra en %{spell}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:4303
+#, elixir-autogen, elixir-format
+msgid "%{caster} conjura %{spell} sobre %{target}. %{effect}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3221
+#, elixir-autogen, elixir-format
+msgid "%{caster} conjura %{spell}%{twin} sobre %{targets}: CA 13 + DES durante 8 horas, sin concentración."
+msgstr ""
+
+#: lib/dragonex/actions.ex:3331
+#: lib/dragonex/actions.ex:3352
+#, elixir-autogen, elixir-format
+msgid "%{caster} conjura %{spell}%{twin}: %{effects}.%{concentration}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3258
+#, elixir-autogen, elixir-format
+msgid "%{caster} conjura %{spell}: %{effects}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:3874
+#, elixir-autogen, elixir-format
+msgid "%{caster} conjura %{spell}: espíritus revolotean a su alrededor y golpearán a sus enemigos al inicio de cada uno de sus turnos (SAB vs CD %{dc}, la mitad al superararla). %{caster} concentra en %{spell}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:4811
+#, elixir-autogen, elixir-format
+msgid "%{caster} conjura %{spell}; %{target} %{verdict} — %{amount} de %{damage}%{empowered}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:4621
+#, elixir-autogen, elixir-format
+msgid "%{caster} conjura %{spell}; %{target} falla automáticamente la salvación de %{ability} vs CD %{dc}%{heightened} — %{amount} de %{damage}%{empowered}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:4278
+#, elixir-autogen, elixir-format
+msgid "%{caster} conjura %{spell}; %{target} recibe %{amount} de %{damage}%{verb}%{empowered}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:4251
+#, elixir-autogen, elixir-format
+msgid "%{caster} conjura %{spell}; %{target} se cura %{total} pg (%{amount} + %{modifier})."
+msgstr ""
+
+#: lib/dragonex/actions.ex:4405
+#, elixir-autogen, elixir-format
+msgid "%{caster} conjura %{spell}; falla contra %{target} (d20 %{d20}%{bless}: %{total} vs CA %{ac})%{mode}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:4037
+#, elixir-autogen, elixir-format
+msgid "%{caster} conjura %{spell}; genera %{total} pg temporales durante 1 hora (no se acumulan; conserva el mayor valor)."
+msgstr ""
+
+#: lib/dragonex/actions.ex:4375
+#, elixir-autogen, elixir-format
+msgid "%{caster} conjura %{spell}; impacta a %{target} (d20 %{d20}%{bless}: %{total} vs CA %{ac}) por %{amount} de %{damage}%{empowered}%{mode}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:4229
+#, elixir-autogen, elixir-format
+msgid "%{caster} conjura %{spell}; los dardos se disipan contra el escudo arcano de %{target} — 0 de %{damage}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:411
+#, elixir-autogen, elixir-format
+msgid "%{caster} está caído (0 pg) y no puede conjurar"
+msgstr ""
+
+#: lib/dragonex/actions.ex:417
+#, elixir-autogen, elixir-format
+msgid "%{caster} está en furia y no puede conjurar"
+msgstr ""
+
+#: lib/dragonex/actions.ex:430
+#, elixir-autogen, elixir-format
+msgid "%{caster} no conoce %{spell}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:421
+#, elixir-autogen, elixir-format
+msgid "%{caster} no puede conjurar en forma de bestia"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4165
+#, elixir-autogen, elixir-format
+msgid "%{caster} teje un escudo arcano: +5 CA hasta el inicio de su siguiente turno; los dardos de magic missile no le dañarán."
+msgstr ""
+
+#: lib/dragonex/actions/lay_on_hands_purify.ex:38
+#, elixir-autogen, elixir-format
+msgid "%{caster} usa Manos impositoras en %{target}: elimina %{conditions}, cura %{amount} pg y gasta %{cost} puntos (pool %{remaining})."
+msgstr ""
+
+#: lib/dragonex/actions.ex:2497
+#, elixir-autogen, elixir-format
+msgid "%{cost} puntos de hechicería"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1588
+#, elixir-autogen, elixir-format
+msgid "%{count} hueco de nivel %{level}"
+msgid_plural "%{count} huecos de nivel %{level}"
+msgstr[0] ""
+msgstr[1] ""
+
+#: lib/dragonex/actions.ex:5148
+#: lib/dragonex_web/live/home_demo.ex:128
+#, elixir-autogen, elixir-format
+msgid "%{damage} a %{target}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1574
+#, elixir-autogen, elixir-format
+msgid "%{first} y %{last}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1579
+#, elixir-autogen, elixir-format
+msgid "%{first}, %{middle} y %{last}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1409
+#, elixir-autogen, elixir-format
+msgid "%{names} quedan asustados"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1435
+#, elixir-autogen, elixir-format
+msgid "%{names} son inmunes al miedo (Aura de Coraje)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1422
+#, elixir-autogen, elixir-format
+msgid "%{names} superan la salvación"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3996
+#, elixir-autogen, elixir-format
+msgid "%{name} %{verb} la salvación de Sabiduría de spirit guardians (d20 %{d20}: %{total} vs CD %{dc}%{tail})"
+msgstr ""
+
+#: lib/dragonex/tools.ex:463
+#, elixir-autogen, elixir-format
+msgid "%{name} aparece (%{hp} pg)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1431
+#, elixir-autogen, elixir-format
+msgid "%{name} es inmune al miedo (Aura de Coraje)"
+msgstr ""
+
+#: lib/dragonex/world.ex:202
+#, elixir-autogen, elixir-format
+msgid "%{name} está caído (0 pg) y no puede actuar"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2861
+#: lib/dragonex/actions.ex:2947
+#, elixir-autogen, elixir-format
+msgid "%{name} está caído y no puede descansar"
+msgstr ""
+
+#: lib/dragonex/turn_master/tools.ex:141
+#, elixir-autogen, elixir-format
+msgid "%{name} está caído — elige a otro"
+msgstr ""
+
+#: lib/dragonex/world.ex:2401
+#, elixir-autogen, elixir-format
+msgid "%{name} está fuera de escena"
+msgstr ""
+
+#: lib/dragonex/world.ex:195
+#, elixir-autogen, elixir-format
+msgid "%{name} está fuera de escena y no puede actuar"
+msgstr ""
+
+#: lib/dragonex/turn_master/tools.ex:130
+#, elixir-autogen, elixir-format
+msgid "%{name} está fuera de escena — elige un combatiente presente"
+msgstr ""
+
+#: lib/dragonex/world.ex:211
+#, elixir-autogen, elixir-format
+msgid "%{name} está incapacitado y no puede actuar"
+msgstr ""
+
+#: lib/dragonex/world.ex:199
+#, elixir-autogen, elixir-format
+msgid "%{name} está muerto y no puede actuar"
+msgstr ""
+
+#: lib/dragonex/turn_master/tools.ex:135
+#, elixir-autogen, elixir-format
+msgid "%{name} está muerto — elige a otro"
+msgstr ""
+
+#: lib/dragonex/actions/heal_spell.ex:83
+#, elixir-autogen, elixir-format
+msgid "%{name} está muerto; la curación no resucita"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3598
+#, elixir-autogen, elixir-format
+msgid "%{name} falla Hold Person (d20 %{d20}: %{total} vs CD %{dc}%{tail}) y sigue paralizado"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3504
+#, elixir-autogen, elixir-format
+msgid "%{name} falla automáticamente la salvación de %{ability} vs CD %{dc} y %{effect}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3526
+#, elixir-autogen, elixir-format
+msgid "%{name} falla la salvación de %{ability} (d20 %{d20}: %{total} vs CD %{dc}%{tail}) y %{effect}"
+msgstr ""
+
+#: lib/dragonex/world.ex:734
+#, elixir-autogen, elixir-format
+msgid "%{name} falla la salvación de Furia implacable (CON d20 %{d20}: %{total} vs CD %{dc}%{aura})"
+msgstr ""
+
+#: lib/dragonex/damage.ex:44
+#, elixir-autogen, elixir-format
+msgid "%{name} ha cambiado desde la resolución del daño; vuelve a resolver la acción"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2884
+#, elixir-autogen, elixir-format
+msgid "%{name} hace un descanso corto y recupera %{amount} pg (%{count} dados de golpe d%{hit_die}, CON %{con} por dado = %{total}, ahora %{new_hp}/%{max_hp})."
+msgstr ""
+
+#: lib/dragonex/actions.ex:2952
+#, elixir-autogen, elixir-format
+msgid "%{name} hace un descanso largo y recupera %{healed} pg (%{hp} → %{max_hp}, recuperación completa). Casillas de hechizo recuperadas."
+msgstr ""
+
+#: lib/dragonex/world.ex:1266
+#, elixir-autogen, elixir-format
+msgid "%{name} no es bárbaro y no puede atacar de forma temeraria"
+msgstr ""
+
+#: lib/dragonex/world.ex:1213
+#, elixir-autogen, elixir-format
+msgid "%{name} no es bárbaro y no puede entrar en furia"
+msgstr ""
+
+#: lib/dragonex/world.ex:2108
+#, elixir-autogen, elixir-format
+msgid "%{name} no es guerrero y no puede usar Segundo aliento"
+msgstr ""
+
+#: lib/dragonex/world.ex:1702
+#, elixir-autogen, elixir-format
+msgid "%{name} no es hechicero y no puede ganar puntos de hechicería"
+msgstr ""
+
+#: lib/dragonex/world.ex:1665
+#, elixir-autogen, elixir-format
+msgid "%{name} no es hechicero y no puede gastar puntos de hechicería"
+msgstr ""
+
+#: lib/dragonex/world.ex:1611
+#, elixir-autogen, elixir-format
+msgid "%{name} no es monje y no puede gastar ki"
+msgstr ""
+
+#: lib/dragonex/world.ex:2173
+#, elixir-autogen, elixir-format
+msgid "%{name} no es paladín y no puede usar Castigo divino"
+msgstr ""
+
+#: lib/dragonex/world.ex:1585
+#, elixir-autogen, elixir-format
+msgid "%{name} no es paladín y no puede usar Sentido divino"
+msgstr ""
+
+#: lib/dragonex/conversation.ex:251
+#, elixir-autogen, elixir-format
+msgid "%{name} no es un PC presente al que puedas pedir respuesta."
+msgstr ""
+
+#: lib/dragonex/turn_master/tools.ex:112
+#, elixir-autogen, elixir-format
+msgid "%{name} no es un participante de esta partida"
+msgstr ""
+
+#: lib/dragonex/turn_master/tools.ex:120
+#, elixir-autogen, elixir-format
+msgid "%{name} no es un participante válido"
+msgstr ""
+
+#: lib/dragonex/actions.ex:869
+#, elixir-autogen, elixir-format
+msgid "%{name} no está caído (pg %{hp})"
+msgstr ""
+
+#: lib/dragonex/world.ex:1800
+#, elixir-autogen, elixir-format
+msgid "%{name} no está en forma de bestia"
+msgstr ""
+
+#: lib/dragonex/turn_master/tools.ex:115
+#, elixir-autogen, elixir-format
+msgid "%{name} no existe en la escena"
+msgstr ""
+
+#: lib/dragonex/world.ex:1200
+#, elixir-autogen, elixir-format
+msgid "%{name} no le quedan furias hoy (%{max}/%{max} usadas)"
+msgstr ""
+
+#: lib/dragonex/world.ex:1271
+#, elixir-autogen, elixir-format
+msgid "%{name} no tiene Ataque temerario (nivel 2)"
+msgstr ""
+
+#: lib/dragonex/world.ex:1926
+#, elixir-autogen, elixir-format
+msgid "%{name} no tiene huecos gastados que Recuperación arcana pueda restaurar"
+msgstr ""
+
+#: lib/dragonex/world.ex:1618
+#, elixir-autogen, elixir-format
+msgid "%{name} no tiene suficiente ki (le quedan %{ki})"
+msgstr ""
+
+#: lib/dragonex/world.ex:1674
+#, elixir-autogen, elixir-format
+msgid "%{name} no tiene suficientes puntos de hechicería (le quedan %{points})"
+msgstr ""
+
+#: lib/dragonex/world.ex:1591
+#, elixir-autogen, elixir-format
+msgid "%{name} no tiene usos de Sentido divino"
+msgstr ""
+
+#: lib/dragonex/world.ex:801
+#, elixir-autogen, elixir-format
+msgid "%{name} recibe daño estando caído: dos fallos de salvación de muerte"
+msgstr ""
+
+#: lib/dragonex/world.ex:807
+#, elixir-autogen, elixir-format
+msgid "%{name} recibe daño estando caído: un fallo de salvación de muerte"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4942
+#, elixir-autogen, elixir-format
+msgid "%{name} saca %{d20}%{aura}%{bardic} — un fallo de salvación de muerte."
+msgstr ""
+
+#: lib/dragonex/actions.ex:4951
+#, elixir-autogen, elixir-format
+msgid "%{name} saca %{d20}%{aura}%{bardic} — un éxito de salvación de muerte."
+msgstr ""
+
+#: lib/dragonex/actions.ex:4932
+#, elixir-autogen, elixir-format
+msgid "%{name} saca un 1 natural%{aura}%{bardic} — ¡dos fallos de salvación de muerte!"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4924
+#, elixir-autogen, elixir-format
+msgid "%{name} saca un 20 natural%{aura}%{bardic} — ¡revive con 1 pg!"
+msgstr ""
+
+#: lib/dragonex/world.ex:503
+#, elixir-autogen, elixir-format
+msgid "%{name} sale de escena: %{cleaned}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3588
+#, elixir-autogen, elixir-format
+msgid "%{name} supera Hold Person (d20 %{d20}: %{total} vs CD %{dc}%{tail}) y deja de estar paralizado"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3514
+#, elixir-autogen, elixir-format
+msgid "%{name} supera la salvación de %{ability} (d20 %{d20}: %{total} vs CD %{dc}%{tail})"
+msgstr ""
+
+#: lib/dragonex/world.ex:529
+#, elixir-autogen, elixir-format
+msgid "%{name} vuelve a la escena"
+msgstr ""
+
+#: lib/dragonex/world.ex:2726
+#, elixir-autogen, elixir-format
+msgid "%{name} ya está en el nivel máximo (20)"
+msgstr ""
+
+#: lib/dragonex/world.ex:1780
+#, elixir-autogen, elixir-format
+msgid "%{name} ya está en forma de bestia"
+msgstr ""
+
+#: lib/dragonex/actions.ex:881
+#, elixir-autogen, elixir-format
+msgid "%{name} ya está estable (3 salvaciones de muerte) — no necesita tirar más salvaciones"
+msgstr ""
+
+#: lib/dragonex/world.ex:475
+#, elixir-autogen, elixir-format
+msgid "%{name} ya está fuera de escena"
+msgstr ""
+
+#: lib/dragonex/actions.ex:873
+#, elixir-autogen, elixir-format
+msgid "%{name} ya está muerto (3 fallos de salvación de muerte) — no puede tirar más salvaciones"
+msgstr ""
+
+#: lib/dragonex/world.ex:521
+#, elixir-autogen, elixir-format
+msgid "%{name} ya está presente en la escena"
+msgstr ""
+
+#: lib/dragonex/world.ex:2114
+#, elixir-autogen, elixir-format
+msgid "%{name} ya ha usado Segundo aliento (se recarga con un descanso)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1403
+#, elixir-autogen, elixir-format
+msgid "%{name}%{indomitable} queda asustado"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1416
+#, elixir-autogen, elixir-format
+msgid "%{name}%{indomitable} supera la salvación"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1598
+#, elixir-autogen, elixir-format
+msgid "%{n} de nivel %{level}"
+msgstr ""
+
+#: lib/dragonex/heroes.ex:318
+#, elixir-autogen, elixir-format
+msgid "%{race} %{class} de origen %{background}, en busca de una deuda que saldar."
+msgstr ""
+
+#: lib/dragonex/heroes.ex:872
+#, elixir-autogen, elixir-format
+msgid "%{race} %{class} de origen %{background}, que se lanza a la aventura."
+msgstr ""
+
+#: lib/dragonex/actions.ex:5322
+#, elixir-autogen, elixir-format
+msgid "%{result} %{caster} concentra en %{spell}."
+msgstr ""
+
+#: lib/dragonex/actions/heal_spell.ex:89
+#: lib/dragonex/actions/spare_the_dying.ex:57
+#, elixir-autogen, elixir-format
+msgid "%{spell} no afecta a constructos ni no-muertos: %{target}"
+msgstr ""
+
+#: lib/dragonex/world.ex:974
+#, elixir-autogen, elixir-format
+msgid "%{spell} permite hasta %{max} objetivos a nivel %{level}"
+msgstr ""
+
+#: lib/dragonex/world.ex:993
+#: lib/dragonex/world.ex:1034
+#, elixir-autogen, elixir-format
+msgid "%{spell} requiere objetivos existentes y no muertos"
+msgstr ""
+
+#: lib/dragonex/world.ex:965
+#, elixir-autogen, elixir-format
+msgid "%{spell} requiere una lista de objetivos"
+msgstr ""
+
+#: lib/dragonex/world.ex:1017
+#, elixir-autogen, elixir-format
+msgid "%{spell} requiere uno o dos objetivos (con Twinned)"
+msgstr ""
+
+#: lib/dragonex/tools.ex:1409
+#, elixir-autogen, elixir-format
+msgid "%{target} ahora está %{condition}"
+msgstr ""
+
+#: lib/dragonex/world.ex:2577
+#, elixir-autogen, elixir-format
+msgid "%{target} debe estar a 0 pg para estabilizarse"
+msgstr ""
+
+#: lib/dragonex/tools.ex:1405
+#, elixir-autogen, elixir-format
+msgid "%{target} es inmune al miedo (Aura de Coraje)"
+msgstr ""
+
+#: lib/dragonex/tools.ex:749
+#, elixir-autogen, elixir-format
+msgid "%{target} es un jugador humano: debe subir de nivel desde su ficha (/heroes/:id/level-up), no por la mesa."
+msgstr ""
+
+#: lib/dragonex/actions.ex:1961
+#, elixir-autogen, elixir-format
+msgid "%{target} está caído (0 pg) y no puede ser presa"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3742
+#: lib/dragonex/world.ex:2552
+#, elixir-autogen, elixir-format
+msgid "%{target} está muerto"
+msgstr ""
+
+#: lib/dragonex/world.ex:2573
+#, elixir-autogen, elixir-format
+msgid "%{target} está muerto; estabilizar no resucita"
+msgstr ""
+
+#: lib/dragonex/actions.ex:681
+#: lib/dragonex/actions.ex:954
+#: lib/dragonex/actions.ex:1085
+#: lib/dragonex/world.ex:2259
+#, elixir-autogen, elixir-format
+msgid "%{target} está muerto; la curación no resucita"
+msgstr ""
+
+#: lib/dragonex/world.ex:2549
+#, elixir-autogen, elixir-format
+msgid "%{target} no está caído"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1125
+#, elixir-autogen, elixir-format
+msgid "%{target} no puede recibir Manos impositoras (no-muerto o constructo)"
+msgstr ""
+
+#: lib/dragonex/actions/spare_the_dying.ex:25
+#, elixir-autogen, elixir-format
+msgid "%{target} queda estable a 0 pg"
+msgstr ""
+
+#: lib/dragonex/tools.ex:412
+#, elixir-autogen, elixir-format
+msgid "%{target} recibe %{amount} de daño"
+msgstr ""
+
+#: lib/dragonex/actions/heal_spell.ex:23
+#, elixir-autogen, elixir-format
+msgid "%{target} recupera %{amount} pg"
+msgstr ""
+
+#: lib/dragonex/actions/heal_spell.ex:25
+#, elixir-autogen, elixir-format
+msgid "%{target} recupera %{amount} pg; elimina %{conditions}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:971
+#, elixir-autogen, elixir-format
+msgid "%{target} se cura %{amount} pg (%{hp} → %{new_hp})."
+msgstr ""
+
+#: lib/dragonex/actions.ex:1138
+#, elixir-autogen, elixir-format
+msgid "%{target} ya está a tope de puntos de golpe"
+msgstr ""
+
+#: lib/dragonex/world.ex:2555
+#, elixir-autogen, elixir-format
+msgid "%{target} ya está estable"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1496
+#: lib/dragonex/world.ex:2019
+#, elixir-autogen, elixir-format
+msgid "%{target} ya está inspirado"
+msgstr ""
+
+#: lib/dragonex/tools.ex:1424
+#, elixir-autogen, elixir-format
+msgid "%{target} ya no está %{condition}"
+msgstr ""
+
+#: lib/dragonex/turn_master/tools.ex:34
+#, elixir-autogen, elixir-format
+msgid "%{to} interrumpe"
+msgstr ""
+
+#: lib/dragonex/turn_master/tools.ex:46
+#, elixir-autogen, elixir-format
+msgid "%{to} reacciona"
+msgstr ""
+
+#: lib/dragonex/actions.ex:5260
+#, elixir-autogen, elixir-format
+msgid "%{verb} (d20 %{d20}%{lucky}: %{total} vs CA %{ac}) por %{amount} de %{damage} en total%{inclusions}%{smite}%{bardic}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3974
+#, elixir-autogen, elixir-format
+msgid "%{verb}%{tail} — recibe %{amount} de %{damage}"
+msgstr ""
+
+#: lib/dragonex/tools.ex:910
+#, elixir-autogen, elixir-format
+msgid "%{what} deben ser un entero positivo (recibió %{value})"
+msgstr ""
+
+#: lib/dragonex/tools.ex:1185
+#, elixir-autogen, elixir-format
+msgid "%{who} arma Castigo divino (casilla de nivel %{level})."
+msgstr ""
+
+#: lib/dragonex/tools.ex:988
+#, elixir-autogen, elixir-format
+msgid "%{who} ataca de forma temeraria."
+msgstr ""
+
+#: lib/dragonex/tools.ex:999
+#, elixir-autogen, elixir-format
+msgid "%{who} deja de atacar de forma temeraria."
+msgstr ""
+
+#: lib/dragonex/tools.ex:948
+#, elixir-autogen, elixir-format
+msgid "%{who} deja de concentrarse en %{spell}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:976
+#, elixir-autogen, elixir-format
+msgid "%{who} deja la furia."
+msgstr ""
+
+#: lib/dragonex/tools.ex:966
+#, elixir-autogen, elixir-format
+msgid "%{who} entra en furia."
+msgstr ""
+
+#: lib/dragonex/tools.ex:381
+#, elixir-autogen, elixir-format
+msgid "%{who} entrega o deja %{quantity} × %{item}; inventario actualizado."
+msgstr ""
+
+#: lib/dragonex/tools.ex:333
+#, elixir-autogen, elixir-format
+msgid "%{who} está fuera de escena; conserva su ficha y no es un objetivo presente."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1470
+#, elixir-autogen, elixir-format
+msgid "%{who} gana %{amount} XP (total %{xp}; nivel máximo; no puede subir de nivel)."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1491
+#, elixir-autogen, elixir-format
+msgid "%{who} gana %{amount} XP (total %{xp}; umbral siguiente nivel %{threshold}; aún no puede subir de nivel)."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1480
+#, elixir-autogen, elixir-format
+msgid "%{who} gana %{amount} XP (total %{xp}; umbral siguiente nivel %{threshold}; puede subir de nivel)."
+msgstr ""
+
+#: lib/dragonex/world.ex:2009
+#, elixir-autogen, elixir-format
+msgid "%{who} no es bardo y no puede usar Inspiración bárdica"
+msgstr ""
+
+#: lib/dragonex/world.ex:2063
+#, elixir-autogen, elixir-format
+msgid "%{who} no es paladín y no puede usar Manos impositoras"
+msgstr ""
+
+#: lib/dragonex/tools.ex:953
+#, elixir-autogen, elixir-format
+msgid "%{who} no estaba concentrado."
+msgstr ""
+
+#: lib/dragonex/tools.ex:360
+#, elixir-autogen, elixir-format
+msgid "%{who} no está presente en la escena."
+msgstr ""
+
+#: lib/dragonex/world.ex:2067
+#, elixir-autogen, elixir-format
+msgid "%{who} no tiene suficientes puntos de Manos impositoras"
+msgstr ""
+
+#: lib/dragonex/world.ex:2023
+#, elixir-autogen, elixir-format
+msgid "%{who} no tiene usos de Inspiración bárdica"
+msgstr ""
+
+#: lib/dragonex/tools.ex:896
+#, elixir-autogen, elixir-format
+msgid "%{who} queda con %{amount} pg temporales."
+msgstr ""
+
+#: lib/dragonex/tools.ex:368
+#, elixir-autogen, elixir-format
+msgid "%{who} recibe %{quantity} × %{item} en su inventario."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1199
+#, elixir-autogen, elixir-format
+msgid "%{who} retira el Castigo divino."
+msgstr ""
+
+#: lib/dragonex/tools.ex:345
+#, elixir-autogen, elixir-format
+msgid "%{who} vuelve a la escena con su ficha conservada."
+msgstr ""
+
+#: lib/dragonex/actions.ex:5596
+#, elixir-autogen, elixir-format
+msgid "(Indomitable: %{before}→%{after})"
+msgstr ""
+
+#: lib/dragonex/rules/combat.ex:347
+#, elixir-autogen, elixir-format
+msgid "(Lucky: 1→%{reroll})"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2068
+#, elixir-autogen, elixir-format
+msgid "+%{bonus} (experto)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2496
+#, elixir-autogen, elixir-format
+msgid "1 punto de hechicería"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4093
+#, elixir-autogen, elixir-format
+msgid "; %{name} (%{hp} pg) resiste — el resto del pool (%{leftover}) no alcanza"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4102
+#, elixir-autogen, elixir-format
+msgid "; queda %{leftover} de pool sin gastar"
+msgstr ""
+
+#: lib/dragonex/world.ex:445
+#, elixir-autogen, elixir-format
+msgid "; usa return_to_scene para conservar su ficha"
+msgstr ""
+
+#: lib/dragonex/tools.ex:1925
+#, elixir-autogen, elixir-format
+msgid "Actores disponibles que controlas: %{actors}. Usa su nombre canónico y respeta el slot actual de iniciativa."
+msgstr ""
+
+#: lib/dragonex/world.ex:1252
+#, elixir-autogen, elixir-format
+msgid "Ataque temerario se decide antes del primer ataque del turno"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3822
+#: lib/dragonex/actions.ex:5211
+#: lib/dragonex/actions.ex:5258
+#, elixir-autogen, elixir-format
+msgid "CRÍTICO"
+msgstr ""
+
+#: lib/dragonex/rules/inventory.ex:93
+#, elixir-autogen, elixir-format
+msgid "Cantidad insuficiente: tiene %{stock} unidades."
+msgstr ""
+
+#: lib/dragonex/actions.ex:5527
+#, elixir-autogen, elixir-format
+msgid "Castigo divino (radiante) a %{target}"
+msgstr ""
+
+#: lib/dragonex/world.ex:358
+#, elixir-autogen, elixir-format
+msgid "El destinatario debe ser un personaje jugador presente."
+msgstr ""
+
+#: lib/dragonex/rules/inventory.ex:80
+#, elixir-autogen, elixir-format
+msgid "El inventario admite hasta %{max} entradas."
+msgstr ""
+
+#: lib/dragonex/world.ex:355
+#, elixir-autogen, elixir-format
+msgid "El inventario narrativo solo se confirma en exploración."
+msgstr ""
+
+#: lib/dragonex/game/turnmaster.ex:597
+#, elixir-autogen, elixir-format
+msgid "El motor toma el relevo del turno (anti-bucle)."
+msgstr ""
+
+#: lib/dragonex/game/turnmaster.ex:598
+#: lib/dragonex/turn_master.ex:169
+#, elixir-autogen, elixir-format
+msgid "El motor toma el relevo del turno."
+msgstr ""
+
+#: lib/dragonex/rules/inventory.ex:63
+#, elixir-autogen, elixir-format
+msgid "El nombre del objeto debe tener entre 1 y %{max} caracteres."
+msgstr ""
+
+#: lib/dragonex/rules/inventory.ex:83
+#, elixir-autogen, elixir-format
+msgid "El personaje no tiene ese objeto en su inventario."
+msgstr ""
+
+#: lib/dragonex/game/settlement.ex:313
+#, elixir-autogen, elixir-format
+msgid "El turno %{owner} no pudo completarse (%{reason}). La partida está en pausa; los resultados registrados se conservan. Reanuda para volver a intentarlo."
+msgstr ""
+
+#: lib/dragonex/game/settlement.ex:496
+#, elixir-autogen, elixir-format
+msgid "El turno %{owner} se omite tras volver a fallar. Los resultados ya registrados se conservan."
+msgstr ""
+
+#: lib/dragonex/game/turnmaster.ex:593
+#: lib/dragonex/turn_master.ex:155
+#, elixir-autogen, elixir-format
+msgid "El turno pasa a %{next}."
+msgstr ""
+
+#: lib/dragonex/game/turnmaster.ex:592
+#: lib/dragonex/turn_master.ex:163
+#, elixir-autogen, elixir-format
+msgid "El turno pasa al DM."
+msgstr ""
+
+#: lib/dragonex/conversation.ex:261
+#, elixir-autogen, elixir-format
+msgid "Elige entre 1 y %{max} compañeros para responder."
+msgstr ""
+
+#: lib/dragonex/tools.ex:682
+#, elixir-autogen, elixir-format
+msgid "Espera registrada; reloj confirmado: %{seconds} s. No repitas este intervalo."
+msgstr ""
+
+#: lib/dragonex/game/npc_memory_resolution.ex:94
+#, elixir-autogen, elixir-format
+msgid "Esta aclaración corresponde a %{speaker}; registra su testimonio con esa fuente."
+msgstr ""
+
+#: lib/dragonex/rules/inventory.ex:108
+#, elixir-autogen, elixir-format
+msgid "Esta herramienta solo modifica objetos descriptivos de equipo; no equipa ni retira armas o armaduras."
+msgstr ""
+
+#: lib/dragonex/actions.ex:689
+#, elixir-autogen, elixir-format
+msgid "False Life solo puede tener como objetivo al propio lanzador"
+msgstr ""
+
+#: lib/dragonex/actions/lay_on_hands_purify.ex:70
+#, elixir-autogen, elixir-format
+msgid "Imposición de manos no afecta a constructos ni no-muertos"
+msgstr ""
+
+#: lib/dragonex/actions/lay_on_hands_purify.ex:60
+#, elixir-autogen, elixir-format
+msgid "Imposición de manos requiere un paladín"
+msgstr ""
+
+#: lib/dragonex/actions/lay_on_hands_purify.ex:30
+#, elixir-autogen, elixir-format
+msgid "Imposición de manos: personajes o plazos han cambiado; vuelve a resolver"
+msgstr ""
+
+#: lib/dragonex/npc_statement.ex:108
+#, elixir-autogen, elixir-format
+msgid "Indica una fuente PNJ y su afirmación como textos."
+msgstr ""
+
+#: lib/dragonex/actions.ex:846
+#, elixir-autogen, elixir-format
+msgid "Iniciativa — %{summary}."
+msgstr ""
+
+#: lib/dragonex/rules/inventory.ex:38
+#, elixir-autogen, elixir-format
+msgid "Inventario sin registro válido."
+msgstr ""
+
+#: lib/dragonex/rules/inventory.ex:72
+#, elixir-autogen, elixir-format
+msgid "La cantidad debe ser un entero entre 1 y %{max}."
+msgstr ""
+
+#: lib/dragonex/game/settlement.ex:490
+#, elixir-autogen, elixir-format
+msgid "La declaración de %{actor} no pudo completarse. Los resultados ya registrados se conservan."
+msgstr ""
+
+#: lib/dragonex/games.ex:367
+#, elixir-autogen, elixir-format
+msgid "La escena está preparada: %{scene}"
+msgstr ""
+
+#: lib/dragonex/turn_master.ex:166
+#, elixir-autogen, elixir-format
+msgid "La escena termina. Vuelta a exploración."
+msgstr ""
+
+#: lib/dragonex/game/tool_replay.ex:202
+#, elixir-autogen, elixir-format
+msgid "La herramienta %{tool} ya aplicó su cambio. Consulta el estado vigente y las tiradas registradas; no repitas el efecto."
+msgstr ""
+
+#: lib/dragonex/game/turnmaster.ex:675
+#: lib/dragonex/game/turnmaster.ex:689
+#, elixir-autogen, elixir-format
+msgid "La intención de %{name} ya no aplica."
+msgstr ""
+
+#: lib/dragonex/actions.ex:840
+#, elixir-autogen, elixir-format
+msgid "La lista de combatientes o su Destreza cambió después de preparar la iniciativa. Vuelve a pedir iniciativa con el estado actual; esta tirada no se aplicó."
+msgstr ""
+
+#: lib/dragonex/rules/inventory.ex:97
+#, elixir-autogen, elixir-format
+msgid "La pila admite hasta %{max} unidades."
+msgstr ""
+
+#: lib/dragonex/conversation.ex:292
+#, elixir-autogen, elixir-format
+msgid "La pregunta debe ser texto."
+msgstr ""
+
+#: lib/dragonex/conversation.ex:52
+#: lib/dragonex/conversation.ex:64
+#, elixir-autogen, elixir-format
+msgid "La pregunta necesita un destinatario del mundo."
+msgstr ""
+
+#: lib/dragonex/conversation.ex:288
+#, elixir-autogen, elixir-format
+msgid "La pregunta no puede estar vacía."
+msgstr ""
+
+#: lib/dragonex/narration.ex:46
+#, elixir-autogen, elixir-format
+msgid "Narración pública registrada y ya visible; el turno sigue abierto. El cierre no debe repetirla: continúa con lo que cambie después."
+msgstr ""
+
+#: lib/dragonex/heroes.ex:335
+#, elixir-autogen, elixir-format
+msgid "No habla mucho de su pasado, pero cada cicatriz tiene nombre propio."
+msgstr ""
+
+#: lib/dragonex/actions.ex:799
+#, elixir-autogen, elixir-format
+msgid "No hay criaturas hostiles registradas en la escena: regístralas primero con spawn_monster y después pide iniciativa."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1920
+#, elixir-autogen, elixir-format
+msgid "No hay criaturas registradas disponibles; introduce un monstruo nuevo con spawn_monster antes de resolver sus acciones."
+msgstr ""
+
+#: lib/dragonex/conversation.ex:269
+#, elixir-autogen, elixir-format
+msgid "No puedes pedirte respuesta a ti mismo."
+msgstr ""
+
+#: lib/dragonex/npc_statement.ex:71
+#, elixir-autogen, elixir-format
+msgid "No registres la voz de un PC como testimonio de PNJ; cada PC habla en su turno."
+msgstr ""
+
+#: lib/dragonex/game/tool_replay.ex:241
+#, elixir-autogen, elixir-format
+msgid "No se pudo completar la narración de %{actor}. La partida está en pausa; los resultados registrados se conservan. Reanuda para volver a intentarlo."
+msgstr ""
+
+#: lib/dragonex/game/combat.ex:182
+#, elixir-autogen, elixir-format
+msgid "No se pudo guardar el cierre del combate. La partida está en pausa; reanuda para volver a intentarlo."
+msgstr ""
+
+#: lib/dragonex/game/combat.ex:147
+#, elixir-autogen, elixir-format
+msgid "No se pudo guardar el inicio del turno. La partida está en pausa; reanuda para volver a intentarlo."
+msgstr ""
+
+#: lib/dragonex/game/settlement.ex:82
+#, elixir-autogen, elixir-format
+msgid "No se pudo guardar la iniciativa automática. La partida está en pausa; reanuda para volver a intentarlo."
+msgstr ""
+
+#: lib/dragonex/game/combat.ex:58
+#, elixir-autogen, elixir-format
+msgid "No se pudo guardar la recuperación del orden de combate. La partida está en pausa; reanuda para volver a intentarlo."
+msgstr ""
+
+#: lib/dragonex/game/settlement.ex:264
+#, elixir-autogen, elixir-format
+msgid "No se pudo registrar la espera. La partida está en pausa; reanuda para volver a intentarlo."
+msgstr ""
+
+#: lib/dragonex/heroes.ex:336
+#, elixir-autogen, elixir-format
+msgid "Persigue una pista menor que quizá revele una amenaza mucho mayor."
+msgstr ""
+
+#: lib/dragonex/conversation.ex:239
+#, elixir-autogen, elixir-format
+msgid "Pide respuestas a compañeros en exploración; en combate manda la iniciativa."
+msgstr ""
+
+#: lib/dragonex/tools.ex:188
+#, elixir-autogen, elixir-format
+msgid "Pregunta registrada. %{recipients} responderán por sí mismos; no narres sus respuestas."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1885
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — %{actor} está fuera de escena; no puede actuar aquí ni se recrea su ficha."
+msgstr ""
+
+#: lib/dragonex/game/tool_replay.ex:131
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — %{actor} no puede atacar antes de la iniciativa. Usa roll_initiative y respeta el combatiente actual; no resuelvas un ataque extra en exploración."
+msgstr ""
+
+#: lib/dragonex/tools.ex:216
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — describe una escena con contenido; no borres el entorno actual."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1932
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — dm es el controlador, no el atacante ni conjurador. El DM controla monstruos y PNJs; cada PC actúa por sí mismo. %{available}"
+msgstr ""
+
+#: lib/dragonex/tools.ex:1896
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — es el turno de %{proposer}, así que el atacante/conjurador/quien DEBE ser \"%{proposer}\". Llamaste a esta herramienta con actor=\"%{actor}\" (%{proposer} no controla a %{actor}). Reemite la MISMA intención pero como %{proposer}, usando su nombre canónico en los argumentos de la herramienta."
+msgstr ""
+
+#: lib/dragonex/tools.ex:223
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — no decidas acciones ni traslados de otros PCs o del grupo. Describe el entorno sin moverlos; cada PC decide y actúa en su turno."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1876
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — no existe una ficha de %{actor} en el World. Usa un nombre canónico del estado."
+msgstr ""
+
+#: lib/dragonex/tools.ex:258
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — no registres decisiones ni acciones de otros PCs o del grupo. Registra el entorno o hechos establecidos; cada PC decide y actúa en su turno."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1508
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo el DM aplica curaciones/efectos directos o decide subidas de nivel. Usa cast_spell, second_wind o la capacidad correspondiente; el motor valida su recurso y resultado."
+msgstr ""
+
+#: lib/dragonex/tools.ex:394
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo el DM confirma entregas y retiradas del inventario; narra tu intención y espera su resolución."
+msgstr ""
+
+#: lib/dragonex/tools.ex:276
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo el DM confirma escenas y registra hechos canónicos del mundo. Resuelve tus reglas y describe tu intención u observación; espera la confirmación del DM."
+msgstr ""
+
+#: lib/dragonex/tools.ex:855
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo el DM introduce criaturas o pide iniciar/terminar combate. Resuelve con las fichas existentes; si el objetivo aún no tiene ficha, no lo crees ni lo ataques: cierra con una confirmación breve y el DM lo registrará con su iniciativa."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1465
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo el DM puede otorgar XP."
+msgstr ""
+
+#: lib/dragonex/tools.ex:354
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo el DM registra salidas y retornos de escena."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1687
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes armar Metamagia en ti mismo (%{proposer}), no en %{who}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1653
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes armarte tú mismo de Esquiva asombrosa (%{proposer}), no a %{who}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1539
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes controlar tu propia furia (%{proposer}), no la de %{who}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1703
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes controlar tu propio Castigo divino (%{proposer}), no el de %{who}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1555
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes controlar tu propio ataque temerario (%{proposer}), no el de %{who}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1450
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes descansar tú mismo (%{proposer}), no a %{target}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1834
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes elegir tu propio Expertise (%{proposer}), no el de %{who}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1636
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes esconderte tú mismo (%{proposer}), no a %{who}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1523
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes soltar tu propia concentración (%{proposer}), no la de %{who}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1751
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes usar Expulsar no-muertos como %{proposer}, no como %{who}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1800
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes usar Forma salvaje en ti mismo (%{proposer}), no en %{who}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1670
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes usar Fuente de magia en ti mismo (%{proposer}), no en %{who}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1767
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes usar Inspiración bárdica como %{proposer}, no como %{who}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1719
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes usar Manos impositoras como %{proposer}, no como %{who}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1619
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes usar Marca del cazador como %{proposer}, no como %{who}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1587
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes usar Oleada de acción en ti mismo (%{proposer}), no en %{who}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1783
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes usar Recuperación arcana en ti mismo (%{proposer}), no en %{who}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1603
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes usar Ráfaga de golpes en ti mismo (%{proposer}), no en %{who}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1571
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes usar Segundo aliento en ti mismo (%{proposer}), no en %{who}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1735
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes usar Sentido divino como %{proposer}, no como %{who}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1817
+#, elixir-autogen, elixir-format
+msgid "RECHAZADO — solo puedes usar tu propio aliento de dragón (%{proposer}), no el de %{who}."
+msgstr ""
+
+#: lib/dragonex/npc_statement.ex:65
+#, elixir-autogen, elixir-format
+msgid "Registra una afirmación concreta de 1 a %{max} caracteres."
+msgstr ""
+
+#: lib/dragonex/game/tool_replay.ex:45
+#, elixir-autogen, elixir-format
+msgid "Resultado ya aplicado antes del fallo; no repitas la acción: %{result}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:5475
+#, elixir-autogen, elixir-format
+msgid "Savage"
+msgstr ""
+
+#: lib/dragonex/game/combat.ex:38
+#, elixir-autogen, elixir-format
+msgid "Se recupera el orden de combate: %{joined} se incorpora al final. Los turnos ya jugados se conservan."
+msgstr ""
+
+#: lib/dragonex/actions.ex:1022
+#, elixir-autogen, elixir-format
+msgid "Segundo aliento (1d10+%{level})"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4162
+#, elixir-autogen, elixir-format
+msgid "Shield solo puede tejerse en combate (reacción abstracta, D96)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:692
+#, elixir-autogen, elixir-format
+msgid "Shield solo puede tener como objetivo al propio lanzador"
+msgstr ""
+
+#: lib/dragonex/tools.ex:1864
+#, elixir-autogen, elixir-format
+msgid "Si introduces un monstruo nuevo, registra su ficha con spawn_monster antes de iniciativa o ataques."
+msgstr ""
+
+#: lib/dragonex/actions.ex:2047
+#, elixir-autogen, elixir-format
+msgid "Sigilo para esconderse"
+msgstr ""
+
+#: lib/dragonex/tools.ex:316
+#, elixir-autogen, elixir-format
+msgid "Solo el DM registra testimonios de PNJ; no hables por ellos como un PC."
+msgstr ""
+
+#: lib/dragonex/tools.ex:299
+#, elixir-autogen, elixir-format
+msgid "Testimonio registrado con su fuente; el contenido no se considera confirmado."
+msgstr ""
+
+#: lib/dragonex/tools.ex:712
+#, elixir-autogen, elixir-format
+msgid "Tiempo del mundo tras el descanso: %{seconds} s. Si el entorno o la situación cambió, actualiza el registro con set_scene, sin mover ni hacer actuar a los PCs. No repitas el descanso ya aplicado."
+msgstr ""
+
+#: lib/dragonex/tools.ex:842
+#, elixir-autogen, elixir-format
+msgid "Tipo de monstruo desconocido '%{kind}'. Disponibles: %{kinds}"
+msgstr ""
+
+#: lib/dragonex/heroes.ex:325
+#, elixir-autogen, elixir-format
+msgid "Tras años como %{background}, aprendió que la gloria no espera a nadie."
+msgstr ""
+
+#: lib/dragonex/heroes.ex:330
+#, elixir-autogen, elixir-format
+msgid "Una vieja promesa empuja a este %{class} a aceptar trabajos peligrosos."
+msgstr ""
+
+#: lib/dragonex/tools.ex:1870
+#, elixir-autogen, elixir-format
+msgid "Usa el nombre canónico del personaje que controlas; el DM registra criaturas nuevas."
+msgstr ""
+
+#: lib/dragonex/npc_statement.ex:56
+#, elixir-autogen, elixir-format
+msgid "Usa el nombre o rol del PNJ, sin diálogo, de 1 a %{max} caracteres: p. ej. «Mira» o «Mira (la molinera)»; sin comas, dos puntos ni comillas."
+msgstr ""
+
+#: lib/dragonex/conversation.ex:266
+#, elixir-autogen, elixir-format
+msgid "Usa nombres canónicos de compañeros sin duplicados."
+msgstr ""
+
+#: lib/dragonex/npc_statement.ex:85
+#, elixir-autogen, elixir-format
+msgid "Usa solo el nombre o rol de un PNJ como fuente, sin decidir acciones de PCs."
+msgstr ""
+
+#: lib/dragonex/tools.ex:196
+#, elixir-autogen, elixir-format
+msgid "Usa solo nombres canónicos de PCs participantes: %{names}."
+msgstr ""
+
+#: lib/dragonex/tools.ex:154
+#, elixir-autogen, elixir-format
+msgid "Usa un nombre canónico del estado. Una criatura sin ficha solo la registra el DM con spawn_monster; si resuelves la acción de un PC, no la crees ni la ataques: cierra con una confirmación breve y el DM la registrará."
+msgstr ""
+
+#: lib/dragonex/conversation.ex:91
+#, elixir-autogen, elixir-format
+msgid "Ya hay una pregunta pendiente. Responde primero; no encadenes otra conversación."
+msgstr ""
+
+#: lib/dragonex/actions.ex:1965
+#, elixir-autogen, elixir-format
+msgid "a %{actor} no le quedan casillas de hechizo de nivel 1 (debe descansar para recuperarlas)."
+msgstr ""
+
+#: lib/dragonex/actions.ex:452
+#, elixir-autogen, elixir-format
+msgid "a %{caster} no le quedan casillas de hechizo de nivel %{level} (debe descansar para recuperarlas). Los trucos siempre están disponibles."
+msgstr ""
+
+#: lib/dragonex/world.ex:2181
+#: lib/dragonex/world.ex:2190
+#: lib/dragonex/world.ex:2651
+#, elixir-autogen, elixir-format
+msgid "a %{name} no le quedan casillas de hechizo de nivel %{slot_level}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3822
+#: lib/dragonex/actions.ex:5211
+#: lib/dragonex/actions.ex:5258
+#, elixir-autogen, elixir-format
+msgid "acierta"
+msgstr ""
+
+#: lib/dragonex/actions.ex:664
+#, elixir-autogen, elixir-format
+msgid "additional_targets debe ser una lista de nombres"
+msgstr ""
+
+#: lib/dragonex/actions.ex:670
+#, elixir-autogen, elixir-format
+msgid "additional_targets solo está disponible para Bless"
+msgstr ""
+
+#: lib/dragonex/actions/lay_on_hands_purify.ex:73
+#, elixir-autogen, elixir-format
+msgid "amount debe ser un entero >= 0 al purificar"
+msgstr ""
+
+#: lib/dragonex/actions.ex:5107
+#: lib/dragonex_web/live/home_demo.ex:113
+#, elixir-autogen, elixir-format
+msgid "ataque a %{target} con %{weapon}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4328
+#: lib/dragonex_web/live/home_demo.ex:56
+#, elixir-autogen, elixir-format
+msgid "ataque con %{spell}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3780
+#, elixir-autogen, elixir-format
+msgid "ataque con arma espiritual"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1645
+#, elixir-autogen, elixir-format
+msgid "bestia desconocida: %{beast} (disponibles: %{options})"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3154
+#, elixir-autogen, elixir-format
+msgid "característica o skill desconocidos: %{input} — usa un skill (%{examples}, …) o una característica str/dex/con/int/wis/cha"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1216
+#, elixir-autogen, elixir-format
+msgid "celestial"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3090
+#, elixir-autogen, elixir-format
+msgid "chequeo de %{label}"
+msgstr ""
+
+#: lib/dragonex/heroes/classes.ex:55
+#, elixir-autogen, elixir-format
+msgid "clase desconocida: %{class}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:705
+#, elixir-autogen, elixir-format
+msgid "condition_to_remove solo está disponible para Lesser Restoration; para este hechizo omite el parámetro o envía null"
+msgstr ""
+
+#: lib/dragonex/actions/lay_on_hands_purify.ex:77
+#, elixir-autogen, elixir-format
+msgid "conditions_to_remove debe ser una lista de poisoned y/o diseased"
+msgstr ""
+
+#: lib/dragonex/actions/lay_on_hands_purify.ex:82
+#, elixir-autogen, elixir-format
+msgid "conditions_to_remove solo admite poisoned y diseased sin duplicados"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4024
+#: lib/dragonex/actions.ex:4203
+#, elixir-autogen, elixir-format
+msgid "conjura %{spell}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4060
+#, elixir-autogen, elixir-format
+msgid "conjura %{spell} (%{dice})"
+msgstr ""
+
+#: lib/dragonex/actions.ex:963
+#, elixir-autogen, elixir-format
+msgid "curación (%{dice})"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4245
+#, elixir-autogen, elixir-format
+msgid "curación de %{spell}"
+msgstr ""
+
+#: lib/dragonex/turn_master/tools.ex:80
+#, elixir-autogen, elixir-format
+msgid "cut_in/react solo en combate"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2842
+#, elixir-autogen, elixir-format
+msgid "dados de golpe inválidos; disponibles %{available}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4221
+#, elixir-autogen, elixir-format
+msgid "dardos de %{spell} contra escudo"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3958
+#: lib/dragonex/actions.ex:4269
+#: lib/dragonex/actions.ex:4351
+#: lib/dragonex/actions.ex:4611
+#: lib/dragonex/actions.ex:4700
+#, elixir-autogen, elixir-format
+msgid "daño de %{spell} (%{damage_type})"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2616
+#: lib/dragonex/actions.ex:2686
+#, elixir-autogen, elixir-format
+msgid "daño de aliento de dragón (%{damage_type})"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3812
+#, elixir-autogen, elixir-format
+msgid "daño de arma espiritual (%{damage_type})"
+msgstr ""
+
+#: lib/dragonex/game/settlement.ex:340
+#, elixir-autogen, elixir-format
+msgid "de %{actor}"
+msgstr ""
+
+#: lib/dragonex/narration.ex:25
+#, elixir-autogen, elixir-format
+msgid "debe ser UTF-8 válido"
+msgstr ""
+
+#: lib/dragonex/game/settlement.ex:339
+#, elixir-autogen, elixir-format
+msgid "del DM"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2872
+#, elixir-autogen, elixir-format
+msgid "descanso corto (1d%{hit_die})"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2974
+#, elixir-autogen, elixir-format
+msgid "descanso inválido: short o long"
+msgstr ""
+
+#: lib/dragonex/heroes.ex:868
+#, elixir-autogen, elixir-format
+msgid "desconocido"
+msgstr ""
+
+#: lib/dragonex/world.ex:871
+#, elixir-autogen, elixir-format
+msgid "duración inválida"
+msgstr ""
+
+#: lib/dragonex/heroes/level_up.ex:67
+#, elixir-autogen, elixir-format
+msgid "el ASI reparte %{used} puntos (máximo %{max})"
+msgstr ""
+
+#: lib/dragonex/world.ex:3068
+#, elixir-autogen, elixir-format
+msgid "el arma espiritual de %{name} se desvanece (1 minuto)"
+msgstr ""
+
+#: lib/dragonex/tools.ex:627
+#, elixir-autogen, elixir-format
+msgid "el combate termina"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3407
+#, elixir-autogen, elixir-format
+msgid "el conjuro solo afecta a humanoides"
+msgstr ""
+
+#: lib/dragonex/world.ex:577
+#, elixir-autogen, elixir-format
+msgid "el daño debe ser un entero no negativo (recibió %{amount})"
+msgstr ""
+
+#: lib/dragonex/game/beat.ex:158
+#, elixir-autogen, elixir-format
+msgid "el modelo no devolvió una respuesta válida"
+msgstr ""
+
+#: lib/dragonex/world.ex:2153
+#, elixir-autogen, elixir-format
+msgid "el nivel de casilla del Castigo divino debe estar entre 1 y 5"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3403
+#, elixir-autogen, elixir-format
+msgid "el objetivo está muerto"
+msgstr ""
+
+#: lib/dragonex/actions/lay_on_hands_purify.ex:65
+#, elixir-autogen, elixir-format
+msgid "el objetivo está muerto; Imposición de manos no resucita"
+msgstr ""
+
+#: lib/dragonex/actions/lay_on_hands_purify.ex:85
+#, elixir-autogen, elixir-format
+msgid "el objetivo no tiene todas las condiciones seleccionadas"
+msgstr ""
+
+#: lib/dragonex/world.ex:2284
+#, elixir-autogen, elixir-format
+msgid "el orden de iniciativa está vacío"
+msgstr ""
+
+#: lib/dragonex/world.ex:2287
+#, elixir-autogen, elixir-format
+msgid "el orden de iniciativa incluye personajes desconocidos"
+msgstr ""
+
+#: lib/dragonex/heroes/level_up.ex:47
+#, elixir-autogen, elixir-format
+msgid "el personaje ya está en el nivel máximo (20)"
+msgstr ""
+
+#: lib/dragonex/world.ex:447
+#, elixir-autogen, elixir-format
+msgid "el personaje ya existe: %{name}"
+msgstr ""
+
+#: lib/dragonex/game/beat.ex:165
+#, elixir-autogen, elixir-format
+msgid "el proveedor no respondió tras varios intentos"
+msgstr ""
+
+#: lib/dragonex/game/beat.ex:168
+#, elixir-autogen, elixir-format
+msgid "el proveedor rechazó la petición"
+msgstr ""
+
+#: lib/dragonex/world.ex:3152
+#: lib/dragonex/world.ex:3172
+#, elixir-autogen, elixir-format
+msgid "el tiempo de combate avanza por rondas"
+msgstr ""
+
+#: lib/dragonex/world.ex:3149
+#, elixir-autogen, elixir-format
+msgid "el tiempo debe ser un entero no negativo"
+msgstr ""
+
+#: lib/dragonex/heroes.ex:959
+#, elixir-autogen, elixir-format
+msgid "el trasfondo es obligatorio"
+msgstr ""
+
+#: lib/dragonex/game/settlement.ex:350
+#, elixir-autogen, elixir-format
+msgid "el turno falló: %{reason}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3250
+#: lib/dragonex/actions.ex:3283
+#: lib/dragonex/actions.ex:3307
+#: lib/dragonex/actions.ex:4571
+#, elixir-autogen, elixir-format
+msgid "en %{name}: %{result}"
+msgstr ""
+
+#: lib/dragonex/game/beat.ex:175
+#, elixir-autogen, elixir-format
+msgid "error inesperado"
+msgstr ""
+
+#: lib/dragonex/game/beat.ex:160
+#, elixir-autogen, elixir-format
+msgid "error interno del motor"
+msgstr ""
+
+#: lib/dragonex/turn_master/tools.ex:59
+#, elixir-autogen, elixir-format
+msgid "escena cerrada — vuelve a exploración"
+msgstr ""
+
+#: lib/dragonex/tools.ex:231
+#, elixir-autogen, elixir-format
+msgid "escena establecida"
+msgstr ""
+
+#: lib/dragonex/actions.ex:936
+#, elixir-autogen, elixir-format
+msgid "expresión de dados inválida: %{dice} — usa NdM o NdM±K (p. ej. \"1d8+3\")"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3970
+#, elixir-autogen, elixir-format
+msgid "falla"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4794
+#, elixir-autogen, elixir-format
+msgid "falla la salvación (d20 %{d20}%{lucky}%{indomitable}: %{total} vs CD %{dc}%{aura}%{bardic})%{mode}%{heightened}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4779
+#, elixir-autogen, elixir-format
+msgid "falla la salvación (d20 %{d20}%{lucky}%{indomitable}: %{total} vs CD %{dc}%{aura}%{bardic})%{mode}%{heightened} (Evasión: mitad)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2760
+#, elixir-autogen, elixir-format
+msgid "falla la salvación de Destreza (d20 %{d20}%{lucky}%{indomitable}: %{total} vs CD %{dc}%{aura}%{bardic})%{mode}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2746
+#, elixir-autogen, elixir-format
+msgid "falla la salvación de Destreza (d20 %{d20}%{lucky}%{indomitable}: %{total} vs CD %{dc}%{aura}%{bardic})%{mode} (Evasión: mitad)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2077
+#, elixir-autogen, elixir-format
+msgid "falla y sigue a la vista"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3109
+#, elixir-autogen, elixir-format
+msgid "fallo"
+msgstr ""
+
+#: lib/dragonex/actions.ex:5247
+#, elixir-autogen, elixir-format
+msgid "fallo (d20 %{d20}%{lucky}: %{total} vs CA %{ac})%{bardic}"
+msgstr ""
+
+#: lib/dragonex/game/beat.ex:171
+#, elixir-autogen, elixir-format
+msgid "falló la petición al proveedor"
+msgstr ""
+
+#: lib/dragonex/actions.ex:5477
+#, elixir-autogen, elixir-format
+msgid "furia"
+msgstr ""
+
+#: lib/dragonex/actions.ex:92
+#, elixir-autogen, elixir-format
+msgid "ha cambiado el turno o el tiempo; vuelve a resolver la acción"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2995
+#, elixir-autogen, elixir-format
+msgid "ha transcurrido tiempo desde la preparación del descanso"
+msgstr ""
+
+#: lib/dragonex/heroes.ex:685
+#: lib/dragonex/heroes.ex:707
+#, elixir-autogen, elixir-format
+msgid "habilidades duplicadas en: %{skills}"
+msgstr ""
+
+#: lib/dragonex/heroes.ex:711
+#, elixir-autogen, elixir-format
+msgid "habilidades fuera de la lista de la clase: %{skills}"
+msgstr ""
+
+#: lib/dragonex/heroes.ex:610
+#, elixir-autogen, elixir-format
+msgid "hechizos desconocidos: %{spells}"
+msgstr ""
+
+#: lib/dragonex/heroes.ex:644
+#, elixir-autogen, elixir-format
+msgid "hechizos fuera de la lista de la clase: %{spells}"
+msgstr ""
+
+#: lib/dragonex/tools.ex:265
+#, elixir-autogen, elixir-format
+msgid "hecho registrado"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2475
+#, elixir-autogen, elixir-format
+msgid "heightened requiere un objetivo (target)"
+msgstr ""
+
+#: lib/dragonex/world.ex:478
+#, elixir-autogen, elixir-format
+msgid "indica un motivo de salida de la escena"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2968
+#, elixir-autogen, elixir-format
+msgid "indica una lista de personajes"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1217
+#, elixir-autogen, elixir-format
+msgid "infernal"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3207
+#, elixir-autogen, elixir-format
+msgid "inspiración %{bardic}"
+msgstr ""
+
+#: lib/dragonex/world.ex:628
+#, elixir-autogen, elixir-format
+msgid "la bestia cae y %{target} vuelve a su forma (PG %{final_hp})"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1107
+#, elixir-autogen, elixir-format
+msgid "la cantidad de Manos impositoras debe ser un entero ≥ 1"
+msgstr ""
+
+#: lib/dragonex/world.ex:2227
+#, elixir-autogen, elixir-format
+msgid "la cantidad de XP debe ser un entero positivo (recibió %{amount})"
+msgstr ""
+
+#: lib/dragonex/world.ex:828
+#, elixir-autogen, elixir-format
+msgid "la cantidad de temp_hp debe ser positiva (recibido %{amount})"
+msgstr ""
+
+#: lib/dragonex/world.ex:2216
+#, elixir-autogen, elixir-format
+msgid "la cantidad de xp debe ser positiva (recibido %{amount})"
+msgstr ""
+
+#: lib/dragonex/heroes.ex:958
+#, elixir-autogen, elixir-format
+msgid "la clase es obligatoria"
+msgstr ""
+
+#: lib/dragonex/world.ex:2255
+#, elixir-autogen, elixir-format
+msgid "la curación debe ser un entero no negativo"
+msgstr ""
+
+#: lib/dragonex/actions.ex:5060
+#, elixir-autogen, elixir-format
+msgid "la defensa de %{target} ha cambiado; vuelve a resolver el ataque"
+msgstr ""
+
+#: lib/dragonex/world.ex:2881
+#, elixir-autogen, elixir-format
+msgid "la duración debe ser un entero positivo"
+msgstr ""
+
+#: lib/dragonex/world.ex:3169
+#, elixir-autogen, elixir-format
+msgid "la espera requiere un origen y una duración transcurrida válida"
+msgstr ""
+
+#: lib/dragonex/world.ex:723
+#, elixir-autogen, elixir-format
+msgid "la furia mantiene a %{name} en pie con 1 pg (Furia implacable: salvación CON d20 %{d20}: %{total} vs CD %{dc}%{aura})"
+msgstr ""
+
+#: lib/dragonex/world.ex:767
+#, elixir-autogen, elixir-format
+msgid "la furia semi-orca mantiene a %{name} en pie con 1 pg (Resistencia implacable)"
+msgstr ""
+
+#: lib/dragonex/world.ex:2290
+#, elixir-autogen, elixir-format
+msgid "la iniciativa incluye personajes fuera de escena"
+msgstr ""
+
+#: lib/dragonex/heroes/races.ex:61
+#, elixir-autogen, elixir-format
+msgid "la raza %{race} requiere una subraza (%{options})"
+msgstr ""
+
+#: lib/dragonex/heroes.ex:347
+#, elixir-autogen, elixir-format
+msgid "la raza es obligatoria"
+msgstr ""
+
+#: lib/dragonex/game/beat.ex:155
+#, elixir-autogen, elixir-format
+msgid "la respuesta del modelo superó el tamaño permitido"
+msgstr ""
+
+#: lib/dragonex/world.ex:472
+#, elixir-autogen, elixir-format
+msgid "los PCs conservan su presencia en el grupo"
+msgstr ""
+
+#: lib/dragonex/world.ex:1023
+#, elixir-autogen, elixir-format
+msgid "los objetivos de %{spell} deben ser distintos"
+msgstr ""
+
+#: lib/dragonex/world.ex:982
+#, elixir-autogen, elixir-format
+msgid "los objetivos de %{spell} no pueden repetirse"
+msgstr ""
+
+#: lib/dragonex/actions/spare_the_dying.ex:16
+#, elixir-autogen, elixir-format
+msgid "los objetivos han cambiado; vuelve a resolver %{spell}"
+msgstr ""
+
+#: lib/dragonex/heroes.ex:622
+#, elixir-autogen, elixir-format
+msgid "los personajes de nivel 1 no pueden aprender: %{spells}"
+msgstr ""
+
+#: lib/dragonex/tools.ex:893
+#, elixir-autogen, elixir-format
+msgid "los pg temporales"
+msgstr ""
+
+#: lib/dragonex/world.ex:839
+#, elixir-autogen, elixir-format
+msgid "los pg temporales deben ser un entero positivo (recibió %{amount})"
+msgstr ""
+
+#: lib/dragonex/actions.ex:72
+#, elixir-autogen, elixir-format
+msgid "los recursos de %{actor} han cambiado; vuelve a resolver la acción"
+msgstr ""
+
+#: lib/dragonex/actions.ex:715
+#, elixir-autogen, elixir-format
+msgid "los trucos (nivel 0) no se pueden lanzar a nivel superior"
+msgstr ""
+
+#: lib/dragonex/world.ex:970
+#, elixir-autogen, elixir-format
+msgid "nivel de %{spell} inválido"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2301
+#: lib/dragonex/actions.ex:2366
+#, elixir-autogen, elixir-format
+msgid "nivel de casilla inválido: %{level} (1 a 5)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:723
+#, elixir-autogen, elixir-format
+msgid "nivel de lanzamiento inválido (cast_level): %{level} — debe ser un entero entre %{base} y 9"
+msgstr ""
+
+#: lib/dragonex/actions.ex:741
+#, elixir-autogen, elixir-format
+msgid "nivel de lanzamiento inválido: %{level} (máximo 9)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:215
+#, elixir-autogen, elixir-format
+msgid "no existe el atacante: %{attacker}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:403
+#, elixir-autogen, elixir-format
+msgid "no existe el conjurador: %{caster}"
+msgstr ""
+
+#: lib/dragonex/actions/spare_the_dying.ex:53
+#, elixir-autogen, elixir-format
+msgid "no existe el objetivo presente: %{target}"
+msgstr ""
+
+#: lib/dragonex/actions/heal_spell.ex:78
+#, elixir-autogen, elixir-format
+msgid "no existe el objetivo: %{name}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:218
+#: lib/dragonex/actions.ex:406
+#: lib/dragonex/actions.ex:1821
+#: lib/dragonex/actions.ex:1944
+#: lib/dragonex/actions.ex:2481
+#: lib/dragonex/actions.ex:2574
+#: lib/dragonex/actions.ex:3739
+#: lib/dragonex/actions.ex:5067
+#: lib/dragonex/world.ex:2569
+#, elixir-autogen, elixir-format
+msgid "no existe el objetivo: %{target}"
+msgstr ""
+
+#: lib/dragonex/actions/lay_on_hands_purify.ex:57
+#, elixir-autogen, elixir-format
+msgid "no existe el paladín"
+msgstr ""
+
+#: lib/dragonex/actions.ex:999
+#: lib/dragonex/actions.ex:1076
+#: lib/dragonex/actions.ex:1180
+#: lib/dragonex/actions.ex:1265
+#: lib/dragonex/actions.ex:1480
+#: lib/dragonex/actions.ex:1526
+#: lib/dragonex/actions.ex:1621
+#: lib/dragonex/actions.ex:1702
+#: lib/dragonex/actions.ex:1751
+#: lib/dragonex/actions.ex:1818
+#: lib/dragonex/actions.ex:1941
+#: lib/dragonex/actions.ex:2020
+#: lib/dragonex/actions.ex:2110
+#: lib/dragonex/actions.ex:2158
+#: lib/dragonex/actions.ex:2282
+#: lib/dragonex/actions.ex:2347
+#: lib/dragonex/actions.ex:2433
+#: lib/dragonex/actions.ex:2571
+#: lib/dragonex/actions.ex:3069
+#, elixir-autogen, elixir-format
+msgid "no existe el personaje: %{actor}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:866
+#: lib/dragonex/actions.ex:2854
+#: lib/dragonex/actions.ex:2940
+#: lib/dragonex/damage.ex:52
+#: lib/dragonex/world.ex:196
+#: lib/dragonex/world.ex:469
+#: lib/dragonex/world.ex:518
+#: lib/dragonex/world.ex:587
+#: lib/dragonex/world.ex:849
+#: lib/dragonex/world.ex:885
+#: lib/dragonex/world.ex:953
+#: lib/dragonex/world.ex:1060
+#: lib/dragonex/world.ex:1142
+#: lib/dragonex/world.ex:1159
+#: lib/dragonex/world.ex:1189
+#: lib/dragonex/world.ex:1231
+#: lib/dragonex/world.ex:1262
+#: lib/dragonex/world.ex:1294
+#: lib/dragonex/world.ex:1313
+#: lib/dragonex/world.ex:1331
+#: lib/dragonex/world.ex:1351
+#: lib/dragonex/world.ex:1371
+#: lib/dragonex/world.ex:1390
+#: lib/dragonex/world.ex:1409
+#: lib/dragonex/world.ex:1429
+#: lib/dragonex/world.ex:1452
+#: lib/dragonex/world.ex:1469
+#: lib/dragonex/world.ex:1487
+#: lib/dragonex/world.ex:1505
+#: lib/dragonex/world.ex:1521
+#: lib/dragonex/world.ex:1543
+#: lib/dragonex/world.ex:1560
+#: lib/dragonex/world.ex:1581
+#: lib/dragonex/world.ex:1608
+#: lib/dragonex/world.ex:1638
+#: lib/dragonex/world.ex:1661
+#: lib/dragonex/world.ex:1698
+#: lib/dragonex/world.ex:1723
+#: lib/dragonex/world.ex:1759
+#: lib/dragonex/world.ex:1797
+#: lib/dragonex/world.ex:1835
+#: lib/dragonex/world.ex:1856
+#: lib/dragonex/world.ex:1877
+#: lib/dragonex/world.ex:1895
+#: lib/dragonex/world.ex:1915
+#: lib/dragonex/world.ex:1946
+#: lib/dragonex/world.ex:1983
+#: lib/dragonex/world.ex:2005
+#: lib/dragonex/world.ex:2016
+#: lib/dragonex/world.ex:2059
+#: lib/dragonex/world.ex:2074
+#: lib/dragonex/world.ex:2104
+#: lib/dragonex/world.ex:2136
+#: lib/dragonex/world.ex:2169
+#: lib/dragonex/world.ex:2237
+#: lib/dragonex/world.ex:2252
+#: lib/dragonex/world.ex:2398
+#: lib/dragonex/world.ex:2524
+#: lib/dragonex/world.ex:2546
+#: lib/dragonex/world.ex:2682
+#: lib/dragonex/world.ex:2700
+#: lib/dragonex/world.ex:2723
+#: lib/dragonex/world.ex:2841
+#: lib/dragonex/world.ex:2892
+#: lib/dragonex/world.ex:2921
+#: lib/dragonex/world.ex:2942
+#: lib/dragonex/world.ex:3021
+#: lib/dragonex/world.ex:3214
+#, elixir-autogen, elixir-format
+msgid "no existe el personaje: %{name}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:950
+#: lib/dragonex/actions.ex:1081
+#: lib/dragonex/actions.ex:1493
+#, elixir-autogen, elixir-format
+msgid "no existe el personaje: %{target}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2857
+#: lib/dragonex/actions.ex:2943
+#: lib/dragonex/rest.ex:24
+#, elixir-autogen, elixir-format
+msgid "no se puede descansar en combate"
+msgstr ""
+
+#: lib/dragonex/actions.ex:732
+#, elixir-autogen, elixir-format
+msgid "no se puede lanzar a nivel %{level}: el nivel mínimo de este hechizo es %{base}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1529
+#, elixir-autogen, elixir-format
+msgid "no se puede usar Recuperación arcana en combate"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1218
+#, elixir-autogen, elixir-format
+msgid "no-muerto"
+msgstr ""
+
+#: lib/dragonex/tools.ex:811
+#, elixir-autogen, elixir-format
+msgid "nombre inválido: %{name} — el monstruo necesita un nombre"
+msgstr ""
+
+#: lib/dragonex/tools.ex:441
+#, elixir-autogen, elixir-format
+msgid "nombre inválido: %{name} — el personaje necesita un nombre"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2076
+#, elixir-autogen, elixir-format
+msgid "oculto"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2448
+#, elixir-autogen, elixir-format
+msgid "opción de Metamagia desconocida: %{option} (válidas: empowered, heightened, twinned)"
+msgstr ""
+
+#: lib/dragonex/turn_master/tools.ex:106
+#, elixir-autogen, elixir-format
+msgid "participante vacío"
+msgstr ""
+
+#: lib/dragonex/games.ex:82
+#, elixir-autogen, elixir-format
+msgid "partida creada"
+msgstr ""
+
+#: lib/dragonex/tools.ex:447
+#, elixir-autogen, elixir-format
+msgid "pg iniciales inválidos: %{hp} — deben ser un entero ≥ 1"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4031
+#, elixir-autogen, elixir-format
+msgid "pg temporales de %{spell}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4070
+#, elixir-autogen, elixir-format
+msgid "pool de sueño de %{spell}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:5478
+#, elixir-autogen, elixir-format
+msgid "presa marcada"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3200
+#, elixir-autogen, elixir-format
+msgid "prof %{bonus}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3199
+#, elixir-autogen, elixir-format
+msgid "prof %{bonus} (experto)"
+msgstr ""
+
+#: lib/dragonex/heroes.ex:742
+#, elixir-autogen, elixir-format
+msgid "puntuaciones finales fuera de rango [1, 20]: %{abilities}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3246
+#, elixir-autogen, elixir-format
+msgid "queda encantado"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3303
+#, elixir-autogen, elixir-format
+msgid "queda marcado"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3278
+#, elixir-autogen, elixir-format
+msgid "queda paralizado"
+msgstr ""
+
+#: lib/dragonex/heroes.ex:358
+#: lib/dragonex/heroes/races.ex:52
+#, elixir-autogen, elixir-format
+msgid "raza desconocida: %{race}"
+msgstr ""
+
+#: lib/dragonex/conversation.ex:282
+#, elixir-autogen, elixir-format
+msgid "recipients debe ser una lista de nombres de compañeros."
+msgstr ""
+
+#: lib/dragonex/game/wait_resolution.ex:133
+#, elixir-autogen, elixir-format
+msgid "registra entre 0 y %{seconds} segundos para esta espera declarada"
+msgstr ""
+
+#: lib/dragonex/actions/lay_on_hands_purify.ex:90
+#, elixir-autogen, elixir-format
+msgid "reserva insuficiente: purificar cuesta 5 puntos por condición además de la curación"
+msgstr ""
+
+#: lib/dragonex/tools.ex:470
+#, elixir-autogen, elixir-format
+msgid "ronda avanzada"
+msgstr ""
+
+#: lib/dragonex/tools.ex:425
+#, elixir-autogen, elixir-format
+msgid "salió %{value} (d%{sides})"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3458
+#: lib/dragonex/actions.ex:4650
+#, elixir-autogen, elixir-format
+msgid "salvación de %{ability} contra %{spell}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2653
+#, elixir-autogen, elixir-format
+msgid "salvación de Destreza contra aliento de dragón"
+msgstr ""
+
+#: lib/dragonex/actions.ex:1351
+#, elixir-autogen, elixir-format
+msgid "salvación de Sabiduría contra Expulsar no-muertos"
+msgstr ""
+
+#: lib/dragonex/actions.ex:898
+#, elixir-autogen, elixir-format
+msgid "salvación de muerte"
+msgstr ""
+
+#: lib/dragonex/heroes.ex:698
+#, elixir-autogen, elixir-format
+msgid "se esperaban %{expected} habilidades de la lista de la clase; se recibieron %{count}"
+msgstr ""
+
+#: lib/dragonex/heroes.ex:678
+#, elixir-autogen, elixir-format
+msgid "se esperaban %{expected} habilidades; se recibieron %{count}"
+msgstr ""
+
+#: lib/dragonex/heroes.ex:635
+#, elixir-autogen, elixir-format
+msgid "se esperaban como máximo %{max} hechizos de nivel 1; se recibieron %{count}"
+msgstr ""
+
+#: lib/dragonex/heroes.ex:628
+#, elixir-autogen, elixir-format
+msgid "se esperaban como máximo %{max} trucos; se recibieron %{count}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2232
+#, elixir-autogen, elixir-format
+msgid "skill desconocida: %{skill} — usa un skill entrenado (%{examples}, …)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:5476
+#, elixir-autogen, elixir-format
+msgid "sneak"
+msgstr ""
+
+#: lib/dragonex/tools.ex:692
+#, elixir-autogen, elixir-format
+msgid "solo el DM puede avanzar el tiempo del mundo"
+msgstr ""
+
+#: lib/dragonex/tools.ex:720
+#, elixir-autogen, elixir-format
+msgid "solo el DM puede resolver un descanso de grupo"
+msgstr ""
+
+#: lib/dragonex/actions.ex:3970
+#, elixir-autogen, elixir-format
+msgid "supera"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4749
+#, elixir-autogen, elixir-format
+msgid "supera la salvación (d20 %{d20}%{lucky}%{indomitable}: %{total} vs CD %{dc}%{aura}%{bardic})%{mode}%{heightened} (Evasión: sin daño)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:4764
+#, elixir-autogen, elixir-format
+msgid "supera la salvación (d20 %{d20}%{lucky}%{indomitable}: %{total} vs CD %{dc}%{aura}%{bardic})%{mode}%{heightened}, mitad de daño"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2718
+#, elixir-autogen, elixir-format
+msgid "supera la salvación de Destreza (d20 %{d20}%{lucky}%{indomitable}: %{total} vs CD %{dc}%{aura}%{bardic})%{mode} (Evasión: sin daño)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2732
+#, elixir-autogen, elixir-format
+msgid "supera la salvación de Destreza (d20 %{d20}%{lucky}%{indomitable}: %{total} vs CD %{dc}%{aura}%{bardic})%{mode}, mitad de daño"
+msgstr ""
+
+#: lib/dragonex/world.ex:2477
+#, elixir-autogen, elixir-format
+msgid "tipo de turno inválido"
+msgstr ""
+
+#: lib/dragonex/actions.ex:155
+#, elixir-autogen, elixir-format
+msgid "tirada %{count}d%{sides} (%{mode}) = %{total}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:141
+#, elixir-autogen, elixir-format
+msgid "tirada %{count}d%{sides} = %{total}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:134
+#, elixir-autogen, elixir-format
+msgid "tirada de %{count}d%{sides}"
+msgstr ""
+
+#: lib/dragonex/actions.ex:817
+#: lib/dragonex_web/live/home_demo.ex:103
+#, elixir-autogen, elixir-format
+msgid "tirada de iniciativa"
+msgstr ""
+
+#: lib/dragonex/actions.ex:116
+#, elixir-autogen, elixir-format
+msgid "tirada inválida: %{count} dados de %{sides} caras — usa enteros (1..100 dados, 2..1000 caras)"
+msgstr ""
+
+#: lib/dragonex/tools.ex:428
+#, elixir-autogen, elixir-format
+msgid "tirada inválida: d%{sides} — usa entre 2 y 1000 caras"
+msgstr ""
+
+#: lib/dragonex/tools.ex:688
+#, elixir-autogen, elixir-format
+msgid "transcurren %{seconds} segundos"
+msgstr ""
+
+#: lib/dragonex/turn_master/tools.ex:21
+#, elixir-autogen, elixir-format
+msgid "turno entregado a %{to}"
+msgstr ""
+
+#: lib/dragonex/turn_master/tools.ex:53
+#, elixir-autogen, elixir-format
+msgid "turno entregado al DM"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2485
+#, elixir-autogen, elixir-format
+msgid "twinned no puede gemarse a sí mismo (target debe ser otro personaje)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2478
+#, elixir-autogen, elixir-format
+msgid "twinned requiere un segundo objetivo (target)"
+msgstr ""
+
+#: lib/dragonex/actions.ex:2971
+#, elixir-autogen, elixir-format
+msgid "un personaje no puede descansar dos veces a la vez"
+msgstr ""
+
+#: lib/dragonex/world.ex:2281
+#, elixir-autogen, elixir-format
+msgid "ya hay un combate en curso"
+msgstr ""
+
+#: lib/dragonex/tools.ex:759
+#, elixir-autogen, elixir-format
+msgid "¡%{target} sube de nivel!"
+msgstr ""
+
+#: lib/dragonex/tools.ex:833
+#, elixir-autogen, elixir-format
+msgid "¡Aparece %{name} (%{kind})! PG %{hp}, CA %{ac}."
+msgstr ""
+
+#: lib/dragonex/actions.ex:3109
+#, elixir-autogen, elixir-format
+msgid "éxito"
+msgstr ""
+
+#: lib/dragonex/game/settlement.ex:539
+#, elixir-autogen, elixir-format
+msgid "⏸ La partida se ha pausado automáticamente tras %{count} turnos fallidos seguidos. Reanuda manualmente cuando quieras continuar."
+msgstr ""
+
+#: lib/dragonex/game/turnmaster.ex:624
+#, elixir-autogen, elixir-format
+msgid "⏸ La partida se ha pausado: el TurnMaster falló %{count} veces seguidas. Reanuda manualmente."
+msgstr ""
+
+#: lib/dragonex/game/combat.ex:251
+#, elixir-autogen, elixir-format
+msgid "⚔ Aparecen hostiles — el motor toma la iniciativa automáticamente."
+msgstr ""
+
+#: lib/dragonex/game/combat.ex:168
+#: lib/dragonex/game/guardrails.ex:79
+#: lib/dragonex_web/live/home_demo.ex:93
+#, elixir-autogen, elixir-format
+msgid "⚔ El combate termina."
+msgstr ""
+
+#: lib/dragonex/damage.ex:138
+#, elixir-autogen, elixir-format
+msgid " +%{bonus} inspiración"
+msgstr ""
+
+#: lib/dragonex/damage.ex:79
+#, elixir-autogen, elixir-format
+msgid "%{name} cae a 0 pg y pierde la concentración en %{spell}."
+msgstr ""
+
+#: lib/dragonex/damage.ex:161
+#, elixir-autogen, elixir-format
+msgid "%{name} mantiene la concentración en %{spell} (d20 %{roll}: %{total} vs CD %{dc}%{suffix})."
+msgstr ""
+
+#: lib/dragonex/damage.ex:169
+#, elixir-autogen, elixir-format
+msgid "%{name} pierde la concentración en %{spell} (d20 %{roll}: %{total} vs CD %{dc}%{suffix})."
+msgstr ""
+
+#: lib/dragonex/turn_budget.ex:31
+#, elixir-autogen, elixir-format
+msgid "%{who} no está en su turno; el combatiente actual es %{current}. Termina la narración de %{current} sin ejecutar acciones de otros combatientes. El TurnMaster dará el relevo después de este beat."
+msgstr ""
+
+#: lib/dragonex/rest.ex:28
+#, elixir-autogen, elixir-format
+msgid "%{who} solo puede beneficiarse de un descanso largo cada 24 horas"
+msgstr ""
+
+#: lib/dragonex/turn_budget.ex:140
+#, elixir-autogen, elixir-format
+msgid "%{who} ya ha gastado su acción adicional este turno"
+msgstr ""
+
+#: lib/dragonex/turn_budget.ex:137
+#, elixir-autogen, elixir-format
+msgid "%{who} ya ha gastado su acción este turno"
+msgstr ""
+
+#: lib/dragonex/turn_budget.ex:143
+#, elixir-autogen, elixir-format
+msgid "%{who} ya ha gastado su reacción este turno"
+msgstr ""
+
+#: lib/dragonex/turn_budget.ex:146
+#, elixir-autogen, elixir-format
+msgid "%{who} ya ha tirado su salvación contra muerte este turno"
+msgstr ""
+
+#: lib/dragonex/turn_budget.ex:50
+#, elixir-autogen, elixir-format
+msgid "%{who} ya ha usado Oleada de acción"
+msgstr ""
+
+#: lib/dragonex/rest.ex:43
+#, elixir-autogen, elixir-format
+msgid "%{who} ya no tiene dados de golpe suficientes"
+msgstr ""
+
+#: lib/dragonex/roll_totals.ex:14
+#, elixir-autogen, elixir-format
+msgid "(mínimo 0)"
+msgstr ""
+
+#: lib/dragonex/class_resources.ex:43
+#, elixir-autogen, elixir-format
+msgid "Forma salvaje"
+msgstr ""
+
+#: lib/dragonex/class_resources.ex:40
+#, elixir-autogen, elixir-format
+msgid "Imposición de manos"
+msgstr ""
+
+#: lib/dragonex/class_resources.ex:42
+#, elixir-autogen, elixir-format
+msgid "Inspiración bárdica"
+msgstr ""
+
+#: lib/dragonex/class_resources.ex:38
+#, elixir-autogen, elixir-format
+msgid "Ki"
+msgstr ""
+
+#: lib/dragonex/class_resources.ex:39
+#, elixir-autogen, elixir-format
+msgid "Puntos de hechicería"
+msgstr ""
+
+#: lib/dragonex/turn_budget.ex:47
+#, elixir-autogen, elixir-format
+msgid "Ráfaga de golpes requiere la acción de Ataque este turno"
+msgstr ""
+
+#: lib/dragonex/class_resources.ex:41
+#, elixir-autogen, elixir-format
+msgid "Sentido divino"
+msgstr ""
+
+#: lib/dragonex/turn_budget.ex:41
+#, elixir-autogen, elixir-format
+msgid "el turno de %{who} ya ha terminado"
+msgstr ""
+
+#: lib/dragonex/turn_budget.ex:61
+#, elixir-autogen, elixir-format
+msgid "este hechizo requiere más de una acción; no se resuelve instantáneamente en combate"
+msgstr ""
+
+#: lib/dragonex/damage.ex:98
+#, elixir-autogen, elixir-format
+msgid "salvación de Constitución (concentración)"
+msgstr ""
+
+#: lib/dragonex/turn_budget.ex:54
+#, elixir-autogen, elixir-format
+msgid "un hechizo de acción adicional solo permite otros trucos de una acción en ese turno"
+msgstr ""
+
+#: lib/dragonex/turn_budget.ex:27
+#, elixir-autogen, elixir-format
+msgid "un turno de reacción no concede acción ni acción adicional"
+msgstr ""

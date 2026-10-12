@@ -20,8 +20,7 @@ defmodule Dragonex.GhostCombatTest do
   alias ExAgent.Models.Test
 
   setup do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(Dragonex.Repo)
-    Ecto.Adapters.SQL.Sandbox.mode(Dragonex.Repo, {:shared, self()})
+    Dragonex.Test.Sandbox.start_shared!()
     :ok
   end
 
@@ -58,7 +57,7 @@ defmodule Dragonex.GhostCombatTest do
     # combat pattern. The engine must take initiative itself.
     script = [
       tool_calls([call("spawn_monster", %{"kind" => "goblin", "name" => "goblin"})]),
-      text("Un goblin salta de las sombras, chirriando.")
+      narration("Un goblin salta de las sombras, chirriando.")
     ]
 
     # Initiative rolls: Thane 20 (wins), goblin 1 -> Thane first, so the loop
@@ -66,8 +65,8 @@ defmodule Dragonex.GhostCombatTest do
     roller = seq_roller([20, 1])
 
     pid =
-      ExUnit.Callbacks.start_supervised!(
-        {Dragonex.Game, {game.id, [model: %Test{script: script}, roller: roller]}}
+      Dragonex.Test.GameFixture.start!(
+        {Game, {game.id, [model: %Test{script: script}, roller: roller]}}
       )
 
     assert :ok == Game.await(pid, fn s -> s.status == :waiting end, 5_000)
@@ -79,6 +78,11 @@ defmodule Dragonex.GhostCombatTest do
 
     # A system event documents the engine-driven initiative.
     events = Games.list_events(game.id)
+
+    assert Enum.any?(events, fn e ->
+             e.type == :narration and e.actor == "dm" and e.payload["complete"] == true and
+               e.payload["text"] == "Un goblin salta de las sombras, chirriando."
+           end)
 
     assert Enum.any?(
              events,
@@ -98,11 +102,11 @@ defmodule Dragonex.GhostCombatTest do
     # The DM just narrates the scene on its beats — no spawn, no new enemy.
     # The goblin (AI) also just responds with text; nobody spawns, so the engine
     # must keep the partida in exploration.
-    script = [text("El goblin os observa desde la maleza, sin moverse todavía.")]
+    script = [narration("El goblin os observa desde la maleza, sin moverse todavía.")]
 
     pid =
-      ExUnit.Callbacks.start_supervised!(
-        {Dragonex.Game, {game.id, [model: %Test{script: script}, roller: fn _ -> 10 end]}}
+      Dragonex.Test.GameFixture.start!(
+        {Game, {game.id, [model: %Test{script: script}, roller: fn _ -> 10 end]}}
       )
 
     # Wait until the human (Thane) is waiting — by then the DM (and possibly the
@@ -115,6 +119,11 @@ defmodule Dragonex.GhostCombatTest do
            "pre-existing enemies must NOT auto-trigger combat — only newly introduced ones"
 
     events = Games.list_events(game.id)
+
+    assert Enum.any?(events, fn e ->
+             e.type == :narration and e.actor == "dm" and e.payload["complete"] == true and
+               e.payload["text"] == "El goblin os observa desde la maleza, sin moverse todavía."
+           end)
 
     refute Enum.any?(
              events,

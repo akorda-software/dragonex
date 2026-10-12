@@ -18,7 +18,7 @@ defmodule Dragonex.HeroesValidationTest do
                  background: "soldier"
                })
 
-      assert msg =~ "unknown race"
+      assert msg =~ "raza desconocida"
     end
 
     test "race requires a subrace" do
@@ -30,7 +30,7 @@ defmodule Dragonex.HeroesValidationTest do
                  background: "sage"
                })
 
-      assert msg =~ "subrace"
+      assert msg =~ "subraza"
     end
 
     test "invalid subrace" do
@@ -43,7 +43,7 @@ defmodule Dragonex.HeroesValidationTest do
                  background: "sage"
                })
 
-      assert msg =~ "subrace"
+      assert msg =~ "subraza"
     end
 
     test "unknown class" do
@@ -55,7 +55,7 @@ defmodule Dragonex.HeroesValidationTest do
                  background: "sage"
                })
 
-      assert msg =~ "unknown class"
+      assert msg =~ "clase desconocida"
     end
 
     test "unknown background" do
@@ -152,7 +152,7 @@ defmodule Dragonex.HeroesValidationTest do
                  skills: ["arcana", "athletics"]
                })
 
-      assert msg =~ "not on the class list"
+      assert msg =~ "fuera de la lista de la clase"
     end
 
     test "empty skills list uses class defaults" do
@@ -191,7 +191,7 @@ defmodule Dragonex.HeroesValidationTest do
                  spells: ["fire bolt", "light", "mage hand", "ray of frost"]
                })
 
-      assert msg =~ "cantrips"
+      assert msg =~ "trucos"
     end
 
     test "spell not on the class list" do
@@ -204,7 +204,7 @@ defmodule Dragonex.HeroesValidationTest do
                  spells: ["cure wounds"]
                })
 
-      assert msg =~ "not on the class list"
+      assert msg =~ "fuera de la lista de la clase"
     end
 
     test "unknown spell name" do
@@ -217,7 +217,7 @@ defmodule Dragonex.HeroesValidationTest do
                  spells: ["banana blast"]
                })
 
-      assert msg =~ "unknown spells"
+      assert msg =~ "hechizos desconocidos"
     end
   end
 end

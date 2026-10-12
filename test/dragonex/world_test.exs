@@ -89,7 +89,7 @@ defmodule Dragonex.WorldTest do
 
     test "rejects a duplicate name" do
       w = World.new() |> apply!(World.add_character(goblin(7)))
-      assert {:error, "character already exists: goblin"} = World.add_character(goblin(7)).(w)
+      assert {:error, "el personaje ya existe: goblin"} = World.add_character(goblin(7)).(w)
     end
   end
 
@@ -104,7 +104,7 @@ defmodule Dragonex.WorldTest do
 
     test "errors on an unknown target without mutating the world" do
       w = World.new()
-      assert {:error, "no such character: ghost"} = World.apply_damage("ghost", 1).(w)
+      assert {:error, "no existe el personaje: ghost"} = World.apply_damage("ghost", 1).(w)
     end
 
     test "temp_hp absorbs damage first; leftover hits hp (D36)" do
@@ -248,13 +248,14 @@ defmodule Dragonex.WorldTest do
     test "rejects non-positive amount" do
       w = World.new() |> apply!(World.add_character(goblin(7)))
       assert {:error, msg} = World.apply_temp_hp("goblin", 0).(w)
-      assert msg =~ "positive"
+      assert msg =~ "positiva"
       assert {:error, _} = World.apply_temp_hp("goblin", -2).(w)
       assert w.characters["goblin"].temp_hp == 0
     end
 
     test "errors on an unknown character" do
-      assert {:error, "no such character: ghost"} = World.apply_temp_hp("ghost", 5).(World.new())
+      assert {:error, "no existe el personaje: ghost"} =
+               World.apply_temp_hp("ghost", 5).(World.new())
     end
   end
 
@@ -286,20 +287,22 @@ defmodule Dragonex.WorldTest do
       assert World.has_condition?(w, "goblin", "stunned")
     end
 
-    test "apply_damage does not itself clear concentration" do
+    test "apply_damage owns concentration saves on direct damage too" do
       w =
         World.new()
         |> apply!(World.add_character(%{goblin(7) | concentrating: "bless"}))
 
-      w = apply!(w, World.apply_damage("goblin", 3))
-      assert w.characters["goblin"].concentrating == "bless"
+      kept = apply!(w, World.apply_damage("goblin", 3, nil, fn _ -> 20 end))
+      assert kept.characters["goblin"].concentrating == "bless"
+      lost = apply!(w, World.apply_damage("goblin", 3, nil, fn _ -> 1 end))
+      assert lost.characters["goblin"].concentrating == nil
     end
 
     test "errors on an unknown character" do
-      assert {:error, "no such character: ghost"} =
+      assert {:error, "no existe el personaje: ghost"} =
                World.set_concentration("ghost", "bless").(World.new())
 
-      assert {:error, "no such character: ghost"} =
+      assert {:error, "no existe el personaje: ghost"} =
                World.clear_concentration("ghost").(World.new())
     end
   end
@@ -331,13 +334,14 @@ defmodule Dragonex.WorldTest do
     test "rejects non-positive amount" do
       w = World.new() |> apply!(World.add_character(pc("hero")))
       assert {:error, msg} = World.grant_xp("hero", 0).(w)
-      assert msg =~ "positive"
+      assert msg =~ "positiva"
       assert {:error, _} = World.grant_xp("hero", -5).(w)
       assert w.characters["hero"].xp == 0
     end
 
     test "errors on an unknown character" do
-      assert {:error, "no such character: ghost"} = World.grant_xp("ghost", 300).(World.new())
+      assert {:error, "no existe el personaje: ghost"} =
+               World.grant_xp("ghost", 300).(World.new())
     end
   end
 
@@ -418,7 +422,7 @@ defmodule Dragonex.WorldTest do
 
     test "refuses to begin combat twice", %{world: w} do
       w = apply!(w, World.begin_combat(["rogue", "goblin"]))
-      assert {:error, "already in combat"} = World.begin_combat(["rogue", "goblin"]).(w)
+      assert {:error, "ya hay un combate en curso"} = World.begin_combat(["rogue", "goblin"]).(w)
     end
 
     test "refuses unknown combatants", %{world: w} do

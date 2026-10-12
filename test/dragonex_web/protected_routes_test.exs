@@ -4,10 +4,14 @@ defmodule DragonexWeb.ProtectedRoutesTest do
   router.ex) redirigen a /login sin sesión iniciada.
   """
 
-  use DragonexWeb.ConnCase, async: true
+  use DragonexWeb.ConnCase, async: false
 
   import Phoenix.ConnTest
-  import Phoenix.LiveViewTest
+
+  setup do
+    Dragonex.Test.Sandbox.start_shared!()
+    :ok
+  end
 
   @protected_routes [
     "/heroes",
@@ -36,7 +40,7 @@ defmodule DragonexWeb.ProtectedRoutesTest do
   test "con sesión, la misma ruta monta (control del caso positivo)" do
     {:ok, user} =
       Dragonex.Accounts.register(%{
-        email: "auth#{System.unique_integer([:positive])}@dragonex.test",
+        email: "auth#{Ecto.UUID.generate()}@dragonex.test",
         password: "password123",
         display_name: "Authed"
       })
@@ -49,5 +53,13 @@ defmodule DragonexWeb.ProtectedRoutesTest do
     # The hero gallery mounts when logged in (the rest share the same pipe).
     assert {:ok, _view, html} = live(conn, "/heroes")
     assert html =~ "Héroes"
+  end
+
+  test "login and register do not show a redacted email placeholder" do
+    for path <- ["/login", "/register"] do
+      html = html_response(get(build_conn(), path), 200)
+      refute html =~ "__VG_EMAIL"
+      assert html =~ ~s(placeholder="tu correo")
+    end
   end
 end

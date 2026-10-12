@@ -188,7 +188,8 @@ defmodule Dragonex.EvasionTest do
     # ADR D59: la inspiración bárdica (D50) se aplica ANTES — un éxito
     # gracias al d6 también activa Evasión.
     test "a save rescued by bardic inspiration still triggers Evasión" do
-      w = world_with(%Character{rogue(7) | inspired: true})
+      %Character{} = inspired = rogue(7)
+      w = world_with(%Character{inspired | inspired: true})
 
       # d20 8+2=10 < CD 13 → fallo; +5 inspiración → 15 ≥ 13 → éxito
       # gracias al d6 → Evasión: 0 daño (el 1d6 de daño se tira igual).
