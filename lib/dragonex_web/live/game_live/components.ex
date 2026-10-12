@@ -85,10 +85,31 @@ defmodule DragonexWeb.GameLive.Components do
 
   # Only the creator holds «Reanudar»; a pause note asking to resume must not
   # leave a guest looking for a control they do not have (D228).
-  defp paused_label(%{is_creator: false}),
-    do: dgettext("ui", "En pausa · la reanuda quien creó la partida")
+  defp paused_label(%{is_creator: false} = assigns),
+    do: dgettext("ui", "%{pause} · la reanuda quien creó la partida", pause: paused_turn(assigns))
 
-  defp paused_label(_), do: dgettext("ui", "En pausa")
+  defp paused_label(assigns), do: paused_turn(assigns)
+
+  # «En pausa · tu turno» tells the player what resuming leads to.
+  defp paused_turn(%{current: viewer, viewer: viewer}) when is_binary(viewer) and viewer != "dm",
+    do: dgettext("ui", "En pausa · tu turno")
+
+  defp paused_turn(%{current: current} = assigns) when is_binary(current) do
+    case actor_name(current, Map.get(assigns, :world)) do
+      nil -> dgettext("ui", "En pausa · turno del DM")
+      actor -> dgettext("ui", "En pausa · turno de %{actor}", actor: actor)
+    end
+  end
+
+  defp paused_turn(_), do: dgettext("ui", "En pausa")
+
+  # The DM's participant id never reaches the table: in combat its turn
+  # belongs to the acting monster or NPC; otherwise it is nil («del DM»).
+  defp actor_name("dm", %World{phase: :combat, current_combatant: name}) when is_binary(name),
+    do: name
+
+  defp actor_name("dm", _world), do: nil
+  defp actor_name(actor, _world), do: actor
 
   defp turn_label(viewer, :waiting, viewer) when is_binary(viewer),
     do: dgettext("ui", "¡Tu turno!")
@@ -122,7 +143,7 @@ defmodule DragonexWeb.GameLive.Components do
           <span :if={@mine} class="you-tag">{dgettext("ui", "TÚ")}</span>
           <span :if={vital_label(card)} class="down-tag"><i class="px px-skull" aria-hidden="true"></i>{vital_label(card)}</span>
         </div>
-        <p class="card-sub">{Catalog.class_label(card.class)} · {side_label(card.side)}</p>
+        <p class="card-sub">{card_sub(card)}</p>
         <p :if={conds != []} class="conds">
           <span :for={c <- conds} class="cond-badge">{c}</span>
         </p>
@@ -208,7 +229,7 @@ defmodule DragonexWeb.GameLive.Components do
          weapons = Enum.map(card.weapons || [], &Catalog.weapon_label/1)
          spells = Enum.map(card.spells || [], &Catalog.spell_label/1) %>
       <div class="sheet">
-        <div class="card mine detail">
+        <div class={"card mine detail side-#{card.side}"}>
           <div class="card-head">
             <h3 class="card-name">{card.name}</h3>
             <span class="you-tag">{dgettext("ui", "TÚ")}</span>
@@ -265,6 +286,12 @@ defmodule DragonexWeb.GameLive.Components do
         Map.has_key?(assigns.world.characters, assigns.card.name)
 
     slots = if known?, do: Map.get(assigns.world.spell_slots, assigns.card.name)
+
+    capacity =
+      if is_integer(assigns.card.level),
+        do: SpellSlots.for_class(assigns.card.class, assigns.card.level),
+        else: %{}
+
     dice = if known?, do: Rest.remaining(assigns.world, assigns.card.name)
 
     pools =
@@ -276,6 +303,7 @@ defmodule DragonexWeb.GameLive.Components do
       assign(assigns,
         known: known?,
         slots: slots,
+        slot_capacity: capacity,
         hit_dice: dice,
         class_pools: pools,
         original_form: original_form,
@@ -298,7 +326,7 @@ defmodule DragonexWeb.GameLive.Components do
       </div>
       <div :for={{level, count} <- Enum.sort(@slots || %{})} data-resource={"spell-slot-#{level}"}>
         <dt>{dgettext("ui", "Nivel %{level}", level: level)}</dt>
-        <dd class={if count == 0, do: "resource-spent", else: ""}>{dngettext("ui", "%{count} disponible", "%{count} disponibles", count)}</dd>
+        <dd class={if count == 0, do: "resource-spent", else: ""}>{slot_line(count, Map.get(@slot_capacity, level))}</dd>
       </div>
       <div :if={@card.class == "fighter"} data-resource="second-wind">
         <dt>{dgettext("ui", "Segundo aliento")}</dt>
@@ -311,6 +339,15 @@ defmodule DragonexWeb.GameLive.Components do
     </dl>
     """
   end
+
+  # Sorcery points can fund a slot beyond the table capacity; then the count
+  # alone is the truth.
+  defp slot_line(count, capacity) when is_integer(capacity) and count <= capacity,
+    do:
+      dgettext("ui", "%{remaining}/%{capacity} disponibles", remaining: count, capacity: capacity)
+
+  defp slot_line(count, _capacity),
+    do: dngettext("ui", "%{count} disponible", "%{count} disponibles", count)
 
   defp original_hit_points(%{orig_hp: hp, orig_max_hp: max_hp})
        when is_integer(hp) and hp >= 0 and is_integer(max_hp) and max_hp > 0,
@@ -379,6 +416,11 @@ defmodule DragonexWeb.GameLive.Components do
   defp hp_level(pct) when pct > 50, do: "hp-high"
   defp hp_level(pct) when pct > 25, do: "hp-mid"
   defp hp_level(_), do: "hp-low"
+
+  defp card_sub(%{side: "pc"} = card),
+    do: "#{Catalog.class_label(card.class)} · #{side_label(card.side)}"
+
+  defp card_sub(card), do: side_label(card.side)
 
   defp side_label("pc"), do: dgettext("ui", "Aventurero")
   defp side_label("enemy"), do: dgettext("ui", "Enemigo")
@@ -451,7 +493,6 @@ defmodule DragonexWeb.GameLive.Components do
             <i class={"px #{if @viewer == "dm", do: "px-eye", else: "px-shield"}"} aria-hidden="true"></i>{if @viewer == "dm", do: dgettext("ui", "Vista del DM"), else: @viewer}
           </span>
           <button :if={@is_creator and @status in [:running, :waiting]} class="ctl-btn" phx-click="pause">{dgettext("ui", "Pausa")}</button>
-          <button :if={@is_creator and @status == :paused} class="ctl-btn ctl-active" phx-click="resume">{dgettext("ui", "Reanudar")}</button>
           <button
             :if={@viewer != "dm"}
             class={"ctl-btn #{if @auto_play, do: "ctl-active", else: ""}"}
@@ -485,9 +526,12 @@ defmodule DragonexWeb.GameLive.Components do
       <%= if @world != nil and @world.phase == :combat do %>
         <.combat_tracker world={@world} current={@current} round={@round} viewer={@viewer} />
       <% else %>
-        <div :for={{card, index} <- Enum.with_index(cards)} :key={card.name} :if={rem(index, 2) == 0} class="sheet">
-          <.sheet world={@world} card={card} active={active_card?(@world, card, @current)} mine={card.name == @viewer} />
-        </div>
+        <%= for {card, index} <- Enum.with_index(cards), rem(index, 2) == 0 do %>
+          <.detail_sheet :if={card.name == @viewer} card={card} world={@world} />
+          <div :if={card.name != @viewer} class="sheet">
+            <.sheet world={@world} card={card} active={active_card?(@world, card, @current)} />
+          </div>
+        <% end %>
       <% end %>
     </aside>
 
@@ -509,7 +553,7 @@ defmodule DragonexWeb.GameLive.Components do
           <div :if={block.header} class="turn-head">
             <span class="th-line">
               <span class={"th-actor #{Chat.th_actor_class(block.header.actor, @viewer, @auto_play)}"}>
-                {Chat.turn_header_label(block.header.actor, @viewer, @auto_play)}
+                {Chat.header_label(block.header, @viewer, @auto_play)}
               </span>
               <span :if={block.header.phase == "combat"} class="th-phase">{dgettext("ui", "combate")}</span>
             </span>
@@ -533,6 +577,11 @@ defmodule DragonexWeb.GameLive.Components do
       </button>
       <div class="game-input-area">
         <p :if={@input_error} id="player-input-error" class="input-error" role="alert">{@input_error}</p>
+        <div :if={@status == :paused} class="game-toast pause-banner" role="status">
+          <i class="px px-scroll" aria-hidden="true"></i>
+          <span class="pause-text">{pause_reason(@chat) || dgettext("ui", "La partida está en pausa.")}</span>
+          <button :if={@is_creator} class="ctl-btn ctl-active btn-sm" phx-click="resume">{dgettext("ui", "Reanudar")}</button>
+        </div>
         <p :if={@viewer == "dm"} class="dm-view-note">
           {dgettext("ui", "Estás viendo la crónica como DM.")}
           <.link patch={"/games/#{@game_id}"}>{dgettext("ui", "Volver a mi personaje")}</.link>
@@ -566,7 +615,7 @@ defmodule DragonexWeb.GameLive.Components do
             value={@pending}
             autocomplete="off"
             disabled={@status == :ended}
-            placeholder={placeholder(@my_turn, @busy, @current, @status)}
+            placeholder={placeholder(@my_turn, @busy, @current && (actor_name(@current, @world) || :dm), @status)}
           />
           <button type="submit" class={"btn#{if can_act, do: " btn-primary", else: ""}"} disabled={@status == :ended or String.trim(@pending) == ""}>
             {if can_act, do: dgettext("ui", "Actuar"), else: dgettext("ui", "Declarar")}
@@ -587,7 +636,7 @@ defmodule DragonexWeb.GameLive.Components do
         <div :if={@world != nil and @viewer != "dm" and @world.characters[@viewer] != nil} class="mobile-player-sheet">
           <.detail_sheet card={@world.characters[@viewer]} world={@world} />
         </div>
-        <div :for={{card, index} <- Enum.with_index(cards)} :key={card.name} :if={rem(index, 2) == 1} class="sheet">
+        <div :for={{card, index} <- Enum.with_index(cards)} :key={card.name} :if={rem(index, 2) == 1 or @world.phase == :combat} class="sheet">
           <.sheet world={@world} card={card} active={active_card?(@world, card, @current)} mine={card.name == @viewer} />
         </div>
       <% end %>
@@ -763,12 +812,23 @@ defmodule DragonexWeb.GameLive.Components do
 
   defp active_card?(_, _, _), do: false
 
+  # A failed turn pauses the table right after its public note (the raw
+  # failure only reaches the DM view); that note is the reason.
+  defp pause_reason(chat) do
+    case chat |> List.last() |> then(&((&1 && &1.events) || [])) |> List.last() do
+      %{kind: "turn_retained", text: text} when text != "" -> text
+      _ -> nil
+    end
+  end
+
   defp placeholder(_, _, _, :paused), do: dgettext("ui", "Declara tu intención (en pausa)…")
   defp placeholder(_, _, _, :ended), do: dgettext("ui", "La partida ha terminado")
   defp placeholder(true, false, _, _), do: dgettext("ui", "¿Qué haces?")
 
   defp placeholder(_, _, current, _) when is_binary(current),
     do: dgettext("ui", "Declara tu intención (turno de %{actor})…", actor: current)
+
+  defp placeholder(_, _, :dm, _), do: dgettext("ui", "Declara tu intención (turno del DM)…")
 
   defp placeholder(_, _, _, _), do: dgettext("ui", "Declara tu intención…")
 

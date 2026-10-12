@@ -178,6 +178,15 @@
   animation: win-open 0.2s steps(3) both;
 }
 .game-toast strong { font-weight: 400; }
+.pause-banner {
+  display: flex;
+  width: 100%;
+  margin: 0 0 0.8rem;
+  color: var(--text);
+  background: var(--stone);
+}
+.pause-banner .pause-text { flex: 1 1 auto; min-width: 0; line-height: 1.35; }
+.pause-banner .ctl-btn { flex: 0 0 auto; }
 .my-turn-banner {
   color: #2b1f00;
   background: var(--gold);

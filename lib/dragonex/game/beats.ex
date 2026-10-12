@@ -38,15 +38,30 @@ defmodule Dragonex.Game.Beats do
       :ok
     else
       {:ok, _} =
-        Games.append_event(game_id, :turn, actor, "all", %{
-          turn_id: turn_id,
-          round: world.round,
-          phase: world.phase,
-          turn_kind: world.turn_kind,
-          kind: :start
-        })
+        Games.append_event(
+          game_id,
+          :turn,
+          actor,
+          "all",
+          %{
+            turn_id: turn_id,
+            round: world.round,
+            phase: world.phase,
+            turn_kind: world.turn_kind,
+            kind: :start
+          }
+          |> put_combatant(actor, world)
+        )
     end
   end
+
+  # A DM combat turn belongs to a monster or NPC; the table names it instead
+  # of a generic «Turno del DM».
+  defp put_combatant(payload, "dm", %{phase: :combat, current_combatant: name})
+       when is_binary(name) and name != "",
+       do: Map.put(payload, :combatant, name)
+
+  defp put_combatant(payload, _actor, _world), do: payload
 
   # Consume a participant's pending intent: log the action, run the beat, clear
   # the intent (durable). Used both by `declare` (live) and the loop (queued).

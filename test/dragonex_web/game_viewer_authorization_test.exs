@@ -32,13 +32,38 @@ defmodule DragonexWeb.GameViewerAuthorizationTest do
     owner_conn: owner_conn
   } do
     {:ok, guest, _} = live(guest_conn, "/games/#{game.id}")
-    assert has_element?(guest, ".whose-turn", "En pausa · la reanuda quien creó la partida")
+    assert has_element?(guest, ".whose-turn", "la reanuda quien creó la partida")
+    assert has_element?(guest, ".whose-turn", ~r/^En pausa · /)
     refute has_element?(guest, "button[phx-click=resume]")
 
     {:ok, owner, _} = live(owner_conn, "/games/#{game.id}")
     assert has_element?(owner, ".whose-turn", "En pausa")
     refute has_element?(owner, ".whose-turn", "la reanuda")
     assert has_element?(owner, "button[phx-click=resume]", "Reanudar")
+  end
+
+  test "the pause notice by the input gives the retained turn's reason and its control", %{
+    game: game,
+    guest_conn: guest_conn,
+    owner_conn: owner_conn
+  } do
+    {:ok, owner, _} = live(owner_conn, "/games/#{game.id}")
+    assert has_element?(owner, ".pause-banner", "La partida está en pausa.")
+    assert has_element?(owner, ".whose-turn", "En pausa · tu turno")
+
+    reason = "El turno del DM no pudo completarse. Reanuda para volver a intentarlo."
+
+    {:ok, _} =
+      Games.append_event(game.id, :system, "system", "all", %{kind: "turn_retained", note: reason})
+
+    {:ok, owner, _} = live(owner_conn, "/games/#{game.id}")
+    assert has_element?(owner, ".pause-banner", reason)
+    assert has_element?(owner, ".pause-banner button[phx-click=resume]", "Reanudar")
+
+    {:ok, guest, _} = live(guest_conn, "/games/#{game.id}")
+    assert has_element?(guest, ".whose-turn", "En pausa · turno de Thane")
+    assert has_element?(guest, ".pause-banner", reason)
+    refute has_element?(guest, ".pause-banner button")
   end
 
   test "a participant cannot obtain the DM view through the URL or a live patch", %{

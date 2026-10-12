@@ -97,6 +97,12 @@ defmodule DragonexWeb.GameLive.Chat do
   def turn_header_label(actor, _viewer, _auto),
     do: dgettext("ui", "Turno de %{actor}", actor: actor)
 
+  @doc "Header label for a timeline block; a DM combat turn names its combatant."
+  def header_label(%{actor: "dm", combatant: name}, _viewer, _auto) when is_binary(name),
+    do: dgettext("ui", "Turno de %{actor}", actor: name)
+
+  def header_label(%{actor: actor}, viewer, auto), do: turn_header_label(actor, viewer, auto)
+
   def live_shown(text, actor, pc_names \\ [], character_names \\ []),
     do: Text.scrub(text || "", actor, pc_names: pc_names, character_names: character_names)
 
@@ -122,7 +128,12 @@ defmodule DragonexWeb.GameLive.Chat do
       end)
 
     %{hidden: hidden, voiced: voiced} = SpeechEcho.analyze(visible)
-    visible = Enum.reject(visible, &MapSet.member?(hidden, &1.seq))
+    latest = List.last(visible)
+
+    # «El turno pasa a X» repeats the next block's header; only the latest
+    # handoff, still waiting for its turn to open, says something new.
+    visible =
+      Enum.reject(visible, &(MapSet.member?(hidden, &1.seq) or (handoff?(&1) and &1 != latest)))
 
     # Walk the visible events in order, opening a new block every time a
     # :turn marker appears. The marker carries turn_id/round/phase/actor.
@@ -139,7 +150,8 @@ defmodule DragonexWeb.GameLive.Chat do
               turn_id: p["turn_id"],
               actor: e.actor,
               round: p["round"],
-              phase: p["phase"]
+              phase: p["phase"],
+              combatant: p["combatant"]
             }
 
             block = %{header: header, events: []}
@@ -154,6 +166,7 @@ defmodule DragonexWeb.GameLive.Chat do
               who: chat_who(e),
               text: chat_text(e),
               outcome: chat_outcome(e),
+              kind: if(e.type == :system, do: (e.payload || %{})["kind"]),
               declaration:
                 e.type == :action and e.actor != "dm" and not MapSet.member?(voiced, e.seq)
             }
@@ -172,7 +185,27 @@ defmodule DragonexWeb.GameLive.Chat do
     blocks_rev
     |> Enum.reverse()
     |> Enum.map(&%{&1 | events: Enum.reverse(&1.events)})
+    |> Enum.map(&infer_combatant/1)
   end
+
+  # Turn markers before the `combatant` field: a DM combat turn whose rolls
+  # all belong to one creature is that creature's turn.
+  defp infer_combatant(
+         %{header: %{actor: "dm", phase: "combat", combatant: nil} = header, events: events} =
+           block
+       ) do
+    case events |> Enum.filter(&(&1.type == :dice)) |> Enum.map(& &1.who) |> Enum.uniq() do
+      [name] when is_binary(name) and name != "" -> %{block | header: %{header | combatant: name}}
+      _ -> block
+    end
+  end
+
+  defp infer_combatant(block), do: block
+
+  defp handoff?(%{type: :system, actor: "turnmaster", payload: %{"kind" => kind}}),
+    do: kind in ["give_turn_to", "pass_to_dm"]
+
+  defp handoff?(_), do: false
 
   # The role drives the CSS class. Narration by the DM → :dm. Narration/action
   # by a non-dm actor → :pc (the bot or human PC speaking in their own voice).

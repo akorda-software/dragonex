@@ -63,16 +63,16 @@ defmodule DragonexWeb.GameSheetStateTest do
     html = render_component(&Components.detail_sheet/1, card: card, world: world)
     assert html =~ "Casillas de conjuro"
     assert html =~ "Nivel 1"
-    assert html =~ "0 disponibles"
+    assert html =~ "0/4 disponibles"
     assert html =~ "Nivel 2"
-    assert html =~ "1 disponible"
+    assert html =~ "1/2 disponibles"
     assert html =~ "Dados de golpe"
     assert html =~ "2/3 · d6"
     assert html =~ "Rayo ígneo"
     assert html =~ "Proyectil mágico"
 
     overview = render_component(&Components.sheet/1, card: card, world: world, mine: true)
-    assert overview =~ "0 disponibles"
+    assert overview =~ "0/4 disponibles"
     assert overview =~ "2/3 · d6"
   end
 
@@ -409,15 +409,15 @@ defmodule DragonexWeb.GameSheetStateTest do
 
     conn = build_conn() |> Plug.Test.init_test_session(%{}) |> DragonexWeb.UserAuth.log_in(user)
     {:ok, view, _} = live(conn, "/games/#{game.id}")
-    assert has_element?(view, ".detail [data-resource=spell-slot-1]", "2 disponibles")
+    assert has_element?(view, ".detail [data-resource=spell-slot-1]", "2/2 disponibles")
 
     assert :ok = Game.resume(pid)
     assert :ok = Game.await_turn(pid, card.name)
     assert {:ok, :resolving} = Game.declare(pid, card.name, "Lanzo Proyectil mágico")
     assert :ok = Game.await(pid, &(&1.world.spell_slots[card.name][1] == 1))
-    assert has_element?(view, ".detail [data-resource=spell-slot-1]", "1 disponible")
+    assert has_element?(view, ".detail [data-resource=spell-slot-1]", "1/2 disponibles")
     assert :ok = Game.pause(pid)
     {:ok, reloaded, _} = live(conn, "/games/#{game.id}")
-    assert has_element?(reloaded, ".detail [data-resource=spell-slot-1]", "1 disponible")
+    assert has_element?(reloaded, ".detail [data-resource=spell-slot-1]", "1/2 disponibles")
   end
 end

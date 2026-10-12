@@ -11,7 +11,7 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 
 ## Último estado — 2026-10-12
 
-- **Gates:** 3055 passed / 3 excluded en ambos grafos (local y Hex),
+- **Gates:** 3063 passed / 3 excluded en ambos grafos (local y Hex),
   `--warnings-as-errors` limpio, formato limpio.
 - **Dependencias:** dev usa `../exAgent` 2.1 y `../dic_ex` 0.3; prod, las
   mismas versiones de Hex (D237). **Sin desplegar** desde ese cambio.
@@ -69,7 +69,13 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
    beats del DM con varias tools.
 6. **Prosa:** paráfrasis que repiten la voz humana, el DM añade gestos al PC,
    ataques narrados sin tirada (visto antes de D232; no reproducido en 19455).
-7. **Limpieza intermitente de tests** (Postgrex/owner): en seguimiento, sin
+7. **UI/UX de la mesa** (auditoría con capturas, 2026-10-12). Hecho: ficha
+   completa propia en exploración, vista DM con todas las fichas, turnos de
+   monstruo con su nombre, pausa con motivo y «Reanudar» junto a la entrada,
+   casillas con máximo y sin traspasos de turno repetidos. Pendiente: dados
+   ajenos sin modal, combate legible en móvil (PG/estados de enemigos), franja
+   de escena/hora/PNJ y barras móviles más compactas.
+8. **Limpieza intermitente de tests** (Postgrex/owner): en seguimiento, sin
    reaparecer en los gates de 2026-10-12.
 
 ## 🟡 Simplificaciones v1 asumidas
