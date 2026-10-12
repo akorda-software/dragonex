@@ -136,6 +136,23 @@ defmodule DragonexWeb.GameLive.RollFormat do
   end
 
   @doc """
+  What the roll left behind, from the `hp` the Game attaches to a tool's last
+  roll: `suso queda a 4/10 PG`. Empty when the roll changed no one's HP.
+  """
+  @spec hp_note(map()) :: String.t()
+  def hp_note(%{} = p) do
+    (p["hp"] || p[:hp] || [])
+    |> Enum.flat_map(fn
+      [name, hp, max] when is_binary(name) and is_integer(hp) ->
+        [dgettext("ui", "%{name} queda a %{hp}/%{max} PG", name: name, hp: hp, max: max)]
+
+      _ ->
+        []
+    end)
+    |> Enum.join(", ")
+  end
+
+  @doc """
   The dice summary for a modal card: `d20:14 +3 = 17` (no reason, no outcome).
   """
   @spec format_dice(map()) :: String.t()

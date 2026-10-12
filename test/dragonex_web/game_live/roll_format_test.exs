@@ -159,4 +159,18 @@ defmodule DragonexWeb.GameLive.RollFormatTest do
       assert RF.normalize_outcome(7) == nil
     end
   end
+
+  describe "hp_note/1" do
+    test "names every creature the roll left changed, fresh or from jsonb" do
+      assert RF.hp_note(%{hp: [["suso", 4, 10]]}) == "suso queda a 4/10 PG"
+
+      assert RF.hp_note(%{"hp" => [["goblin1", 0, 7], ["goblin2", 3, 7]]}) ==
+               "goblin1 queda a 0/7 PG, goblin2 queda a 3/7 PG"
+    end
+
+    test "rolls without consequence say nothing" do
+      assert RF.hp_note(%{"total" => 6}) == ""
+      assert RF.hp_note(%{"hp" => [["roto"]]}) == ""
+    end
+  end
 end

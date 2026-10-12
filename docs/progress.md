@@ -11,7 +11,7 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 
 ## Último estado — 2026-10-12
 
-- **Gates:** 3063 passed / 3 excluded en ambos grafos (local y Hex),
+- **Gates:** 3071 passed / 3 excluded en ambos grafos (local y Hex),
   `--warnings-as-errors` limpio, formato limpio.
 - **Dependencias:** dev usa `../exAgent` 2.1 y `../dic_ex` 0.3; prod, las
   mismas versiones de Hex (D237). **Sin desplegar** desde ese cambio.
@@ -76,8 +76,9 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
    caen en una bandeja que no bloquea (modal solo para las tuyas); en móvil la
    iniciativa muestra bando, PG y caídos, el cajón abre el rastreador de
    combate sobre la crónica y la barra de controles avisa de que desplaza.
-   Pendiente: franja de escena/hora/PNJ, PG resultantes en las líneas de daño,
-   salvaciones de muerte y acción/adicional/reacción gastadas.
+   Las tiradas muestran los PG que dejaron (D241) y las salvaciones de muerte
+   de un PC caído se ven en el rastreador y en las fichas del grupo.
+   Pendiente: franja de escena/hora/PNJ y acción/adicional/reacción gastadas.
 8. **Limpieza intermitente de tests** (Postgrex/owner): en seguimiento, sin
    reaparecer en los gates de 2026-10-12.
 

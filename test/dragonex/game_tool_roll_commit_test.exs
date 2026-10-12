@@ -37,9 +37,12 @@ defmodule Dragonex.GameToolRollCommitTest do
       assert [event] = dice_events(game.id)
       assert event.payload["turn_id"] == paid.actor_checkpoint["turn_id"]
       assert event.payload["dice"] == [[4, 1], [4, 1], [4, 1]]
+      max_hp = paid.characters["Goblin"].max_hp
+      assert event.payload["hp"] == [["Goblin", 14, max_hp]]
       assert_receive {:dice_group, id, entry}, 500
       assert id == game.id
       assert entry.total == 6
+      assert entry.hp == [["Goblin", 14, max_hp]]
       send(tool, :reply)
       assert_receive {:narration_ready, _}, 2_000
       assert [%{"values" => [feedback]}] = Game.world(pid).actor_checkpoint["tools"]

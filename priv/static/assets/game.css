@@ -338,6 +338,14 @@
 .msg-roll.roll-crit .who { color: var(--rubric); }
 .msg-roll.roll-miss,
 .msg-roll.roll-failure { box-shadow: inset 4px 0 0 0 var(--blood), 3px 3px 0 0 rgba(59, 36, 18, 0.3); }
+.msg-roll .roll-hp {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 13px;
+  color: #f0a58f;
+}
+.msg-roll .roll-hp::before { content: "↳ "; opacity: 0.7; }
+.msg-roll.roll-crit .roll-hp { color: var(--rubric); }
 .msg-roll.roll-crit_fail { color: #ffd9d2; background: var(--blood-dim); box-shadow: inset 4px 0 0 0 var(--blood), 3px 3px 0 0 rgba(59, 36, 18, 0.3); }
 .msg-system { font-size: 16px; font-style: italic; color: var(--ink-soft); }
 .msg-system.thinking { display: flex; align-items: center; gap: 0.5rem; }
@@ -520,6 +528,22 @@
 .sheet-resources .resource-note { color: var(--text-dim); }
 .card-vital { margin: 0.3rem 0; color: #ffd2d2; font-family: var(--f-ui); font-size: 13px; }
 .death-save-state { margin: 0.4rem 0; color: var(--text-dim); font-size: 15px; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.death-pips { display: flex; gap: 0.6rem; margin: 0.3rem 0 0; }
+.death-pips .pips { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; line-height: 1; }
+.death-pips .pips-ok::before { content: "✓"; margin-right: 2px; }
+.death-pips .pips-fail::before { content: "✗"; margin-right: 2px; }
+.death-pips i { width: 9px; height: 9px; border: 1px solid currentColor; background: transparent; }
+.death-pips .pips-ok { color: var(--moss); }
+.death-pips .pips-fail { color: var(--blood); }
+.death-pips i.on { background: currentColor; }
 
 /* ------------------------------------------------------- iniciativa */
 
@@ -668,6 +692,7 @@
 .dg-against { margin-left: 0.3rem; color: var(--text-mute); }
 .dg-outcome { margin-top: 0.3rem; font-family: var(--f-ui); font-size: 18px; font-weight: 700; letter-spacing: 0.04em; color: var(--text-dim); }
 .dg-win .dg-outcome { color: var(--moss); }
+.dg-hp { margin-top: 0.2rem; font-family: var(--f-ui); font-size: 13px; color: #f0a58f; }
 .dg-lose .dg-outcome { color: #ff8f8f; }
 
 /* ---------------------------------------------------- ajustes de IA */

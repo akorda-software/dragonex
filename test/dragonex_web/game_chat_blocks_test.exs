@@ -75,4 +75,12 @@ defmodule DragonexWeb.GameChatBlocksTest do
     assert [%{events: [%{kind: "turn_retained", text: "En pausa."}]}] =
              Chat.blocks(events, "Thane")
   end
+
+  test "a damage roll carries the HP it left behind" do
+    damage = %{"who" => "goblin2", "kind" => "damage", "hp" => [["suso", 4, 10]]}
+    events = [turn(1, "dm"), event(2, :dice, "dm", damage), roll(3, "goblin2")]
+
+    assert [%{events: [%{consequence: "suso queda a 4/10 PG"}, %{consequence: ""}]}] =
+             Chat.blocks(events, "Thane")
+  end
 end

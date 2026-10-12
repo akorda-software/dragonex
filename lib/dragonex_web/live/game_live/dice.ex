@@ -387,6 +387,7 @@ defmodule DragonexWeb.GameLive.Dice do
         <span class="dg-against">{RollFormat.format_against_spaced(@g[:against] || @g["against"])}</span>
       </div>
       <div class="dg-outcome">{RollFormat.outcome_label(@g[:outcome] || @g["outcome"])}</div>
+      <div :if={RollFormat.hp_note(@g) != ""} class="dg-hp">{RollFormat.hp_note(@g)}</div>
     </div>
     """
   end

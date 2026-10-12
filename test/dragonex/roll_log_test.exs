@@ -140,4 +140,22 @@ defmodule Dragonex.RollLogTest do
     assert {:ok, _} = Jason.encode(RollLog.entries(rec))
     RollLog.stop(rec)
   end
+
+  test "with_hp_changes marks the last roll with every HP the tool changed" do
+    world = fn hps ->
+      %{characters: Map.new(hps, fn {n, hp} -> {n, %{hp: hp, max_hp: 10}} end)}
+    end
+
+    before = world.([{"Bran", 10}, {"Goblin", 7}, {"Aina", 9}])
+    after_ = world.([{"Bran", 4}, {"Goblin", 0}, {"Aina", 9}])
+    entries = [%{kind: :attack}, %{kind: :damage}]
+
+    assert [%{kind: :attack} = first, %{hp: [["Bran", 4, 10], ["Goblin", 0, 10]]}] =
+             RollLog.with_hp_changes(entries, before, after_)
+
+    refute Map.has_key?(first, :hp)
+    assert RollLog.with_hp_changes(entries, before, before) == entries
+    assert RollLog.with_hp_changes(entries, nil, after_) == entries
+    assert RollLog.with_hp_changes([], before, after_) == []
+  end
 end

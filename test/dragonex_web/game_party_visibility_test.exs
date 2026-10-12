@@ -152,6 +152,19 @@ defmodule DragonexWeb.GamePartyVisibilityTest do
     assert has_element?(view, ".game-rail-right .mobile-combat-tracker", goblin.name)
   end
 
+  test "a downed companion's death saves read from the tracker and the cards",
+       %{conn: conn, user: user} do
+    [aina | rest] = party()
+    pcs = [%{aina | hp: 0, death_saves: %{successes: 1, fails: 2}} | rest]
+
+    {view, _game} = table(conn, user, pcs, phase: :combat)
+
+    saves = "Salvaciones de muerte: 1 éxito · 2 fallos"
+    assert has_element?(view, ".combat-tracker .death-pips", saves)
+    assert has_element?(view, "#mobile-companions .death-pips", saves)
+    assert [_, _] = nodes(view, ".mobile-combat-tracker .death-pips .pips-fail i.on")
+  end
+
   defp party do
     for name <- ["Aina", "Bran", "Cira", "Dara", "Eira", "Zuria"],
         do: %{Archetypes.fighter() | name: name}

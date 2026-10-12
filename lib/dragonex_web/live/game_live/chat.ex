@@ -165,6 +165,7 @@ defmodule DragonexWeb.GameLive.Chat do
               role: chat_role(e),
               who: chat_who(e),
               text: chat_text(e),
+              consequence: chat_consequence(e),
               outcome: chat_outcome(e),
               kind: if(e.type == :system, do: (e.payload || %{})["kind"]),
               declaration:
@@ -255,6 +256,9 @@ defmodule DragonexWeb.GameLive.Chat do
   end
 
   defp leading_self?(_, _), do: false
+
+  defp chat_consequence(%{type: :dice, payload: p}), do: RollFormat.hp_note(p)
+  defp chat_consequence(_), do: ""
 
   defp chat_outcome(%{type: :dice, payload: p}), do: p["outcome"]
   defp chat_outcome(_), do: nil

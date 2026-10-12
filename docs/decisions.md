@@ -7899,6 +7899,27 @@ sin el cambio, reproduce el fallo de 19463).
 no sabe qué objetos son únicos. Un objeto concedido demasiado pronto (al
 revelarlo) sigue siendo una sola unidad, no un error detectado.
 
+## D241 — Las tiradas llevan los PG que dejaron
+
+**Estado:** Aceptada. **Fecha:** 2026-10-12.
+
+**Contexto:** la crónica mostraba «daño cortante a suso d6:4 +2 = 6» pero no
+cómo quedaba suso: había que cruzar la línea con la ficha, que ya mostraba el
+estado final de varias tiradas. Las ~27 aperturas de `RollLog` en `Actions` no
+saben a quién acaba afectando el cambio (resistencias, PG temporales, áreas,
+concentración).
+
+**Decisión:** `RuleCheckpoint` compara el mundo antes y después de cada tool y
+`RollLog.with_hp_changes/3` añade a la **última** tirada de esa tool
+`hp: [[nombre, pg, pg_max]]` por cada criatura cuyos PG cambiaron. Se persiste
+en el payload del evento `:dice` y viaja en `{:dice_group, …}`. La crónica lo
+pinta bajo la tirada («suso queda a 4/10 PG») y la bandeja de dados también.
+
+**Límites:** si una tool hace varias tiradas de daño al mismo objetivo, solo
+la última muestra el resultado acumulado. Los cambios sin tirada (curación
+fija, efectos automáticos) no muestran nota. Los eventos anteriores no la
+tienen.
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,

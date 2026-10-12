@@ -178,6 +178,7 @@ defmodule DragonexWeb.GameLive.Components do
         </p>
         <.hp_bar pct={pct} />
         <p class="card-stats">{hp_line(card)}</p>
+        <.death_pips :if={card.side == "pc" and card.hp <= 0} card={card} />
         <.sheet_resources :if={@mine} card={card} world={@world} />
         <.sheet_inventory :if={@mine} card={card} />
         <p :if={@mine and is_map(card.wild_shape) and (card.spells || []) != []} class="card-list">{dgettext("ui", "Vuelve a tu forma original para lanzar conjuros.")}</p>
@@ -236,6 +237,7 @@ defmodule DragonexWeb.GameLive.Components do
         </div>
         <.hp_bar pct={@pct} />
         <div class="ct-stats">{if @c, do: hp_line(@c), else: dgettext("ui", "HP 0/0 · CA ?")}</div>
+        <.death_pips :if={@down and @c.side == "pc"} card={@c} />
         <div :if={@conds != []} class="conds">
           <span :for={cd <- @conds} class="cond-badge">{cd}</span>
         </div>
@@ -406,6 +408,27 @@ defmodule DragonexWeb.GameLive.Components do
     )
   end
 
+  attr(:card, :map, required: true)
+
+  # Three successes stabilise, three failures kill: a downed PC's saves read at
+  # a glance from the tracker and the companion cards, not only their own sheet.
+  def death_pips(assigns) do
+    assigns =
+      assign(assigns,
+        successes: save_count(assigns.card, :successes),
+        fails: save_count(assigns.card, :fails),
+        label: death_saves_line(assigns.card)
+      )
+
+    ~H"""
+    <p class="death-pips" title={@label}>
+      <span class="sr-only">{@label}</span>
+      <span class="pips pips-ok" aria-hidden="true"><i :for={i <- 1..3} class={if i <= @successes, do: "on"}></i></span>
+      <span class="pips pips-fail" aria-hidden="true"><i :for={i <- 1..3} class={if i <= @fails, do: "on"}></i></span>
+    </p>
+    """
+  end
+
   defp death_saves_line(card) do
     successes = save_count(card, :successes)
     fails = save_count(card, :fails)
@@ -499,7 +522,10 @@ defmodule DragonexWeb.GameLive.Components do
       </details>
     </div>
     <p :if={not @declaration} id={"event-#{@entry.seq}"} data-log-entry class={@msg_class}>
-      <span :if={@entry.who != ""}><span class="who">{@entry.who}</span>{" "}</span>{@entry.text}
+      <span :if={@entry.who != ""}><span class="who">{@entry.who}</span>{" "}</span>{@entry.text}<span
+        :if={Map.get(@entry, :consequence, "") != ""}
+        class="roll-hp"
+      >{Map.get(@entry, :consequence)}</span>
     </p>
     """
   end

@@ -36,8 +36,10 @@ defmodule Dragonex.Game.Persistence do
   # Prepared dice are private to the tool execution. Save them together with
   # its candidate and replay receipt; never publish a partial SQL transaction.
   # Read after evaluating the change, which can itself produce saving throws.
-  def persist_tool_change(state, world, deps) do
-    entries = RollLog.pending(deps[:roll_log])
+  # `before` is the world the change ran on, so the rolls can carry the HP
+  # they left behind.
+  def persist_tool_change(state, world, deps, before \\ nil) do
+    entries = deps[:roll_log] |> RollLog.pending() |> RollLog.with_hp_changes(before, world)
     actor = Map.get(deps.beat, :actor, Session.current(state.session))
     metadata = Map.take(deps.beat, [:turn_id, :round, :phase])
     persist_roll_change(state, world, entries, actor, metadata)

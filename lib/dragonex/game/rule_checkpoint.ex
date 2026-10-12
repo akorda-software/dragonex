@@ -22,10 +22,12 @@ defmodule Dragonex.Game.RuleCheckpoint do
       when session == state.session and game_id == state.game_id and
              actor == busy.participant and turn_id == busy.turn_id and is_pid(owner) do
     if Process.alive?(owner) and Session.current(session) == actor do
-      with {:ok, candidate} <- evaluate(change, Session.read_state(session)) do
+      before = Session.read_state(session)
+
+      with {:ok, candidate} <- evaluate(change, before) do
         {next, candidate} = Dragonex.Game.ToolReplay.stage_change(state, deps, candidate)
 
-        with {:ok, entries} <- Persistence.persist_tool_change(state, candidate, deps),
+        with {:ok, entries} <- Persistence.persist_tool_change(state, candidate, deps, before),
              {:ok, committed} <-
                Session.update_state(session, actor, fn _ -> {:ok, candidate} end) do
           Persistence.publish_tool_rolls(state, deps, entries)

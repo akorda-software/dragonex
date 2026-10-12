@@ -35,6 +35,7 @@ defmodule Dragonex.RollLog do
 
   @type entry :: %{
           optional(:raw_total) => number(),
+          optional(:hp) => [[String.t() | integer()]],
           who: String.t() | nil,
           kind: atom(),
           reason: String.t(),
@@ -101,6 +102,27 @@ defmodule Dragonex.RollLog do
   end
 
   def acknowledge(_log, _entries), do: :ok
+
+  @doc """
+  Attach the hit points a tool left behind to its last roll, as
+  `hp: [[name, hp, max_hp]]` for every creature whose HP changed. The
+  chronicle then reads "goblin queda a 3/7 PG" under the damage that caused it,
+  without each roll site having to know who it ends up hitting.
+  """
+  def with_hp_changes([], _before, _after), do: []
+
+  def with_hp_changes(entries, %{characters: was}, %{characters: now})
+      when is_map(was) and is_map(now) do
+    changes =
+      for {name, c} <- Enum.sort_by(now, &elem(&1, 0)),
+          b = was[name],
+          b != nil and b.hp != c.hp,
+          do: [name, c.hp, c.max_hp]
+
+    if changes == [], do: entries, else: List.update_at(entries, -1, &Map.put(&1, :hp, changes))
+  end
+
+  def with_hp_changes(entries, _before, _after), do: entries
 
   @doc "Stop the recorder (called when the beat finishes)."
   def stop(recorder), do: Agent.stop(recorder)
