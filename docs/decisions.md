@@ -7831,6 +7831,44 @@ completa en 8 declaraciones, 0 fallos, ida y vuelta p50 12 s / p90 52 s.
 Las métricas no juzgan la semántica de la prosa; «combate sin tirada» es un
 indicador para revisar, no un error seguro.
 
+## D239 — Recogidas y entregas declaradas exigen comprobante de inventario
+
+**Estado:** Aceptada. **Fecha:** 2026-10-12.
+
+**Contexto:** el prompt del DM ya obligaba a llamar `grant_item`/`remove_item`
+(D190), pero en playtests el modelo narraba entregas sin tocar el stock. En
+19457 el libro de cuentas quedó ×2 tras entregarlo: dos `grant_item`, ningún
+`remove_item`. El cambio de inventario no deja evento propio, así que la prosa
+y la ficha divergían sin que nada lo señalara.
+
+**Decisión:**
+- `Dragonex.InventoryDeclaration.kind/2` reconoce (es/en) si la declaración
+  del jugador pide recoger, entregar o ambas. Es determinista y amplio a
+  propósito, con exclusiones para gestos, armas y negaciones extraídas de
+  falsos positivos reales.
+- `Game.InventoryResolution` (capacidad, como `WaitResolution` y
+  `NPCMemoryResolution`): en el beat DM de exploración que responde a esa
+  declaración, añade una guía al contexto, bloquea la salida de texto y hace
+  que `Narration.Contract` rechace `final_result` con
+  `:inventory_unresolved` hasta que el checkpoint del turno tenga un recibo
+  de `grant_item`, `remove_item` o `confirm_inventory_unchanged`. No escribe
+  el World.
+- Tool nueva `confirm_inventory_unchanged(who, reason)` (solo DM, sin efecto)
+  para cuando el objeto no cambia de manos: el falso positivo cuesta una
+  llamada, no un turno bloqueado.
+- La revisión de escena «solo inventario» acepta también ese recibo.
+
+**Verificación:** tests deterministas del detector (frases reales de
+playtests, incluidos falsos positivos) y de partida: un cierre sin recibo no
+se publica y el siguiente intento ve la guía y el feedback; `grant_item` y
+`confirm_inventory_unchanged` desbloquean; una declaración sin objeto cierra
+sin requisito.
+
+**Límites:** el detector no entiende la frase; no decide qué objeto ni si el
+cambio procede (eso sigue siendo del DM). Tampoco garantiza que el recibo
+corresponda al objeto correcto ni evita un `grant_item` duplicado: la guía
+lo prohíbe, pero el motor no lo comprueba.
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,

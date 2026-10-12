@@ -11,7 +11,7 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 
 ## Último estado — 2026-10-12
 
-- **Gates:** 3042 passed / 3 excluded en ambos grafos (local y Hex),
+- **Gates:** 3055 passed / 3 excluded en ambos grafos (local y Hex),
   `--warnings-as-errors` limpio, formato limpio.
 - **Dependencias:** dev usa `../exAgent` 2.1 y `../dic_ex` 0.3; prod, las
   mismas versiones de Hex (D237). **Sin desplegar** desde ese cambio.
@@ -54,9 +54,12 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 
 1. **Desplegar prod con D237** (exAgent 2.1 / dic_ex 0.3). Necesita
    confirmación del usuario.
-2. **Inventario de objetos de misión:** en 19455 el DM no llamó a
-   `grant_item` al recoger el libro ni lo retiró al entregarlo, aunque registró
-   la entrega como hecho; en 19450 sí funcionó. Intermitente.
+2. **Inventario de objetos de misión:** en 19457 el libro quedó ×2 tras
+   entregarlo (doble `grant_item`, ningún `remove_item`). D239 exige un
+   comprobante de inventario antes de publicar el cierre del DM cuando el
+   jugador declara recoger o entregar; falta medirlo en vivo
+   (`dragonex.playtest` informa «recogidas/entregas sin cambio»). El duplicado
+   de `grant_item` no lo impide el motor.
 3. **Fiabilidad del proveedor:** argumentos de tool inválidos (DM y TM),
    retención de 4 KiB (19447) y caídas. Medir con `dragonex.playtest --games N`
    antes de corregir.

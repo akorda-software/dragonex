@@ -75,6 +75,7 @@ defmodule Dragonex.DM do
             Dragonex.Game.RunLifecycle,
             Dragonex.Game.WaitResolution,
             Dragonex.Game.NPCMemoryResolution,
+            Dragonex.Game.InventoryResolution,
             Dragonex.Narration.Contract,
             Events
           ] ++

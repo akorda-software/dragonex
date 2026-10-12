@@ -99,7 +99,7 @@ msgstr ""
 msgid "%{spell} (truco)"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/settings.ex:404
+#: lib/dragonex_web/live/game_live/settings.ex:256
 #, elixir-autogen, elixir-format
 msgid "(elige modelo)"
 msgstr ""
@@ -191,7 +191,7 @@ msgid "Agilidad (finesse)"
 msgstr ""
 
 #: lib/dragonex_web/live/game_live/components.ex:474
-#: lib/dragonex_web/live/game_live/settings.ex:370
+#: lib/dragonex_web/live/game_live/settings.ex:222
 #, elixir-autogen, elixir-format
 msgid "Ajustes de IA"
 msgstr ""
@@ -201,7 +201,7 @@ msgstr ""
 msgid "Ajustes de IA: %{model}"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/settings.ex:459
+#: lib/dragonex_web/live/game_live/settings.ex:283
 #, elixir-autogen, elixir-format
 msgid "Al aplicar, se conserva el mundo, el turno y la crónica de la partida."
 msgstr ""
@@ -211,17 +211,12 @@ msgstr ""
 msgid "Aliado"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/settings.ex:280
-#, elixir-autogen, elixir-format
-msgid "Alto"
-msgstr ""
-
 #: lib/dragonex_web/live/hero_live/level_up.ex:286
 #, elixir-autogen, elixir-format
 msgid "Aplicando subida…"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/settings.ex:456
+#: lib/dragonex_web/live/game_live/settings.ex:280
 #, elixir-autogen, elixir-format
 msgid "Aplicar"
 msgstr ""
@@ -338,11 +333,6 @@ msgstr ""
 msgid "Aún no tienes objetos."
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/settings.ex:278
-#, elixir-autogen, elixir-format
-msgid "Bajo"
-msgstr ""
-
 #: lib/dragonex_web/live/game_live/index.ex:225
 #, elixir-autogen, elixir-format
 msgid "Bandeja de dados"
@@ -380,7 +370,7 @@ msgstr ""
 
 #: lib/dragonex_web/live/custom_content_live.ex:389
 #: lib/dragonex_web/live/game_live/new.ex:401
-#: lib/dragonex_web/live/game_live/settings.ex:455
+#: lib/dragonex_web/live/game_live/settings.ex:279
 #: lib/dragonex_web/live/hero_live/level_up.ex:287
 #, elixir-autogen, elixir-format
 msgid "Cancelar"
@@ -991,7 +981,7 @@ msgstr ""
 msgid "Esquiva"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/settings.ex:425
+#: lib/dragonex_web/live/game_live/settings.ex:275
 #, elixir-autogen, elixir-format
 msgid "Esta mesa usa el razonamiento desactivado."
 msgstr ""
@@ -1423,11 +1413,6 @@ msgstr ""
 msgid "Los compañeros con orbe los lleva la IA. Los enemigos los invoca el DM según la historia."
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/settings.ex:279
-#, elixir-autogen, elixir-format
-msgid "Medio"
-msgstr ""
-
 #: lib/dragonex_web/live/hero_live/level_up.ex:237
 #, elixir-autogen, elixir-format
 msgid "Mejora de característica (ASI)"
@@ -1470,12 +1455,12 @@ msgstr ""
 msgid "Mochila"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/settings.ex:391
+#: lib/dragonex_web/live/game_live/settings.ex:243
 #, elixir-autogen, elixir-format
 msgid "Modelo"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/settings.ex:416
+#: lib/dragonex_web/live/game_live/settings.ex:268
 #, elixir-autogen, elixir-format
 msgid "Modelo personalizado"
 msgstr ""
@@ -1493,21 +1478,6 @@ msgstr ""
 #: lib/dragonex_web/live/hero_live/new/components.ex:230
 #, elixir-autogen, elixir-format
 msgid "Munición"
-msgstr ""
-
-#: lib/dragonex_web/live/game_live/settings.ex:281
-#, elixir-autogen, elixir-format
-msgid "Muy alto"
-msgstr ""
-
-#: lib/dragonex_web/live/game_live/settings.ex:282
-#, elixir-autogen, elixir-format
-msgid "Máx"
-msgstr ""
-
-#: lib/dragonex_web/live/game_live/settings.ex:277
-#, elixir-autogen, elixir-format
-msgid "Mín"
 msgstr ""
 
 #: lib/dragonex_web/live/hero_live/level_up.ex:264
@@ -1575,7 +1545,7 @@ msgstr ""
 msgid "No puedes borrar un héroe que ya está en una partida."
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/settings.ex:152
+#: lib/dragonex_web/live/game_live/settings.ex:125
 #, elixir-autogen, elixir-format
 msgid "No se pudieron aplicar los ajustes. Conservamos la configuración anterior; vuelve a abrir la partida."
 msgstr ""
@@ -1687,12 +1657,6 @@ msgstr ""
 msgid "Objetos de %{name}"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/settings.ex:276
-#: lib/dragonex_web/live/game_live/settings.ex:439
-#, elixir-autogen, elixir-format
-msgid "Off"
-msgstr ""
-
 #: lib/dragonex_web/live/game_live/components.ex:65
 #, elixir-autogen, elixir-format
 msgid "Orden de iniciativa"
@@ -1770,7 +1734,7 @@ msgstr ""
 msgid "Propiedades"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/settings.ex:373
+#: lib/dragonex_web/live/game_live/settings.ex:225
 #, elixir-autogen, elixir-format
 msgid "Provider"
 msgstr ""
@@ -1837,7 +1801,7 @@ msgstr ""
 msgid "Reanudar demostración"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/settings.ex:392
+#: lib/dragonex_web/live/game_live/settings.ex:244
 #, elixir-autogen, elixir-format
 msgid "Refrescar modelos"
 msgstr ""
@@ -2025,7 +1989,7 @@ msgstr ""
 msgid "Temporales"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/settings.ex:422
+#: lib/dragonex_web/live/game_live/settings.ex:274
 #, elixir-autogen, elixir-format
 msgid "Thinking (cuánto razona)"
 msgstr ""
@@ -2281,7 +2245,7 @@ msgstr ""
 msgid "attack_ability es obligatorio"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/settings.ex:396
+#: lib/dragonex_web/live/game_live/settings.ex:248
 #, elixir-autogen, elixir-format
 msgid "cargando modelos…"
 msgstr ""
@@ -2387,11 +2351,6 @@ msgstr ""
 msgid "espera humano"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/settings.ex:427
-#, elixir-autogen, elixir-format
-msgid "este modelo no soporta thinking"
-msgstr ""
-
 #: lib/dragonex_web/live/home_demo.ex:224
 #, elixir-autogen, elixir-format
 msgid "iniciativa"
@@ -2435,12 +2394,7 @@ msgstr ""
 msgid "nivel %{level}"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/settings.ex:429
-#, elixir-autogen, elixir-format
-msgid "nivel de thinking sin confirmar para este modelo"
-msgstr ""
-
-#: lib/dragonex_web/live/game_live/settings.ex:400
+#: lib/dragonex_web/live/game_live/settings.ex:252
 #, elixir-autogen, elixir-format
 msgid "no se pudieron cargar los modelos — escribe el slug abajo"
 msgstr ""
@@ -2455,7 +2409,7 @@ msgstr ""
 msgid "no válido (usa 6d6, 3d8+2…)"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/settings.ex:415
+#: lib/dragonex_web/live/game_live/settings.ex:267
 #, elixir-autogen, elixir-format
 msgid "o escribe un slug (ej: deepseek/deepseek-v4.1-flash)"
 msgstr ""
@@ -2491,7 +2445,7 @@ msgstr ""
 msgid "save_ability inválido"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/settings.ex:398
+#: lib/dragonex_web/live/game_live/settings.ex:250
 #, elixir-autogen, elixir-format
 msgid "sin API key para este provider — escribe el slug abajo"
 msgstr ""
@@ -2720,22 +2674,22 @@ msgstr ""
 msgid "🤖 %{actor} (auto)"
 msgstr ""
 
-#: lib/dragonex/models.ex:258
+#: lib/dragonex/models.ex:242
 #, elixir-autogen, elixir-format
 msgid "Elige un modelo antes de aplicar los ajustes."
 msgstr ""
 
-#: lib/dragonex/models.ex:296
+#: lib/dragonex/models.ex:280
 #, elixir-autogen, elixir-format
 msgid "Elige un proveedor disponible."
 msgstr ""
 
-#: lib/dragonex/models.ex:265
+#: lib/dragonex/models.ex:249
 #, elixir-autogen, elixir-format
 msgid "Esta mesa necesita un modelo que permita desactivar el razonamiento."
 msgstr ""
 
-#: lib/dragonex/models.ex:261
+#: lib/dragonex/models.ex:245
 #, elixir-autogen, elixir-format
 msgid "Este proveedor todavía no tiene una clave configurada."
 msgstr ""
@@ -2755,7 +2709,7 @@ msgstr ""
 msgid "Límite alcanzado: %{count} trucos para %{class}."
 msgstr ""
 
-#: lib/dragonex/models.ex:288
+#: lib/dragonex/models.ex:272
 #, elixir-autogen, elixir-format
 msgid "No se pudo confirmar un perfil compatible. Elige otro modelo; tu partida conserva su IA actual."
 msgstr ""

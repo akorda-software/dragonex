@@ -16,7 +16,7 @@ defmodule Dragonex.Narration.Contract do
   use ExAgent.Capability
   use Gettext, backend: Dragonex.Gettext
   alias Dragonex.{Events, Narration}
-  alias Dragonex.Game.{NPCMemoryResolution, RunLifecycle, WaitResolution}
+  alias Dragonex.Game.{InventoryResolution, NPCMemoryResolution, RunLifecycle, WaitResolution}
   alias ExAgent.Message.{Part, Request, Response}
 
   @incomplete [:length, :content_filter, :unknown, :incomplete, :error]
@@ -68,6 +68,13 @@ defmodule Dragonex.Narration.Contract do
       dgettext(
         "prompts",
         "Registra primero la aclaración de la fuente pendiente con record_npc_statement."
+      )
+
+  def feedback(:inventory_unresolved),
+    do:
+      dgettext(
+        "prompts",
+        "Registra primero el inventario: grant_item, remove_item o confirm_inventory_unchanged."
       )
 
   def feedback(:human_voice_owned),
@@ -184,6 +191,7 @@ defmodule Dragonex.Narration.Contract do
       not RunLifecycle.alive?(deps) -> {:error, :cancelled}
       WaitResolution.waiting?(deps) -> {:error, :wait_unresolved}
       NPCMemoryResolution.waiting?(deps) -> {:error, :npc_memory_unresolved}
+      InventoryResolution.waiting?(deps) -> {:error, :inventory_unresolved}
       true -> :ok
     end
   end

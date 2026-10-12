@@ -156,6 +156,7 @@ defmodule Dragonex.Game.Beats do
     events = Games.recent_events(game_id, 400)
     wait_resolution = Dragonex.Game.WaitResolution.request(participant, world, events)
     npc_memory_resolution = Dragonex.Game.NPCMemoryResolution.request(participant, world)
+    inventory_resolution = Dragonex.Game.InventoryResolution.request(participant, world, events)
     literal = Keyword.get(opts, :literal_speech)
 
     # The resolver can choose tools, but a manual player's voice comes from
@@ -186,6 +187,7 @@ defmodule Dragonex.Game.Beats do
         Instructions.fact_instruction(world, participant) <>
         Instructions.testimony_instruction(world, participant) <>
         Dragonex.Game.NPCMemoryResolution.instruction(npc_memory_resolution) <>
+        Dragonex.Game.InventoryResolution.instruction(inventory_resolution) <>
         if(kinds[participant] == :ai,
           do: Dragonex.PCAgent.response_guidance(world, participant, events),
           else: ""
@@ -203,6 +205,7 @@ defmodule Dragonex.Game.Beats do
       character_names: Map.keys(world.characters),
       wait_resolution: wait_resolution,
       npc_memory_resolution: npc_memory_resolution,
+      inventory_resolution: inventory_resolution,
       human_declaration: declaration,
       wait_for_human: wait_for_human?(state, participant, world)
     }

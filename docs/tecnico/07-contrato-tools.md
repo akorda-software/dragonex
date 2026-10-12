@@ -72,6 +72,7 @@ Fuente canónica del código: `lib/dragonex/tools.ex` (S5), sets por agente en
 | `record_npc_statement` | `(speaker: String, statement: String)` | Solo DM: fuente80/contenido800, scrub/NFC/espacios/citas internas, rechazo de fuente PJ completa/corta. Guarda «fuente afirma: contenido» como testimonio en facts existentes, cap30/idempotencia/replay; no confirma contenido ni cambia entorno/presencia/recursos/reloj/marca de revisión previa (D176) |
 | `grant_item` | `(who: String, item: String, quantity: Integer)` | Solo DM/exploración/PC presente; confirma entrega efectiva sumando a Item :gear. Nombre scrub/NFC1..160, identidad case/espacios, cantidad1..9999, pila≤9999, inventario≤80 entradas. Rechaza colisión con equipo no :gear; solicita revisión de escena, sin PG/slots/reloj/equipar/efectos (D190) |
 | `remove_item` | `(who: String, item: String, quantity: Integer)` | Mismas guardas; resta del stock real :gear, rechaza inexistente/insuficiente y elimina pila vacía. No retira equipo de combate ni consume efectos; solicita revisión de escena (D190) |
+| `confirm_inventory_unchanged` | `(who: String, reason: String)` | Solo DM; no muta World. Comprobante de que una recogida/entrega declarada no cambia de manos (no está, falla, solo se mira, ya poseído). Junto a `grant_item`/`remove_item` cierra el requisito de D239; replay/checkpoint como cualquier tool |
 | `leave_scene` | `(who: String, reason: String)` | Solo DM, no-PC existente; motivo scrubbed/acotado; conserva ficha/PG/recursos y termina concentración/presencia activa. No decide una huida (D115) |
 | `return_to_scene` | `(who: String)` | Solo DM; recupera la ficha ausente, sin curar/renovar recursos; refuerzo al final del combate, con ledger conservado (D115) |
 | `spawn_monster` | `(kind: String, name: String)` | Solo dm antes de World/propuesta (D196); añade monstruo del bestiario (`Monsters`) y lo une a iniciativa sin reroll si hay combate; nombre único/ausentes conservados por World. Si `kind` no existe, lista disponibles |
@@ -87,6 +88,11 @@ conserva pendiente. No crea registro físico global de objetos ni verifica su
 procedencia semántica; el motor valida/aplica la propuesta, no calcula desde
 lo narrado. Contrato por turno/contexto reciente reduce las omisiones observadas,
 sin garantizar toda respuesta de un proveedor.
+
+D239 convierte la omisión en requisito: si la última declaración del jugador
+en exploración pide recoger o entregar algo (`InventoryDeclaration`), el
+cierre del DM no se publica hasta que exista en el turno un comprobante de
+`grant_item`, `remove_item` o `confirm_inventory_unchanged`.
 
 D135 usa los mismos cortes estructurales de Text que la narración, con
 normalización equivalente para evitar falsos rechazos por saltos/espacios.

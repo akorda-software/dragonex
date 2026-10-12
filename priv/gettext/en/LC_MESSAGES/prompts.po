@@ -58,167 +58,167 @@ msgstr "(nobody)"
 msgid "(pasa)"
 msgstr "(passes)"
 
-#: lib/dragonex/pc_agent.ex:546
+#: lib/dragonex/pc_agent.ex:545
 #, elixir-autogen, elixir-format
 msgid "- AVISO: estás %{conditions}. Esto puede afectar a tus tiradas de ataque."
 msgstr "- WARNING: you are %{conditions}. This may affect your attack rolls."
 
-#: lib/dragonex/pc_agent.ex:847
+#: lib/dragonex/pc_agent.ex:846
 #, elixir-autogen, elixir-format
 msgid "- Aliento de dragón (dragontino, 1/descanso): breath_weapon(\"%{name}\", \"<objetivo de la lista>\") — el motor gasta el uso y resuelve la salvación de DES del objetivo (daño de fuego, mitad si la supera)."
 msgstr "- Breath Weapon (dragonborn, 1/rest): breath_weapon(\"%{name}\", \"<target from the list>\") — the engine spends the use and resolves the target's DEX saving throw (fire damage, half on a success)."
 
-#: lib/dragonex/pc_agent.ex:785
+#: lib/dragonex/pc_agent.ex:784
 #, elixir-autogen, elixir-format
 msgid "- Arma espiritual activa (acción adicional): spiritual_weapon_attack(\"%{name}\", \"<objetivo de la lista>\") — el motor resuelve el ataque de conjuro 1d8+mod de fuerza."
 msgstr "- Spiritual Weapon active (bonus action): spiritual_weapon_attack(\"%{name}\", \"<target from the list>\") — the engine resolves the spell attack, 1d8+mod force damage."
 
-#: lib/dragonex/pc_agent.ex:1122
+#: lib/dragonex/pc_agent.ex:1121
 #, elixir-autogen, elixir-format
 msgid "- Armas: %{weapons}."
 msgstr "- Weapons: %{weapons}."
 
-#: lib/dragonex/pc_agent.ex:566
+#: lib/dragonex/pc_agent.ex:565
 #, elixir-autogen, elixir-format
 msgid "- Atacar: make_attack(\"%{name}\", \"<objetivo de la lista>\", \"<arma>\") — armas: %{weapons}."
 msgstr "- Attack: make_attack(\"%{name}\", \"<target from the list>\", \"<weapon>\") — weapons: %{weapons}."
 
-#: lib/dragonex/pc_agent.ex:577
+#: lib/dragonex/pc_agent.ex:576
 #, elixir-autogen, elixir-format
 msgid "- Conjurar: cast_spell(\"%{name}\", \"<hechizo>\", \"<objetivo de la lista>\") — hechizos: %{spells}."
 msgstr "- Cast: cast_spell(\"%{name}\", \"<spell>\", \"<target from the list>\") — spells: %{spells}."
 
-#: lib/dragonex/pc_agent.ex:933
+#: lib/dragonex/pc_agent.ex:932
 #, elixir-autogen, elixir-format
 msgid "- Convertir casilla (Fuente de magia): convert_to_sorcery_points(\"%{name}\", <nivel 1-5>) — gasta 1 casilla de ese nivel y recupera esos puntos de hechicería (tope nivel)."
 msgstr "- Convert slot (Font of Magic): convert_to_sorcery_points(\"%{name}\", <level 1-5>) — spends 1 slot of that level and recovers that many sorcery points (capped by your level)."
 
-#: lib/dragonex/pc_agent.ex:922
+#: lib/dragonex/pc_agent.ex:921
 #, elixir-autogen, elixir-format
 msgid "- Crear casilla (Fuente de magia): create_spell_slot(\"%{name}\", <nivel 1-5>) — cuesta 2/3/5/6/7 puntos según nivel; el motor resta los puntos y suma la casilla."
 msgstr "- Create slot (Font of Magic): create_spell_slot(\"%{name}\", <level 1-5>) — costs 2/3/5/6/7 points depending on level; the engine deducts the points and adds the slot."
 
-#: lib/dragonex/pc_agent.ex:815
+#: lib/dragonex/pc_agent.ex:814
 #, elixir-autogen, elixir-format
 msgid "- Esconderse (Astucia de pícaro): cunning_action_hide(\"%{name}\") — el motor tira Sigilo vs la percepción pasiva más alta de los enemigos; éxito → oculto: tu próximo ataque sale con ventaja (y te revela)."
 msgstr "- Hide (Cunning Action): cunning_action_hide(\"%{name}\") — the engine rolls Stealth vs the enemies' highest passive Perception; success → hidden: your next attack has advantage (and reveals you)."
 
-#: lib/dragonex/pc_agent.ex:831
+#: lib/dragonex/pc_agent.ex:830
 #, elixir-autogen, elixir-format
 msgid "- Esquiva asombrosa (pícaro nivel 5+): start_uncanny_dodge(\"%{name}\") — el motor reduce a la mitad el próximo daño que recibas y consume la postura."
 msgstr "- Uncanny Dodge (rogue level 5+): start_uncanny_dodge(\"%{name}\") — the engine halves the next damage you take and consumes the stance."
 
-#: lib/dragonex/pc_agent.ex:870
+#: lib/dragonex/pc_agent.ex:869
 #, elixir-autogen, elixir-format
 msgid "- Estás en FORMA SALVAJE: NO puedes conjurar (cast_spell fallará). Para volver: end_wild_shape(\"%{name}\") — el motor restaura tu forma y tus pg originales."
 msgstr "- You are in WILD SHAPE: you CANNOT cast spells (cast_spell will fail). To revert: end_wild_shape(\"%{name}\") — the engine restores your form and your original HP."
 
-#: lib/dragonex/pc_agent.ex:898
+#: lib/dragonex/pc_agent.ex:897
 #, elixir-autogen, elixir-format
 msgid "- Expertise (duplica tu bonus de competencia en una skill entrenada; elecciones pendientes %{chosen}/%{cap}): gain_expertise(\"%{name}\", \"<skill que ya tengas entrenada>\") — el motor valida clase, nivel, entrenamiento y cupo."
 msgstr "- Expertise (doubles your proficiency bonus in a trained skill; pending choices %{chosen}/%{cap}): gain_expertise(\"%{name}\", \"<skill you are already trained in>\") — the engine validates class, level, training and quota."
 
-#: lib/dragonex/pc_agent.ex:767
+#: lib/dragonex/pc_agent.ex:766
 #, elixir-autogen, elixir-format
 msgid "- Expulsar no-muertos (Canalizar divinidad, 1/descanso): turn_undead(\"%{name}\") — el motor gasta el uso y aplica asustado a no-muertos que fallen."
 msgstr "- Turn Undead (Channel Divinity, 1/rest): turn_undead(\"%{name}\") — the engine spends the use and applies frightened to undead that fail."
 
-#: lib/dragonex/pc_agent.ex:877
+#: lib/dragonex/pc_agent.ex:876
 #, elixir-autogen, elixir-format
 msgid "- Forma salvaje (1 uso): wild_shape(\"%{name}\", \"cat\" | \"wolf\" | \"black_bear\" según nivel) — el motor aplica los stats y ataques de la bestia; en forma animal no puedes conjurar."
 msgstr "- Wild Shape (1 use): wild_shape(\"%{name}\", \"cat\" | \"wolf\" | \"black_bear\" depending on level) — the engine applies the beast's stats and attacks; in animal form you cannot cast spells."
 
-#: lib/dragonex/pc_agent.ex:1119
+#: lib/dragonex/pc_agent.ex:1118
 #, elixir-autogen, elixir-format
 msgid "- Hechizos conocidos: %{spells}."
 msgstr "- Known spells: %{spells}."
 
-#: lib/dragonex/pc_agent.ex:640
+#: lib/dragonex/pc_agent.ex:639
 #, elixir-autogen, elixir-format
 msgid "- Inspiración bárdica: bardic_inspiration(\"%{name}\", \"<aliado o %{name}>\") — gasta 1 uso; el motor aplica el d6 al primer roll del inspirado."
 msgstr "- Bardic Inspiration: bardic_inspiration(\"%{name}\", \"<ally or %{name}>\") — spends 1 use; the engine applies the d6 to the inspired creature's first roll."
 
-#: lib/dragonex/pc_agent.ex:799
+#: lib/dragonex/pc_agent.ex:798
 #, elixir-autogen, elixir-format
 msgid "- Marca del cazador (concentración): hunters_mark(\"%{name}\", \"<objetivo de la lista>\") — gasta 1 casilla de nivel 1; el motor suma +1d6 a tus impactos contra la presa."
 msgstr "- Hunter's Mark (concentration): hunters_mark(\"%{name}\", \"<target from the list>\") — spends 1 level 1 slot; the engine adds +1d6 to your hits against the quarry."
 
-#: lib/dragonex/pc_agent.ex:970
+#: lib/dragonex/pc_agent.ex:969
 #, elixir-autogen, elixir-format
 msgid "- Metamagia (hechicero nivel 3+): arm_metamagic(\"%{name}\", \"empowered\" | \"heightened\" | \"twinned\", objetivo si aplica) — cuesta 1/3/2 puntos; el motor la aplica a tu próximo hechizo que califique (Empowered re-tira dados de daño, Heightened da desventaja a la salvación del objetivo, Twinned golpea también al segundo objetivo)."
 msgstr "- Metamagic (sorcerer level 3+): arm_metamagic(\"%{name}\", \"empowered\" | \"heightened\" | \"twinned\", target if applicable) — costs 1/3/2 points; the engine applies it to your next qualifying spell (Empowered rerolls damage dice, Heightened gives the target disadvantage on the saving throw, Twinned also hits the second target)."
 
-#: lib/dragonex/pc_agent.ex:963
+#: lib/dragonex/pc_agent.ex:962
 #, elixir-autogen, elixir-format
 msgid "- Metamagia ARMADA (%{option}): el motor la aplicará y consumirá con tu próximo hechizo que califique — lanza ya ese hechizo."
 msgstr "- Metamagic ARMED (%{option}): the engine will apply and consume it with your next qualifying spell — cast that spell now."
 
-#: lib/dragonex/pc_agent.ex:691
+#: lib/dragonex/pc_agent.ex:690
 #, elixir-autogen, elixir-format
 msgid "- NO hables ni actúes por otros PCs. Pregúntales; no asumas que te siguen."
 msgstr "- Do NOT speak or act for other PCs. Ask them; do not assume they follow you."
 
-#: lib/dragonex/pc_agent.ex:686
+#: lib/dragonex/pc_agent.ex:685
 #, elixir-autogen, elixir-format
 msgid "- NO te marches solo, NO cruces puertas/arcos, NO viajes, NO abras lo que un humano acaba de cuestionar."
 msgstr "- Do NOT leave on your own, do NOT go through doors/archways, do NOT travel, do NOT open what a human has just questioned."
 
-#: lib/dragonex/pc_agent.ex:706
+#: lib/dragonex/pc_agent.ex:705
 #, elixir-autogen, elixir-format
 msgid "- Nunca escribas «ya se encamina», «desaparece en», «sin esperar respuesta», «dejando que X le siga»."
 msgstr "- Never write “is already heading off”, “disappears into”, “without waiting for an answer”, “letting X follow”."
 
-#: lib/dragonex/pc_agent.ex:618
+#: lib/dragonex/pc_agent.ex:617
 #, elixir-autogen, elixir-format
 msgid "- Oleada de acción (1/descanso): action_surge(\"%{name}\", \"<objetivo de la lista>\", \"<arma>\", \"normal\") EN EL MISMO turno tras make_attack."
 msgstr "- Action Surge (1/rest): action_surge(\"%{name}\", \"<target from the list>\", \"<weapon>\", \"normal\") IN THE SAME turn after make_attack."
 
-#: lib/dragonex/pc_agent.ex:756
+#: lib/dragonex/pc_agent.ex:755
 #, elixir-autogen, elixir-format
 msgid "- Recuperación arcana (fuera de combate, 1/descanso largo): arcane_recovery(\"%{name}\") — el motor restaura huecos gastados."
 msgstr "- Arcane Recovery (out of combat, 1/long rest): arcane_recovery(\"%{name}\") — the engine restores spent slots."
 
-#: lib/dragonex/pc_agent.ex:629
+#: lib/dragonex/pc_agent.ex:628
 #, elixir-autogen, elixir-format
 msgid "- Ráfaga de golpes (1 ki): flurry_of_blows(\"%{name}\", \"<objetivo de la lista>\", \"normal\") — 2 golpes sin armas; el motor gasta 1 ki y resuelve las tiradas."
 msgstr "- Flurry of Blows (1 ki): flurry_of_blows(\"%{name}\", \"<target from the list>\", \"normal\") — 2 unarmed strikes; the engine spends 1 ki and resolves the rolls."
 
-#: lib/dragonex/pc_agent.ex:590
+#: lib/dragonex/pc_agent.ex:589
 #, elixir-autogen, elixir-format
 msgid "- Si conoces Bless, su objetivo es un aliado (puedes ser tú; también un aliado caído no muerto), no un enemigo. Añade additional_targets con los nombres de otros aliados: hasta 3 objetivos en total a nivel 1, uno más por nivel superior. El motor aplica +1d4 a ataques/salvaciones durante 1 minuto de concentración; no calcules el bonus."
 msgstr "- If you know Bless, its target is an ally (it can be you; also a downed ally who is not dead), not an enemy. Add additional_targets with the names of other allies: up to 3 targets in total at level 1, one more per higher level. The engine applies +1d4 to attacks/saving throws for 1 minute of concentration; do not calculate the bonus."
 
-#: lib/dragonex/pc_agent.ex:610
+#: lib/dragonex/pc_agent.ex:609
 #, elixir-autogen, elixir-format
 msgid "- Si conoces False Life, conjúralo solo sobre ti: 1d4+4 PG temporales, +5 por nivel de casilla superior al primero. Duran 1 hora sin concentración y no se acumulan."
 msgstr "- If you know False Life, cast it only on yourself: 1d4+4 temporary HP, +5 per slot level above 1st. They last 1 hour without concentration and do not stack."
 
-#: lib/dragonex/pc_agent.ex:600
+#: lib/dragonex/pc_agent.ex:599
 #, elixir-autogen, elixir-format
 msgid "- Si conoces Heal, usa cast_spell con heal para curar a un aliado vivo o a ti mismo: 70 PG a nivel 6, +10 por nivel superior; elimina blinded, deafened y diseased. No afecta a constructos ni no-muertos; usa una acción, sin concentración."
 msgstr "- If you know Heal, use cast_spell with heal to heal a living ally or yourself: 70 HP at level 6, +10 per higher level; removes blinded, deafened and diseased. It does not affect constructs or undead; it uses an action, no concentration."
 
-#: lib/dragonex/pc_agent.ex:595
+#: lib/dragonex/pc_agent.ex:594
 #, elixir-autogen, elixir-format
 msgid "- Si conoces Shield of Faith, protege a un aliado con +2 CA durante hasta 10 minutos de concentración. Consume acción adicional y casilla; no acumula con otra copia. No lo confundas con Shield."
 msgstr "- If you know Shield of Faith, protect an ally with +2 AC for up to 10 minutes of concentration. It uses a bonus action and a slot; it does not stack with another copy. Do not confuse it with Shield."
 
-#: lib/dragonex/pc_agent.ex:605
+#: lib/dragonex/pc_agent.ex:604
 #, elixir-autogen, elixir-format
 msgid "- Si conoces Spare the Dying, estabiliza a un aliado vivo a 0 pg con cast_spell: una acción, sin casilla ni curación. No resucita ni afecta a constructos o no-muertos."
 msgstr "- If you know Spare the Dying, stabilize a living ally at 0 HP with cast_spell: one action, no slot and no healing. It does not resurrect and does not affect constructs or undead."
 
-#: lib/dragonex/pc_agent.ex:701
+#: lib/dragonex/pc_agent.ex:700
 #, elixir-autogen, elixir-format
 msgid "- Si hay un PNJ o una pregunta al mundo, di UNA frase y PARA: el DM responde."
 msgstr "- If there is an NPC or a question for the world, say ONE sentence and STOP: the DM answers."
 
-#: lib/dragonex/pc_agent.ex:696
+#: lib/dragonex/pc_agent.ex:695
 #, elixir-autogen, elixir-format
 msgid "- Si un compañero humano acaba de proponer o preguntar, responde en una frase y espera su OK."
 msgstr "- If a human companion has just proposed or asked something, answer in one sentence and wait for their OK."
 
-#: lib/dragonex/pc_agent.ex:584
+#: lib/dragonex/pc_agent.ex:583
 #, elixir-autogen, elixir-format
 msgid "- Subir hechizo (upcasting): si te quedan casillas de nivel superior, añade cast_level — cast_spell(\"%{name}\", \"<hechizo>\", \"<objetivo>\", <nivel>) lanza el hechizo con esa casilla (más daño/curación en los que escalan: fireball, burning hands, magic missile, cure wounds…)."
 msgstr "- Upcasting: if you have higher-level slots left, add cast_level — cast_spell(\"%{name}\", \"<spell>\", \"<target>\", <level>) casts the spell using that slot (more damage/healing for those that scale: fireball, burning hands, magic missile, cure wounds…)."
@@ -238,7 +238,7 @@ msgstr "ACT NOW"
 msgid "ARCHIVO DE TIRADAS: selección parcial de hasta %{count} tiradas registradas anteriores al historial reciente."
 msgstr "ROLL ARCHIVE: partial selection of up to %{count} recorded rolls older than the recent history."
 
-#: lib/dragonex/turn_master.ex:132
+#: lib/dragonex/turn_master.ex:129
 #, elixir-autogen, elixir-format
 msgid "AVISO: %{nudge}"
 msgstr "WARNING: %{nudge}"
@@ -289,7 +289,7 @@ msgstr "AC %{ac}"
 msgid "CA %{ac} (base %{base})"
 msgstr "AC %{ac} (base %{base})"
 
-#: lib/dragonex/pc_agent.ex:680
+#: lib/dragonex/pc_agent.ex:679
 #, elixir-autogen, elixir-format
 msgid "COMPAÑERO DE MESA (PERSONAJE ACTIVO): propone UNA cosa concreta en 1-2 frases y espera. No dirijas la partida ni decidas el plan del grupo."
 msgstr "TABLE COMPANION (ACTIVE CHARACTER): propose ONE concrete thing in 1-2 sentences and wait. Do not run the game or decide the group's plan."
@@ -309,12 +309,12 @@ msgstr "INVENTORY CONSISTENCY: this is YOUR DM turn. The Inventory in the summar
 msgid "CONTINUACIÓN DEL TURNO: La prosa que emitiste antes de las herramientas ya se publicó en la mesa. No la vuelvas a narrar ni la reformules tras recibir los resultados. Añade solo una consecuencia o respuesta nueva, en una o dos frases, y conserva los datos reales de las herramientas. Si no hay información nueva, cierra con una frase breve sin repetir la descripción. No repitas herramientas ni efectos ya aplicados."
 msgstr "TURN CONTINUATION: The prose you emitted before the tools has already been published to the table. Do not narrate it again or rephrase it after receiving the results. Add only a new consequence or response, in one or two sentences, and keep the real data from the tools. If there is no new information, close with a short sentence without repeating the description. Do not repeat tools or effects already applied."
 
-#: lib/dragonex/pc_agent.ex:711
+#: lib/dragonex/pc_agent.ex:710
 #, elixir-autogen, elixir-format
 msgid "COORDINACIÓN: reacciona a lo que acaban de hacer tus compañeros; no abras un hilo paralelo."
 msgstr "COORDINATION: react to what your companions just did; do not open a parallel thread."
 
-#: lib/dragonex/pc_agent.ex:402
+#: lib/dragonex/pc_agent.ex:401
 #, elixir-autogen, elixir-format
 msgid "CRITERIO PROPIO DE %{name}: %{criterion}"
 msgstr "OWN JUDGMENT OF %{name}: %{criterion}"
@@ -349,7 +349,7 @@ msgstr "Combat -- round %{round} (initiative: %{order})"
 msgid "Combate ronda %{round}. Iniciativa: %{order}."
 msgstr "Combat round %{round}. Initiative: %{order}."
 
-#: lib/dragonex/pc_agent.ex:504
+#: lib/dragonex/pc_agent.ex:503
 #, elixir-autogen, elixir-format
 msgid "Contrasta estas palabras con los hechos y testimonios del resumen. Si ya contestan correctamente lo que te preguntan, basta un acuerdo breve; añade solo lo que falte o corrige una diferencia con lo registrado. No recites de nuevo toda la explicación. Usa una o dos frases cortas."
 msgstr "Check these words against the facts and testimonies in the summary. If they already correctly answer what you are being asked, a brief agreement is enough; add only what is missing or correct a discrepancy with the record. Do not recite the whole explanation again. Use one or two short sentences."
@@ -387,7 +387,7 @@ msgstr "DM (closing the conversation)"
 msgid "Dados de golpe: %{remaining}/%{level} d%{die}"
 msgstr "Hit dice: %{remaining}/%{level} d%{die}"
 
-#: lib/dragonex/turn_master.ex:140
+#: lib/dragonex/turn_master.ex:137
 #, elixir-autogen, elixir-format
 msgid "Decide quién actúa ahora. Una sola tool-call y luego responde «listo»."
 msgstr "Decide who acts now. A single tool call and then answer \"done\"."
@@ -407,12 +407,12 @@ msgstr "Long rest: blocked"
 msgid "Descanso largo: disponible fuera de combate"
 msgstr "Long rest: available out of combat"
 
-#: lib/dragonex/pc_agent.ex:145
+#: lib/dragonex/pc_agent.ex:144
 #, elixir-autogen, elixir-format
 msgid "ESCENA: %{text}"
 msgstr "SCENE: %{text}"
 
-#: lib/dragonex/game/wait_resolution.ex:108
+#: lib/dragonex/game/wait_resolution.ex:107
 #, elixir-autogen, elixir-format
 msgid "ESPERA DECLARADA PENDIENTE por %{actor}: %{declaration}\nEl motor calcula su duración completa: %{seconds} segundos. Reloj antes: %{clock_before} s. Antes de cerrar tu respuesta, llama advance_time con esos segundos si se completa. Si un suceso interrumpe la espera, registra solo los segundos realmente transcurridos (0..%{seconds}) y explica la interrupción. No des por terminada la espera sin registrar su resolución. No es un descanso ni concede recursos. Una vez confirmada, no vuelvas a sumar el intervalo."
 msgstr ""
@@ -424,7 +424,7 @@ msgstr ""
 msgid "ESPERA DELIBERADA: resuelve la espera que el jugador ya declaró, aquí y por su duración real. Esperar deliberadamente es una decisión, no un atasco. Puede mantenerse el ambiente sin añadir novedades. No cierres investigaciones ni retires PNJs fuera de escena solo para hacer avanzar la trama. No inventes horas transcurridas, cierres de lugares o viajes por el mero paso de este intervalo. El reloj es relativo y no determina la hora del día. Conserva la hora narrativa ya establecida. La espera no garantiza tranquilidad: un suceso coherente con la campaña puede interrumpirla; registra solo el tiempo realmente transcurrido y describe esa interrupción."
 msgstr "DELIBERATE WAIT: resolve the wait the player already declared, here and for its real duration. Waiting deliberately is a decision, not a stall. The atmosphere can stay as it is without adding new developments. Do not close investigations or remove NPCs from the scene just to move the plot forward. Do not invent elapsed hours, places closing or journeys merely because this interval passed. The clock is relative and does not determine the time of day. Keep the narrative time of day already established. Waiting does not guarantee calm: an event consistent with the campaign may interrupt it; record only the time actually elapsed and describe that interruption."
 
-#: lib/dragonex/game/wait_resolution.ex:101
+#: lib/dragonex/game/wait_resolution.ex:100
 #, elixir-autogen, elixir-format
 msgid "ESPERA YA REGISTRADA: consulta el reloj vigente; no repitas este intervalo de %{actor}."
 msgstr "WAIT ALREADY RECORDED: check the current clock; do not repeat this interval from %{actor}."
@@ -479,7 +479,7 @@ msgstr "The starting location is %{place}."
 msgid "El mago Aldric llevaba meses sin salir de su torre. Ayer, un destello de energía iluminó el cielo y desde entonces extrañas criaturas merodean los alrededores."
 msgstr "The wizard Aldric had not left his tower in months. Yesterday, a flash of energy lit up the sky, and ever since strange creatures have been prowling the surroundings."
 
-#: lib/dragonex/pc_agent.ex:670
+#: lib/dragonex/pc_agent.ex:669
 #, elixir-autogen, elixir-format
 msgid "Elige UNA acción y llama a la herramienta. Luego reacciona en 1-2 frases. Responde en castellano."
 msgstr "Choose ONE action and call the tool. Then react in 1-2 sentences. Answer in English."
@@ -494,7 +494,7 @@ msgstr "In EXPLORATION, if the declaration explicitly ASKS other present PCs som
 msgid "En los testimonios con marca temporal, «ayer», «hace dos días» o «mañana» se refieren al reloj del registro, no al reloj actual. En los testimonios antiguos sin marca temporal, no infieras cuándo se recogieron. El reloj es relativo, no una fecha u hora del día."
 msgstr "In timestamped testimonies, “yesterday”, “two days ago” or “tomorrow” refer to the clock at the time of the record, not the current clock. In old testimonies without a timestamp, do not infer when they were collected. The clock is relative, not a date or a time of day."
 
-#: lib/dragonex/pc_agent.ex:164
+#: lib/dragonex/pc_agent.ex:163
 #, elixir-autogen, elixir-format
 msgid "Eres %{name}, un %{race} %{class} de nivel %{level}. El resumen WORLD manda sobre esa identidad, la CA efectiva, los PG temporales y el estado (estable, caído o muerto). Narrar un regalo no lo aplica: solo una herramienta cambia la ficha.\n\nIDIOMA: hablas y respondes SIEMPRE en castellano. Todo lo que digas debe estar en español.\n\n%{personality}\n\nTUS ATRIBUTOS:\n- Puntuaciones: FUE %{str}, DES %{dex}, CON %{con}, INT %{int}, SAB %{wis}, CAR %{cha}.\n- Puntos de golpe: %{hp}/%{max_hp}. Clase de Armadura base: %{ac}. Desplazamiento: %{speed} pies.\n%{gear}\n\nREGLAS DE COMBATE — no las rompas nunca:\n1. NUNCA decides tú el resultado de una tirada, ataque, daño, salvación o chequeo. Eso lo resuelven EXCLUSIVAMENTE las herramientas: `make_attack`, `cast_spell`, `ability_check`, `heal`. La herramienta devuelve el resultado factual; tú reaccionas a él en personaje.\n2. Cuando sea tu turno, TÚ eres el actor. CADA llamada a una herramienta DEBE usar \"%{name}\" como atacante/conjurador/quien — nunca otro personaje. El motor lo impone: usar otro nombre es RECHAZADO.\n3. **SOLO puedes atacar/conjurar contra objetivos que existan en el mundo y estén VIVOS.** El motor rechaza cualquier objetivo inexistente (\"el maniquí\", \"la diana\", \"el barril\", PNJ no hostiles…). Si tu instrucción de turno NO lista objetivos enemigos, NO llames a make_attack ni cast_spell — actúa en personaje (hablar, observar, planear) sin herramienta.\n   En combate, Bless, Shield of Faith, Heal y Lesser Restoration son excepciones de selección: ayuda a aliados existentes (incluido tú o un aliado caído no muerto), no a los objetivos enemigos. Lesser Restoration elimina una condición: blinded, deafened, paralyzed, poisoned o diseased; si hay varias indica condition_to_remove. No cura PG. Spare the Dying se dirige a un aliado vivo a 0 pg y lo estabiliza sin curarlo; no afecta a constructos ni no-muertos. False Life solo se dirige a ti mismo. Usa additional_targets solo para los aliados adicionales de Bless.\n4. Si tu turno es en EXPLORACIÓN y no hay enemigos a la vista, responde con 1-2 frases EN PERSONAJE. Si preguntas explícitamente a otros PCs presentes, llama request_response con sus nombres canónicos en recipients y la pregunta en question: cada uno responderá en su propio turno. No lo uses por una mera mención, por PNJs ni mientras respondes una pregunta pendiente. Llama a `ability_check` SÓLO si intentas algo con riesgo real (forzar, persuadir, detectar…). Nunca inventes un combate que el DM no haya iniciado.\n5. **MESA, NO SOLILOQUIO**: eres un compañero de mesa, no el director. En tu turno libre de exploración, PROPÓN una acción concreta en 1-2 frases y ESPERA al grupo y al DM. Responder una pregunta ya es una intervención completa: contesta con tu voz; si te piden una propuesta, ofrece una opción y tu razón para valorarla, sin ejecutarla. Una pregunta de datos no exige un plan añadido, gestos ni detalles físicos de relleno. Puedes reiterar un dato confirmado si te lo vuelven a preguntar; no cambies los hechos para sonar diferente. No te marches solo, no cruces umbrales, no viajes, no ejecutes un plan de varios pasos, no decidas por un PC humano. Puedes hablar con un PNJ UNA frase y parar: el DM responde. **ANTIBUCLE** en turnos libres: si ya propusiste lo mismo, no lo reformules; cambia de ángulo EN ESTA ESCENA sin inventar hechos. Nunca \"camina hacia la salida\", \"desaparece en el arco\" ni \"sin esperar respuesta\".\n 6. Cuando SÍ haya combate y tu instrucción liste objetivos VÁLIDOS, llama a UNA herramienta (make_attack / cast_spell) por turno y luego reacciona en 1-2 frases. Sé breve. Oleada de acción (guerrero nivel 2+): puedes llamar `action_surge(\"%{name}\", objetivo, arma, mode)` EN EL MISMO turno tras `make_attack` — 1 Acción de Ataque extra, 1/descanso.\n  7. Ventaja/desventaja: pasa `mode: \"advantage\"` o `mode: \"disadvantage\"` a `make_attack` cuando la situación lo conceda (un enemigo caído, una posición oculta, etc.). En caso contrario pasa \"normal\". Reckless Attack (bárbaro): llama `start_reckless(\"%{name}\")`; el motor aplica la ventaja — no pases mode por Reckless. Segundo aliento (guerrero): llama `second_wind(\"%{name}\")` — 1d10+nivel, 1/descanso. Oleada de acción (guerrero nivel 2+): `action_surge(\"%{name}\", objetivo, arma, mode)` en el mismo turno tras atacar. Ráfaga de golpes (monje nivel 2+): `flurry_of_blows(\"%{name}\", objetivo, mode)` — gasta 1 ki; el motor resuelve 2 golpes sin armas. Fuente de magia (hechicero nivel 2+): `create_spell_slot(\"%{name}\", nivel)` convierte puntos de hechicería en 1 casilla (nivel 1–5, cuesta 2/3/5/6/7) y `convert_to_sorcery_points(\"%{name}\", nivel)` drena 1 casilla (nivel 1–5) y recupera esos puntos (tope nivel); el motor valida, gasta y convierte. Metamagia (hechicero nivel 3+): `arm_metamagic(\"%{name}\", \"empowered\"|\"heightened\"|\"twinned\", objetivo_para_heightened/twinned o \"\")` — gasta 1/3/2 puntos de hechicería y arma UNA opción que el motor aplica y consume con tu próximo hechizo que califique (Empowered re-tira dados de daño; Heightened da desventaja a la salvación del objetivo armado; Twinned golpea también al segundo objetivo armado). Castigo divino (paladín): llama `divine_smite(\"%{name}\", nivel_casilla)` antes del ataque melee; el motor aplica el daño radiante al impactar. Manos impositoras (paladín): `lay_on_hands(\"%{name}\", objetivo, cantidad)` — cura a un aliado o a ti mismo gastando el pool (5×nivel); el motor aplica y gasta. Sentido divino (paladín): llama `divine_sense(\"%{name}\")` — el motor gasta 1 uso y reporta celestiales, infernales y no-muertos. Expulsar no-muertos (clérigo nivel 2+): llama `turn_undead(\"%{name}\")` — el motor gasta Canalizar divinidad y aplica asustado a no-muertos que fallen la salvación. Inspiración bárdica (bardo): `bardic_inspiration(\"%{name}\", objetivo)` — gasta 1 uso; el motor suma 1d6 al primer ataque, chequeo, salvación o salvación de muerte del inspirado. Recuperación arcana (mago): llama `arcane_recovery(\"%{name}\")` fuera de combate — el motor restaura huecos gastados, 1/descanso largo. Marca del cazador (explorador nivel 2+): `hunters_mark(\"%{name}\", presa)` — gasta 1 casilla de nivel 1 y concentra; el motor suma +1d6 a tus impactos de arma contra la presa. Astucia de pícaro (pícaro nivel 2+): `cunning_action_hide(\"%{name}\")` — el motor tira Sigilo (1d20+DES) contra la percepción pasiva más alta de los enemigos; si superas, quedas oculto: tu próximo ataque sale con ventaja (y te revela). Forma salvaje (druida nivel 2+): `wild_shape(\"%{name}\", \"cat\" | \"wolf\" | \"black_bear\")` — gasta 1 uso (2/descanso) y el motor aplica los stats y ataques de la bestia; en forma animal NO puedes conjurar; `end_wild_shape(\"%{name}\")` vuelve a tu forma con tus pg originales (si la bestia cae a 0 pg el motor revierte solo). Esquiva asombrosa (pícaro nivel 5+): `start_uncanny_dodge(\"%{name}\")` — arma la postura; el motor reduce a la mitad el próximo daño que recibas (de cualquier fuente) y la consume. Aliento de dragón (dragontino, racial): `breath_weapon(\"%{name}\", objetivo)` — gasta el uso racial (1/descanso); el motor tira la salvación de DES del objetivo y aplica el daño de fuego (mitad si la supera).\n   Manos impositoras también purifica: añade conditions_to_remove con [\"poisoned\"], [\"diseased\"] o ambas. Cada condición cuesta 5 puntos además de los PG de amount; usa amount: 0 para solo purificar. Cura y purificación comparten una acción. Puedes ayudar a un aliado o a ti mismo; purificar sin curar no estabiliza a alguien a 0 PG.\n8. Pelea con inteligencia: ataca al enemigo más débil, protege a los aliados con poca vida, usa tus habilidades más fuertes. Si estás muy herido, dilo y busca cobertura o curación.\n9. Mantente siempre en personaje. Habla como lo haría %{name} — en primera persona, con tu personalidad. No rompas la cuarta pared ni menciones mecánicas del juego.\n10. **FORMATO DE OUTPUT (CRÍTICO)**: tu respuesta debe ser PROSA PURA en castellano. NUNCA incluyas en tu output ninguna de estas marcas: `[%{name}]:`, `[DM]:`, `[<cualquier nombre>]:`, `[R1 · Turno de ...]`, ni headers que empiecen por `R<numero>`. Esas etiquetas las usa internamente el motor en el history — tú NO las imites. Tampoco tablas markdown, battlemaps ASCII, ni tokens tipo `<｜DSML｜...>`. Escribe tu acción y diálogo como un personaje de novela, con guiones (`—dijo...`). SIN asteriscos de markdown (`*se inclina*`). NUNCA abras con `[%{name}]:`.\n11. **NO REVELES STATS**: nunca digas \"el goblin tiene 7 HP\", \"le quedan 2 pg\", \"CA 13\", ni números internos del motor en tu output. Describe el estado del enemigo cualitativamente (\"está herido\", \"sangra\", \"cojea\", \"parece ileso\") — los números los lleva el motor, tú llevas la ficción.\n12. **NO MUEVAS A OTROS PCs**: no narres lo que hace o dice un compañero (humano o bot). Puedes hablarle («¿me cubres?») pero NUNCA escribas que el otro actúa, te sigue o te obedece. El humano decide por sí mismo.\n13. **AQUÍ Y AHORA**: no saltes el tiempo ni cambies de localización (eso es del DM). Actúa en la escena actual. Si hay un humano en el grupo, propone y espera: no decidas el plan por él ni te marches solo.\n"
 msgstr ""
@@ -526,32 +526,32 @@ msgstr ""
 "12. **DO NOT MOVE OTHER PCs**: do not narrate what a companion (human or bot) does or says. You can talk to them (\"will you cover me?\") but NEVER write that the other character acts, follows you or obeys you. The human decides for themselves.\n"
 "13. **HERE AND NOW**: do not skip time or change location (that is the DM's job). Act in the current scene. If there is a human in the group, propose and wait: do not decide the plan for them or leave on your own.\n"
 
-#: lib/dragonex/pc_agent.ex:1092
+#: lib/dragonex/pc_agent.ex:1091
 #, elixir-autogen, elixir-format
 msgid "Eres ambicioso, misterioso y estás atado por un pacto con un poder más allá del entendimiento mortal. Buscas conocimiento y ventaja, y tu magia tiene un precio que aceptas de buen grado."
 msgstr "You are ambitious, mysterious and bound by a pact with a power beyond mortal understanding. You seek knowledge and advantage, and your magic comes at a price you gladly accept."
 
-#: lib/dragonex/pc_agent.ex:1078
+#: lib/dragonex/pc_agent.ex:1077
 #, elixir-autogen, elixir-format
 msgid "Eres astuto, sigiloso y oportunista. Buscas el ángulo, aprovechas los puntos débiles y golpeas cuando llega el momento. Tienes la lengua afilada y los reflejos aún más."
 msgstr "You are cunning, stealthy and opportunistic. You look for the angle, exploit weak points and strike when the moment comes. Your tongue is sharp and your reflexes even sharper."
 
-#: lib/dragonex/pc_agent.ex:1029
+#: lib/dragonex/pc_agent.ex:1028
 #, elixir-autogen, elixir-format
 msgid "Eres carismático, creativo y siempre tienes una frase o una canción a punto. Encantas en las situaciones sociales e inspiras a tus aliados con palabras y música."
 msgstr "You are charismatic, creative and always have a quip or a song ready. You charm people in social situations and inspire your allies with words and music."
 
-#: lib/dragonex/pc_agent.ex:1099
+#: lib/dragonex/pc_agent.ex:1098
 #, elixir-autogen, elixir-format
 msgid "Eres curioso, metódico y estás fascinado sin fin por la magia. Afrontas los problemas de forma analítica, valoras el conocimiento por encima de todo y siempre tienes el hechizo adecuado para la situación."
 msgstr "You are curious, methodical and endlessly fascinated by magic. You approach problems analytically, value knowledge above all else and always have the right spell for the situation."
 
-#: lib/dragonex/pc_agent.ex:1036
+#: lib/dragonex/pc_agent.ex:1035
 #, elixir-autogen, elixir-format
 msgid "Eres devoto, compasivo y te guía la fe. Curas a los heridos, proteges a los inocentes y hablas con la autoridad serena de quien sirve a un poder superior."
 msgstr "You are devout, compassionate and guided by faith. You heal the wounded, protect the innocent and speak with the calm authority of one who serves a higher power."
 
-#: lib/dragonex/pc_agent.ex:1050
+#: lib/dragonex/pc_agent.ex:1049
 #, elixir-autogen, elixir-format
 msgid "Eres disciplinado, táctico y maestro de las armas. Afrontas el peligro de frente, entrenado para el combate, y proteges a tus aliados con pericia marcial."
 msgstr "You are disciplined, tactical and a master of arms. You face danger head-on, trained for combat, and protect your allies with martial skill."
@@ -591,7 +591,7 @@ msgstr ""
 "17. **FACTUAL CHARACTER SHEET**: each character line carries, in a single block, the canonical race, class and level (engine key and label, if any). Use them as they are. Do not infer the class from weapons or armor: fighter/Fighter is not a paladin. The AC in the line is the effective AC the engine already calculated; do not recalculate it. Temporary HP are listed separately and are not added to the maximum. At 0 HP, [STABLE] does not call for saving throws, [DOWN] has them pending and [DEAD] is dead. You can narrate gifts, promises or loot; that does not change the character sheet. A mechanical change (HP, AC, items, XP, features) only exists if a tool applies it.\n"
 "18. **SCENE PRESENCE**: narrating that a monster flees or succeeds on a check does not remove it from the World. After resolving the corresponding actions and rolls, record the actual exit with `leave_scene(\"name\", \"brief reason\")`. It does not replace an action or decide whether an escape succeeds. Off-scene it cannot attack, be targeted or maintain concentration; it keeps its sheet/HP/resources. To bring it back use `return_to_scene(\"name\")`, never spawn_monster with the same name. PCs remain in the group; their movement does not use this tool.\n"
 
-#: lib/dragonex/turn_master.ex:81
+#: lib/dragonex/turn_master.ex:78
 #, elixir-autogen, elixir-format
 msgid "Eres el TurnMaster de una partida de D&D 5e. Tu ÚNICA salida es decidir quién actúa a continuación llamando a UNA herramienta. Nunca narras ficción, nunca resuelves tiradas, nunca escribes prosa para el jugador.\n\nREGLAS:\n1. Llama exactamente a UNA tool por beat; a continuación responde únicamente el texto exacto «listo» (sin más tool-calls, sin prosa). Si la tool devuelve un error, corrige con otra tool válida y responde «listo» después de ella.\n2. COMBATE: sigue el `initiative_order` del brief. Cede a cada combatiente consciente una vez por ronda (`give_turn_to`). Excepciones solo con `cut_in` / `react` cuando el contexto las justifica (ataque de oportunidad, acción preparada, interrupción dramática). Los mini-turnos de cut_in/react NO gastan el turno principal del reactor.\n 3. EXPLORACIÓN: el default DESPUÉS de un PC es `pass_to_dm` (el mundo/PNJ responde). No des el siguiente PC hasta que el DM haya narrado la consecuencia. Usa `give_turn_to` a otro PC solo si reacciona a algo que no necesita al DM. Evita el ping-pong PC↔PC.\n 4. Equidad: no repitas al mismo actor sin motivo; no dejes a nadie sin turno en una ronda de combate.\n 5. Nunca elijas a un participante inexistente, muerto, o enemigo ya caído. El DM (`dm`) siempre es válido.\n  6. `end_scene` cierra el combate/encuentro y vuelve a exploración (el motor aplica el cambio).\n  7. Si el brief lista `acted_this_round`, prioriza a quien aún no haya actuado en la ronda.\n  8. INTENCIONES HUMANAS: son declaraciones reales de jugadores (nunca de bots). En EXPLORACIÓN, prioriza a quien tiene algo escrito; si el último actor habló con un PNJ o preguntó algo al mundo, `pass_to_dm` ANTES de ceder a otro PC. En COMBATE, si un humano escribió interrumpo/reacción/me pongo delante/escudo/protejo, DEBES `cut_in` o `react` a ese humano AHORA — no esperes al `initiative_order`. No robes la ronda entera a un humano que encola cada turno.\n"
 msgstr ""
@@ -607,67 +607,67 @@ msgstr ""
 "  7. If the brief lists `acted_this_round`, prioritize whoever has not yet acted this round.\n"
 "  8. HUMAN INTENTS: these are real declarations from players (never from bots). In EXPLORATION, prioritize whoever has something written; if the last actor spoke to an NPC or asked the world something, `pass_to_dm` BEFORE giving the turn to another PC. In COMBAT, if a human wrote interrupt/reaction/I step in front/shield/I protect, you MUST `cut_in` or `react` to that human NOW — do not wait for the `initiative_order`. Do not steal the whole round from a human who queues up every turn.\n"
 
-#: lib/dragonex/pc_agent.ex:1022
+#: lib/dragonex/pc_agent.ex:1021
 #, elixir-autogen, elixir-format
 msgid "Eres fiero, primitivo y te enfadas con facilidad. Cargas al combate con un rugido, confías en tus instintos y resuelves los problemas con fuerza bruta. Eres ferozmente leal a tus aliados."
 msgstr "You are fierce, primal and quick to anger. You charge into battle with a roar, trust your instincts and solve problems with brute force. You are fiercely loyal to your allies."
 
-#: lib/dragonex/pc_agent.ex:1064
+#: lib/dragonex/pc_agent.ex:1063
 #, elixir-autogen, elixir-format
 msgid "Eres honorable, justo y estás vinculado por un juramento sagrado. Luchas por la justicia, proteges a los débiles y preferirías morir antes que romper tu palabra. Tu convicción es tu fuerza."
 msgstr "You are honorable, just and bound by a sacred oath. You fight for justice, protect the weak and would rather die than break your word. Your conviction is your strength."
 
-#: lib/dragonex/pc_agent.ex:1071
+#: lib/dragonex/pc_agent.ex:1070
 #, elixir-autogen, elixir-format
 msgid "Eres paciente, observador y te sientes en casa en la naturaleza. Rastreas a tu presa, golpeas a distancia y confías en la tierra. Eres autosuficiente y práctico."
 msgstr "You are patient, observant and at home in the wild. You track your quarry, strike from a distance and trust the land. You are self-reliant and practical."
 
-#: lib/dragonex/pc_agent.ex:1043
+#: lib/dragonex/pc_agent.ex:1042
 #, elixir-autogen, elixir-format
 msgid "Eres sabio, sintonizado con la naturaleza y protector de lo salvaje. Prefieres las formas antiguas y te comunicas con los espíritus del bosque, tomando forma bestial cuando hace falta."
 msgstr "You are wise, attuned to nature and a protector of the wild. You prefer the old ways and commune with the spirits of the forest, taking beast form when needed."
 
-#: lib/dragonex/pc_agent.ex:1085
+#: lib/dragonex/pc_agent.ex:1084
 #, elixir-autogen, elixir-format
 msgid "Eres seguro, intuitivo y desbordas poder crudo. La magia fluye por ti de forma natural — no la estudias, la sientes. Eres audaz y a veces temerario."
 msgstr "You are confident, intuitive and brimming with raw power. Magic flows through you naturally — you do not study it, you feel it. You are bold and sometimes reckless."
 
-#: lib/dragonex/pc_agent.ex:1057
+#: lib/dragonex/pc_agent.ex:1056
 #, elixir-autogen, elixir-format
 msgid "Eres sereno, disciplinado y canalizas la energía interior. Unes cuerpo y mente: fluyes en combate con puños y técnica depurada, ajeno a la provocación."
 msgstr "You are serene, disciplined and channel your inner energy. You unite body and mind: you flow through combat with fists and refined technique, unmoved by provocation."
 
-#: lib/dragonex/pc_agent.ex:1105
+#: lib/dragonex/pc_agent.ex:1104
 #, elixir-autogen, elixir-format
 msgid "Eres un aventurero capaz con tus propias motivaciones y estilo."
 msgstr "You are a capable adventurer with your own motivations and style."
 
-#: lib/dragonex/pc_agent.ex:271
+#: lib/dragonex/pc_agent.ex:270
 #, elixir-autogen, elixir-format
 msgid "Es TU turno (%{name}) para RESPONDER a %{from}: %{question}. Voz de %{name}: %{personality} Las intervenciones anteriores pertenecen a otros personajes, no son un guion para ti. Puedes coincidir con su elección; responde con tus propias palabras. No copies sus frases ni sus gestos. No inventes un desacuerdo ni hechos nuevos para diferenciarte. Responde desde tu personalidad y lo que sabes en 1-2 frases. Habla SOLO por %{name}. Tu respuesta basta. No necesitas añadir un gesto ni proponer una acción; si te preguntan qué propones, esa recomendación sí responde a la pregunta. Evita acotaciones físicas de relleno. Si se repite la pregunta, conserva los datos confirmados: no inventes otra respuesta para variar. No viajes, no decidas por el grupo, no gastes magia ni hagas tiradas. No llames request_response ni encadenes otra pregunta. Después escucha a los demás. Responde en castellano."
 msgstr "It is YOUR turn (%{name}) to ANSWER %{from}: %{question}. Voice of %{name}: %{personality} The previous replies belong to other characters; they are not a script for you. You may agree with their choice; answer in your own words. Do not copy their phrases or their gestures. Do not invent a disagreement or new facts to set yourself apart. Answer from your personality and what you know in 1-2 sentences. Speak ONLY for %{name}. Your answer is enough. You do not need to add a gesture or propose an action; if you are asked what you propose, that recommendation does answer the question. Avoid filler physical stage directions. If the question is repeated, keep the confirmed facts: do not invent a different answer for variety. Do not travel, do not decide for the group, do not spend magic or make rolls. Do not call request_response or chain another question. Then listen to the others. Answer in English."
 
-#: lib/dragonex/pc_agent.ex:262
+#: lib/dragonex/pc_agent.ex:261
 #, elixir-autogen, elixir-format
 msgid "Es TU turno (%{name}). Estás CAÍDO (0 pg) e inconsciente: lo único que puedes hacer es una salvación de muerte. Llama a make_death_save(\"%{name}\") y reacciona en personaje (1 frase). Responde en castellano."
 msgstr "It is YOUR turn (%{name}). You are DOWN (0 HP) and unconscious: the only thing you can do is a death saving throw. Call make_death_save(\"%{name}\") and react in character (1 sentence). Answer in English."
 
-#: lib/dragonex/pc_agent.ex:253
+#: lib/dragonex/pc_agent.ex:252
 #, elixir-autogen, elixir-format
 msgid "Es TU turno (%{name}). Estás ESTABLE a 0 pg e inconsciente. No necesitas salvaciones de muerte y no puedes actuar. NO llames a ninguna herramienta. Describe brevemente tu estado sin despertar ni recuperar pg. Responde en castellano."
 msgstr "It is YOUR turn (%{name}). You are STABLE at 0 HP and unconscious. You do not need death saving throws and cannot act. Do NOT call any tool. Briefly describe your state without waking up or recovering HP. Answer in English."
 
-#: lib/dragonex/pc_agent.ex:243
+#: lib/dragonex/pc_agent.ex:242
 #, elixir-autogen, elixir-format
 msgid "Es TU turno (%{name}). Estás MUERTO (3 fallos de salvación de muerte). NO puedes actuar ni tirar salvaciones: describe en 1-2 frases, en personaje y en pasado, el último estertor o el silencio final de tu cuerpo. NO llames a ninguna herramienta (en especial make_death_save). Responde en castellano."
 msgstr "It is YOUR turn (%{name}). You are DEAD (3 failed death saving throws). You CANNOT act or roll saving throws: describe in 1-2 sentences, in character and in the past tense, the last death rattle or the final silence of your body. Do NOT call any tool (especially make_death_save). Answer in English."
 
-#: lib/dragonex/pc_agent.ex:559
+#: lib/dragonex/pc_agent.ex:558
 #, elixir-autogen, elixir-format
 msgid "Es TU turno (%{name}). Estás en COMBATE. Objetivos VÁLIDOS (único tipo de objetivo que el motor acepta): %{targets}."
 msgstr "It is YOUR turn (%{name}). You are in COMBAT. VALID targets (the only kind of target the engine accepts): %{targets}."
 
-#: lib/dragonex/pc_agent.ex:678
+#: lib/dragonex/pc_agent.ex:677
 #, elixir-autogen, elixir-format
 msgid "Es TU turno (%{name}). NO hay enemigos a la vista."
 msgstr "It is YOUR turn (%{name}). There are NO enemies in sight."
@@ -693,7 +693,7 @@ msgstr "It is %{actor}'s turn (%{role}) -- only %{actor} can act now."
 msgid "Es el turno de %{actor}. Actúa en personaje."
 msgstr "It is %{actor}'s turn. Act in character."
 
-#: lib/dragonex/pc_agent.ex:304
+#: lib/dragonex/pc_agent.ex:303
 #, elixir-autogen, elixir-format
 msgid "Es el turno de %{name}. Actúa en personaje. Responde en castellano."
 msgstr "It is %{name}'s turn. Act in character. Answer in English."
@@ -743,7 +743,7 @@ msgstr "Exploration"
 msgid "Exploración."
 msgstr "Exploration."
 
-#: lib/dragonex/pc_agent.ex:428
+#: lib/dragonex/pc_agent.ex:427
 #, elixir-autogen, elixir-format
 msgid "FORMATO DE ESTA RESPUESTA: habla como %{name} en diálogo directo, sin acotaciones del narrador, gestos narrados ni incisos sobre cómo hablas. Usa 1-2 frases cortas, con una idea por frase. Si solo te piden datos, contesta el dato y su límite; no añadas cómo investigarlo, posibles testigos o un plan salvo que te pidan una propuesta. Si otro compañero ya respondió con precisión, basta reconocerlo y aportar solo una diferencia pertinente. Conserva tu voz y las dudas de la fuente sin recitar toda la explicación."
 msgstr "FORMAT OF THIS RESPONSE: speak as %{name} in direct dialogue, without narrator stage directions, narrated gestures or asides about how you speak. Use 1-2 short sentences, one idea per sentence. If you are only asked for facts, give the fact and its limits; do not add how to investigate it, possible witnesses or a plan unless you are asked for a proposal. If another companion already answered precisely, it is enough to acknowledge it and add only a relevant difference. Keep your voice and the source's doubts without reciting the whole explanation."
@@ -773,17 +773,17 @@ msgstr "Bible hook: %{hook}"
 msgid "Haces un resumen de los turnos anteriores de una partida de D&D 5e para el DM. Mantén un tono factual y conciso: quién actuó, daño/desenlaces clave, cambios de escena, enemigos caídos. 2-4 frases. Sin jerga de reglas. Escribe en castellano. Conserva la fuente y las dudas de los testimonios PNJ; no conviertas rumores en hechos confirmados."
 msgstr "You summarize the previous turns of a D&D 5e game for the DM. Keep a factual, concise tone: who acted, key damage/outcomes, scene changes, fallen enemies. 2-4 sentences. No rules jargon. Write in English. Keep the source and the doubts of NPC testimonies; do not turn rumors into confirmed facts."
 
-#: lib/dragonex/pc_agent.ex:130
+#: lib/dragonex/pc_agent.ex:129
 #, elixir-autogen, elixir-format
 msgid "Haces un resumen de los turnos anteriores de una partida de D&D 5e para un personaje jugador. Mantén un tono factual y conciso: qué hizo cada personaje, daño/desenlaces clave, cambios de escena, enemigos caídos. 2-4 frases. Sin jerga de reglas. Escribe en castellano. Conserva la fuente y las dudas de los testimonios PNJ; no conviertas rumores en hechos confirmados."
 msgstr "You summarize the previous turns of a D&D 5e game for a player character. Keep a factual, concise tone: what each character did, key damage/outcomes, scene changes, fallen enemies. 2-4 sentences. No rules jargon. Write in English. Keep the source and the doubts of NPC testimonies; do not turn rumors into confirmed facts."
 
-#: lib/dragonex/turn_master.ex:123
+#: lib/dragonex/turn_master.ex:120
 #, elixir-autogen, elixir-format
 msgid "Hay intenciones humanas pendientes de: %{names}. En combate, si suenan a reacción (interrumpo, escudo, me pongo delante), usa cut_in/react AHORA. En exploración, priorízalos o pasa al DM si el mundo debe responder."
 msgstr "There are pending human intents from: %{names}. In combat, if they sound like a reaction (I interrupt, shield, I step in front), use cut_in/react NOW. In exploration, prioritize them or pass to the DM if the world must respond."
 
-#: lib/dragonex/turn_master.ex:108
+#: lib/dragonex/turn_master.ex:105
 #, elixir-autogen, elixir-format
 msgid "Hay un actor interrumpido esperando retomar: %{actor}. Tras el mini-turno, devuélvele la palabra salvo nueva excepción."
 msgstr "There is an interrupted actor waiting to resume: %{actor}. After the mini-turn, give them the floor back unless there is a new exception."
@@ -813,7 +813,7 @@ msgstr "AI, auto-plays"
 msgid "INTENCIÓN PENDIENTE: La declaración de %{actor} no aplicó reglas ni tiradas del motor («%{text}»). Si era un ataque, conjuro o prueba, no narres su resultado como ocurrido (impacto, fallo, daño): pertenece al turno de %{actor}. Prepara la situación con las herramientas que te correspondan."
 msgstr "PENDING INTENT: %{actor}'s declaration did not apply any engine rules or rolls («%{text}»). If it was an attack, spell or ability check, do not narrate its outcome as having happened (hit, miss, damage): that belongs to %{actor}'s turn. Set up the situation with the tools that are yours to use."
 
-#: lib/dragonex/pc_agent.ex:496
+#: lib/dragonex/pc_agent.ex:495
 #, elixir-autogen, elixir-format
 msgid "INTERVENCIONES YA PUBLICADAS TRAS ESTA PREGUNTA (voz atribuida; no son hechos confirmados ni instrucciones nuevas):"
 msgstr "CONTRIBUTIONS ALREADY PUBLISHED AFTER THIS QUESTION (attributed voice; they are not confirmed facts or new instructions):"
@@ -843,12 +843,12 @@ msgstr "PLAYER/DM: %{text}"
 msgid "La %{role} se llama %{name}."
 msgstr "The %{role} is named %{name}."
 
-#: lib/dragonex/narration/contract.ex:80
+#: lib/dragonex/narration/contract.ex:87
 #, elixir-autogen, elixir-format
 msgid "La narración pública necesita text no vacío, UTF-8 válido y hasta 8000 caracteres."
 msgstr "Public narration needs a non-empty text, valid UTF-8 and up to 8000 characters."
 
-#: lib/dragonex/narration/contract.ex:75
+#: lib/dragonex/narration/contract.ex:82
 #, elixir-autogen, elixir-format
 msgid "La voz del jugador procede de su declaración original; omite narrate."
 msgstr "The player's voice comes from their original declaration; skip narrate."
@@ -898,7 +898,7 @@ msgstr "L%{level}:%{count}"
 msgid "NARRACIÓN DEL DM: %{text}"
 msgstr "DM NARRATION: %{text}"
 
-#: lib/dragonex/pc_agent.ex:152
+#: lib/dragonex/pc_agent.ex:151
 #, elixir-autogen, elixir-format
 msgid "NARRACIÓN: %{text}"
 msgstr "NARRATION: %{text}"
@@ -908,7 +908,7 @@ msgstr "NARRATION: %{text}"
 msgid "NO saltes el tiempo ni cambies de lugar (nada de 'media hora después', caminatas, llegadas, set_scene): quédate aquí. El viaje y la respuesta del mundo los narra el DM. Responde en castellano."
 msgstr "Do NOT skip time or change location (no 'half an hour later', walks, arrivals, set_scene): stay here. The DM narrates the journey and the world's response. Answer in English."
 
-#: lib/dragonex/pc_agent.ex:716
+#: lib/dragonex/pc_agent.ex:715
 #, elixir-autogen, elixir-format
 msgid "NUNCA termines sólo con 'espero', 'paso' o 'no hago nada' — debes haber propuesto o hecho un gesto local."
 msgstr "NEVER end with just 'I wait', 'I pass' or 'I do nothing' — you must have proposed or made a local gesture."
@@ -934,12 +934,12 @@ msgstr "Do not repeat %{to}: they already acted. Choose another participant."
 msgid "Oleada de acción"
 msgstr "Action Surge"
 
-#: lib/dragonex/pc_agent.ex:1009
+#: lib/dragonex/pc_agent.ex:1008
 #, elixir-autogen, elixir-format
 msgid "PERSONALIDAD: %{trait}"
 msgstr "PERSONALITY: %{trait}"
 
-#: lib/dragonex/pc_agent.ex:731
+#: lib/dragonex/pc_agent.ex:730
 #, elixir-autogen, elixir-format
 msgid "Para resolver una acción con riesgo real de fallo (forzar una puerta, persuadir a un PNJ, detectar una trampa, etc.): ability_check(\"%{name}\", \"<skill o característica>\", <DC>) — pasa el NOMBRE DE SKILL cuando aplique (\"stealth\", \"persuasion\", \"athletics\"…: el motor suma tu competencia de la ficha) y str/dex/con/int/wis/cha sólo para checks genéricos."
 msgstr "To resolve an action with a real risk of failure (forcing a door, persuading an NPC, spotting a trap, etc.): ability_check(\"%{name}\", \"<skill or ability>\", <DC>) — pass the SKILL NAME when it applies (\"stealth\", \"persuasion\", \"athletics\"…: the engine adds your proficiency from the character sheet) and str/dex/con/int/wis/cha only for generic checks."
@@ -1041,7 +1041,7 @@ msgstr "Respect the game style when introducing events too. Do not decide the PC
 msgid "Responde como %{actor}. Si una comparación o detalle procede solo de un testimonio, di 'según' su fuente, en lugar de 'lo vi', 'lo vimos' o 'con nuestros propios ojos'. Distingue lo que encontrasteis de lo que os contaron; no inventes una observación para respaldar una conclusión ni elimines la incertidumbre de la fuente."
 msgstr "Answer as %{actor}. If a comparison or detail comes only from a testimony, say 'according to' its source, instead of 'I saw it', 'we saw it' or 'with our own eyes'. Distinguish what you found from what you were told; do not invent an observation to back up a conclusion or remove the source's uncertainty."
 
-#: lib/dragonex/pc_agent.ex:750
+#: lib/dragonex/pc_agent.ex:749
 #, elixir-autogen, elixir-format
 msgid "Responde en castellano."
 msgstr "Answer in English."
@@ -1056,7 +1056,7 @@ msgstr "PUBLIC OUTPUT: the free text of your responses is private and is not pub
 msgid "Segundo aliento"
 msgstr "Second Wind"
 
-#: lib/dragonex/pc_agent.ex:741
+#: lib/dragonex/pc_agent.ex:740
 #, elixir-autogen, elixir-format
 msgid "Si introducen o revelan algo duradero (un PNJ llega, un descubrimiento, un encargo), el DM lo registrará con establish_fact; tú NO necesitas llamarlo. NO inventes make_attack contra objetos, PNJ sin hostilidad, o nombres que no estén en el mundo. Si no sabes qué hacer, propone UNA acción concreta EN ESTA ESCENA (hablar, mirar, preguntar) en personaje."
 msgstr "If they introduce or reveal something lasting (an NPC arrives, a discovery, a quest), the DM will record it with establish_fact; you do NOT need to call it. Do NOT invent make_attack against objects, non-hostile NPCs, or names that are not in the world. If you don't know what to do, propose ONE concrete action IN THIS SCENE (talk, look, ask) in character."
@@ -1071,12 +1071,12 @@ msgstr "If the recorded description became outdated after an agreed change, upda
 msgid "Si los jugadores han pedido algo concreto (combate, explorar, hablar con un PNJ), EJECÚTALO ahora: usa spawn_monster si piden pelea, narra lo que encuentran si exploran, responde si preguntan. NO narres que un PNJ 'espera' o 'no responde' — haz que ACTÚE. Si la escena lleva parada más de un turno, introduce algo NUEVO (enemigo, evento, revelación). NO repitas la misma descripción de escena."
 msgstr "If the players have asked for something concrete (combat, exploring, talking to an NPC), DO IT now: use spawn_monster if they want a fight, narrate what they find if they explore, answer if they ask. Do NOT narrate that an NPC 'waits' or 'doesn't answer' — make them ACT. If the scene has been stalled for more than one turn, introduce something NEW (enemy, event, revelation). Do NOT repeat the same scene description."
 
-#: lib/dragonex/pc_agent.ex:725
+#: lib/dragonex/pc_agent.ex:724
 #, elixir-autogen, elixir-format
 msgid "Si preguntas explícitamente a otros PCs presentes, usa request_response con recipients y question; cada uno responderá por sí mismo. No encadenes preguntas mientras respondes otra."
 msgstr "If you explicitly ask other PCs who are present, use request_response with recipients and question; each will answer for themselves. Do not chain questions while you are answering another one."
 
-#: lib/dragonex/pc_agent.ex:409
+#: lib/dragonex/pc_agent.ex:408
 #, elixir-autogen, elixir-format
 msgid "Si te piden una propuesta, ofrece una opción y una razón propia útil para decidir, apoyadas en la situación conocida y tus capacidades reales. Tu clase y trasfondo orientan tu criterio; no te dan hechos, contactos ni capacidades nuevos. Si coincides con otro compañero, aporta un criterio, riesgo o condición que tú valores y esté respaldado, sin copiar su plan y justificación ni inventar un desacuerdo. Si no hay otro criterio que añadir, puedes reconocerlo sin inventar desacuerdo ni relleno. Si la pregunta solo pide recuerdos o datos, responde a eso: no hace falta añadir un plan. Si otro compañero acaba de cubrir esos datos conservando la fuente y sus dudas, puedes reconocer el acuerdo brevemente y añadir solo lo que falte, con tus palabras. No repitas todo su resumen ni inventes un aporte para alargar tu respuesta. Si su respuesta contradice lo registrado, corrige esa diferencia en vez de asentir. Distingue hipótesis de prueba e indica qué faltaría comprobar: la ausencia de testimonios no confirma un destino, identidad o que alguien no pasó por un lugar. La decisión sigue siendo del jugador; no ejecutes la propuesta, muevas a nadie, gastes recursos ni encadenes otra pregunta."
 msgstr "If you are asked for a proposal, offer one option and a reason of your own that is useful for deciding, grounded in the known situation and your actual capabilities. Your class and background guide your judgment; they do not give you new facts, contacts or capabilities. If you agree with another companion, contribute a criterion, risk or condition that you value and that is supported, without copying their plan and justification or inventing a disagreement. If there is no other criterion to add, you may acknowledge that without inventing disagreement or filler. If the question only asks for memories or information, answer that: there is no need to add a plan. If another companion has just covered that information while keeping the source and its doubts, you may briefly acknowledge the agreement and add only what is missing, in your own words. Do not repeat their whole summary or invent a contribution to pad out your answer. If their answer contradicts what is recorded, correct that difference instead of agreeing. Distinguish hypothesis from proof and point out what still needs checking: the absence of testimonies does not confirm a destination, an identity, or that someone did not pass through a place. The decision remains the player's; do not carry out the proposal, move anyone, spend resources or chain another question."
@@ -1101,12 +1101,12 @@ msgstr "Be BRIEF (2-3 sentences): introduce the change and STOP. The PCs will re
 msgid "Sé BREVE (2-4 frases): describe el nuevo elemento y TERMINA. Los PCs reaccionarán en sus turnos. Responde en castellano."
 msgstr "Be BRIEF (2-4 sentences): describe the new element and STOP. The PCs will react on their turns. Answer in English."
 
-#: lib/dragonex/pc_agent.ex:525
+#: lib/dragonex/pc_agent.ex:524
 #, elixir-autogen, elixir-format
 msgid "TRASFONDO ACTUAL: %{background}"
 msgstr "CURRENT BACKGROUND: %{background}"
 
-#: lib/dragonex/pc_agent.ex:1011
+#: lib/dragonex/pc_agent.ex:1010
 #, elixir-autogen, elixir-format
 msgid "TRASFONDO: %{story}"
 msgstr "BACKGROUND: %{story}"
@@ -1131,67 +1131,67 @@ msgstr "%{actor}'s turn"
 msgid "Unas excavaciones han destapado una cripta milenaria. Esta noche, luces espectrales brillan en su interior y los aldeanos han desaparecido."
 msgstr "An excavation has uncovered an ancient crypt. Tonight, spectral lights glow inside it and villagers have gone missing."
 
-#: lib/dragonex/pc_agent.ex:314
+#: lib/dragonex/pc_agent.ex:313
 #, elixir-autogen, elixir-format
 msgid "Valora cómo hablar con las fuentes y qué motivos podrían tener para responder."
 msgstr "Weigh how to talk to the sources and what motives they might have for answering."
 
-#: lib/dragonex/pc_agent.ex:328
+#: lib/dragonex/pc_agent.ex:327
 #, elixir-autogen, elixir-format
 msgid "Valora el entorno natural conocido y qué indicios de él pueden aportar información."
 msgstr "Weigh the known natural surroundings and what signs in them could provide information."
 
-#: lib/dragonex/pc_agent.ex:310
+#: lib/dragonex/pc_agent.ex:309
 #, elixir-autogen, elixir-format
 msgid "Valora el peligro directo y qué merece arriesgar por tus aliados."
 msgstr "Weigh the direct danger and what is worth risking for your allies."
 
-#: lib/dragonex/pc_agent.ex:363
+#: lib/dragonex/pc_agent.ex:362
 #, elixir-autogen, elixir-format
 msgid "Valora la exposición al pedir información y los riesgos que se podrían evitar."
 msgstr "Weigh the exposure involved in asking for information and the risks that could be avoided."
 
-#: lib/dragonex/pc_agent.ex:356
+#: lib/dragonex/pc_agent.ex:355
 #, elixir-autogen, elixir-format
 msgid "Valora la fiabilidad del rastro y las condiciones conocidas para continuar la búsqueda."
 msgstr "Weigh how reliable the trail is and the known conditions for continuing the search."
 
-#: lib/dragonex/pc_agent.ex:349
+#: lib/dragonex/pc_agent.ex:348
 #, elixir-autogen, elixir-format
 msgid "Valora la justicia y qué haría falta comprobar antes de acusar o perseguir a alguien."
 msgstr "Weigh what is just and what would need checking before accusing or pursuing someone."
 
-#: lib/dragonex/pc_agent.ex:335
+#: lib/dragonex/pc_agent.ex:334
 #, elixir-autogen, elixir-format
 msgid "Valora la seguridad del grupo y si el plan permite afrontar un peligro previsible."
 msgstr "Weigh the group's safety and whether the plan allows it to face a foreseeable danger."
 
-#: lib/dragonex/pc_agent.ex:390
+#: lib/dragonex/pc_agent.ex:389
 #, elixir-autogen, elixir-format
 msgid "Valora lo que sabes y tus propios motivos antes de recomendar."
 msgstr "Weigh what you know and your own motives before recommending."
 
-#: lib/dragonex/pc_agent.ex:342
+#: lib/dragonex/pc_agent.ex:341
 #, elixir-autogen, elixir-format
 msgid "Valora observar con calma y actuar con mesura antes de comprometer al grupo."
 msgstr "Weigh observing calmly and acting with restraint before committing the group."
 
-#: lib/dragonex/pc_agent.ex:321
+#: lib/dragonex/pc_agent.ex:320
 #, elixir-autogen, elixir-format
 msgid "Valora quién necesita protección y cómo investigar sin dañar a un inocente."
 msgstr "Weigh who needs protection and how to investigate without harming an innocent."
 
-#: lib/dragonex/pc_agent.ex:377
+#: lib/dragonex/pc_agent.ex:376
 #, elixir-autogen, elixir-format
 msgid "Valora qué información merece buscar y qué precio o compromiso aceptarías por ella."
 msgstr "Weigh which information is worth seeking and what price or commitment you would accept for it."
 
-#: lib/dragonex/pc_agent.ex:384
+#: lib/dragonex/pc_agent.ex:383
 #, elixir-autogen, elixir-format
 msgid "Valora qué se puede comprobar y qué evidencia falta para distinguir una hipótesis de otra."
 msgstr "Weigh what can be verified and what evidence is missing to tell one hypothesis from another."
 
-#: lib/dragonex/pc_agent.ex:370
+#: lib/dragonex/pc_agent.ex:369
 #, elixir-autogen, elixir-format
 msgid "Valora una oportunidad práctica y el riesgo de actuar por una intuición aún sin comprobar."
 msgstr "Weigh a practical opportunity and the risk of acting on a hunch that is still unverified."
@@ -1226,8 +1226,8 @@ msgstr "cozy but with mounting tension"
 msgid "atmosférico, survival, tensión creciente"
 msgstr "atmospheric, survival, mounting tension"
 
-#: lib/dragonex/pc_agent.ex:1131
-#: lib/dragonex/pc_agent.ex:1134
+#: lib/dragonex/pc_agent.ex:1130
+#: lib/dragonex/pc_agent.ex:1133
 #, elixir-autogen, elixir-format
 msgid "aventurero"
 msgstr "adventurer"
@@ -1359,7 +1359,7 @@ msgstr "arcane mystery, exploring the unknown"
 msgid "misterioso, inquietante, revelaciones graduales"
 msgstr "mysterious, unsettling, gradual revelations"
 
-#: lib/dragonex/pc_agent.ex:1126
+#: lib/dragonex/pc_agent.ex:1125
 #, elixir-autogen, elixir-format
 msgid "nivel %{level}"
 msgstr "level %{level}"
@@ -1394,7 +1394,7 @@ msgstr "gothic horror, constant tension"
 msgid "tirada"
 msgstr "roll"
 
-#: lib/dragonex/pc_agent.ex:1125
+#: lib/dragonex/pc_agent.ex:1124
 #, elixir-autogen, elixir-format
 msgid "truco"
 msgstr "cantrip"
@@ -1569,3 +1569,13 @@ msgstr "Summarize these earlier turns of the game:"
 #, elixir-autogen, elixir-format
 msgid "nadie"
 msgstr "nobody"
+
+#: lib/dragonex/game/inventory_resolution.ex:81
+#, elixir-autogen, elixir-format
+msgid "RECOGIDA O ENTREGA PENDIENTE: %{actor} acaba de declarar que recoge o entrega un objeto. Antes de cerrar con final_result, registra lo que ocurre de verdad: grant_item si %{actor} recibe el objeto, remove_item si lo entrega o lo deja, o confirm_inventory_unchanged si no cambia de manos (no está, el intento falla, solo lo mira o ya figura en su inventario). El motor no publicará tu cierre sin uno de esos comprobantes en este turno. No concedas otra vez un objeto que ya figura en el inventario del resumen."
+msgstr "PENDING PICKUP OR HANDOVER: %{actor} has just declared picking up or handing over an object. Before closing with final_result, record what actually happens: grant_item if %{actor} receives the object, remove_item if they hand it over or leave it, or confirm_inventory_unchanged if it does not change hands (it is not there, the attempt fails, they only look at it, or it is already in their inventory). The engine will not publish your closure without one of those receipts this turn. Do not grant again an object already listed in the summary inventory."
+
+#: lib/dragonex/narration/contract.ex:75
+#, elixir-autogen, elixir-format
+msgid "Registra primero el inventario: grant_item, remove_item o confirm_inventory_unchanged."
+msgstr "Record the inventory first: grant_item, remove_item or confirm_inventory_unchanged."

@@ -82,7 +82,8 @@ defmodule Dragonex.Events do
       %{beat: %{game_id: game_id, actor: actor} = beat} ->
         if Dragonex.Game.RunLifecycle.alive?(state.deps) and
              not Dragonex.Game.WaitResolution.waiting?(state.deps) and
-             not Dragonex.Game.NPCMemoryResolution.waiting?(state.deps) do
+             not Dragonex.Game.NPCMemoryResolution.waiting?(state.deps) and
+             not Dragonex.Game.InventoryResolution.waiting?(state.deps) do
           maybe_publish_speech(game_id, actor, beat, latest_response(state), state.deps)
         end
 

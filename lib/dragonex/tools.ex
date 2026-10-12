@@ -386,6 +386,15 @@ defmodule Dragonex.Tools do
     end
   end
 
+  @doc "DM only, exploration: confirm that a player's declared pickup or handover does NOT change any inventory this turn (the object is not there, the attempt fails, they only look at it, or it is already in their inventory). Use it instead of grant_item/remove_item, never alongside a real change."
+  deftool confirm_inventory_unchanged(ctx, who :: String.t(), reason :: String.t()) do
+    with :ok <- assert_inventory_dm(ctx) do
+      _ = reason
+
+      {:ok, dgettext("engine", "Sin cambios en el inventario de %{who}.", who: who)}
+    end
+  end
+
   defp assert_inventory_dm(ctx) do
     if ctx.deps.state.participant_id == "dm",
       do: :ok,
