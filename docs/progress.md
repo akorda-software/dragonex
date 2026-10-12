@@ -85,7 +85,8 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
    la izquierda y a todos sus compañeros a la derecha. «cerrar sesión» ya no
    se confunde con «Salir» de la mesa, los botones desactivados son planos y
    legibles, el DM aparece como narrador en la sala de espera y la cabecera
-   cabe a 375 px. Pendiente: legibilidad de la capitular gótica.
+   cabe a 375 px; la capitular de la crónica usa la letra legible de la
+   portada.
 8. **Limpieza intermitente de tests** (Postgrex/owner): en seguimiento, sin
    reaparecer en los gates de 2026-10-12.
 

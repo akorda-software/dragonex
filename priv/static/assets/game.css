@@ -310,9 +310,11 @@
 .turn-block > .msg-dm:first-child::first-letter {
   float: left;
   margin: 0.08em 0.12em 0 0;
-  font-family: var(--f-display);
-  font-size: 3.2em;
-  line-height: 0.8;
+  /* Same legible capital as the home demo: blackletter hid which letter it was. */
+  font-family: var(--f-body);
+  font-weight: 800;
+  font-size: 2.9em;
+  line-height: 0.82;
   color: var(--rubric);
   text-shadow: 2px 2px 0 rgba(90, 52, 22, 0.28);
 }
