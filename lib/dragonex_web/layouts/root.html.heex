@@ -94,9 +94,20 @@
               else if (bounds.right > right) this.el.scrollLeft += bounds.right - right;
             };
             this.el.addEventListener("focusin", this.revealFocused);
+            // The faded edge hints at hidden controls until the strip ends.
+            this.sync = () => {
+              const end = this.el.scrollLeft + this.el.clientWidth >= this.el.scrollWidth - 2;
+              this.el.classList.toggle("at-end", end);
+            };
+            this.el.addEventListener("scroll", this.sync, {passive: true});
+            window.addEventListener("resize", this.sync);
+            this.sync();
           },
+          updated() { this.sync(); },
           destroyed() {
             this.el.removeEventListener("focusin", this.revealFocused);
+            this.el.removeEventListener("scroll", this.sync);
+            window.removeEventListener("resize", this.sync);
           }
         },
         PlayerSheets: {

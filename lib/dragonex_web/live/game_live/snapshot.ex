@@ -45,6 +45,7 @@ defmodule DragonexWeb.GameLive.Snapshot do
       dice_hand: [],
       dice_groups: [],
       dice_show: false,
+      dice_mode: "tray",
       dice_rolling: false,
       dice_token: 0,
       dice_flush_ref: nil,

@@ -134,6 +134,24 @@ defmodule DragonexWeb.GamePartyVisibilityTest do
     assert Games.load_world(Games.get_game(game.id)).characters["Aina"].hp == 8
   end
 
+  test "the initiative strip marks sides, HP and the fallen for the mobile table",
+       %{conn: conn, user: user} do
+    pcs = party()
+    goblin = %{Dragonex.Monsters.goblin() | hp: 0}
+
+    {view, _game} =
+      table(conn, user, pcs,
+        phase: :combat,
+        extra: [goblin],
+        initiative: ["Zuria", goblin.name | Enum.map(Enum.drop(pcs, -1), & &1.name)]
+      )
+
+    assert has_element?(view, ".initiative li.active.side-pc", "Zuria")
+    assert has_element?(view, ".initiative li.side-enemy.is-down", goblin.name)
+    assert has_element?(view, ".initiative li[title*='HP 12/12'] .ini-hp.hp-high span")
+    assert has_element?(view, ".game-rail-right .mobile-combat-tracker", goblin.name)
+  end
+
   defp party do
     for name <- ["Aina", "Bran", "Cira", "Dara", "Eira", "Zuria"],
         do: %{Archetypes.fighter() | name: name}

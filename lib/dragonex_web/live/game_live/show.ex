@@ -487,6 +487,7 @@ defmodule DragonexWeb.GameLive.Show do
             input_error={@input_error}
             sheet_open={@sheet_open}
             dice_show={@dice_show}
+            dice_mode={@dice_mode}
             dice_rolling={@dice_rolling}
             dice_hand={@dice_hand}
             dice_groups={@dice_groups}

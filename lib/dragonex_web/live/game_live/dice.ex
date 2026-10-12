@@ -73,16 +73,32 @@ defmodule DragonexWeb.GameLive.Dice do
   # damage dice) collapse into a single tumble + a stack of labeled cards.
   def group_landed(socket, entry) do
     # Pull the dice of THIS group into the tumble hand, and stack the labeled
-    # entry into the cards list. Both reset on each new group burst after the
-    # hold timer fires (see hide/1).
+    # entry into the cards list. A roll by someone else than the burst on
+    # screen starts a new one: an AI round no longer piles up every
+    # creature's cards in one window.
     new_hand =
       Enum.map(entry["dice"] || entry[:dice] || [], fn
         [s, v] -> %{sides: s, value: v}
         {s, v} -> %{sides: s, value: v}
       end)
 
-    hand = socket.assigns.dice_hand ++ new_hand
-    groups = socket.assigns.dice_groups ++ [entry]
+    fresh? =
+      not socket.assigns.dice_show or
+        roller(List.last(socket.assigns.dice_groups)) != roller(entry)
+
+    {hand, groups} =
+      if fresh?,
+        do: {new_hand, [entry]},
+        else: {socket.assigns.dice_hand ++ new_hand, socket.assigns.dice_groups ++ [entry]}
+
+    # Only the viewer's own roll takes the screen; everyone else's goes to a
+    # tray that leaves the chronicle and the input usable.
+    mine? = roller(entry) == socket.assigns[:viewer]
+
+    mode =
+      if mine? or (not fresh? and socket.assigns[:dice_mode] == "modal"),
+        do: "modal",
+        else: "tray"
 
     if ref = socket.assigns[:dice_flush_ref], do: Process.cancel_timer(ref)
     if ref = socket.assigns[:dice_hide_ref], do: Process.cancel_timer(ref)
@@ -96,6 +112,7 @@ defmodule DragonexWeb.GameLive.Dice do
        dice_hand: hand,
        dice_groups: groups,
        dice_show: true,
+       dice_mode: mode,
        dice_rolling: true,
        dice_token: token,
        dice_flush_ref: flush_ref,
@@ -152,6 +169,9 @@ defmodule DragonexWeb.GameLive.Dice do
 
   # Unversioned messages from the old renderer cannot identify a current roll.
   def hide(socket), do: {:noreply, socket}
+
+  defp roller(nil), do: nil
+  defp roller(entry), do: entry["who"] || entry[:who]
 
   defp current_nonce?(params, socket) do
     case params do
@@ -272,6 +292,7 @@ defmodule DragonexWeb.GameLive.Dice do
   # ----------------------------------------------------------------- modal
 
   attr(:show, :boolean, default: false)
+  attr(:mode, :string, default: "modal")
   attr(:rolling, :boolean, default: false)
   attr(:hand, :list, default: [])
   attr(:groups, :list, default: [])
@@ -282,15 +303,21 @@ defmodule DragonexWeb.GameLive.Dice do
     assigns = assign(assigns, :stage_id, stage_id(assigns.engine))
 
     ~H"""
+    <%!-- The same stage serves both modes so the dic_ex hook never remounts:
+         "modal" for the viewer's own roll, "tray" (corner, no backdrop, no
+         focus capture) for everyone else's. --%>
     <div
-      class={"modal dice-overlay #{unless @show, do: "dice-hidden"}"}
+      class={"modal dice-overlay dice-#{@mode} #{unless @show, do: "dice-hidden"}"}
       inert={not @show}
-      phx-click="dismiss_dice"
-      phx-window-keydown={if @show, do: "dismiss_dice"}
+      phx-click={if @mode == "modal", do: "dismiss_dice"}
+      phx-window-keydown={if @show and @mode == "modal", do: "dismiss_dice"}
       phx-key="escape"
     >
-      <.focus_wrap id="dice-dialog" class="modal-box dice-modal-box" role="dialog"
-        aria-modal="true" aria-labelledby="dice-dialog-title" aria-describedby="dice-dialog-help"
+      <.focus_wrap id="dice-dialog" class="modal-box dice-modal-box"
+        role={if @mode == "modal", do: "dialog", else: "status"}
+        aria-modal={to_string(@mode == "modal")} aria-labelledby="dice-dialog-title"
+        aria-describedby={if @mode == "modal", do: "dice-dialog-help"}
+        aria-live={if @mode == "tray", do: "polite"}
         aria-hidden={to_string(not @show)} tabindex="-1">
         <h2 id="dice-dialog-title"><i class="px px-d20" aria-hidden="true"></i>{dgettext("ui", "Tirada")}</h2>
         <%!-- The dic_ex hook owns this element. It is always in the DOM (toggled
@@ -321,13 +348,15 @@ defmodule DragonexWeb.GameLive.Dice do
           <div class="dice-rolling-text">{dgettext("ui", "tirando…")}</div>
         </div>
 
-        <button :if={@show} id="dice-close" type="button" class="btn btn-sm dice-close"
+        <button :if={@show and @mode == "modal"} id="dice-close" type="button" class="btn btn-sm dice-close"
           phx-click="dismiss_dice"
           phx-mounted={JS.push_focus(to: ":focus") |> JS.focus(to: "#dice-close")}
           phx-remove={JS.pop_focus()}>
           {dgettext("ui", "Cerrar tirada")}
         </button>
-        <p id="dice-dialog-help" class="dice-dismiss">{dgettext("ui", "Escape o toca para cerrar")}</p>
+        <button :if={@show and @mode == "tray"} id="dice-tray-close" type="button" class="btn btn-sm dice-close"
+          phx-click="dismiss_dice" aria-label={dgettext("ui", "Cerrar tirada")}>×</button>
+        <p :if={@mode == "modal"} id="dice-dialog-help" class="dice-dismiss">{dgettext("ui", "Escape o toca para cerrar")}</p>
       </.focus_wrap>
     </div>
     """

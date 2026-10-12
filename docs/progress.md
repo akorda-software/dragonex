@@ -72,9 +72,12 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 7. **UI/UX de la mesa** (auditoría con capturas, 2026-10-12). Hecho: ficha
    completa propia en exploración, vista DM con todas las fichas, turnos de
    monstruo con su nombre, pausa con motivo y «Reanudar» junto a la entrada,
-   casillas con máximo y sin traspasos de turno repetidos. Pendiente: dados
-   ajenos sin modal, combate legible en móvil (PG/estados de enemigos), franja
-   de escena/hora/PNJ y barras móviles más compactas.
+   casillas con máximo y sin traspasos de turno repetidos; las tiradas ajenas
+   caen en una bandeja que no bloquea (modal solo para las tuyas); en móvil la
+   iniciativa muestra bando, PG y caídos, el cajón abre el rastreador de
+   combate sobre la crónica y la barra de controles avisa de que desplaza.
+   Pendiente: franja de escena/hora/PNJ, PG resultantes en las líneas de daño,
+   salvaciones de muerte y acción/adicional/reacción gastadas.
 8. **Limpieza intermitente de tests** (Postgrex/owner): en seguimiento, sin
    reaparecer en los gates de 2026-10-12.
 

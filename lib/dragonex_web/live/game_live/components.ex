@@ -63,8 +63,16 @@ defmodule DragonexWeb.GameLive.Components do
     ~H"""
     <span class="round"><i class="px px-swords" aria-hidden="true"></i>{dgettext("ui", "Ronda %{round}", round: @round)}</span>
     <ol class="initiative" aria-label={dgettext("ui", "Orden de iniciativa")}>
-      <li :for={name <- @w.initiative_order} :key={name} class={if World.acting?(@w, name, @current), do: "active", else: ""}>
-        {name}
+      <li
+        :for={name <- @w.initiative_order}
+        :key={name}
+        class={initiative_chip_class(@w, name, @current)}
+        title={chip_title(@w.characters[name])}
+      >
+        <span class="ini-name">{name}</span>
+        <span :if={@w.characters[name]} class={"ini-hp #{hp_level(hp_pct(@w.characters[name]))}"} aria-hidden="true">
+          <span style={"width:#{hp_pct(@w.characters[name])}%"}></span>
+        </span>
       </li>
     </ol>
     <span class={"whose-turn#{if @current == @viewer and @status == :waiting and is_binary(@viewer), do: " is-mine", else: ""}"}>{@label}</span>
@@ -81,6 +89,27 @@ defmodule DragonexWeb.GameLive.Components do
     <span class="phase"><i class="px px-boot" aria-hidden="true"></i>{dgettext("ui", "Exploración")}</span>
     <span class={"whose-turn#{if @current == @viewer and @status == :waiting and is_binary(@viewer), do: " is-mine", else: ""}"}>{@label}</span>
     """
+  end
+
+  # On mobile the initiative strip is the only combat overview outside the
+  # drawer: each chip carries its side, a mini HP bar and whether it is down.
+  defp initiative_chip_class(world, name, current) do
+    c = world.characters[name]
+
+    [
+      if(World.acting?(world, name, current), do: "active"),
+      c && "side-#{c.side}",
+      c && c.hp <= 0 && "is-down"
+    ]
+    |> Enum.filter(& &1)
+    |> Enum.join(" ")
+  end
+
+  defp chip_title(nil), do: nil
+
+  defp chip_title(c) do
+    conds = Enum.map(c.conditions || [], &cond_name/1) ++ status_flags(c)
+    Enum.join([hp_line(c) | conds], " · ")
   end
 
   # Only the creator holds «Reanudar»; a pause note asking to resume must not
@@ -628,6 +657,9 @@ defmodule DragonexWeb.GameLive.Components do
       <i class="px px-shield" aria-hidden="true"></i>{dgettext("ui", "Ficha")}
     </button>
     <aside id="player-sheets" phx-hook="PlayerSheets" class={"game-rail game-rail-right#{if @sheet_open, do: " is-open", else: ""}"}>
+      <div :if={@world != nil and @world.phase == :combat} class="mobile-combat-tracker">
+        <.combat_tracker world={@world} current={@current} round={@round} viewer={@viewer} />
+      </div>
       <%= if @world != nil and @world.phase == :combat and @viewer != "dm" and @world.characters[@viewer] != nil do %>
         <div class="combat-player-sheet">
           <.detail_sheet card={@world.characters[@viewer]} world={@world} />
@@ -656,6 +688,7 @@ defmodule DragonexWeb.GameLive.Components do
 
     <Dice.stage
       show={@dice_show}
+      mode={@dice_mode}
       rolling={@dice_rolling}
       hand={@dice_hand}
       groups={@dice_groups}

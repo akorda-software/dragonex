@@ -24,7 +24,9 @@ defmodule DragonexWeb.GameLive.DiceTest do
       dice_flush_ref: nil,
       dice_hide_ref: nil,
       dice_hide_token: nil,
-      dice_engine: "2d"
+      dice_engine: "2d",
+      dice_mode: "tray",
+      viewer: "Mara"
     )
   end
 
@@ -32,6 +34,45 @@ defmodule DragonexWeb.GameLive.DiceTest do
     {:noreply, s} = Dice.group_landed(socket(), entry())
     {:noreply, s} = Dice.flush(s, s.assigns.dice_token)
     s
+  end
+
+  test "only the viewer's own roll takes the screen; others go to the tray" do
+    {:noreply, mine} = Dice.group_landed(socket(), entry())
+    assert mine.assigns.dice_mode == "modal"
+
+    {:noreply, theirs} = Dice.group_landed(socket(), %{entry() | who: "goblin1"})
+    assert theirs.assigns.dice_mode == "tray"
+
+    html = render_component(&Dice.stage/1, show: true, mode: "tray", groups: [entry()])
+    assert html =~ "dice-tray"
+    assert html =~ ~s(role="status")
+    # No focus capture and no backdrop dismissal while the player types.
+    refute html =~ "phx-mounted"
+    refute html =~ "phx-window-keydown"
+    refute html =~ ~s(id="dice-close")
+
+    modal = render_component(&Dice.stage/1, show: true, mode: "modal", groups: [entry()])
+    assert modal =~ ~s(role="dialog")
+    assert modal =~ ~s(id="dice-close")
+    Dice.dismiss(%{}, mine)
+    Dice.dismiss(%{}, theirs)
+  end
+
+  test "another roller starts a new burst; the same roller keeps attack and damage together" do
+    {:noreply, attack} = Dice.group_landed(socket(), %{entry() | who: "goblin1"})
+    {:noreply, damage} = Dice.group_landed(attack, %{entry() | who: "goblin1", dice: [{6, 4}]})
+    assert length(damage.assigns.dice_groups) == 2
+    assert length(damage.assigns.dice_hand) == 2
+
+    {:noreply, next} = Dice.group_landed(damage, %{entry() | who: "goblin2", dice: [{20, 3}]})
+    assert [%{who: "goblin2"}] = next.assigns.dice_groups
+    assert [%{sides: 20, value: 3}] = next.assigns.dice_hand
+    assert next.assigns.dice_mode == "tray"
+
+    # Mid-burst, the viewer's own reaction upgrades the window to the modal.
+    {:noreply, mine} = Dice.group_landed(next, entry())
+    assert mine.assigns.dice_mode == "modal"
+    Dice.dismiss(%{}, mine)
   end
 
   test "a close deadline cannot conceal a roll whose animation is still running" do
