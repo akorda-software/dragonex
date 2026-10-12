@@ -7793,6 +7793,44 @@ Hex; `mix.hex.lock` fija 2.1.0/0.3.0. Dev sigue resolviendo los hermanos (D201).
 queden en el código pueden retirarse aparte. El proveedor por defecto para que
 la narración en vivo trocee argumentos (D234) sigue sin decidir.
 
+## D238 — Playtest sin interfaz medido, y routing de OpenRouter con claves atom
+
+**Estado:** Aceptada. **Fecha:** 2026-10-12.
+
+**Contexto:** las correcciones D100–D236 salían de playtests manuales en
+navegador, caso a caso, sin una medida comparable entre partidas. Al
+reanudar, la suite offline estaba verde, pero ninguna petición real llegaba
+al proveedor: con `OPENROUTER_PROVIDER_ORDER` definido y un modelo distinto de
+`deepseek-v4.1-flash`, `Models.routing_for/1` devolvía el fragmento del cuerpo
+JSON (claves string) y ReqLLM ≥ 1.27 valida `openrouter_provider` como mapa de
+claves atom («expected atom, got: "allow_fallbacks"»). Cada beat pausaba la
+mesa antes de salir hacia OpenRouter.
+
+**Decisión:**
+- `Dragonex.Playtest.Metrics` (puro) mide sobre `game_events`: turnos por
+  tipo de actor, fallos (`turn_failed`, pausas, omisiones, relevos de
+  emergencia), ida y vuelta humana, duración de turnos IA y declaraciones de
+  combate sin tirada propia. `mix dragonex.metrics` lo aplica a partidas
+  guardadas (solo lectura).
+- `Dragonex.Playtest` + `mix dragonex.playtest` juegan mesas reales sin
+  interfaz: crean la partida como el asistente y un jugador bot (modelo
+  barato, solo eventos públicos) escribe las declaraciones humanas por
+  `Game.declare/3`. Reanuda pausas como haría el creador y devuelve métricas.
+  Se niega a jugar sin proveedor real.
+- La nota de fallo de turno lleva `kind: "turn_failed"`; las métricas aceptan
+  también el texto de partidas anteriores.
+- `routing_for/1` convierte el orden de `OPENROUTER_PROVIDER_ORDER` a
+  `%{order:, allow_fallbacks:}`. Regresión que valida contra el esquema de
+  ReqLLM.
+
+**Verificación:** tests deterministas de métricas, jugador y arnés (con
+`Test.Narrator`); partida live 19455 (DeepSeek v4 flash): aventura del molino
+completa en 8 declaraciones, 0 fallos, ida y vuelta p50 12 s / p90 52 s.
+
+**Límites:** el jugador bot no sustituye al navegador (UI, dados 3D, móvil).
+Las métricas no juzgan la semántica de la prosa; «combate sin tirada» es un
+indicador para revisar, no un error seguro.
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,

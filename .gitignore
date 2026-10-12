@@ -47,3 +47,4 @@ dragones-*.tar
 # Python bytecode
 __pycache__/
 *.pyc.impeccable/
+.hex_graph/

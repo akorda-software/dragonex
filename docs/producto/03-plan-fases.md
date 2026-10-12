@@ -14,7 +14,7 @@ existe" sino por "se verifica".**
 
 ---
 
-## Fases entregadas ✅ (resumen; el detalle vive en `../progress.md`)
+## Fases entregadas ✅ (resumen; el detalle vive en `../progress-historial.md`)
 
 | Fase | Hito | Entregables clave |
 |---|---|---|
@@ -446,7 +446,7 @@ F6 está cerrado. Daño/concentración unificados, presupuestos por turno,
 descansos finitos y reloj persistido están implementados (D81–D83).
 Consolidación 2026-09-26: dos regresiones de recursos de concentración y
 `game_engine_journey_test.exs` (builder → combate → Postgres/Game → descansos
-→ nuevos arranques). Ver alcance y evidencia en `../progress.md`.
+→ nuevos arranques). Ver alcance y evidencia en `../progress-historial.md`.
 
 Orden de continuación:
 

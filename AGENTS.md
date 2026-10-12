@@ -30,6 +30,8 @@ MIX_ENV=test bin/dev test                 # SIEMPRE con MIX_ENV=test; estado en 
 mix format                                # obligatorio antes de commit
 mix compile                               # sin warnings
 docker logs -f dragonex-app               # logs
+bin/dev dragonex.metrics --last 10        # fallos/latencia de partidas guardadas
+bin/dev dragonex.playtest --games 3       # mesas reales sin UI (gasta tokens)
 ```
 
 - **Deps locales**: dev/test siempre resuelve `../exAgent` (A mayúscula) y
@@ -51,6 +53,8 @@ docker logs -f dragonex-app               # logs
   Gates completos local/Hex **en secuencia** si comparten esa DB: fixtures de
   rollback usan constraints temporales y dos VMs pueden bloquearse en DDL.
   Paralelizar requiere `DB_TEST_NAME` distinto y migrado para cada grafo (D209).
+  Los dos grafos comparten `deps/` y sus locks difieren: para el de Hex usa
+  `MIX_DEPS_PATH=.hex_graph/deps MIX_BUILD_PATH=.hex_graph/_build`.
 - Sin `OPENROUTER_API_KEY` en `.env.dev`, los beats usan `TestModel` (no narran).
   Live: `DRAGONEX_RUN_LIVE=1 OPENROUTER_API_KEY=... mix test --include integration`.
 

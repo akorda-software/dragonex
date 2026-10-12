@@ -1,8 +1,10 @@
-# Dragonex — progreso y estado
+# Dragonex — historial detallado de progreso (hasta D237)
 
-Estado canónico por feature. **Esta es la fuente de la verdad sobre qué está
-hecho, qué falta y qué se simplificó.** Si el `ROADMAP.md` o cualquier handoff
-histórico (`docs/historical/`) discrepan con esto, manda este doc.
+> Registro completo de entregas, playtests y gates por fecha, tal como se
+> escribió. **El estado vigente está en [`progress.md`](progress.md)**; aquí
+> solo se consulta el detalle de una entrega concreta. No se reescribe.
+
+Original del encabezado (ya no vigente): «Estado canónico por feature».
 
 - Últimos gates completos, **con D237**: **3027 passed / 3 excluded** en
   ambos grafos (local y Hex, sin skipped) (`MIX_ENV=test bin/dev test`,

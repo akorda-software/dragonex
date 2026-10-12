@@ -354,6 +354,7 @@ defmodule Dragonex.Game.Settlement do
 
     {:ok, _} =
       Games.append_event(state.game_id, :system, "system", "dm", %{
+        kind: "turn_failed",
         note: failure_note
       })
   end
