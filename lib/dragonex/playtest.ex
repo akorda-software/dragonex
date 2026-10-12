@@ -20,7 +20,7 @@ defmodule Dragonex.Playtest do
 
   require Logger
 
-  alias Dragonex.{Game, Games, Models}
+  alias Dragonex.{Game, Games}
   alias Dragonex.Playtest.{Metrics, Player}
 
   @poll_ms 500
@@ -67,7 +67,7 @@ defmodule Dragonex.Playtest do
     {:ok, pid} = Game.ensure_started(game.id, Keyword.get(opts, :game_opts, []))
     human = human_name(game.id)
 
-    Logger.info("playtest: partida #{game.id}, humano #{human}, modelo #{model_name()}")
+    Logger.info("playtest: partida #{game.id}, humano #{human}, modelo #{model_name(pid)}")
 
     loop_state = %{
       pid: pid,
@@ -242,8 +242,9 @@ defmodule Dragonex.Playtest do
     |> Map.fetch!(:name)
   end
 
-  defp model_name do
-    ExAgent.Model.model_name(Models.dm())
+  # The model the table really plays with (house, own key or injected).
+  defp model_name(pid) do
+    ExAgent.Model.model_name(:sys.get_state(pid).model)
   rescue
     _ -> "?"
   end
