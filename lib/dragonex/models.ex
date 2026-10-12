@@ -15,7 +15,7 @@ defmodule Dragonex.Models do
           are bare Zen slugs, e.g. `deepseek-v4-flash`. The flat-rate **OpenCode
           Go** ($10/mo) and pay-as-you-go **Zen** plans share model ids/auth but
           use distinct base URLs; the plan is picked inside the adapter
-          (`OPENCODE_PLAN`, default `go`), so this module just builds `%OpenCode{}`.
+          (`OPENCODE_PLAN`, default `go`), resolved by `base_url/1`.
 
     * **DM** (`dm/0`) — the model that narrates + referees. Picked for adherence
       to the tool contract (it must propose as the right participant).
@@ -25,7 +25,8 @@ defmodule Dragonex.Models do
     * **Tuning** (`dm_max_tokens/0`) — cap output tokens per beat.
 
   All env-overridable so a run can swap providers/models without code changes.
-  Returns `ExAgent.Model` structs (or `%Test{}` when no API key — for tests/dev).
+  Returns `ExAgent.Models.ReqLLM` profiles (or `%Test{}` when no API key — for
+  tests/dev).
 
   > **Attribution:** `DRAGONEX_APP_TITLE` (default `"dragonex"`) is the canonical
   > knob for provider attribution (OpenRouter `X-Title` header). OpenCode ignores
@@ -48,12 +49,11 @@ defmodule Dragonex.Models do
   alias ExAgent.Models
 
   # Provider catalogue — the single source of truth for the wiring. Each row
-  # pairs the adapter module with the env var holding its API key and the
-  # per-role default model ids. Adding a provider = one row here + one arm in
+  # pairs the env var holding the provider's API key with the per-role default
+  # model ids. Adding a provider = one row here + one arm in
   # `provider/0`; the dispatch below is generic.
   @providers %{
     openrouter: %{
-      module: Models.OpenRouter,
       api_key_env: "OPENROUTER_API_KEY",
       dm: "deepseek/deepseek-v4-flash",
       summarizer: "google/gemini-3.1-flash-lite",
@@ -61,7 +61,6 @@ defmodule Dragonex.Models do
       turnmaster: "deepseek/deepseek-v4-flash"
     },
     opencode: %{
-      module: Models.OpenCode,
       api_key_env: "OPENCODE_API_KEY",
       dm: "deepseek-v4-flash",
       summarizer: "gemini-3.5-flash-lite",
@@ -69,31 +68,13 @@ defmodule Dragonex.Models do
     }
   }
 
-  @doc "Backend disponible: candidata ReqLLM local o adaptadores de Hex 1.2."
-  def backend, do: if(Code.ensure_loaded?(Models.ReqLLM), do: :req_llm, else: :legacy)
-
-  @doc "Reconoce modelos de proveedor sin depender de structs retiradas en v2."
-  def live?(%{__struct__: module}),
-    do: module in [Models.ReqLLM, Models.OpenRouter, Models.OpenCode]
-
+  @doc "True para perfiles de proveedor real; `%Test{}` y demás valores no lo son."
+  def live?(%Models.ReqLLM{}), do: true
   def live?(_), do: false
 
   @doc "Settings admitidos por el modelo efectivo; Test conserva los extras offline."
-  def request_settings(%{__struct__: Models.ReqLLM} = model, settings, _extra) do
+  def request_settings(%Models.ReqLLM{} = model, settings, _extra) do
     if model.reasoning_mode == :none, do: Keyword.delete(settings, :temperature), else: settings
-  end
-
-  def request_settings(%{__struct__: Models.OpenRouter, model: id}, settings, extra)
-      when id in ["deepseek/deepseek-v4.1-flash", "xiaomi/mimo-v2.6-flash"] do
-    routing = routing_for(id) |> Jason.encode!() |> Jason.decode!()
-    extra = Map.put(extra || %{}, "provider", routing)
-
-    extra =
-      if id == "xiaomi/mimo-v2.6-flash",
-        do: Map.put(extra, "reasoning", %{"enabled" => false}),
-        else: Map.put(extra, "reasoning", %{"effort" => "none"})
-
-    Keyword.put(settings, :extra, extra)
   end
 
   def request_settings(_model, settings, extra) when is_map(extra) and map_size(extra) > 0,
@@ -128,30 +109,28 @@ defmodule Dragonex.Models do
                 "El catálogo no confirma que se pueda desactivar el razonamiento de #{id}."
       end
 
-    apply(Models.ReqLLM, :new, [
-      [
-        model: %{
-          provider: if(provider == :openrouter, do: :openrouter, else: :openai),
-          id: id,
-          capabilities: %{tools: %{enabled: true}, reasoning: reasoning_caps},
-          extra: %{wire: %{protocol: "openai_chat"}}
-        },
-        api_key: api_key,
-        base_url: base_url(provider),
-        tool_profile:
-          if(provider == :openrouter, do: :openrouter_chat_tools_v1, else: :chat_tools_v1),
-        provider_options:
-          if(provider == :openrouter,
-            do: [
-              openrouter_provider: routing_for(id),
-              app_title: System.get_env("DRAGONEX_APP_TITLE", "dragonex")
-            ],
-            else: []
-          ),
-        reasoning_mode: mode,
-        total_timeout: Keyword.get(opts, :total_timeout, 60_000)
-      ]
-    ])
+    Models.ReqLLM.new(
+      model: %{
+        provider: if(provider == :openrouter, do: :openrouter, else: :openai),
+        id: id,
+        capabilities: %{tools: %{enabled: true}, reasoning: reasoning_caps},
+        extra: %{wire: %{protocol: "openai_chat"}}
+      },
+      api_key: api_key,
+      base_url: base_url(provider),
+      tool_profile:
+        if(provider == :openrouter, do: :openrouter_chat_tools_v1, else: :chat_tools_v1),
+      provider_options:
+        if(provider == :openrouter,
+          do: [
+            openrouter_provider: routing_for(id),
+            app_title: System.get_env("DRAGONEX_APP_TITLE", "dragonex")
+          ],
+          else: []
+        ),
+      reasoning_mode: mode,
+      total_timeout: Keyword.get(opts, :total_timeout, 60_000)
+    )
   end
 
   @doc """
@@ -265,7 +244,7 @@ defmodule Dragonex.Models do
       not configured?(provider) ->
         {:error, dgettext("ui", "Este proveedor todavía no tiene una clave configurada.")}
 
-      backend() == :req_llm and reasoning != :none ->
+      reasoning != :none ->
         {:error,
          dgettext("ui", "Esta mesa necesita un modelo que permita desactivar el razonamiento.")}
 
@@ -337,21 +316,10 @@ defmodule Dragonex.Models do
   def cached_tokens(_), do: 0
 
   # ---------------------------------------------------------------------------
-  # Reasoning ("how hard the DM thinks") — dynamic per model
+  # Reasoning ("how hard the DM thinks")
   # ---------------------------------------------------------------------------
-  # OpenRouter exposes per-model supported efforts (minimal/low/medium/high/
-  # xhigh/max) plus a default and a `mandatory` flag. OpenCode carries no
-  # reasoning metadata, so it falls back to a generic low/medium/high set.
-
-  @effort_order ~w(none minimal low medium high xhigh max)
-
-  @doc "Effort levels ordered by intensity (the modal sorts buttons by this)."
-  @spec effort_order() :: [String.t()]
-  def effort_order, do: @effort_order
-
-  @doc "Generic effort set for providers without per-model metadata (OpenCode)."
-  @spec generic_efforts() :: [String.t()]
-  def generic_efforts, do: ~w(low medium high)
+  # Live profiles are only built with reasoning disabled (`chat_model/5`);
+  # `prepare_selection/3` and `build/1` refuse any other effort.
 
   @doc """
   Effective reasoning effort: runtime override (an effort string such as
@@ -498,7 +466,6 @@ defmodule Dragonex.Models do
 
     %{
       id: id,
-      module: if(backend() == :req_llm, do: Models.ReqLLM, else: cfg.module),
       api_key_env: cfg.api_key_env,
       api_key: blank_to_nil(System.get_env(cfg.api_key_env)),
       base_url: base_url(id)
@@ -684,19 +651,15 @@ defmodule Dragonex.Models do
         :turnmaster -> System.get_env("DRAGONEX_TURNMASTER_MODEL", cfg.turnmaster)
       end
 
-    unless backend() == :legacy or reasoning() == :none,
+    unless reasoning() == :none,
       do: raise(ArgumentError, "exAgent v2 admite esta partida con razonamiento desactivado.")
 
     configured_model(provider(), cfg, id)
   end
 
   defp configured_model(provider, cfg, id) do
-    if backend() == :legacy do
-      cfg.module.new(model: id, app_title: System.get_env("DRAGONEX_APP_TITLE", "dragonex"))
-    else
-      metadata = catalogue_metadata!(provider, id)
-      chat_model(provider, id, System.fetch_env!(cfg.api_key_env), metadata)
-    end
+    metadata = catalogue_metadata!(provider, id)
+    chat_model(provider, id, System.fetch_env!(cfg.api_key_env), metadata)
   end
 
   defp catalogue_metadata!(provider, id) do

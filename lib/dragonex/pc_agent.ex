@@ -73,7 +73,6 @@ defmodule Dragonex.PCAgent do
 
     caps =
       [Dragonex.Game.RunLifecycle, Dragonex.Narration.Contract, Events] ++
-        Dragonex.Agent.history_capabilities() ++
         compaction_capabilities(summarizer, opts) ++
         [AgentInstructions]
 

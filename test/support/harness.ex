@@ -70,12 +70,8 @@ defmodule Dragonex.Test.Harness do
         finish_reason: :tool_calls
       )
 
-  @doc "Terminal de streaming del contrato de exAgent realmente instalado."
-  def stream_response(response, model) do
-    if Dragonex.Models.backend() == :req_llm,
-      do: {:response, response, model},
-      else: {:response, response}
-  end
+  @doc "Terminal de streaming del contrato de exAgent 2.x."
+  def stream_response(response, model), do: {:response, response, model}
 
   @doc "Start a session with the given policy and participants."
   def start_session(opts) do

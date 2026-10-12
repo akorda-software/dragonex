@@ -74,12 +74,8 @@ defmodule Dragonex.Flows.CompactionTest do
     summary = summary.content
     assert summary =~ "20 rooms"
 
-    if Dragonex.Models.backend() == :req_llm do
-      assert length(messages) == 26
-      assert Enum.take(messages, 24) == history
-    else
-      assert length(messages) < 12
-    end
+    assert length(messages) == 26
+    assert Enum.take(messages, 24) == history
 
     assert Enum.any?(projection, fn
              %Request{parts: parts} ->

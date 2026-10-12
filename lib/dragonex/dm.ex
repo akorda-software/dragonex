@@ -78,7 +78,6 @@ defmodule Dragonex.DM do
             Dragonex.Narration.Contract,
             Events
           ] ++
-            Dragonex.Agent.history_capabilities() ++
             compaction_capabilities(opts) ++ [AgentInstructions]
         )
     )

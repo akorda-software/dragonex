@@ -160,14 +160,20 @@ defmodule Dragonex.Narration.Contract do
   defp args(args) when is_binary(args), do: Jason.decode(args)
   defp args(_), do: {:error, :invalid_args}
 
-  # v2 has an explicit status; Hex 1.2 proves success with the paired "ok".
-  # Read public fields through a list so neither graph assumes the other's
-  # struct shape (including a forged status on an otherwise native return).
+  # Success needs the paired "ok" and an explicit succeeded status (a forged
+  # status on an otherwise native return is rejected).
   defp successful_return?(
-         [%Part.ToolReturn{tool_name: "final_result", tool_call_id: id, content: "ok"} = part],
+         [
+           %Part.ToolReturn{
+             tool_name: "final_result",
+             tool_call_id: id,
+             content: "ok",
+             status: :succeeded
+           }
+         ],
          %Part.ToolCall{tool_call_id: id}
        ),
-       do: Keyword.get(Map.to_list(part), :status, :succeeded) == :succeeded
+       do: true
 
   defp successful_return?(_, _), do: false
 

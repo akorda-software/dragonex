@@ -28,58 +28,43 @@ defmodule Dragonex.ModelsWorkspaceTest do
                allow_fallbacks: false,
                require_parameters: true
              }
-
-      model = %{__struct__: ExAgent.Models.OpenRouter, model: id}
-
-      settings =
-        Models.request_settings(model, [max_tokens: 512], %{
-          "provider" => %{"allow_fallbacks" => true},
-          "other" => "kept"
-        })
-
-      assert settings[:extra]["provider"]["only"] == [provider]
-      assert settings[:extra]["provider"]["allow_fallbacks"] == false
-      assert settings[:extra]["other"] == "kept"
-      if provider == "io-net", do: assert(settings[:extra]["reasoning"] == %{"enabled" => false})
     end
   end
 
-  if Code.ensure_loaded?(ExAgent.Models.ReqLLM) do
-    test "v2 uses stock routing and a truthful none profile without legacy extras" do
-      metadata = %{
-        "supported_parameters" => ["tools", "reasoning_effort"],
-        "reasoning" => %{"mandatory" => false}
-      }
+  test "v2 uses stock routing and a truthful none profile without legacy extras" do
+    metadata = %{
+      "supported_parameters" => ["tools", "reasoning_effort"],
+      "reasoning" => %{"mandatory" => false}
+    }
 
-      model =
-        Models.chat_model(:openrouter, "deepseek/deepseek-v4.1-flash", "synthetic", metadata)
+    model =
+      Models.chat_model(:openrouter, "deepseek/deepseek-v4.1-flash", "synthetic", metadata)
 
-      assert model.tool_profile == :openrouter_chat_tools_v1
-      assert model.reasoning_mode == :none
+    assert model.tool_profile == :openrouter_chat_tools_v1
+    assert model.reasoning_mode == :none
 
-      assert model.provider_options[:openrouter_provider] ==
-               Models.routing_for("deepseek/deepseek-v4.1-flash")
+    assert model.provider_options[:openrouter_provider] ==
+             Models.routing_for("deepseek/deepseek-v4.1-flash")
 
-      assert Models.request_settings(model, [max_tokens: 128, temperature: 0], %{
-               "reasoning" => %{"effort" => "high"}
-             }) == [max_tokens: 128]
-    end
+    assert Models.request_settings(model, [max_tokens: 128, temperature: 0], %{
+             "reasoning" => %{"effort" => "high"}
+           }) == [max_tokens: 128]
+  end
 
-    test "unsupported, mandatory and enabled-only reasoning fail before any provider request" do
-      for metadata <- [
-            %{"supported_parameters" => []},
-            %{
-              "supported_parameters" => ["tools", "reasoning_effort"],
-              "reasoning" => %{"mandatory" => true}
-            },
-            %{
-              "supported_parameters" => ["tools", "reasoning"],
-              "reasoning" => %{"mandatory" => false}
-            }
-          ] do
-        assert_raise ArgumentError, fn ->
-          Models.chat_model(:openrouter, "xiaomi/mimo-v2.6-flash", "synthetic", metadata)
-        end
+  test "unsupported, mandatory and enabled-only reasoning fail before any provider request" do
+    for metadata <- [
+          %{"supported_parameters" => []},
+          %{
+            "supported_parameters" => ["tools", "reasoning_effort"],
+            "reasoning" => %{"mandatory" => true}
+          },
+          %{
+            "supported_parameters" => ["tools", "reasoning"],
+            "reasoning" => %{"mandatory" => false}
+          }
+        ] do
+      assert_raise ArgumentError, fn ->
+        Models.chat_model(:openrouter, "xiaomi/mimo-v2.6-flash", "synthetic", metadata)
       end
     end
   end

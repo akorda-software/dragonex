@@ -214,83 +214,80 @@ defmodule Dragonex.GameNarrationContractTest do
     assert Enum.count(Games.list_events(game.id), &(&1.type == :dice)) == 0
   end
 
-  if Code.ensure_loaded?(ExAgent.Models.ReqLLM) do
-    test "a large native truncated response retries its cause and preserves the paid inventory receipt",
-         %{game: game, world: before} do
-      item = "campanilla de cobre de Berta"
-      fact = "El encargo de Berta está cerrado; su campanilla ha sido devuelta."
-      public = "Berta recoge su campanilla; el encargo queda cerrado."
-      private = String.duplicate("private deliberation ", 300)
-      {:ok, stocked} = World.grant_item("Thane", item, 1).(before)
-      {:ok, _} = Games.save_state(game.id, stocked, "dm", stocked.round, :paused)
-      remove = call("remove_item", %{"who" => "Thane", "item" => item, "quantity" => 1})
+  test "a large native truncated response retries its cause and preserves the paid inventory receipt",
+       %{game: game, world: before} do
+    item = "campanilla de cobre de Berta"
+    fact = "El encargo de Berta está cerrado; su campanilla ha sido devuelta."
+    public = "Berta recoge su campanilla; el encargo queda cerrado."
+    private = String.duplicate("private deliberation ", 300)
+    {:ok, stocked} = World.grant_item("Thane", item, 1).(before)
+    {:ok, _} = Games.save_state(game.id, stocked, "dm", stocked.round, :paused)
+    remove = call("remove_item", %{"who" => "Thane", "item" => item, "quantity" => 1})
 
-      partial =
-        Message.new_response([%Part.Text{content: private}, remove], finish_reason: :length)
+    partial =
+      Message.new_response([%Part.Text{content: private}, remove], finish_reason: :length)
 
-      failure = %ExAgent.RequestError{
-        provider: :openrouter,
-        reason: {:incomplete_response, :length},
-        partial_response: partial
+    failure = %ExAgent.RequestError{
+      provider: :openrouter,
+      reason: {:incomplete_response, :length},
+      partial_response: partial
+    }
+
+    assert :erlang.external_size({:model_request_failed, failure}) > 4096
+    owner = self()
+
+    model =
+      sequence([
+        response([remove]),
+        {:error, failure},
+        fn messages, params ->
+          send(owner, {:inventory_token_retry, messages, params})
+          response([remove])
+        end,
+        response([call("establish_fact", %{"fact" => fact})]),
+        response([final(public)])
+      ])
+
+    pid = boot(game, model)
+    tool = Enum.find(Dragonex.DM.tools(), &(&1.name == "remove_item"))
+
+    observed =
+      %{
+        tool
+        | call: fn ctx, args ->
+            send(owner, {:paid_inventory_remove, args})
+            tool.call.(ctx, args)
+          end
       }
+      |> Dragonex.Game.ToolReplay.wrap()
 
-      assert :erlang.external_size({:model_request_failed, failure}) > 4096
-      owner = self()
+    :sys.replace_state(:sys.get_state(pid).dm, fn server ->
+      tools =
+        Enum.map(server.agent.tools, &if(&1.name == "remove_item", do: observed, else: &1))
 
-      model =
-        sequence([
-          response([remove]),
-          {:error, failure},
-          fn messages, params ->
-            send(owner, {:inventory_token_retry, messages, params})
-            response([remove])
-          end,
-          response([call("establish_fact", %{"fact" => fact})]),
-          response([final(public)])
-        ])
+      %{server | agent: %{server.agent | tools: tools}}
+    end)
 
-      pid = boot(game, model)
-      tool = Enum.find(Dragonex.DM.tools(), &(&1.name == "remove_item"))
+    assert :ok == Game.resume(pid)
+    finish(pid)
+    assert :ok == Game.pause(pid)
 
-      observed =
-        %{
-          tool
-          | call: fn ctx, args ->
-              send(owner, {:paid_inventory_remove, args})
-              tool.call.(ctx, args)
-            end
-        }
-        |> Dragonex.Game.ToolReplay.wrap()
+    assert_receive {:paid_inventory_remove, %{"who" => "Thane", "item" => ^item, "quantity" => 1}}
 
-      :sys.replace_state(:sys.get_state(pid).dm, fn server ->
-        tools =
-          Enum.map(server.agent.tools, &if(&1.name == "remove_item", do: observed, else: &1))
-
-        %{server | agent: %{server.agent | tools: tools}}
-      end)
-
-      assert :ok == Game.resume(pid)
-      finish(pid)
-      assert :ok == Game.pause(pid)
-
-      assert_receive {:paid_inventory_remove,
-                      %{"who" => "Thane", "item" => ^item, "quantity" => 1}}
-
-      refute_receive {:paid_inventory_remove, _}, 0
-      assert_receive {:inventory_token_retry, messages, params}
-      refute inspect(ModelMessages.project(messages)) =~ private
-      assert params.allow_text_output == false
-      assert [%{payload: %{"text" => ^public, "complete" => true}}] = narration(game)
-      assert Game.world(pid).characters == before.characters
-      assert Enum.count(Game.world(pid).facts, &(&1 == fact)) == 1
-      assert Game.world(pid).elapsed_seconds == before.elapsed_seconds
-      assert Game.world(pid).actor_checkpoint == nil
-      assert Games.load_world(Games.get_game(game.id)) == Game.world(pid)
-      events = Games.list_events(game.id)
-      refute Enum.any?(events, &String.contains?(&1.payload["note"] || "", "el turno falló"))
-      refute inspect(events) =~ private
-      assert Enum.count(events, &(&1.type == :dice)) == 0
-    end
+    refute_receive {:paid_inventory_remove, _}, 0
+    assert_receive {:inventory_token_retry, messages, params}
+    refute inspect(ModelMessages.project(messages)) =~ private
+    assert params.allow_text_output == false
+    assert [%{payload: %{"text" => ^public, "complete" => true}}] = narration(game)
+    assert Game.world(pid).characters == before.characters
+    assert Enum.count(Game.world(pid).facts, &(&1 == fact)) == 1
+    assert Game.world(pid).elapsed_seconds == before.elapsed_seconds
+    assert Game.world(pid).actor_checkpoint == nil
+    assert Games.load_world(Games.get_game(game.id)) == Game.world(pid)
+    events = Games.list_events(game.id)
+    refute Enum.any?(events, &String.contains?(&1.payload["note"] || "", "el turno falló"))
+    refute inspect(events) =~ private
+    assert Enum.count(events, &(&1.type == :dice)) == 0
   end
 
   for flag <- [:length, :content_filter, :unknown, :incomplete, :error] do

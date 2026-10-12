@@ -1,7 +1,8 @@
 defmodule DragonexWeb.GameLive.Settings do
   @moduledoc """
-  The Ajustes de IA modal — provider / model / reasoning-effort selection for
-  the running partida, plus its LiveView event & info handlers.
+  The Ajustes de IA modal — provider / model selection for the running
+  partida, plus its LiveView event & info handlers. Reasoning is always off
+  (exAgent 2.x profiles are only built with reasoning disabled).
 
   Extracted from `DragonexWeb.GameLive.Show`. The selection is written to
   `Dragonex.ModelConfig` and applied by restarting the Game process, which
@@ -20,7 +21,6 @@ defmodule DragonexWeb.GameLive.Settings do
     else
       provider = Dragonex.Models.provider()
       model = Dragonex.Models.model()
-      reasoning = Dragonex.Models.reasoning()
 
       socket =
         socket
@@ -30,7 +30,6 @@ defmodule DragonexWeb.GameLive.Settings do
           settings_provider: provider,
           settings_model: model,
           settings_custom_model: "",
-          settings_reasoning: reasoning,
           settings_models: [],
           settings_models_status: :loading
         )
@@ -58,7 +57,6 @@ defmodule DragonexWeb.GameLive.Settings do
         settings_models: [],
         settings_model: nil,
         settings_custom_model: "",
-        settings_reasoning: :none,
         settings_models_status: :loading
       )
       |> fetch_models()
@@ -66,29 +64,11 @@ defmodule DragonexWeb.GameLive.Settings do
     {:noreply, socket}
   end
 
-  def handle_event("settings_select_model", %{"model" => model}, socket) do
-    reasoning =
-      default_reasoning_for(
-        socket.assigns.settings_provider,
-        socket.assigns.settings_models,
-        model
-      )
-
-    {:noreply,
-     assign(socket,
-       settings_model: model,
-       settings_custom_model: "",
-       settings_reasoning: reasoning
-     )}
-  end
+  def handle_event("settings_select_model", %{"model" => model}, socket),
+    do: {:noreply, assign(socket, settings_model: model, settings_custom_model: "")}
 
   def handle_event("settings_custom_model", %{"value" => value}, socket),
     do: {:noreply, assign(socket, settings_custom_model: value || "")}
-
-  def handle_event("settings_set_reasoning", %{"level" => level}, socket) do
-    reasoning = if level == "none", do: :none, else: level
-    {:noreply, assign(socket, settings_reasoning: reasoning)}
-  end
 
   def handle_event("settings_refresh_models", _params, socket) do
     {:noreply, socket |> assign(settings_models_status: :loading) |> fetch_models()}
@@ -108,16 +88,9 @@ defmodule DragonexWeb.GameLive.Settings do
           custom -> custom
         end
 
-      # Clamp the reasoning to a value the chosen model actually accepts (so we
-      # never send e.g. "xhigh" to a model that only supports low/medium/high, or
-      # :none to a mandatory-reasoning model).
-      reasoning =
-        clamp_reasoning(
-          provider,
-          socket.assigns.settings_models,
-          model,
-          socket.assigns.settings_reasoning
-        )
+      # Only reasoning-off profiles exist (Models.chat_model/5), so the saved
+      # selection always disables it.
+      reasoning = :none
 
       case Dragonex.Models.prepare_selection(provider, model, reasoning) do
         {:error, message} ->
@@ -162,7 +135,7 @@ defmodule DragonexWeb.GameLive.Settings do
   # Live model catalogue for the Ajustes modal: a background task fetched the
   # provider's /models endpoint. Reconcile the in-modal selection with the list
   # (if the current model isn't offered, move it to the custom field so the
-  # dropdown stays valid) and clamp the reasoning to a value the model accepts.
+  # dropdown stays valid).
   def handle_info({:settings_models, provider, result}, socket) do
     if socket.assigns.show_settings and socket.assigns.settings_provider == provider do
       case result do
@@ -174,15 +147,11 @@ defmodule DragonexWeb.GameLive.Settings do
               do: {current, ""},
               else: {nil, current || ""}
 
-          reasoning =
-            clamp_reasoning(provider, models, model, socket.assigns.settings_reasoning)
-
           {:noreply,
            assign(socket,
              settings_models: models,
              settings_model: model,
              settings_custom_model: custom,
-             settings_reasoning: reasoning,
              settings_models_status: :ok
            )}
 
@@ -216,72 +185,6 @@ defmodule DragonexWeb.GameLive.Settings do
     socket
   end
 
-  # Find the model_info map for `model_id` in the fetched list (nil if absent,
-  # e.g. a custom slug typed in the free-text field).
-  defp find_model_info(_models, nil), do: nil
-
-  defp find_model_info(models, model_id),
-    do: Enum.find(models, &(&1.id == model_id))
-
-  # --- thinking selector helpers -------------------------------------------
-  #
-  # The reasoning effort is dynamic per model: OpenRouter exposes each model's
-  # supported efforts (+ a default and a mandatory flag); OpenCode carries no
-  # metadata, so it falls back to a generic low/medium/high set.
-
-  # Resolve what the thinking section should render for the selected model:
-  #   * {:unsupported}                 — model explicitly has no reasoning
-  #   * {:unknown}                      — reasoning metadata not curated yet
-  #   * {:options, efforts, mandatory}  — render these effort buttons (+ Off unless mandatory)
-  def thinking_state(_provider, models, model_id, custom) do
-    if Dragonex.Models.backend() == :req_llm do
-      {:fixed_off}
-    else
-      legacy_thinking_state(models, model_id, custom)
-    end
-  end
-
-  defp legacy_thinking_state(models, model_id, custom) do
-    if custom != "" do
-      # Custom slug → no metadata, offer the generic set.
-      {:options, sort_efforts(Dragonex.Models.generic_efforts()), false}
-    else
-      case find_model_info(models, model_id) do
-        %{reasoning?: false} ->
-          {:unsupported}
-
-        %{reasoning?: nil} ->
-          {:unknown}
-
-        %{efforts: efforts, mandatory: mandatory} ->
-          {:options, sort_efforts(efforts || Dragonex.Models.generic_efforts()), mandatory}
-
-        _ ->
-          {:unknown}
-      end
-    end
-  end
-
-  defp sort_efforts(efforts) do
-    order = Dragonex.Models.effort_order()
-
-    Enum.sort_by(efforts, fn e ->
-      case Enum.find_index(order, &(&1 == e)) do
-        nil -> 99
-        idx -> idx
-      end
-    end)
-  end
-
-  defp effort_label("none"), do: dgettext("ui", "Off")
-  defp effort_label("minimal"), do: dgettext("ui", "Mín")
-  defp effort_label("low"), do: dgettext("ui", "Bajo")
-  defp effort_label("medium"), do: dgettext("ui", "Medio")
-  defp effort_label("high"), do: dgettext("ui", "Alto")
-  defp effort_label("xhigh"), do: dgettext("ui", "Muy alto")
-  defp effort_label("max"), do: dgettext("ui", "Máx")
-  defp effort_label(other), do: String.capitalize(other)
-
   # The gear button's live label: provider/model + (reasoning) for the currently
   # effective config (override → env). Reflects what the running Game uses.
   def ai_button_label do
@@ -294,56 +197,6 @@ defmodule DragonexWeb.GameLive.Settings do
   defp reasoning_short(:none), do: "off"
   defp reasoning_short(effort) when is_binary(effort), do: effort
 
-  # Default reasoning when a model is first selected: the model's own default
-  # effort, or :none (forced to a level when reasoning is mandatory).
-  defp default_reasoning_for(_provider, models, model_id) do
-    if Dragonex.Models.backend() == :req_llm do
-      :none
-    else
-      case find_model_info(models, model_id) do
-        %{reasoning?: false} -> :none
-        %{default_effort: effort} when is_binary(effort) -> effort
-        %{mandatory: true} -> "medium"
-        _ -> :none
-      end
-    end
-  end
-
-  # Clamp a reasoning choice to a value the model actually accepts, so we never
-  # send an invalid effort. `:none` is kept unless the model mandates reasoning.
-  defp clamp_reasoning(provider, models, model_id, current) do
-    if Dragonex.Models.backend() == :req_llm,
-      do: :none,
-      else: legacy_clamp_reasoning(provider, models, model_id, current)
-  end
-
-  defp legacy_clamp_reasoning(:openrouter, models, model_id, current) do
-    case find_model_info(models, model_id) do
-      nil ->
-        current
-
-      %{reasoning?: false} ->
-        :none
-
-      %{efforts: efforts, mandatory: mandatory, default_effort: default} ->
-        cond do
-          current == :none and mandatory -> default || "medium"
-          is_binary(current) and (is_nil(efforts) or current in efforts) -> current
-          true -> default || if mandatory, do: "medium", else: :none
-        end
-    end
-  end
-
-  # OpenCode has no per-model metadata → keep any generic low/medium/high, else :none.
-  defp legacy_clamp_reasoning(:opencode, _models, _model_id, current) do
-    case current do
-      effort when effort in ["low", "medium", "high"] -> effort
-      _ -> :none
-    end
-  end
-
-  defp legacy_clamp_reasoning(_, _, _, _), do: :none
-
   # Server-side ownership guard for privileged actions (the buttons are UI-gated
   # by @is_creator, but a forged phx-click must be rejected here).
   defp creator?(%{assigns: assigns}), do: assigns[:is_creator] == true
@@ -351,8 +204,8 @@ defmodule DragonexWeb.GameLive.Settings do
   # ------------------------------------------------------------------ modal
 
   # The Ajustes de IA modal: provider switch, live model list (with free-text
-  # fallback) and reasoning-effort selector. Creator-only; writing the selection
-  # restarts the partida so the new model takes effect.
+  # fallback) and the fixed reasoning-off notice. Creator-only; writing the
+  # selection restarts the partida so the new model takes effect.
   attr(:show, :boolean, default: false)
   attr(:providers, :list, default: [])
   attr(:provider, :atom, default: nil)
@@ -360,7 +213,6 @@ defmodule DragonexWeb.GameLive.Settings do
   attr(:models_status, :atom, default: :idle)
   attr(:model, :string, default: nil)
   attr(:custom_model, :string, default: "")
-  attr(:reasoning, :any, default: :none)
 
   def modal(assigns) do
     ~H"""
@@ -420,35 +272,7 @@ defmodule DragonexWeb.GameLive.Settings do
 
         <div class="settings-section">
           <div class="settings-label">{dgettext("ui", "Thinking (cuánto razona)")}</div>
-          <%= case thinking_state(@provider, @models, @model, @custom_model) do %>
-            <% {:fixed_off} -> %>
-              <div class="settings-msg">{dgettext("ui", "Esta mesa usa el razonamiento desactivado.")}</div>
-            <% {:unsupported} -> %>
-              <div class="settings-msg warn">{dgettext("ui", "este modelo no soporta thinking")}</div>
-            <% {:unknown} -> %>
-              <div class="settings-msg warn">{dgettext("ui", "nivel de thinking sin confirmar para este modelo")}</div>
-            <% {:options, efforts, mandatory} -> %>
-              <div class="settings-reasoning">
-                <button
-                  :if={not mandatory}
-                  type="button"
-                  phx-click="settings_set_reasoning"
-                  phx-value-level="none"
-                  class={"settings-rbtn #{if @reasoning == :none, do: "sel", else: ""}"}
-                >
-                  {dgettext("ui", "Off")}
-                </button>
-                <button
-                  :for={eff <- efforts}
-                  type="button"
-                  phx-click="settings_set_reasoning"
-                  phx-value-level={eff}
-                  class={"settings-rbtn #{if @reasoning == eff, do: "sel", else: ""}"}
-                >
-                  {effort_label(eff)}
-                </button>
-              </div>
-          <% end %>
+          <div class="settings-msg">{dgettext("ui", "Esta mesa usa el razonamiento desactivado.")}</div>
         </div>
 
         <div class="settings-actions">

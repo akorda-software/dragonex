@@ -66,10 +66,7 @@ defmodule Dragonex.TurnMaster do
       # No Events capability: TurnMaster does not narrate. The Game appends a
       # short :system line when it applies the decision.
       capabilities:
-        Dragonex.Agent.capabilities(
-          [Dragonex.Game.RunLifecycle] ++
-            Dragonex.Agent.history_capabilities() ++ [Dragonex.AgentInstructions]
-        )
+        Dragonex.Agent.capabilities([Dragonex.Game.RunLifecycle, Dragonex.AgentInstructions])
     )
   end
 

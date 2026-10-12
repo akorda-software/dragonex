@@ -90,12 +90,10 @@ defmodule Dragonex.DMModelsTest do
       for old <- ["turn 2", "turn 3", "turn 4"], do: refute(texts =~ old)
       assert texts =~ "turn 6"
 
-      if Models.backend() == :req_llm do
-        canonical = history |> Message.parts() |> Enum.map_join("\n", &part_text/1)
-        assert canonical =~ "turn 1"
-        assert canonical =~ "turn 6"
-        refute canonical =~ "RECAP:"
-      end
+      canonical = history |> Message.parts() |> Enum.map_join("\n", &part_text/1)
+      assert canonical =~ "turn 1"
+      assert canonical =~ "turn 6"
+      refute canonical =~ "RECAP:"
     end
   end
 

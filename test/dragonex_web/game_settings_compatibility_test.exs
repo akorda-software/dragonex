@@ -62,80 +62,77 @@ defmodule DragonexWeb.GameSettingsCompatibilityTest do
     assert Games.load_world(Games.get_game(game.id)) == before
   end
 
-  if Code.ensure_loaded?(ExAgent.Models.ReqLLM) do
-    test "enabled-only reasoning is rejected before restart without losing the live table", ctx do
-      %{view: view, game: game, cache_key: key} = ctx
-      open_settings(view)
-      System.put_env("OPENROUTER_API_KEY", "synthetic")
+  test "enabled-only reasoning is rejected before restart without losing the live table", ctx do
+    %{view: view, game: game, cache_key: key} = ctx
+    open_settings(view)
+    System.put_env("OPENROUTER_API_KEY", "synthetic")
 
-      metadata = %{
-        "supported_parameters" => ["tools", "reasoning"],
-        "reasoning" => %{"mandatory" => false}
-      }
+    metadata = %{
+      "supported_parameters" => ["tools", "reasoning"],
+      "reasoning" => %{"mandatory" => false}
+    }
 
-      :persistent_term.put(
-        key,
-        {System.monotonic_time(:millisecond),
-         [%{id: "xiaomi/mimo-v2.6-flash", metadata: metadata}]}
-      )
+    :persistent_term.put(
+      key,
+      {System.monotonic_time(:millisecond), [%{id: "xiaomi/mimo-v2.6-flash", metadata: metadata}]}
+    )
 
-      pid = Dragonex.Game.Supervisor.whereis(game.id)
-      before = Game.world(pid)
-      events = Games.list_events(game.id)
-      config = ModelConfig.get()
-      view |> form("#settings-custom-model", value: "xiaomi/mimo-v2.6-flash") |> render_change()
-      html = render_click(view, "settings_apply")
-      assert html =~ "No se pudo confirmar un perfil compatible"
-      assert has_element?(view, ".settings-modal")
-      assert has_element?(view, ".settings-msg", "razonamiento desactivado")
-      refute has_element?(view, ".settings-rbtn")
-      assert Process.alive?(view.pid)
-      assert Dragonex.Game.Supervisor.whereis(game.id) == pid
-      assert Game.world(pid) == before
-      assert Games.load_world(Games.get_game(game.id)) == before
-      assert Games.list_events(game.id) == events
-      assert ModelConfig.get() == config
-    end
+    pid = Dragonex.Game.Supervisor.whereis(game.id)
+    before = Game.world(pid)
+    events = Games.list_events(game.id)
+    config = ModelConfig.get()
+    view |> form("#settings-custom-model", value: "xiaomi/mimo-v2.6-flash") |> render_change()
+    html = render_click(view, "settings_apply")
+    assert html =~ "No se pudo confirmar un perfil compatible"
+    assert has_element?(view, ".settings-modal")
+    assert has_element?(view, ".settings-msg", "razonamiento desactivado")
+    refute has_element?(view, ".settings-rbtn")
+    assert Process.alive?(view.pid)
+    assert Dragonex.Game.Supervisor.whereis(game.id) == pid
+    assert Game.world(pid) == before
+    assert Games.load_world(Games.get_game(game.id)) == before
+    assert Games.list_events(game.id) == events
+    assert ModelConfig.get() == config
+  end
 
-    test "a confirmed profile restarts a paused table with the exact saved world", %{
-      view: view,
-      game: game,
-      cache_key: key
-    } do
-      open_settings(view)
-      System.put_env("OPENROUTER_API_KEY", "synthetic")
-      System.put_env("DRAGONEX_SUMMARIZER_MODEL", "deepseek/deepseek-v4.1-flash")
-      System.put_env("DRAGONEX_TURNMASTER_MODEL", "deepseek/deepseek-v4.1-flash")
+  test "a confirmed profile restarts a paused table with the exact saved world", %{
+    view: view,
+    game: game,
+    cache_key: key
+  } do
+    open_settings(view)
+    System.put_env("OPENROUTER_API_KEY", "synthetic")
+    System.put_env("DRAGONEX_SUMMARIZER_MODEL", "deepseek/deepseek-v4.1-flash")
+    System.put_env("DRAGONEX_TURNMASTER_MODEL", "deepseek/deepseek-v4.1-flash")
 
-      metadata = %{
-        "supported_parameters" => ["tools", "reasoning_effort"],
-        "reasoning" => %{"mandatory" => false}
-      }
+    metadata = %{
+      "supported_parameters" => ["tools", "reasoning_effort"],
+      "reasoning" => %{"mandatory" => false}
+    }
 
-      :persistent_term.put(
-        key,
-        {System.monotonic_time(:millisecond),
-         [%{id: "deepseek/deepseek-v4.1-flash", metadata: metadata}]}
-      )
+    :persistent_term.put(
+      key,
+      {System.monotonic_time(:millisecond),
+       [%{id: "deepseek/deepseek-v4.1-flash", metadata: metadata}]}
+    )
 
-      old = Dragonex.Game.Supervisor.whereis(game.id)
-      before = Game.world(old)
-      events = Games.list_events(game.id)
+    old = Dragonex.Game.Supervisor.whereis(game.id)
+    before = Game.world(old)
+    events = Games.list_events(game.id)
 
-      view
-      |> form("#settings-custom-model", value: "deepseek/deepseek-v4.1-flash")
-      |> render_change()
+    view
+    |> form("#settings-custom-model", value: "deepseek/deepseek-v4.1-flash")
+    |> render_change()
 
-      render_click(view, "settings_apply")
-      refute has_element?(view, ".settings-modal")
-      pid = Dragonex.Game.Supervisor.whereis(game.id)
-      assert pid != old
-      assert Game.world(pid) == before
-      assert Games.load_world(Games.get_game(game.id)) == before
-      assert Games.list_events(game.id) == events
-      assert Game.snapshot(pid).status == :paused
-      assert ModelConfig.get().model == "deepseek/deepseek-v4.1-flash"
-    end
+    render_click(view, "settings_apply")
+    refute has_element?(view, ".settings-modal")
+    pid = Dragonex.Game.Supervisor.whereis(game.id)
+    assert pid != old
+    assert Game.world(pid) == before
+    assert Games.load_world(Games.get_game(game.id)) == before
+    assert Games.list_events(game.id) == events
+    assert Game.snapshot(pid).status == :paused
+    assert ModelConfig.get().model == "deepseek/deepseek-v4.1-flash"
   end
 
   defp open_settings(view) do

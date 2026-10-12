@@ -332,7 +332,7 @@ defmodule DragonexWeb.GameLive.Show do
   # Events owned by the Settings module (delegated below).
   @settings_events ~w(open_settings close_settings settings_select_provider
                       settings_select_model settings_custom_model
-                      settings_set_reasoning settings_refresh_models settings_apply)
+                      settings_refresh_models settings_apply)
 
   def handle_event(event, params, socket) when event in @settings_events,
     do: Settings.handle_event(event, params, socket)
@@ -502,7 +502,6 @@ defmodule DragonexWeb.GameLive.Show do
         models_status={@settings_models_status}
         model={@settings_model}
         custom_model={@settings_custom_model}
-        reasoning={@settings_reasoning}
       />
     </div>
     """

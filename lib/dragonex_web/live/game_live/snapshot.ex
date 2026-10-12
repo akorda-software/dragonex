@@ -57,16 +57,15 @@ defmodule DragonexWeb.GameLive.Snapshot do
       join_error: nil,
       auto_play: false,
       is_creator: false,
-      # Ajustes de IA modal (gear button). provider/model/reasoning are the
-      # in-modal selections; the effective config lives in Dragonex.ModelConfig.
+      # Ajustes de IA modal (gear button). provider/model are the in-modal
+      # selections; the effective config lives in Dragonex.ModelConfig.
       show_settings: false,
       settings_providers: [],
       settings_provider: nil,
       settings_models: [],
       settings_models_status: :idle,
       settings_model: nil,
-      settings_custom_model: "",
-      settings_reasoning: :none
+      settings_custom_model: ""
     )
   end
 

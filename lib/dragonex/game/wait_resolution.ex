@@ -83,9 +83,8 @@ defmodule Dragonex.Game.WaitResolution do
       when is_map(request) do
     waiting = waiting?(state.deps)
 
-    # Both drivers reject unresolved final text. The local v2 driver also
-    # passes this flag to the current provider request; Hex 1.2 captures the
-    # provider params before this hook, so its tool choice can lag one step.
+    # Unresolved final text is rejected, and this flag reaches the current
+    # provider request.
     params = %{state.params | allow_text_output: not waiting}
 
     %{state | params: params}

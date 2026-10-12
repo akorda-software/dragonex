@@ -47,6 +47,8 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 - **Web:** mesa responsive 375–1440, dados 2D/3D, multijugador con sala de
   espera, ajustes de proveedor/modelo, home con crónica viva (D233).
 - **Bilingüe es/en por partida** (D235/D236).
+- **Solo exAgent 2.1:** retirado el modo de compatibilidad con 1.2
+  (`Models.backend/0`, `Agent.LegacyHistory`, selector de razonamiento) (D237).
 
 ## 🟡 Abierto, por prioridad
 
@@ -64,9 +66,7 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
    beats del DM con varias tools.
 6. **Prosa:** paráfrasis que repiten la voz humana, el DM añade gestos al PC,
    ataques narrados sin tirada (visto antes de D232; no reproducido en 19455).
-7. **Código de compatibilidad con exAgent 1.2** (`Models.backend/0` `:legacy`,
-   `Agent.LegacyHistory`): muerto desde D237, pendiente de retirar.
-8. **Limpieza intermitente de tests** (Postgrex/owner): en seguimiento, sin
+7. **Limpieza intermitente de tests** (Postgrex/owner): en seguimiento, sin
    reaparecer en los gates de 2026-10-12.
 
 ## 🟡 Simplificaciones v1 asumidas

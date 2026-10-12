@@ -465,24 +465,22 @@ defmodule Dragonex.NarrationContractTest do
     refute_received {:preview, _}
     assert {:ok, @public} = Contract.publish_result(result, deps)
 
-    # Hex 1.2 chat is buffered. v2 must prove the same callback does receive
-    # real raw deltas without the boundary; silence alone is not a stream test.
-    if Dragonex.Models.backend() == :req_llm do
-      unguarded =
-        ExAgent.new(
-          model: %Dragonex.NarrationContractTest.StreamModel{inner: %Test{script: [@private]}}
-        )
+    # Prove the same callback does receive real raw deltas without the
+    # boundary; silence alone is not a stream test.
+    unguarded =
+      ExAgent.new(
+        model: %Dragonex.NarrationContractTest.StreamModel{inner: %Test{script: [@private]}}
+      )
 
-      control =
-        start_supervised!(
-          {Server,
-           agent: unguarded, agent_id: "unguarded-stream-#{System.unique_integer([:positive])}"},
-          id: make_ref()
-        )
+    control =
+      start_supervised!(
+        {Server,
+         agent: unguarded, agent_id: "unguarded-stream-#{System.unique_integer([:positive])}"},
+        id: make_ref()
+      )
 
-      assert {:ok, _} = Dragonex.Agent.chat(control, "Narra.", deps: deps, stream_text: true)
-      assert_receive {:preview, @private}
-    end
+    assert {:ok, _} = Dragonex.Agent.chat(control, "Narra.", deps: deps, stream_text: true)
+    assert_receive {:preview, @private}
   end
 
   test "publication rejects missing beat context and failed native output returns", %{

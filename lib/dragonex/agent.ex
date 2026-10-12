@@ -42,8 +42,8 @@ defmodule Dragonex.Agent do
     end
   end
 
-  @doc "Conserva N mensajes anteriores además de la petición activa en v2."
-  def compaction_window(n), do: if(Dragonex.Models.backend() == :req_llm, do: n + 1, else: n)
+  @doc "Conserva N mensajes anteriores además de la petición activa (exAgent 2.x la cuenta)."
+  def compaction_window(n), do: n + 1
 
   @doc "Historial explícito de Game en Server, incluida la versión publicada 1.2."
   def chat(server, prompt, opts \\ []) do
@@ -62,16 +62,6 @@ defmodule Dragonex.Agent do
       end
 
     ExAgent.Server.chat(server, prompt, opts)
-  end
-
-  @doc false
-  def history_capabilities do
-    if Dragonex.Models.backend() == :legacy do
-      Code.ensure_loaded!(Dragonex.Agent.LegacyHistory)
-      [Dragonex.Agent.LegacyHistory]
-    else
-      []
-    end
   end
 
   @doc false

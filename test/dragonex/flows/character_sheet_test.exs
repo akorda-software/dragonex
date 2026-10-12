@@ -66,9 +66,7 @@ defmodule Dragonex.Flows.CharacterSheetTest do
           {"level", %{type: "integer", minimum: 1, maximum: 20}},
           {"hp", %{type: "integer", minimum: 0}}
         ] do
-      if Dragonex.Models.backend() == :req_llm,
-        do: assert(schema.properties[field] == %{anyOf: [bounded, %{type: "null"}]}),
-        else: assert(schema.properties[field] == bounded)
+      assert schema.properties[field] == %{anyOf: [bounded, %{type: "null"}]}
     end
   end
 end
