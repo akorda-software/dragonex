@@ -3078,7 +3078,7 @@ msgstr "%{name} keeps concentration on %{spell} (d20 %{roll}: %{total} vs DC %{d
 msgid "%{name} pierde la concentración en %{spell} (d20 %{roll}: %{total} vs CD %{dc}%{suffix})."
 msgstr "%{name} loses concentration on %{spell} (d20 %{roll}: %{total} vs DC %{dc}%{suffix})."
 
-#: lib/dragonex/turn_budget.ex:31
+#: lib/dragonex/turn_budget.ex:51
 #, elixir-autogen, elixir-format
 msgid "%{who} no está en su turno; el combatiente actual es %{current}. Termina la narración de %{current} sin ejecutar acciones de otros combatientes. El TurnMaster dará el relevo después de este beat."
 msgstr "It is not %{who}'s turn; the current combatant is %{current}. Finish %{current}'s narration without taking actions for other combatants. The TurnMaster will hand over after this beat."
@@ -3088,27 +3088,27 @@ msgstr "It is not %{who}'s turn; the current combatant is %{current}. Finish %{c
 msgid "%{who} solo puede beneficiarse de un descanso largo cada 24 horas"
 msgstr "%{who} can only benefit from one long rest every 24 hours"
 
-#: lib/dragonex/turn_budget.ex:140
+#: lib/dragonex/turn_budget.ex:160
 #, elixir-autogen, elixir-format
 msgid "%{who} ya ha gastado su acción adicional este turno"
 msgstr "%{who} has already used their bonus action this turn"
 
-#: lib/dragonex/turn_budget.ex:137
+#: lib/dragonex/turn_budget.ex:157
 #, elixir-autogen, elixir-format
 msgid "%{who} ya ha gastado su acción este turno"
 msgstr "%{who} has already used their action this turn"
 
-#: lib/dragonex/turn_budget.ex:143
+#: lib/dragonex/turn_budget.ex:163
 #, elixir-autogen, elixir-format
 msgid "%{who} ya ha gastado su reacción este turno"
 msgstr "%{who} has already used their reaction this turn"
 
-#: lib/dragonex/turn_budget.ex:146
+#: lib/dragonex/turn_budget.ex:166
 #, elixir-autogen, elixir-format
 msgid "%{who} ya ha tirado su salvación contra muerte este turno"
 msgstr "%{who} has already rolled their death saving throw this turn"
 
-#: lib/dragonex/turn_budget.ex:50
+#: lib/dragonex/turn_budget.ex:70
 #, elixir-autogen, elixir-format
 msgid "%{who} ya ha usado Oleada de acción"
 msgstr "%{who} has already used Action Surge"
@@ -3148,7 +3148,7 @@ msgstr "Ki"
 msgid "Puntos de hechicería"
 msgstr "Sorcery points"
 
-#: lib/dragonex/turn_budget.ex:47
+#: lib/dragonex/turn_budget.ex:67
 #, elixir-autogen, elixir-format
 msgid "Ráfaga de golpes requiere la acción de Ataque este turno"
 msgstr "Flurry of Blows requires taking the Attack action this turn"
@@ -3158,12 +3158,12 @@ msgstr "Flurry of Blows requires taking the Attack action this turn"
 msgid "Sentido divino"
 msgstr "Divine Sense"
 
-#: lib/dragonex/turn_budget.ex:41
+#: lib/dragonex/turn_budget.ex:61
 #, elixir-autogen, elixir-format
 msgid "el turno de %{who} ya ha terminado"
 msgstr "%{who}'s turn has already ended"
 
-#: lib/dragonex/turn_budget.ex:61
+#: lib/dragonex/turn_budget.ex:81
 #, elixir-autogen, elixir-format
 msgid "este hechizo requiere más de una acción; no se resuelve instantáneamente en combate"
 msgstr "this spell takes longer than one action to cast; it does not resolve instantly in combat"
@@ -3173,12 +3173,12 @@ msgstr "this spell takes longer than one action to cast; it does not resolve ins
 msgid "salvación de Constitución (concentración)"
 msgstr "Constitution saving throw (concentration)"
 
-#: lib/dragonex/turn_budget.ex:54
+#: lib/dragonex/turn_budget.ex:74
 #, elixir-autogen, elixir-format
 msgid "un hechizo de acción adicional solo permite otros trucos de una acción en ese turno"
 msgstr "after a bonus-action spell, the only other spell allowed that turn is a cantrip with a casting time of one action"
 
-#: lib/dragonex/turn_budget.ex:27
+#: lib/dragonex/turn_budget.ex:47
 #, elixir-autogen, elixir-format
 msgid "un turno de reacción no concede acción ni acción adicional"
 msgstr "a reaction turn grants neither an action nor a bonus action"

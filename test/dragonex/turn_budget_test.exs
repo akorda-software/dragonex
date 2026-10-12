@@ -1,6 +1,6 @@
 defmodule Dragonex.TurnBudgetTest do
   use ExUnit.Case, async: true
-  alias Dragonex.{Actions, Character, World, Weapon, Codec}
+  alias Dragonex.{Actions, Character, World, Weapon, Codec, TurnBudget}
 
   defp world do
     a =
@@ -207,5 +207,25 @@ defmodule Dragonex.TurnBudgetTest do
     {:ok, w} = World.set_current_combatant("A").(w)
     {:ok, w} = World.set_current_combatant("B").(w)
     refute w.characters["A"].raging
+  end
+
+  test "remaining reads what the table should show for this round" do
+    w = world()
+    assert TurnBudget.remaining(w, "A") == %{action: true, bonus: true, reaction: true}
+
+    w = attack(w)
+    assert TurnBudget.remaining(w, "A") == %{action: false, bonus: true, reaction: true}
+
+    {:ok, w} = TurnBudget.spend(w, "A", :reaction)
+    {:ok, w} = World.set_current_combatant("B").(w)
+    # A's turn is over: nothing left until their next one, reaction included.
+    assert TurnBudget.remaining(w, "A") == %{action: false, bonus: false, reaction: false}
+
+    {:ok, w} = World.next_round().(w)
+    assert TurnBudget.remaining(w, "A") == %{action: true, bonus: true, reaction: false}
+    {:ok, w} = World.set_current_combatant("A").(w)
+    assert TurnBudget.remaining(w, "A") == %{action: true, bonus: true, reaction: true}
+
+    assert TurnBudget.remaining(%{w | phase: :exploration}, "A") == nil
   end
 end

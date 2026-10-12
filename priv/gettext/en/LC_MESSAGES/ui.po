@@ -11,12 +11,12 @@ msgstr ""
 "Language: en\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: lib/dragonex_web/live/game_live/components.ex:400
+#: lib/dragonex_web/live/game_live/components.ex:401
 #, elixir-autogen, elixir-format
 msgid " +%{amount} temp"
 msgstr " +%{amount} temp"
 
-#: lib/dragonex_web/live/game_live/components.ex:519
+#: lib/dragonex_web/live/game_live/components.ex:548
 #, elixir-autogen, elixir-format
 msgid "%{actor} declara"
 msgstr "%{actor} declares"
@@ -31,21 +31,21 @@ msgstr "%{actor} is acting…"
 msgid "%{actor} · TÚ"
 msgstr "%{actor} · YOU"
 
-#: lib/dragonex_web/live/game_live/components.ex:381
+#: lib/dragonex_web/live/game_live/components.ex:382
 #, elixir-autogen, elixir-format
 msgid "%{count} disponible"
 msgid_plural "%{count} disponibles"
 msgstr[0] "%{count} available"
 msgstr[1] "%{count} available"
 
-#: lib/dragonex_web/live/game_live/components.ex:438
+#: lib/dragonex_web/live/game_live/components.ex:467
 #, elixir-autogen, elixir-format
 msgid "%{count} fallo"
 msgid_plural "%{count} fallos"
 msgstr[0] "%{count} failure"
 msgstr[1] "%{count} failures"
 
-#: lib/dragonex_web/live/game_live/components.ex:801
+#: lib/dragonex_web/live/game_live/components.ex:831
 #: lib/dragonex_web/live/game_live/index.ex:126
 #, elixir-autogen, elixir-format
 msgid "%{count} hueco libre"
@@ -58,7 +58,7 @@ msgstr[1] "%{count} open seats"
 msgid "%{count} subrazas"
 msgstr "%{count} subraces"
 
-#: lib/dragonex_web/live/game_live/components.ex:437
+#: lib/dragonex_web/live/game_live/components.ex:466
 #, elixir-autogen, elixir-format
 msgid "%{count} éxito"
 msgid_plural "%{count} éxitos"
@@ -78,14 +78,14 @@ msgstr "%{field} is required"
 msgid "%{field} inválido"
 msgstr "Invalid %{field}"
 
-#: lib/dragonex_web/live/game_live/components.ex:385
+#: lib/dragonex_web/live/game_live/components.ex:386
 #: lib/dragonex_web/live/hero_live/new/components.ex:420
 #, elixir-autogen, elixir-format
 msgid "%{hp}/%{max_hp} PG"
 msgstr "%{hp}/%{max_hp} HP"
 
-#: lib/dragonex_web/live/game_live/components.ex:368
-#: lib/dragonex_web/live/game_live/components.ex:378
+#: lib/dragonex_web/live/game_live/components.ex:369
+#: lib/dragonex_web/live/game_live/components.ex:379
 #, elixir-autogen, elixir-format
 msgid "%{remaining}/%{capacity} disponibles"
 msgstr "%{remaining}/%{capacity} available"
@@ -181,7 +181,7 @@ msgstr "Updating the scene…"
 msgid "Actualizar héroe"
 msgstr "Update hero"
 
-#: lib/dragonex_web/live/game_live/components.ex:676
+#: lib/dragonex_web/live/game_live/components.ex:706
 #, elixir-autogen, elixir-format
 msgid "Actuar"
 msgstr "Act"
@@ -191,13 +191,13 @@ msgstr "Act"
 msgid "Agilidad (finesse)"
 msgstr "Finesse"
 
-#: lib/dragonex_web/live/game_live/components.ex:570
+#: lib/dragonex_web/live/game_live/components.ex:599
 #: lib/dragonex_web/live/game_live/settings.ex:222
 #, elixir-autogen, elixir-format
 msgid "Ajustes de IA"
 msgstr "AI settings"
 
-#: lib/dragonex_web/live/game_live/components.ex:570
+#: lib/dragonex_web/live/game_live/components.ex:599
 #, elixir-autogen, elixir-format
 msgid "Ajustes de IA: %{model}"
 msgstr "AI settings: %{model}"
@@ -207,7 +207,7 @@ msgstr "AI settings: %{model}"
 msgid "Al aplicar, se conserva el mundo, el turno y la crónica de la partida."
 msgstr "Applying keeps the game's world, turn and chronicle."
 
-#: lib/dragonex_web/live/game_live/components.ex:479
+#: lib/dragonex_web/live/game_live/components.ex:508
 #, elixir-autogen, elixir-format
 msgid "Aliado"
 msgstr "Ally"
@@ -248,7 +248,7 @@ msgid "Armadura"
 msgstr "Armor"
 
 #: lib/dragonex_web/live/custom_content_live.ex:235
-#: lib/dragonex_web/live/game_live/components.ex:285
+#: lib/dragonex_web/live/game_live/components.ex:286
 #: lib/dragonex_web/live/hero_live/show.ex:136
 #, elixir-autogen, elixir-format
 msgid "Armas"
@@ -294,7 +294,7 @@ msgstr "Ability scores"
 msgid "Aumentar %{ability}"
 msgstr "Increase %{ability}"
 
-#: lib/dragonex_web/live/game_live/components.ex:558
+#: lib/dragonex_web/live/game_live/components.ex:587
 #, elixir-autogen, elixir-format
 msgid "Auto"
 msgstr "Auto"
@@ -304,12 +304,12 @@ msgstr "Auto"
 msgid "Auto: 15·14·13·12·10·8"
 msgstr "Auto: 15·14·13·12·10·8"
 
-#: lib/dragonex_web/live/game_live/components.ex:558
+#: lib/dragonex_web/live/game_live/components.ex:587
 #, elixir-autogen, elixir-format
 msgid "Auto: sí"
 msgstr "Auto: on"
 
-#: lib/dragonex_web/live/game_live/components.ex:477
+#: lib/dragonex_web/live/game_live/components.ex:506
 #, elixir-autogen, elixir-format
 msgid "Aventurero"
 msgstr "Adventurer"
@@ -340,7 +340,7 @@ msgid "Bandeja de dados"
 msgstr "Dice tray"
 
 #: lib/dragonex_web/live/custom_content_live.ex:399
-#: lib/dragonex_web/live/game_live/components.ex:652
+#: lib/dragonex_web/live/game_live/components.ex:682
 #: lib/dragonex_web/live/game_live/index.ex:149
 #: lib/dragonex_web/live/hero_live/index.ex:86
 #, elixir-autogen, elixir-format
@@ -413,22 +413,22 @@ msgstr "Class features:"
 msgid "Cargando partida…"
 msgstr "Loading game…"
 
-#: lib/dragonex_web/live/game_live/components.ex:602
+#: lib/dragonex_web/live/game_live/components.ex:631
 #, elixir-autogen, elixir-format
 msgid "Cargar turnos anteriores"
 msgstr "Load earlier turns"
 
-#: lib/dragonex_web/live/game_live/components.ex:355
+#: lib/dragonex_web/live/game_live/components.ex:356
 #, elixir-autogen, elixir-format
 msgid "Casillas de conjuro"
 msgstr "Spell slots"
 
-#: lib/dragonex_web/live/game_live/components.ex:355
+#: lib/dragonex_web/live/game_live/components.ex:356
 #, elixir-autogen, elixir-format
 msgid "Casillas de pacto"
 msgstr "Pact slots"
 
-#: lib/dragonex_web/live/game_live/components.ex:356
+#: lib/dragonex_web/live/game_live/components.ex:357
 #, elixir-autogen, elixir-format
 msgid "Casillas sin registro"
 msgstr "Slots not tracked"
@@ -438,8 +438,8 @@ msgstr "Slots not tracked"
 msgid "Cazadores en el Bosque Negro"
 msgstr "Hunters in the Black Forest"
 
-#: lib/dragonex_web/live/game_live/components.ex:275
-#: lib/dragonex_web/live/game_live/components.ex:448
+#: lib/dragonex_web/live/game_live/components.ex:276
+#: lib/dragonex_web/live/game_live/components.ex:477
 #, elixir-autogen, elixir-format
 msgid "Caído"
 msgstr "Down"
@@ -496,12 +496,12 @@ msgstr "Classic tavern opener: goblins are raiding caravans and the heroes must 
 msgid "Combate"
 msgstr "Combat"
 
-#: lib/dragonex_web/live/game_live/components.ex:798
+#: lib/dragonex_web/live/game_live/components.ex:828
 #, elixir-autogen, elixir-format
 msgid "Comparte el enlace de la partida con tu grupo."
 msgstr "Share the game link with your group."
 
-#: lib/dragonex_web/live/game_live/components.ex:704
+#: lib/dragonex_web/live/game_live/components.ex:734
 #, elixir-autogen, elixir-format
 msgid "Compañeros"
 msgstr "Companions"
@@ -562,12 +562,12 @@ msgstr "Password"
 msgid "Contraseña (mínimo 8)"
 msgstr "Password (min. 8)"
 
-#: lib/dragonex_web/live/game_live/components.ex:567
+#: lib/dragonex_web/live/game_live/components.ex:596
 #, elixir-autogen, elixir-format
 msgid "Copiar el enlace de la partida"
 msgstr "Copy the game link"
 
-#: lib/dragonex_web/live/game_live/components.ex:799
+#: lib/dragonex_web/live/game_live/components.ex:829
 #, elixir-autogen, elixir-format
 msgid "Copiar enlace"
 msgstr "Copy link"
@@ -651,7 +651,7 @@ msgstr "Dice (e.g. 2d6, 1d8+2)"
 msgid "Dados 2D"
 msgstr "2D dice"
 
-#: lib/dragonex_web/live/game_live/components.ex:351
+#: lib/dragonex_web/live/game_live/components.ex:352
 #, elixir-autogen, elixir-format
 msgid "Dados de golpe"
 msgstr "Hit dice"
@@ -677,23 +677,23 @@ msgstr "Darts"
 msgid "Daño"
 msgstr "Damage"
 
-#: lib/dragonex_web/live/game_live/components.ex:883
+#: lib/dragonex_web/live/game_live/components.ex:913
 #, elixir-autogen, elixir-format
 msgid "Declara tu intención (en pausa)…"
 msgstr "Declare your intent (paused)…"
 
-#: lib/dragonex_web/live/game_live/components.ex:888
+#: lib/dragonex_web/live/game_live/components.ex:918
 #, elixir-autogen, elixir-format
 msgid "Declara tu intención (turno de %{actor})…"
 msgstr "Declare your intent (%{actor}'s turn)…"
 
-#: lib/dragonex_web/live/game_live/components.ex:892
+#: lib/dragonex_web/live/game_live/components.ex:922
 #: lib/dragonex_web/live/game_live/index.ex:232
 #, elixir-autogen, elixir-format
 msgid "Declara tu intención…"
 msgstr "Declare your intent…"
 
-#: lib/dragonex_web/live/game_live/components.ex:676
+#: lib/dragonex_web/live/game_live/components.ex:706
 #, elixir-autogen, elixir-format
 msgid "Declarar"
 msgstr "Declare"
@@ -728,7 +728,7 @@ msgstr "Details"
 msgid "Disminuir %{ability}"
 msgstr "Decrease %{ability}"
 
-#: lib/dragonex_web/live/game_live/components.ex:364
+#: lib/dragonex_web/live/game_live/components.ex:365
 #, elixir-autogen, elixir-format
 msgid "Disponible"
 msgstr "Available"
@@ -770,7 +770,7 @@ msgstr "The AI DM narrates; the engine rolls the dice and applies the D&D 5e rul
 msgid "El equipo del trasfondo se añade automáticamente más adelante."
 msgstr "Background equipment is added automatically later."
 
-#: lib/dragonex_web/live/game_live/components.ex:749
+#: lib/dragonex_web/live/game_live/components.ex:779
 #, elixir-autogen, elixir-format
 msgid "El grupo"
 msgstr "The party"
@@ -805,7 +805,7 @@ msgstr "Choose the adventure, your hero and who comes with you."
 msgid "Elige las habilidades de tu clase. Las del trasfondo se suman automáticamente."
 msgstr "Choose your class skills. Background skills are added automatically."
 
-#: lib/dragonex_web/live/game_live/components.ex:779
+#: lib/dragonex_web/live/game_live/components.ex:809
 #, elixir-autogen, elixir-format
 msgid "Elige tu héroe para unirte"
 msgstr "Choose your hero to join"
@@ -815,7 +815,7 @@ msgstr "Choose your hero to join"
 msgid "Elige tu personaje."
 msgstr "Choose your character."
 
-#: lib/dragonex_web/live/game_live/components.ex:817
+#: lib/dragonex_web/live/game_live/components.ex:847
 #, elixir-autogen, elixir-format
 msgid "Elige un héroe para unirte."
 msgstr "Choose a hero to join."
@@ -876,7 +876,7 @@ msgstr "In a game"
 msgid "En pausa"
 msgstr "Paused"
 
-#: lib/dragonex_web/live/game_live/components.ex:478
+#: lib/dragonex_web/live/game_live/components.ex:507
 #, elixir-autogen, elixir-format
 msgid "Enemigo"
 msgstr "Enemy"
@@ -918,7 +918,7 @@ msgstr "%{class} starting equipment"
 msgid "Equipo que has creado en tu biblioteca. Toca para equipárselo (se añade al inicial)."
 msgstr "Gear you've created in your library. Tap to equip it (added to the starting gear)."
 
-#: lib/dragonex_web/live/game_live/components.ex:903
+#: lib/dragonex_web/live/game_live/components.ex:933
 #, elixir-autogen, elixir-format
 msgid "Es tu turno — ¿qué hace %{name}?"
 msgstr "It's your turn — what does %{name} do?"
@@ -963,7 +963,7 @@ msgstr "That hero is already in another slot."
 msgid "Esperando a %{actor}"
 msgstr "Waiting for %{actor}"
 
-#: lib/dragonex_web/live/game_live/components.ex:769
+#: lib/dragonex_web/live/game_live/components.ex:799
 #, elixir-autogen, elixir-format
 msgid "Esperando jugador…"
 msgstr "Waiting for a player…"
@@ -973,7 +973,7 @@ msgstr "Waiting for a player…"
 msgid "Esperando tu turno o la acción del DM…"
 msgstr "Waiting for your turn or the DM's move…"
 
-#: lib/dragonex_web/live/game_live/components.ex:491
+#: lib/dragonex_web/live/game_live/components.ex:520
 #, elixir-autogen, elixir-format
 msgid "Esquiva"
 msgstr "Uncanny Dodge"
@@ -988,12 +988,12 @@ msgstr "This table has reasoning turned off."
 msgid "Esta subida no incluye mejora de características."
 msgstr "This level up doesn't include an ability score improvement."
 
-#: lib/dragonex_web/live/game_live/components.ex:446
+#: lib/dragonex_web/live/game_live/components.ex:475
 #, elixir-autogen, elixir-format
 msgid "Estable"
 msgstr "Stable"
 
-#: lib/dragonex_web/live/game_live/components.ex:811
+#: lib/dragonex_web/live/game_live/components.ex:841
 #, elixir-autogen, elixir-format
 msgid "Estado"
 msgstr "Status"
@@ -1008,17 +1008,17 @@ msgstr "This hero is already in a game and can't be updated."
 msgid "Estilo del DM"
 msgstr "DM style"
 
-#: lib/dragonex_web/live/game_live/components.ex:814
+#: lib/dragonex_web/live/game_live/components.ex:844
 #, elixir-autogen, elixir-format
 msgid "Estás dentro. Esperando a que el creador empiece…"
 msgstr "You're in. Waiting for the creator to start…"
 
-#: lib/dragonex_web/live/game_live/components.ex:547
+#: lib/dragonex_web/live/game_live/components.ex:576
 #, elixir-autogen, elixir-format
 msgid "Estás jugando como"
 msgstr "You're playing as"
 
-#: lib/dragonex_web/live/game_live/components.ex:641
+#: lib/dragonex_web/live/game_live/components.ex:670
 #, elixir-autogen, elixir-format
 msgid "Estás viendo la crónica como DM."
 msgstr "You're viewing the chronicle as the DM."
@@ -1044,17 +1044,17 @@ msgstr "Failure"
 msgid "Faltan datos."
 msgstr "Missing information."
 
-#: lib/dragonex_web/live/game_live/components.ex:683
+#: lib/dragonex_web/live/game_live/components.ex:713
 #, elixir-autogen, elixir-format
 msgid "Ficha"
 msgstr "Sheet"
 
-#: lib/dragonex_web/live/game_live/components.ex:682
+#: lib/dragonex_web/live/game_live/components.ex:712
 #, elixir-autogen, elixir-format
 msgid "Ficha de %{name}"
 msgstr "%{name}'s character sheet"
 
-#: lib/dragonex_web/live/game_live/components.ex:682
+#: lib/dragonex_web/live/game_live/components.ex:712
 #, elixir-autogen, elixir-format
 msgid "Fichas del grupo"
 msgstr "Party character sheets"
@@ -1064,7 +1064,7 @@ msgstr "Party character sheets"
 msgid "Foco"
 msgstr "Focus"
 
-#: lib/dragonex_web/live/game_live/components.ex:789
+#: lib/dragonex_web/live/game_live/components.ex:819
 #, elixir-autogen, elixir-format
 msgid "Forja uno →"
 msgstr "Forge one →"
@@ -1084,12 +1084,12 @@ msgstr "Forge a new hero"
 msgid "Forjar un héroe"
 msgstr "Forge a hero"
 
-#: lib/dragonex_web/live/game_live/components.ex:496
+#: lib/dragonex_web/live/game_live/components.ex:525
 #, elixir-autogen, elixir-format
 msgid "Forma de %{beast}"
 msgstr "%{beast} form"
 
-#: lib/dragonex_web/live/game_live/components.ex:347
+#: lib/dragonex_web/live/game_live/components.ex:348
 #, elixir-autogen, elixir-format
 msgid "Forma original"
 msgstr "Original form"
@@ -1100,17 +1100,17 @@ msgstr "Original form"
 msgid "Fragmento real de una partida"
 msgstr "Real excerpt from a game"
 
-#: lib/dragonex_web/live/game_live/components.ex:485
+#: lib/dragonex_web/live/game_live/components.ex:514
 #, elixir-autogen, elixir-format
 msgid "Furia"
 msgstr "Rage"
 
-#: lib/dragonex_web/live/game_live/components.ex:826
+#: lib/dragonex_web/live/game_live/components.ex:856
 #, elixir-autogen, elixir-format
 msgid "Gancho"
 msgstr "Hook"
 
-#: lib/dragonex_web/live/game_live/components.ex:364
+#: lib/dragonex_web/live/game_live/components.ex:365
 #, elixir-autogen, elixir-format
 msgid "Gastado"
 msgstr "Used"
@@ -1120,7 +1120,7 @@ msgstr "Used"
 msgid "Grimorio"
 msgstr "Spellbook"
 
-#: lib/dragonex_web/live/game_live/components.ex:704
+#: lib/dragonex_web/live/game_live/components.ex:734
 #, elixir-autogen, elixir-format
 msgid "Grupo"
 msgstr "Party"
@@ -1135,7 +1135,7 @@ msgstr "Save changes"
 msgid "Guardar héroe"
 msgstr "Save hero"
 
-#: lib/dragonex_web/live/game_live/components.ex:403
+#: lib/dragonex_web/live/game_live/components.ex:404
 #, elixir-autogen, elixir-format
 msgid "HP %{hp}/%{max_hp}%{temp} · CA %{ac}"
 msgstr "HP %{hp}/%{max_hp}%{temp} · AC %{ac}"
@@ -1156,18 +1156,18 @@ msgstr "Skills"
 msgid "Habilidades:"
 msgstr "Skills:"
 
-#: lib/dragonex_web/live/game_live/components.ex:596
+#: lib/dragonex_web/live/game_live/components.ex:625
 #, elixir-autogen, elixir-format
 msgid "Has alcanzado el límite del historial visible. La crónica completa sigue guardada."
 msgstr "You've reached the limit of the visible history. The full chronicle is still saved."
 
-#: lib/dragonex_web/live/game_live/components.ex:651
+#: lib/dragonex_web/live/game_live/components.ex:681
 #, elixir-autogen, elixir-format
 msgid "Has declarado: «%{intent}»"
 msgstr "You declared: “%{intent}”"
 
 #: lib/dragonex_web/live/custom_content_live.ex:236
-#: lib/dragonex_web/live/game_live/components.ex:286
+#: lib/dragonex_web/live/game_live/components.ex:287
 #: lib/dragonex_web/live/hero_live/new/components.ex:334
 #: lib/dragonex_web/live/hero_live/show.ex:158
 #, elixir-autogen, elixir-format
@@ -1204,7 +1204,7 @@ msgstr "Backstory (optional)"
 msgid "Hombre"
 msgstr "Male"
 
-#: lib/dragonex_web/live/game_live/components.ex:768
+#: lib/dragonex_web/live/game_live/components.ex:798
 #, elixir-autogen, elixir-format
 msgid "Hueco libre"
 msgstr "Open seat"
@@ -1239,7 +1239,7 @@ msgstr "Hero not found. Pick one of your heroes again."
 msgid "Héroes"
 msgstr "Heroes"
 
-#: lib/dragonex_web/live/game_live/components.ex:836
+#: lib/dragonex_web/live/game_live/components.ex:866
 #, elixir-autogen, elixir-format
 msgid "IA"
 msgstr "AI"
@@ -1279,17 +1279,17 @@ msgstr "Languages:"
 msgid "Iniciativa"
 msgstr "Initiative"
 
-#: lib/dragonex_web/live/game_live/components.ex:486
+#: lib/dragonex_web/live/game_live/components.ex:515
 #, elixir-autogen, elixir-format
 msgid "Inspirado"
 msgstr "Inspired"
 
-#: lib/dragonex_web/live/game_live/components.ex:300
+#: lib/dragonex_web/live/game_live/components.ex:301
 #, elixir-autogen, elixir-format
 msgid "Inventario"
 msgstr "Inventory"
 
-#: lib/dragonex_web/live/game_live/components.ex:299
+#: lib/dragonex_web/live/game_live/components.ex:300
 #, elixir-autogen, elixir-format
 msgid "Inventario de %{name}"
 msgstr "%{name}'s inventory"
@@ -1299,12 +1299,12 @@ msgstr "%{name}'s inventory"
 msgid "Investiga una torre de mago donde algo salió mal. Misterio y criaturas arcanas."
 msgstr "Investigate a wizard's tower where something went wrong. Mystery and arcane creatures."
 
-#: lib/dragonex_web/live/game_live/components.ex:568
+#: lib/dragonex_web/live/game_live/components.ex:597
 #, elixir-autogen, elixir-format
 msgid "Invitar"
 msgstr "Invite"
 
-#: lib/dragonex_web/live/game_live/components.ex:797
+#: lib/dragonex_web/live/game_live/components.ex:827
 #, elixir-autogen, elixir-format
 msgid "Invitar jugadores"
 msgstr "Invite players"
@@ -1314,7 +1314,7 @@ msgstr "Invite players"
 msgid "Juega solo o con amigos"
 msgstr "Play solo or with friends"
 
-#: lib/dragonex_web/live/game_live/components.ex:837
+#: lib/dragonex_web/live/game_live/components.ex:867
 #, elixir-autogen, elixir-format
 msgid "Jugador"
 msgstr "Player"
@@ -1324,7 +1324,7 @@ msgstr "Player"
 msgid "La Cripta del Rey Olvidado"
 msgstr "The Crypt of the Forgotten King"
 
-#: lib/dragonex_web/live/game_live/components.ex:556
+#: lib/dragonex_web/live/game_live/components.ex:585
 #, elixir-autogen, elixir-format
 msgid "La IA juega tu personaje"
 msgstr "The AI plays your character"
@@ -1344,7 +1344,7 @@ msgstr "The Red Dragon Tavern"
 msgid "La Torre de Aldric"
 msgstr "Aldric's Tower"
 
-#: lib/dragonex_web/live/game_live/components.ex:824
+#: lib/dragonex_web/live/game_live/components.ex:854
 #, elixir-autogen, elixir-format
 msgid "La aventura"
 msgstr "The adventure"
@@ -1354,7 +1354,7 @@ msgstr "The adventure"
 msgid "La flecha se clava limpia en el lomo de la rata, que cae de costado entre la harina."
 msgstr "The arrow sinks cleanly into the rat's back, and it topples onto its side in the flour."
 
-#: lib/dragonex_web/live/game_live/components.ex:884
+#: lib/dragonex_web/live/game_live/components.ex:914
 #, elixir-autogen, elixir-format
 msgid "La partida ha terminado"
 msgstr "The game is over"
@@ -1364,7 +1364,7 @@ msgstr "The game is over"
 msgid "La partida no tiene plazas libres."
 msgstr "The game has no open seats."
 
-#: lib/dragonex_web/live/game_live/components.ex:815
+#: lib/dragonex_web/live/game_live/components.ex:845
 #: lib/dragonex_web/live/game_live/show.ex:176
 #, elixir-autogen, elixir-format
 msgid "La partida ya ha empezado."
@@ -1380,7 +1380,7 @@ msgstr "This game is no longer available. Go back to your games."
 msgid "La rata2 se lanza sobre las botas de Thane con un chillido, buscando el tobillo desprotegido."
 msgstr "With a squeal, rata2 lunges at Thane's boots, going for the unprotected ankle."
 
-#: lib/dragonex_web/live/game_live/components.ex:816
+#: lib/dragonex_web/live/game_live/components.ex:846
 #, elixir-autogen, elixir-format
 msgid "La sala está completa."
 msgstr "The table is full."
@@ -1390,7 +1390,7 @@ msgstr "The table is full."
 msgid "Linaje"
 msgstr "Heritage"
 
-#: lib/dragonex_web/live/game_live/components.ex:761
+#: lib/dragonex_web/live/game_live/components.ex:791
 #, elixir-autogen, elixir-format
 msgid "Listo"
 msgstr "Ready"
@@ -1436,7 +1436,7 @@ msgstr "My content"
 msgid "Mi contenido (custom)"
 msgstr "My content (custom)"
 
-#: lib/dragonex_web/live/game_live/components.ex:565
+#: lib/dragonex_web/live/game_live/components.ex:594
 #, elixir-autogen, elixir-format
 msgid "Mi personaje"
 msgstr "My character"
@@ -1462,7 +1462,7 @@ msgstr "Model"
 msgid "Modelo personalizado"
 msgstr "Custom model"
 
-#: lib/dragonex_web/live/game_live/components.ex:442
+#: lib/dragonex_web/live/game_live/components.ex:471
 #, elixir-autogen, elixir-format
 msgid "Muerto"
 msgstr "Dead"
@@ -1499,7 +1499,7 @@ msgid "Nivel"
 msgstr "Level"
 
 #: lib/dragonex_web/live/custom_content_live.ex:303
-#: lib/dragonex_web/live/game_live/components.ex:359
+#: lib/dragonex_web/live/game_live/components.ex:360
 #: lib/dragonex_web/live/hero_live/index.ex:83
 #: lib/dragonex_web/live/hero_live/new/components.ex:406
 #: lib/dragonex_web/live/hero_live/show.ex:61
@@ -1592,7 +1592,7 @@ msgstr "Couldn't join the game. Pick your hero again."
 msgid "No tienes héroes todavía."
 msgstr "You don't have any heroes yet."
 
-#: lib/dragonex_web/live/game_live/components.ex:789
+#: lib/dragonex_web/live/game_live/components.ex:819
 #, elixir-autogen, elixir-format
 msgid "No tienes héroes."
 msgstr "You have no heroes."
@@ -1649,7 +1649,7 @@ msgstr "ITEMS"
 msgid "Objetos"
 msgstr "Items"
 
-#: lib/dragonex_web/live/game_live/components.ex:301
+#: lib/dragonex_web/live/game_live/components.ex:302
 #, elixir-autogen, elixir-format
 msgid "Objetos de %{name}"
 msgstr "%{name}'s items"
@@ -1679,7 +1679,7 @@ msgstr "Random game"
 msgid "Partidas"
 msgstr "Games"
 
-#: lib/dragonex_web/live/game_live/components.ex:550
+#: lib/dragonex_web/live/game_live/components.ex:579
 #, elixir-autogen, elixir-format
 msgid "Pausa"
 msgstr "Pause"
@@ -1736,12 +1736,12 @@ msgstr "Properties"
 msgid "Provider"
 msgstr "Provider"
 
-#: lib/dragonex_web/live/game_live/components.ex:808
+#: lib/dragonex_web/live/game_live/components.ex:838
 #, elixir-autogen, elixir-format
 msgid "Puedes empezar aunque queden huecos libres."
 msgstr "You can start even with open slots."
 
-#: lib/dragonex_web/live/game_live/components.ex:462
+#: lib/dragonex_web/live/game_live/components.ex:491
 #: lib/dragonex_web/live/hero_live/new/components.ex:420
 #: lib/dragonex_web/live/hero_live/show.ex:89
 #, elixir-autogen, elixir-format
@@ -1788,7 +1788,7 @@ msgstr "Racial traits:"
 msgid "Raza"
 msgstr "Race"
 
-#: lib/dragonex_web/live/game_live/components.ex:638
+#: lib/dragonex_web/live/game_live/components.ex:667
 #, elixir-autogen, elixir-format
 msgid "Reanudar"
 msgstr "Resume"
@@ -1854,12 +1854,12 @@ msgstr "Roll across the table"
 msgid "Rápidos y ligeros"
 msgstr "Fast and light"
 
-#: lib/dragonex_web/live/game_live/components.ex:742
+#: lib/dragonex_web/live/game_live/components.ex:772
 #, elixir-autogen, elixir-format
 msgid "Sala de espera"
 msgstr "Waiting room"
 
-#: lib/dragonex_web/live/game_live/components.ex:574
+#: lib/dragonex_web/live/game_live/components.ex:603
 #, elixir-autogen, elixir-format
 msgid "Salir"
 msgstr "Leave"
@@ -1869,7 +1869,7 @@ msgstr "Leave"
 msgid "Salvaciones"
 msgstr "Saving throws"
 
-#: lib/dragonex_web/live/game_live/components.ex:436
+#: lib/dragonex_web/live/game_live/components.ex:465
 #, elixir-autogen, elixir-format
 msgid "Salvaciones de muerte: %{successes} · %{failures}"
 msgstr "Death saves: %{successes} · %{failures}"
@@ -1889,7 +1889,7 @@ msgstr "Save"
 msgid "Secundaria"
 msgstr "Secondary"
 
-#: lib/dragonex_web/live/game_live/components.ex:363
+#: lib/dragonex_web/live/game_live/components.ex:364
 #, elixir-autogen, elixir-format
 msgid "Segundo aliento"
 msgstr "Second Wind"
@@ -1929,13 +1929,13 @@ msgstr "Next →"
 msgid "Silla vacía"
 msgstr "Empty seat"
 
-#: lib/dragonex_web/live/game_live/components.ex:306
+#: lib/dragonex_web/live/game_live/components.ex:307
 #, elixir-autogen, elixir-format
 msgid "Sin objetos registrados."
 msgstr "No items recorded."
 
-#: lib/dragonex_web/live/game_live/components.ex:348
-#: lib/dragonex_web/live/game_live/components.ex:387
+#: lib/dragonex_web/live/game_live/components.ex:349
+#: lib/dragonex_web/live/game_live/components.ex:388
 #, elixir-autogen, elixir-format
 msgid "Sin registrar"
 msgstr "Not recorded"
@@ -1976,7 +1976,7 @@ msgstr "CANTRIPS"
 msgid "Tabla PHB"
 msgstr "PHB table"
 
-#: lib/dragonex_web/live/game_live/components.ex:492
+#: lib/dragonex_web/live/game_live/components.ex:521
 #, elixir-autogen, elixir-format
 msgid "Temerario"
 msgstr "Reckless"
@@ -2032,7 +2032,7 @@ msgstr "Tap to select or remove. You can't exceed your class limit."
 msgid "Todavía no has empezado ninguna aventura."
 msgstr "You haven't started any adventures yet."
 
-#: lib/dragonex_web/live/game_live/components.ex:825
+#: lib/dragonex_web/live/game_live/components.ex:855
 #: lib/dragonex_web/live/game_live/new.ex:333
 #, elixir-autogen, elixir-format
 msgid "Tono"
@@ -2053,8 +2053,8 @@ msgstr "Background:"
 msgid "Truco"
 msgstr "Cantrip"
 
-#: lib/dragonex_web/live/game_live/components.ex:664
-#: lib/dragonex_web/live/game_live/components.ex:667
+#: lib/dragonex_web/live/game_live/components.ex:694
+#: lib/dragonex_web/live/game_live/components.ex:697
 #, elixir-autogen, elixir-format
 msgid "Tu acción"
 msgstr "Your action"
@@ -2114,7 +2114,7 @@ msgstr "Your D&D 5e characters, ready for the next table."
 msgid "TÚ"
 msgstr "YOU"
 
-#: lib/dragonex_web/live/game_live/components.ex:761
+#: lib/dragonex_web/live/game_live/components.ex:791
 #, elixir-autogen, elixir-format
 msgid "TÚ ✓"
 msgstr "YOU ✓"
@@ -2151,27 +2151,27 @@ msgstr "Join"
 msgid "Velocidad"
 msgstr "Speed"
 
-#: lib/dragonex_web/live/game_live/components.ex:561
+#: lib/dragonex_web/live/game_live/components.ex:590
 #, elixir-autogen, elixir-format
 msgid "Ver la partida como el DM"
 msgstr "View the game as the DM"
 
-#: lib/dragonex_web/live/game_live/components.ex:548
+#: lib/dragonex_web/live/game_live/components.ex:577
 #, elixir-autogen, elixir-format
 msgid "Vista del DM"
 msgstr "DM view"
 
-#: lib/dragonex_web/live/game_live/components.ex:642
+#: lib/dragonex_web/live/game_live/components.ex:671
 #, elixir-autogen, elixir-format
 msgid "Volver a mi personaje"
 msgstr "Back to my character"
 
-#: lib/dragonex_web/live/game_live/components.ex:574
+#: lib/dragonex_web/live/game_live/components.ex:603
 #, elixir-autogen, elixir-format
 msgid "Volver a tus partidas"
 msgstr "Back to your games"
 
-#: lib/dragonex_web/live/game_live/components.ex:631
+#: lib/dragonex_web/live/game_live/components.ex:660
 #, elixir-autogen, elixir-format
 msgid "Volver al último turno ↓"
 msgstr "Jump to latest turn ↓"
@@ -2182,7 +2182,7 @@ msgid "Vuelve a la mesa, aventurero."
 msgstr "Return to the table, adventurer."
 
 #: lib/dragonex_web/live/game_live/components.ex:184
-#: lib/dragonex_web/live/game_live/components.ex:287
+#: lib/dragonex_web/live/game_live/components.ex:288
 #, elixir-autogen, elixir-format
 msgid "Vuelve a tu forma original para lanzar conjuros."
 msgstr "Return to your original form to cast spells."
@@ -2268,7 +2268,7 @@ msgstr "classes must be a list of classes"
 msgid "classes es obligatorio"
 msgstr "classes is required"
 
-#: lib/dragonex_web/live/game_live/components.ex:613
+#: lib/dragonex_web/live/game_live/components.ex:642
 #: lib/dragonex_web/live/game_live/index.ex:198
 #, elixir-autogen, elixir-format
 msgid "combate"
@@ -2385,7 +2385,7 @@ msgstr "level is required"
 msgid "name_es es obligatorio"
 msgstr "name_es is required"
 
-#: lib/dragonex_web/live/game_live/components.ex:271
+#: lib/dragonex_web/live/game_live/components.ex:272
 #: lib/dragonex_web/live/hero_live/level_up.ex:214
 #: lib/dragonex_web/live/hero_live/show.ex:244
 #, elixir-autogen, elixir-format
@@ -2517,7 +2517,7 @@ msgstr "Critical hit!"
 msgid "¡Cuenta creada! Bienvenido, %{name}."
 msgstr "Account created! Welcome, %{name}."
 
-#: lib/dragonex_web/live/game_live/components.ex:807
+#: lib/dragonex_web/live/game_live/components.ex:837
 #, elixir-autogen, elixir-format
 msgid "¡Empezar partida!"
 msgstr "Start game!"
@@ -2557,7 +2557,7 @@ msgstr "Delete %{name}? This can't be undone."
 msgid "¿Borrar «%{title}»? No se puede deshacer."
 msgstr "Delete “%{title}”? This can't be undone."
 
-#: lib/dragonex_web/live/game_live/components.ex:885
+#: lib/dragonex_web/live/game_live/components.ex:915
 #, elixir-autogen, elixir-format
 msgid "¿Qué haces?"
 msgstr "What do you do?"
@@ -2578,12 +2578,12 @@ msgstr "Already have an account?"
 msgid "Éxito"
 msgstr "Success"
 
-#: lib/dragonex_web/live/game_live/components.ex:811
+#: lib/dragonex_web/live/game_live/components.ex:841
 #, elixir-autogen, elixir-format
 msgid "Únete"
 msgstr "Join"
 
-#: lib/dragonex_web/live/game_live/components.ex:651
+#: lib/dragonex_web/live/game_live/components.ex:681
 #, elixir-autogen, elixir-format
 msgid "— se resolverá en tu turno"
 msgstr "— will resolve on your turn"
@@ -2615,7 +2615,7 @@ msgid "← mis héroes"
 msgstr "← my heroes"
 
 #: lib/dragonex_web/live/custom_content_live.ex:361
-#: lib/dragonex_web/live/game_live/components.ex:829
+#: lib/dragonex_web/live/game_live/components.ex:859
 #: lib/dragonex_web/live/hero_live/index.ex:58
 #, elixir-autogen, elixir-format
 msgid "← partidas"
@@ -2626,7 +2626,7 @@ msgstr "← games"
 msgid "← volver"
 msgstr "← back"
 
-#: lib/dragonex_web/live/game_live/components.ex:604
+#: lib/dragonex_web/live/game_live/components.ex:633
 #, elixir-autogen, elixir-format
 msgid "↑ cargar turnos anteriores"
 msgstr "↑ load earlier turns"
@@ -2727,12 +2727,12 @@ msgstr "Paused · your turn"
 msgid "En pausa · turno de %{actor}"
 msgstr "Paused · %{actor}'s turn"
 
-#: lib/dragonex_web/live/game_live/components.ex:637
+#: lib/dragonex_web/live/game_live/components.ex:666
 #, elixir-autogen, elixir-format
 msgid "La partida está en pausa."
 msgstr "The game is paused."
 
-#: lib/dragonex_web/live/game_live/components.ex:890
+#: lib/dragonex_web/live/game_live/components.ex:920
 #, elixir-autogen, elixir-format
 msgid "Declara tu intención (turno del DM)…"
 msgstr "Declare your intent (the DM's turn)…"
@@ -2746,3 +2746,28 @@ msgstr "Paused · the DM's turn"
 #, elixir-autogen, elixir-format
 msgid "%{name} queda a %{hp}/%{max} PG"
 msgstr "%{name} left at %{hp}/%{max} HP"
+
+#: lib/dragonex_web/live/game_live/components.ex:434
+#, elixir-autogen, elixir-format
+msgid ": disponible"
+msgstr ": available"
+
+#: lib/dragonex_web/live/game_live/components.ex:434
+#, elixir-autogen, elixir-format
+msgid ": gastada"
+msgstr ": spent"
+
+#: lib/dragonex_web/live/game_live/components.ex:423
+#, elixir-autogen, elixir-format
+msgid "Acción"
+msgstr "Action"
+
+#: lib/dragonex_web/live/game_live/components.ex:424
+#, elixir-autogen, elixir-format
+msgid "Adicional"
+msgstr "Bonus"
+
+#: lib/dragonex_web/live/game_live/components.ex:425
+#, elixir-autogen, elixir-format
+msgid "Reacción"
+msgstr "Reaction"

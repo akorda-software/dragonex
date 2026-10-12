@@ -11,7 +11,8 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 
 ## Último estado — 2026-10-12
 
-- **Gates:** 3071 passed / 3 excluded en ambos grafos (local y Hex),
+- **Gates:** 3073 passed / 3 excluded en local (Hex: 3071 en el commit
+  anterior, sin cambio de deps),
   `--warnings-as-errors` limpio, formato limpio.
 - **Dependencias:** dev usa `../exAgent` 2.1 y `../dic_ex` 0.3; prod, las
   mismas versiones de Hex (D237). **Sin desplegar** desde ese cambio.
@@ -78,7 +79,9 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
    combate sobre la crónica y la barra de controles avisa de que desplaza.
    Las tiradas muestran los PG que dejaron (D241) y las salvaciones de muerte
    de un PC caído se ven en el rastreador y en las fichas del grupo.
-   Pendiente: franja de escena/hora/PNJ y acción/adicional/reacción gastadas.
+   En combate, la ficha y el aviso de turno marcan acción, adicional y
+   reacción disponibles o gastadas (`TurnBudget.remaining/2`).
+   Pendiente: franja de escena/hora/PNJ.
 8. **Limpieza intermitente de tests** (Postgrex/owner): en seguimiento, sin
    reaparecer en los gates de 2026-10-12.
 

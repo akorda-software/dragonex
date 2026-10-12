@@ -205,6 +205,20 @@
 }
 .my-turn-banner .px { --s: 1.5px; animation: toast-bounce 1s steps(2) infinite; }
 @keyframes toast-bounce { 50% { transform: translateY(-2px); } }
+.my-turn-banner { flex-wrap: wrap; }
+.action-economy { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.35rem 0 0; }
+.my-turn-banner .action-economy { margin: 0; }
+.econ {
+  padding: 0.05rem 0.4rem;
+  font-family: var(--f-ui);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  border: 1px solid currentColor;
+}
+.econ.is-ready { color: var(--moss); }
+.econ.is-spent { color: var(--text-dim); text-decoration: line-through; opacity: 0.75; }
+.my-turn-banner .econ.is-ready { color: #1f4a12; background: rgba(255, 255, 255, 0.35); }
+.my-turn-banner .econ.is-spent { color: #6b5a2c; }
 .intent-banner { flex: 1 1 18rem; color: #dffcf6; background: #173b3d; }
 .intent-banner .px { --s: 1.5px; }
 .intent-banner .intent-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }

@@ -3078,7 +3078,7 @@ msgstr ""
 msgid "%{name} pierde la concentración en %{spell} (d20 %{roll}: %{total} vs CD %{dc}%{suffix})."
 msgstr ""
 
-#: lib/dragonex/turn_budget.ex:31
+#: lib/dragonex/turn_budget.ex:51
 #, elixir-autogen, elixir-format
 msgid "%{who} no está en su turno; el combatiente actual es %{current}. Termina la narración de %{current} sin ejecutar acciones de otros combatientes. El TurnMaster dará el relevo después de este beat."
 msgstr ""
@@ -3088,27 +3088,27 @@ msgstr ""
 msgid "%{who} solo puede beneficiarse de un descanso largo cada 24 horas"
 msgstr ""
 
-#: lib/dragonex/turn_budget.ex:140
+#: lib/dragonex/turn_budget.ex:160
 #, elixir-autogen, elixir-format
 msgid "%{who} ya ha gastado su acción adicional este turno"
 msgstr ""
 
-#: lib/dragonex/turn_budget.ex:137
+#: lib/dragonex/turn_budget.ex:157
 #, elixir-autogen, elixir-format
 msgid "%{who} ya ha gastado su acción este turno"
 msgstr ""
 
-#: lib/dragonex/turn_budget.ex:143
+#: lib/dragonex/turn_budget.ex:163
 #, elixir-autogen, elixir-format
 msgid "%{who} ya ha gastado su reacción este turno"
 msgstr ""
 
-#: lib/dragonex/turn_budget.ex:146
+#: lib/dragonex/turn_budget.ex:166
 #, elixir-autogen, elixir-format
 msgid "%{who} ya ha tirado su salvación contra muerte este turno"
 msgstr ""
 
-#: lib/dragonex/turn_budget.ex:50
+#: lib/dragonex/turn_budget.ex:70
 #, elixir-autogen, elixir-format
 msgid "%{who} ya ha usado Oleada de acción"
 msgstr ""
@@ -3148,7 +3148,7 @@ msgstr ""
 msgid "Puntos de hechicería"
 msgstr ""
 
-#: lib/dragonex/turn_budget.ex:47
+#: lib/dragonex/turn_budget.ex:67
 #, elixir-autogen, elixir-format
 msgid "Ráfaga de golpes requiere la acción de Ataque este turno"
 msgstr ""
@@ -3158,12 +3158,12 @@ msgstr ""
 msgid "Sentido divino"
 msgstr ""
 
-#: lib/dragonex/turn_budget.ex:41
+#: lib/dragonex/turn_budget.ex:61
 #, elixir-autogen, elixir-format
 msgid "el turno de %{who} ya ha terminado"
 msgstr ""
 
-#: lib/dragonex/turn_budget.ex:61
+#: lib/dragonex/turn_budget.ex:81
 #, elixir-autogen, elixir-format
 msgid "este hechizo requiere más de una acción; no se resuelve instantáneamente en combate"
 msgstr ""
@@ -3173,12 +3173,12 @@ msgstr ""
 msgid "salvación de Constitución (concentración)"
 msgstr ""
 
-#: lib/dragonex/turn_budget.ex:54
+#: lib/dragonex/turn_budget.ex:74
 #, elixir-autogen, elixir-format
 msgid "un hechizo de acción adicional solo permite otros trucos de una acción en ese turno"
 msgstr ""
 
-#: lib/dragonex/turn_budget.ex:27
+#: lib/dragonex/turn_budget.ex:47
 #, elixir-autogen, elixir-format
 msgid "un turno de reacción no concede acción ni acción adicional"
 msgstr ""

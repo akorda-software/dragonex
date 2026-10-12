@@ -14,6 +14,26 @@ defmodule Dragonex.TurnBudget do
     end
   end
 
+  @doc """
+  What `who` still has this round, for the table: action and bonus action
+  belong to their own turn (spent or ended this round), the reaction lasts
+  until their next turn starts. `nil` outside combat.
+  """
+  def remaining(%{phase: :combat, turn_state: turn_state, round: round}, who) do
+    state = Map.get(turn_state || %{}, who, %{})
+    own_turn_over? = state["round"] == round and state["ended"] == true
+
+    used? = fn slot -> own_turn_over? or (state["round"] == round and state[slot] == true) end
+
+    %{
+      action: not used?.("action"),
+      bonus: not used?.("bonus"),
+      reaction: state["reaction"] != true
+    }
+  end
+
+  def remaining(_world, _who), do: nil
+
   def check(%{phase: phase}, _who, _cost) when phase != :combat, do: :ok
   def check(w, who, {:delegated, cost}), do: check(w, who, cost)
 

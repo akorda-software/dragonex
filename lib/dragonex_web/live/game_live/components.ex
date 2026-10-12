@@ -14,7 +14,7 @@ defmodule DragonexWeb.GameLive.Components do
   use Phoenix.Component
   use Gettext, backend: Dragonex.Gettext
 
-  alias Dragonex.{Character, ClassResources, Rest, SpellSlots, WildShape, World}
+  alias Dragonex.{Character, ClassResources, Rest, SpellSlots, TurnBudget, WildShape, World}
   alias Dragonex.Rules.Effects
   alias Dragonex.Heroes.{Catalog, Translations}
   alias DragonexWeb.GameLive.{Chat, Dice, Settings}
@@ -268,6 +268,7 @@ defmodule DragonexWeb.GameLive.Components do
           <p :if={vital_label(card)} class="card-vital">{vital_label(card)}</p>
           <.hp_bar pct={pct} />
           <p class="card-stats">{hp_line(card)}</p>
+          <.action_economy world={@world} name={card.name} />
           <p class="card-sub">{Catalog.race_label(card.race)} {Catalog.class_label(card.class)} · {dgettext("ui", "nivel %{level}", level: card.level)}</p>
           <p :if={conds != []} class="conds">
             <span :for={c <- conds} class="cond-badge">{c}</span>
@@ -406,6 +407,34 @@ defmodule DragonexWeb.GameLive.Components do
       temp: temp_bit,
       ac: ac
     )
+  end
+
+  attr(:world, :any, required: true)
+  attr(:name, :string, required: true)
+
+  # Combat only: which of action, bonus action and reaction are still there,
+  # straight from the engine's budget (TurnBudget), so nobody has to remember.
+  def action_economy(assigns) do
+    budget = if is_binary(assigns.name), do: TurnBudget.remaining(assigns.world, assigns.name)
+
+    slots =
+      if budget,
+        do: [
+          {dgettext("ui", "Acción"), budget.action},
+          {dgettext("ui", "Adicional"), budget.bonus},
+          {dgettext("ui", "Reacción"), budget.reaction}
+        ],
+        else: []
+
+    assigns = assign(assigns, slots: slots)
+
+    ~H"""
+    <p :if={@slots != []} class="action-economy">
+      <span :for={{label, ready} <- @slots} class={"econ #{if ready, do: "is-ready", else: "is-spent"}"}>
+        {label}<span class="sr-only">{if ready, do: dgettext("ui", ": disponible"), else: dgettext("ui", ": gastada")}</span>
+      </span>
+    </p>
+    """
   end
 
   attr(:card, :map, required: true)
@@ -645,6 +674,7 @@ defmodule DragonexWeb.GameLive.Components do
           <div :if={can_act} class="game-toast my-turn-banner" role="status">
             <i class="px px-d20" aria-hidden="true"></i>
             <span>{your_turn_prompt(@viewer)}</span>
+            <.action_economy world={@world} name={@viewer} />
           </div>
           <div :if={@my_intent} class="game-toast intent-banner" role="status">
             <i class="px px-quill" aria-hidden="true"></i>

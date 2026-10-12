@@ -8,6 +8,28 @@ defmodule DragonexWeb.GameSheetStateTest do
   alias DragonexWeb.GameLive.Components
   alias ExAgent.Models.Test
 
+  test "the sheet marks the action, bonus action and reaction already spent this round" do
+    hero = Character.new(name: "Hero", hp: 12, max_hp: 12)
+    foe = Character.new(name: "Foe", hp: 12, max_hp: 12, side: "enemy")
+    world = World.new(characters: %{hero.name => hero, foe.name => foe})
+
+    assert render_component(&Components.action_economy/1, world: world, name: hero.name) == ""
+
+    {:ok, world} = World.begin_combat([hero.name, foe.name]).(world)
+    {:ok, world} = World.set_current_combatant(hero.name).(world)
+    {:ok, world} = Dragonex.TurnBudget.spend(world, hero.name, :bonus)
+
+    html =
+      render_component(&Components.detail_sheet/1,
+        card: world.characters[hero.name],
+        world: world
+      )
+
+    assert html =~ ~r/econ is-ready">\s*Acción/
+    assert html =~ ~r/econ is-spent">\s*Adicional/
+    assert html =~ ~r/econ is-ready">\s*Reacción/
+  end
+
   test "every table sheet shows effective AC without changing the base sheet" do
     hero = Character.new(name: "Hero", hp: 12, max_hp: 12, ac: 18, fighting_style: "defense")
     cleric = Character.new(name: "Cleric", class: "cleric", hp: 12, max_hp: 12)
