@@ -17,7 +17,7 @@ defmodule DragonexWeb.GameLive.Components do
   alias Dragonex.{Character, ClassResources, Rest, SpellSlots, TurnBudget, WildShape, World}
   alias Dragonex.Rules.Effects
   alias Dragonex.Heroes.{Catalog, Translations}
-  alias DragonexWeb.GameLive.{Chat, Dice, Settings}
+  alias DragonexWeb.GameLive.{Chat, Dice}
 
   @max_scene_sheets 2
 
@@ -656,9 +656,9 @@ defmodule DragonexWeb.GameLive.Components do
           <button class="ctl-btn" phx-click="share" title={dgettext("ui", "Copiar el enlace de la partida")}>
             <i class="px px-key" aria-hidden="true"></i>{dgettext("ui", "Invitar")}
           </button>
-          <button :if={@is_creator} class="ctl-btn ai-btn" phx-click="open_settings" aria-label={dgettext("ui", "Ajustes de IA")} title={dgettext("ui", "Ajustes de IA: %{model}", model: Settings.ai_button_label())}>
+          <button :if={@is_creator} class="ctl-btn ai-btn" phx-click="open_settings" aria-label={dgettext("ui", "Ajustes de IA")} title={dgettext("ui", "Ajustes de IA: %{model}", model: @ai_label)}>
             <i class="px px-gear ai-gear" aria-hidden="true"></i>
-            <span class="ai-label">{Settings.ai_button_label()}</span>
+            <span class="ai-label">{@ai_label}</span>
           </button>
           <.link navigate="/" class="ctl-btn ctl-exit" title={dgettext("ui", "Volver a tus partidas")}>{dgettext("ui", "Salir")}</.link>
         </span>

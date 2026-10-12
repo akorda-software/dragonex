@@ -10,7 +10,7 @@ defmodule Dragonex.Accounts do
   use Gettext, backend: Dragonex.Gettext
 
   alias Dragonex.{Codec, Repo}
-  alias Dragonex.Accounts.{CustomContent, Hero, User}
+  alias Dragonex.Accounts.{ApiKey, CustomContent, Hero, KeyVault, User}
   alias Dragonex.Games.Character, as: GameCharacter
 
   # Campos válidos para validar las mecánicas de `definition` por kind.
@@ -52,6 +52,77 @@ defmodule Dragonex.Accounts do
   @doc "Fetch a user by id."
   @spec get_user(term()) :: User.t() | nil
   def get_user(id), do: Repo.get(User, id)
+
+  # ------------------------------------------------------- provider keys
+
+  @doc """
+  The player's saved provider keys, without the secret: provider, the last
+  characters and when it was saved (D242).
+  """
+  @spec list_api_keys(User.t() | integer()) :: [%{provider: String.t(), hint: String.t()}]
+  def list_api_keys(%User{id: uid}), do: list_api_keys(uid)
+
+  def list_api_keys(uid) do
+    Repo.all(
+      from(k in ApiKey,
+        where: k.user_id == ^uid,
+        order_by: k.provider,
+        select: %{provider: k.provider, hint: k.hint, updated_at: k.updated_at}
+      )
+    )
+  end
+
+  @doc "Save (or replace) a player's key for one provider, sealed at rest."
+  @spec put_api_key(User.t(), String.t(), String.t()) :: :ok | {:error, :invalid}
+  def put_api_key(%User{id: uid}, provider, key) when is_binary(provider) and is_binary(key) do
+    key = String.trim(key)
+
+    if valid_api_key?(key) do
+      now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+
+      Repo.insert!(
+        %ApiKey{
+          user_id: uid,
+          provider: provider,
+          ciphertext: KeyVault.seal(key, uid, provider),
+          hint: String.slice(key, -4, 4),
+          inserted_at: now,
+          updated_at: now
+        },
+        on_conflict: {:replace, [:ciphertext, :hint, :updated_at]},
+        conflict_target: [:user_id, :provider]
+      )
+
+      :ok
+    else
+      {:error, :invalid}
+    end
+  end
+
+  @doc "Forget a player's key for one provider."
+  @spec delete_api_key(User.t(), String.t()) :: :ok
+  def delete_api_key(%User{id: uid}, provider) do
+    Repo.delete_all(from(k in ApiKey, where: k.user_id == ^uid and k.provider == ^provider))
+    :ok
+  end
+
+  @doc """
+  The plaintext key, for the engine only: building the model of a table whose
+  creator plays with their own key. Never render or log it.
+  """
+  @spec api_key(integer() | nil, String.t()) :: {:ok, String.t()} | :error
+  def api_key(nil, _provider), do: :error
+
+  def api_key(uid, provider) do
+    case Repo.one(from(k in ApiKey, where: k.user_id == ^uid and k.provider == ^provider)) do
+      %ApiKey{ciphertext: sealed} -> KeyVault.open(sealed, uid, provider)
+      nil -> :error
+    end
+  end
+
+  # Keys are opaque tokens: printable ASCII without spaces, of sane length.
+  defp valid_api_key?(key),
+    do: byte_size(key) in 8..512 and String.match?(key, ~r/\A[\x21-\x7E]+\z/)
 
   # ----------------------------------------------------------------- heroes
 

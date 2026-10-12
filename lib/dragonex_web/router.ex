@@ -47,6 +47,7 @@ defmodule DragonexWeb.Router do
         live("/heroes/:id/level-up", HeroLive.LevelUp, :level_up)
         live("/heroes/:id", HeroLive.Show, :show)
         live("/mi-contenido", CustomContentLive, :index)
+        live("/cuenta", AccountLive, :index)
         live("/games/new", GameLive.New, :new)
         live("/games/:game_id", GameLive.Show, :show)
       end

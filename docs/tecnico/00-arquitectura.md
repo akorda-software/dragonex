@@ -139,7 +139,7 @@ Reglas de la dirección:
 | El esquema de DB / persistencia | S7 | `lib/dragonex/games/`, `Dragonex.Codec` |
 | El creador de personajes / level-up | S8 | `lib/dragonex/heroes/` |
 | Usuarios / heroes / contenido custom | S9 | `lib/dragonex/accounts/` |
-| Modelo LLM / provider / runtime | S10 | `Dragonex.Models`, `Dragonex.ModelConfig` |
+| Modelo LLM / provider / runtime | S10 | `Dragonex.Models`, `Dragonex.GameAI`, `Dragonex.AIProviders` |
 
 ## Árbol de procesos (runtime)
 
@@ -147,7 +147,6 @@ Reglas de la dirección:
 Dragonex.Application
 ├─ Dragonex.Repo                       (pool Ecto)
 ├─ Phoenix.PubSub                      ("dragonex:game:<id>")
-├─ Dragonex.ModelConfig                (GenServer: override runtime del modelo)
 ├─ Dragonex.Game.Registry              (Registry unique, lookup por game_id)
 ├─ Dragonex.Game.Supervisor            (DynamicSupervisor)
 │   └─ Dragonex.Game  (uno por game_id, :transient, registrado en el Registry)

@@ -58,15 +58,18 @@ defmodule DragonexWeb.GameLive.Snapshot do
       join_error: nil,
       auto_play: false,
       is_creator: false,
-      # Ajustes de IA modal (gear button). provider/model are the in-modal
-      # selections; the effective config lives in Dragonex.ModelConfig.
+      # Ajustes de IA modal (gear button): in-modal selections; the table's
+      # effective choice lives in games.ai (Dragonex.GameAI, D242).
+      ai_label: nil,
       show_settings: false,
-      settings_providers: [],
-      settings_provider: nil,
+      settings_sources: [],
+      settings_source: "house",
       settings_models: [],
       settings_models_status: :idle,
       settings_model: nil,
-      settings_custom_model: ""
+      settings_custom_model: "",
+      settings_error: nil,
+      settings_checking: false
     )
   end
 
@@ -143,6 +146,7 @@ defmodule DragonexWeb.GameLive.Snapshot do
             game_id: game_id,
             viewer: viewer,
             is_creator: is_creator,
+            ai_label: if(game, do: Dragonex.GameAI.label(game)),
             world: snap.world,
             current: snap.current,
             status: snap.status,

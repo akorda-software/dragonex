@@ -133,9 +133,11 @@ Stubs legacy (sólo para tests del framework exAgent): `attack/2`, `roll/1`,
 
 | Módulo | Responsabilidad |
 |---|---|
-| `Dragonex.Application` | Árbol de supervisión (Repo, PubSub, ModelConfig, Registry, Game.Supervisor, Endpoint) |
+| `Dragonex.Application` | Árbol de supervisión (Repo, PubSub, Registry, Game.Supervisor, Endpoint) |
 | `Dragonex.Models` | **Dos providers** (`openrouter`, `opencode`); modelo por rol (`dm`, `summarizer`, `turnmaster`); reasoning; catálogo live |
-| `Dragonex.ModelConfig` | GenServer con overrides runtime (provider/model/reasoning) seteados desde el modal Ajustes. Efímero + app-global |
+| `Dragonex.GameAI` | IA de cada mesa (`games.ai`: casa, clave propia o servidor en dev) → modelos para `Bootstrap` (D242) |
+| `Dragonex.AIProviders` | Proveedores de clave propia: listado de modelos, perfil Chat compatible y sonda (D242) |
+| `Dragonex.Accounts.KeyVault` | Cifrado AES-256-GCM de las claves de IA de los jugadores (D242) |
 | `Dragonex.Text` | Scrubber determinista (`D7`) + `sanitize_utf8` (UTF-8 válido garantizado para Jason) |
 | `Dragonex.Dice` | RNG vía `dic_ex`; `parse_expr/1` (gramática única `NdM±K`, D77), `roll_expr/2`; `always/1` (test) |
 | `Dragonex.RollLog` | `Agent` por beat que graba cada dado en grupos y publica en vivo |

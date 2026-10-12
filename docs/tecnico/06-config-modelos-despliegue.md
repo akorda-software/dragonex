@@ -72,23 +72,30 @@ y lo mete en `System.put_env`. Los valores del entorno real **ganan** sobre `.en
 | `:openrouter` (default) | `OPENROUTER_API_KEY` | `deepseek/deepseek-v4-flash` | `google/gemini-3.1-flash-lite` | `%{"reasoning" => %{"effort" => …}}` |
 | `:opencode` | `OPENCODE_API_KEY` | `deepseek-v4-flash` | `gemini-3.5-flash-lite` | `%{"reasoning_effort" => …}` |
 
-**Resolución del provider**: `ModelConfig.get().provider` (override runtime) →
-`DRAGONEX_PROVIDER` env → `:openrouter` (default). Un valor desconocido cae a
-`:openrouter` con warning.
+**Resolución del provider** (mesas de la casa en `:open`): `DRAGONEX_PROVIDER`
+env → `:openrouter` (default). Un valor desconocido cae a `:openrouter` con
+warning.
 
-**Fallback offline**: si la key del provider activo falta o está vacía, **ambos**
-roles (DM y summarizer) caen a `%Models.Test{}` (`models.ex`). Así dev sin key
-sigue funcionando — el DM no narra, pero los turnos se resuelven y los tests son
+**Fallback offline**: si la key del provider activo falta o está vacía, todos
+los roles caen a `%Models.Test{}` (`models.ex`). Así dev sin key sigue
+funcionando — el DM no narra, pero los turnos se resuelven y los tests son
 deterministas.
 
-### ModelConfig + modal Ajustes
+### Quién paga la IA de cada mesa (D242)
 
-`Dragonex.ModelConfig` es un GenServer arrancado en `application.ex` **antes** que
-el `Game.Supervisor`. El modal **Ajustes** de la mesa (`GameLive.Show`) cambia
-provider/modelo/reasoning; al aplicar, **reinicia el proceso `Game`**
-(`Game.restart/2`), que rehidrata de Postgres con el modelo nuevo cableado en un DM
-fresco. Los overrides son **efímeros** (se pierden al reiniciar la app) y
-**app-globales** (afectan a todas las partidas).
+- `DRAGONEX_SERVER_MODELS` = `fixed` (default; producción) | `open` (dev y
+  test vía `config :dragonex, :server_models`).
+- **Casa** en `fixed`: `deepseek/deepseek-v4.1-flash` en los tres roles con
+  `OPENROUTER_API_KEY`, routing por coste ponderado
+  (`Models.house_routing/0`, cache 6 h). En `open`, los defaults de env.
+- **Clave propia** (`Dragonex.AIProviders`): el jugador la guarda en
+  `/cuenta`, cifrada con una clave derivada de `SECRET_KEY_BASE`
+  (`Accounts.KeyVault`). En el modal Ajustes elige proveedor y modelo; al
+  aplicar se prueba con una petición mínima.
+- **Servidor** (solo `open`): cualquier modelo de OpenRouter/OpenCode con las
+  keys del servidor, para probar.
+- La elección vive en `games.ai`; `Game.restart/2` la guarda y `Bootstrap` la
+  reconstruye al arrancar (`Dragonex.GameAI`).
 
 ## Puertos
 

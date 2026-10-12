@@ -45,6 +45,8 @@ defmodule Dragonex.Games.Game do
     field(:current_participant, :string)
     field(:intents, :map, default: %{})
     field(:open_slots, :integer, default: 0)
+    # Which AI plays this table and who pays for it (D242), see Dragonex.GameAI.
+    field(:ai, :map, default: %{})
 
     belongs_to(:user, Dragonex.Accounts.User)
     has_many(:participants, Dragonex.Games.Participant)

@@ -12,3 +12,7 @@ config :dragonex, Dragonex.Repo,
 config :dragonex, DragonexWeb.Endpoint,
   server: false,
   secret_key_base: "dragonex_test_secret_key_base_for_tests_only_padding_64_chars_ok"
+
+# Server-paid tables keep their env/offline defaults; tests that check the
+# production house model set :fixed themselves (D242).
+config :dragonex, :server_models, :open

@@ -330,7 +330,7 @@ defmodule DragonexWeb.GameLive.Show do
   # ------------------------------------------------------ settings modal
 
   # Events owned by the Settings module (delegated below).
-  @settings_events ~w(open_settings close_settings settings_select_provider
+  @settings_events ~w(open_settings close_settings settings_select_source
                       settings_select_model settings_custom_model
                       settings_refresh_models settings_apply)
 
@@ -413,6 +413,9 @@ defmodule DragonexWeb.GameLive.Show do
 
   def handle_info({:settings_models, _, _} = msg, socket), do: Settings.handle_info(msg, socket)
 
+  def handle_info({:settings_probe, _, _, _} = msg, socket),
+    do: Settings.handle_info(msg, socket)
+
   def handle_info(_msg, socket), do: {:noreply, socket}
 
   # --------------------------------------------------------------- load
@@ -471,6 +474,7 @@ defmodule DragonexWeb.GameLive.Show do
             round={@round}
             viewer={@viewer}
             is_creator={@is_creator}
+            ai_label={@ai_label}
             auto_play={@auto_play}
             participants={@participants}
             my_turn={@my_turn}
@@ -497,12 +501,14 @@ defmodule DragonexWeb.GameLive.Show do
 
       <Settings.modal
         show={@show_settings}
-        providers={@settings_providers}
-        provider={@settings_provider}
+        sources={@settings_sources}
+        source={@settings_source}
         models={@settings_models}
         models_status={@settings_models_status}
         model={@settings_model}
         custom_model={@settings_custom_model}
+        error={@settings_error}
+        checking={@settings_checking}
       />
     </div>
     """

@@ -19,3 +19,7 @@ config :dragonex, DragonexWeb.Endpoint,
   check_origin: false,
   watchers: [],
   secret_key_base: "dragonexdevsecretkeybase_for_dev_only_need_64_chars_total_padding1"
+
+# Dev picks any OpenRouter/OpenCode model with the server keys; production
+# pays only for the house model (D242, Dragonex.Models.server_mode/0).
+config :dragonex, :server_models, :open

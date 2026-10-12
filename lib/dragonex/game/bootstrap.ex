@@ -44,6 +44,13 @@ defmodule Dragonex.Game.Bootstrap do
     # to the stored current so a resumed partida picks up exactly where it left off.
     restore_turn(session, game.current_participant)
 
+    # The table's own AI (D242) unless the caller injects models (tests,
+    # settings restart). Explicit opts always win.
+    opts =
+      if Keyword.has_key?(opts, :model),
+        do: opts,
+        else: Keyword.merge(Dragonex.GameAI.models(game), opts)
+
     model = Keyword.get(opts, :model) || default_model()
     # The dice roller is injected (tests use a fixed one). We no longer wrap it
     # to broadcast per-die `:dice_roll` events: instead each closed roll GROUP
@@ -143,6 +150,7 @@ defmodule Dragonex.Game.Bootstrap do
       combat_handoffs: Keyword.get(opts, :combat_handoffs, :initiative),
       pc_agents: pc_agents,
       model: model,
+      summarizer: summarizer,
       scene_model: Keyword.get(opts, :scene_model) || default_scene_model(model, summarizer),
       roller: roller,
       participants: participants,

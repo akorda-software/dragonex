@@ -11,7 +11,7 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 
 ## Último estado — 2026-10-12
 
-- **Gates:** 3077 passed / 3 excluded en ambos grafos (local y Hex),
+- **Gates:** 3105 passed / 3 excluded en ambos grafos (local y Hex),
   `--warnings-as-errors` limpio, formato limpio.
 - **Dependencias:** dev usa `../exAgent` 2.1 y `../dic_ex` 0.3; prod, las
   mismas versiones de Hex (D237). **Sin desplegar** desde ese cambio.
@@ -46,7 +46,12 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 - **Creador de héroes y subida de nivel** (SRD 12 clases, golden L1/L3/L5;
   XP 5e D43), contenido custom por usuario.
 - **Web:** mesa responsive 375–1440, dados 2D/3D, multijugador con sala de
-  espera, ajustes de proveedor/modelo, home con crónica viva (D233).
+  espera, home con crónica viva (D233).
+- **Quién paga la IA (D242):** la casa solo paga DeepSeek v4.1 Flash en el
+  proveedor más barato para nuestro consumo. Con su propia clave (OpenRouter,
+  OpenCode Go, OpenAI, Google, Anthropic; guardada cifrada en «Tu cuenta»),
+  cada jugador elige cualquier modelo compatible en Ajustes de IA. La
+  elección se guarda por partida y sobrevive a reinicios.
 - **Bilingüe es/en por partida** (D235/D236).
 - **Solo exAgent 2.1:** retirado el modo de compatibilidad con 1.2
   (`Models.backend/0`, `Agent.LegacyHistory`, selector de razonamiento) (D237).

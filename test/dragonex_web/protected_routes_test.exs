@@ -20,6 +20,7 @@ defmodule DragonexWeb.ProtectedRoutesTest do
     "/heroes/1/level-up",
     "/heroes/1",
     "/mi-contenido",
+    "/cuenta",
     "/games/new",
     "/games/1"
   ]

@@ -7920,6 +7920,66 @@ la última muestra el resultado acumulado. Los cambios sin tirada (curación
 fija, efectos automáticos) no muestran nota. Los eventos anteriores no la
 tienen.
 
+## D242 — La casa paga un solo modelo; el resto, con la clave del jugador
+
+**Estado:** Aceptada. **Fecha:** 2026-10-12.
+
+**Contexto:** el modal Ajustes cambiaba proveedor y modelo para **todas** las
+mesas (`ModelConfig`, global y efímero) y siempre con la clave del servidor.
+En producción eso deja que cualquier jugador elija un modelo caro a cuenta de
+la casa, y un reinicio perdía la elección. El usuario quiere: con su clave,
+solo DeepSeek v4.1 Flash en el proveedor más barato; quien quiera otro modelo
+pone su propia clave (OpenRouter, OpenCode Go, OpenAI, Google, Anthropic) y lo
+paga él. Sin topes por partida ni por usuario.
+
+**Decisión:**
+
+- **Modelo de la casa.** `Models.server_mode/0`: `:fixed` (por defecto,
+  producción) u `:open` (dev/test por config; `DRAGONEX_SERVER_MODELS` lo
+  fuerza). En `:fixed` toda mesa pagada por el servidor usa
+  `deepseek/deepseek-v4.1-flash` en los tres roles (DM, resumen, TurnMaster).
+  El routing de OpenRouter se calcula con `/models/…/endpoints`: solo
+  endpoints con tools y activos, ordenados por coste ponderado según nuestro
+  consumo real (77 % prompt cacheado, 19 % prompt, 4 % salida), con
+  `allow_fallbacks` y `require_parameters`; se cachea 6 h y, si OpenRouter no
+  responde, usa un orden conocido (morph, decart, relace, deepseek). El sufijo
+  `:floor` se descartó: ordena por precio de entrada y elegía el endpoint con
+  la salida más cara.
+- **Claves del jugador** en «Tu cuenta» (`/cuenta`, enlazada desde su nombre en
+  la cabecera). Una por proveedor (`user_api_keys`). Antes de guardar se
+  comprueban listando modelos (gratis; en OpenRouter, con `/key`). Se guardan
+  cifradas con AES-256-GCM: clave derivada de `SECRET_KEY_BASE`, y usuario y
+  proveedor como AAD, así una fila copiada a otro usuario no se abre. La UI
+  solo muestra los 4 últimos caracteres; el texto plano nunca entra en los
+  assigns ni en el HTML.
+- **La elección es por partida** (`games.ai`, jsonb): `house`, `own`
+  (proveedor + modelo + metadatos del catálogo) o `server` (solo en `:open`).
+  `Game.restart/2` la guarda sin ningún `Game` vivo y la restaura si el
+  arranque falla. `Bootstrap` reconstruye los modelos desde ahí, así que un
+  crash o un reinicio de la app conserva quién paga. Si falta la clave, la
+  mesa juega con la casa (aviso en el log). Se elimina `ModelConfig`.
+- **Cómo se llega a cada proveedor.** exAgent 2.1 solo ejecuta tools sobre
+  OpenAI Chat, así que cada proveedor se usa por su endpoint compatible:
+  OpenRouter con su perfil (metadatos de catálogo y razonamiento apagado) y
+  los demás con el perfil Chat genérico, sin pedir razonamiento. Al aplicar un
+  modelo propio se hace una petición mínima real (`AIProviders.probe/1`); si
+  el modelo expone razonamiento o rechaza las tools, falla en el modal y no en
+  el primer turno.
+
+**Verificación:** tests de cifrado (ida y vuelta, AAD, IV aleatorio), CRUD de
+claves, listados por proveedor con HTTP simulado (`config :dragonex,
+:ai_http`), ranking de endpoints, modelos de la casa en `:fixed`, `GameAI`
+(selección, ida y vuelta jsonb, vuelta a la casa), arranque desde `games.ai`,
+el modal (casa, clave propia con sonda, sonda fallida, clave borrada, perfil
+incompatible, producción sin fuentes del servidor) y la página de cuenta.
+
+**Límites:** rotar `SECRET_KEY_BASE` deja las claves guardadas ilegibles: las
+mesas vuelven a la casa y cada jugador debe pegar su clave otra vez. El filtro
+de modelos de OpenAI y Google es por nombre; uno nuevo con otro prefijo no
+aparece en la lista, pero se puede escribir su slug. El coste ponderado
+supone nuestra mezcla de tokens actual. En los proveedores compatibles no se
+aplica caché explícita de prompt.
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,

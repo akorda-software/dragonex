@@ -256,8 +256,8 @@ providers existente (no un env suelto):
 - Una entrada `turnmaster: "<slug>"` en cada fila de `@providers` (openrouter +
   opencode), con un slug barato/rápido por defecto (flash/lite).
 - `build(:turnmaster)` + `new_model(cfg, :turnmaster)` + `test_model(:turnmaster)`
-  — el mismo patrón que `:dm` y `:summarizer` (`models.ex`). Override runtime
-  vía `ModelConfig` (como el DM).
+  — el mismo patrón que `:dm` y `:summarizer` (`models.ex`). Cada mesa puede
+  sustituirlo vía `games.ai` (como el DM, D242).
 - `max_tokens` **no** vive en `Models` (que sólo expone `dm_max_tokens/0`); va
   en `TurnMaster.new/2` (~256: la salida es una tool-call, no prosa).
 

@@ -65,15 +65,15 @@ msgid_plural "%{count} éxitos"
 msgstr[0] "%{count} success"
 msgstr[1] "%{count} successes"
 
-#: lib/dragonex/accounts.ex:519
-#: lib/dragonex/accounts.ex:529
+#: lib/dragonex/accounts.ex:590
+#: lib/dragonex/accounts.ex:600
 #, elixir-autogen, elixir-format
 msgid "%{field} es obligatorio"
 msgstr "%{field} is required"
 
-#: lib/dragonex/accounts.ex:522
-#: lib/dragonex/accounts.ex:526
-#: lib/dragonex/accounts.ex:532
+#: lib/dragonex/accounts.ex:593
+#: lib/dragonex/accounts.ex:597
+#: lib/dragonex/accounts.ex:603
 #, elixir-autogen, elixir-format
 msgid "%{field} inválido"
 msgstr "Invalid %{field}"
@@ -100,7 +100,7 @@ msgstr "%{spell} (L%{level})"
 msgid "%{spell} (truco)"
 msgstr "%{spell} (cantrip)"
 
-#: lib/dragonex_web/live/game_live/settings.ex:256
+#: lib/dragonex_web/live/game_live/settings.ex:387
 #, elixir-autogen, elixir-format
 msgid "(elige modelo)"
 msgstr "(choose model)"
@@ -192,7 +192,7 @@ msgid "Agilidad (finesse)"
 msgstr "Finesse"
 
 #: lib/dragonex_web/live/game_live/components.ex:659
-#: lib/dragonex_web/live/game_live/settings.ex:222
+#: lib/dragonex_web/live/game_live/settings.ex:339
 #, elixir-autogen, elixir-format
 msgid "Ajustes de IA"
 msgstr "AI settings"
@@ -202,7 +202,7 @@ msgstr "AI settings"
 msgid "Ajustes de IA: %{model}"
 msgstr "AI settings: %{model}"
 
-#: lib/dragonex_web/live/game_live/settings.ex:283
+#: lib/dragonex_web/live/game_live/settings.ex:420
 #, elixir-autogen, elixir-format
 msgid "Al aplicar, se conserva el mundo, el turno y la crónica de la partida."
 msgstr "Applying keeps the game's world, turn and chronicle."
@@ -217,7 +217,7 @@ msgstr "Ally"
 msgid "Aplicando subida…"
 msgstr "Applying level up…"
 
-#: lib/dragonex_web/live/game_live/settings.ex:280
+#: lib/dragonex_web/live/game_live/settings.ex:417
 #, elixir-autogen, elixir-format
 msgid "Aplicar"
 msgstr "Apply"
@@ -371,7 +371,7 @@ msgstr "Testing ground: not an adventure. Exercises every mechanic (combat, magi
 
 #: lib/dragonex_web/live/custom_content_live.ex:389
 #: lib/dragonex_web/live/game_live/new.ex:401
-#: lib/dragonex_web/live/game_live/settings.ex:279
+#: lib/dragonex_web/live/game_live/settings.ex:416
 #: lib/dragonex_web/live/hero_live/level_up.ex:287
 #, elixir-autogen, elixir-format
 msgid "Cancelar"
@@ -408,7 +408,7 @@ msgstr "Class features"
 msgid "Características de clase:"
 msgstr "Class features:"
 
-#: lib/dragonex_web/live/game_live/show.ex:462
+#: lib/dragonex_web/live/game_live/show.ex:465
 #, elixir-autogen, elixir-format
 msgid "Cargando partida…"
 msgstr "Loading game…"
@@ -968,7 +968,7 @@ msgstr "Waiting for %{actor}"
 msgid "Esperando jugador…"
 msgstr "Waiting for a player…"
 
-#: lib/dragonex_web/live/game_live/show.ex:464
+#: lib/dragonex_web/live/game_live/show.ex:467
 #, elixir-autogen, elixir-format
 msgid "Esperando tu turno o la acción del DM…"
 msgstr "Waiting for your turn or the DM's move…"
@@ -977,11 +977,6 @@ msgstr "Waiting for your turn or the DM's move…"
 #, elixir-autogen, elixir-format
 msgid "Esquiva"
 msgstr "Uncanny Dodge"
-
-#: lib/dragonex_web/live/game_live/settings.ex:275
-#, elixir-autogen, elixir-format
-msgid "Esta mesa usa el razonamiento desactivado."
-msgstr "This table has reasoning turned off."
 
 #: lib/dragonex_web/live/hero_live/level_up.ex:111
 #, elixir-autogen, elixir-format
@@ -1370,7 +1365,7 @@ msgstr "The game has no open seats."
 msgid "La partida ya ha empezado."
 msgstr "The game has already started."
 
-#: lib/dragonex_web/live/game_live/show.ex:441
+#: lib/dragonex_web/live/game_live/show.ex:444
 #, elixir-autogen, elixir-format
 msgid "La partida ya no está disponible. Vuelve a tus partidas."
 msgstr "This game is no longer available. Go back to your games."
@@ -1452,12 +1447,13 @@ msgstr "My heroes"
 msgid "Mochila"
 msgstr "Pack"
 
-#: lib/dragonex_web/live/game_live/settings.ex:243
+#: lib/dragonex_web/live/game_live/settings.ex:374
+#: lib/dragonex_web/live/game_live/settings.ex:386
 #, elixir-autogen, elixir-format
 msgid "Modelo"
 msgstr "Model"
 
-#: lib/dragonex_web/live/game_live/settings.ex:268
+#: lib/dragonex_web/live/game_live/settings.ex:404
 #, elixir-autogen, elixir-format
 msgid "Modelo personalizado"
 msgstr "Custom model"
@@ -1542,7 +1538,7 @@ msgstr "No characters available."
 msgid "No puedes borrar un héroe que ya está en una partida."
 msgstr "You can't delete a hero who is already in a game."
 
-#: lib/dragonex_web/live/game_live/settings.ex:125
+#: lib/dragonex_web/live/game_live/settings.ex:232
 #, elixir-autogen, elixir-format
 msgid "No se pudieron aplicar los ajustes. Conservamos la configuración anterior; vuelve a abrir la partida."
 msgstr "Couldn't apply the settings. The previous configuration was kept; reopen the game."
@@ -1731,11 +1727,6 @@ msgstr "Progression"
 msgid "Propiedades"
 msgstr "Properties"
 
-#: lib/dragonex_web/live/game_live/settings.ex:225
-#, elixir-autogen, elixir-format
-msgid "Provider"
-msgstr "Provider"
-
 #: lib/dragonex_web/live/game_live/components.ex:899
 #, elixir-autogen, elixir-format
 msgid "Puedes empezar aunque queden huecos libres."
@@ -1798,7 +1789,7 @@ msgstr "Resume"
 msgid "Reanudar demostración"
 msgstr "Resume demo"
 
-#: lib/dragonex_web/live/game_live/settings.ex:244
+#: lib/dragonex_web/live/game_live/settings.ex:375
 #, elixir-autogen, elixir-format
 msgid "Refrescar modelos"
 msgstr "Refresh models"
@@ -1985,11 +1976,6 @@ msgstr "Reckless"
 #, elixir-autogen, elixir-format
 msgid "Temporales"
 msgstr "Temporary"
-
-#: lib/dragonex_web/live/game_live/settings.ex:274
-#, elixir-autogen, elixir-format
-msgid "Thinking (cuánto razona)"
-msgstr "Thinking (how much it reasons)"
 
 #: lib/dragonex_web/live/custom_content_live.ex:316
 #: lib/dragonex_web/live/custom_content_live.ex:333
@@ -2233,17 +2219,17 @@ msgstr "acting"
 msgid "ataque"
 msgstr "attack"
 
-#: lib/dragonex/accounts.ex:575
+#: lib/dragonex/accounts.ex:646
 #, elixir-autogen, elixir-format
 msgid "attack_ability debe ser una de str/dex/con/int/wis/cha"
 msgstr "attack_ability must be one of str/dex/con/int/wis/cha"
 
-#: lib/dragonex/accounts.ex:568
+#: lib/dragonex/accounts.ex:639
 #, elixir-autogen, elixir-format
 msgid "attack_ability es obligatorio"
 msgstr "attack_ability is required"
 
-#: lib/dragonex_web/live/game_live/settings.ex:248
+#: lib/dragonex_web/live/game_live/settings.ex:379
 #, elixir-autogen, elixir-format
 msgid "cargando modelos…"
 msgstr "loading models…"
@@ -2254,17 +2240,17 @@ msgstr "loading models…"
 msgid "caído"
 msgstr "down"
 
-#: lib/dragonex/accounts.ex:588
+#: lib/dragonex/accounts.ex:659
 #, elixir-autogen, elixir-format
 msgid "classes contiene claves desconocidas: %{keys}"
 msgstr "classes contains unknown keys: %{keys}"
 
-#: lib/dragonex/accounts.ex:592
+#: lib/dragonex/accounts.ex:663
 #, elixir-autogen, elixir-format
 msgid "classes debe ser una lista de clases"
 msgstr "classes must be a list of classes"
 
-#: lib/dragonex/accounts.ex:577
+#: lib/dragonex/accounts.ex:648
 #, elixir-autogen, elixir-format
 msgid "classes es obligatorio"
 msgstr "classes is required"
@@ -2290,32 +2276,32 @@ msgstr "caster · d%{die}"
 msgid "daño"
 msgstr "damage"
 
-#: lib/dragonex/accounts.ex:641
+#: lib/dragonex/accounts.ex:712
 #, elixir-autogen, elixir-format
 msgid "debe ser un email válido"
 msgstr "must be a valid email"
 
-#: lib/dragonex/accounts.ex:418
+#: lib/dragonex/accounts.ex:489
 #, elixir-autogen, elixir-format
 msgid "definition es obligatorio"
 msgstr "definition is required"
 
-#: lib/dragonex/accounts.ex:444
+#: lib/dragonex/accounts.ex:515
 #, elixir-autogen, elixir-format
 msgid "definition inválido"
 msgstr "invalid definition"
 
-#: lib/dragonex/accounts.ex:553
+#: lib/dragonex/accounts.ex:624
 #, elixir-autogen, elixir-format
 msgid "dice debe ser texto"
 msgstr "dice must be text"
 
-#: lib/dragonex/accounts.ex:535
+#: lib/dragonex/accounts.ex:606
 #, elixir-autogen, elixir-format
 msgid "dice es obligatorio"
 msgstr "dice is required"
 
-#: lib/dragonex/accounts.ex:550
+#: lib/dragonex/accounts.ex:621
 #, elixir-autogen, elixir-format
 msgid "dice no es una expresión válida (p. ej. 2d6, 1d8+2)"
 msgstr "dice is not a valid expression (e.g. 2d6, 1d8+2)"
@@ -2355,33 +2341,33 @@ msgstr "awaiting player"
 msgid "iniciativa"
 msgstr "initiative"
 
-#: lib/dragonex/accounts.ex:433
+#: lib/dragonex/accounts.ex:504
 #, elixir-autogen, elixir-format
 msgid "key vacío tras normalizar"
 msgstr "key empty after normalization"
 
-#: lib/dragonex/accounts.ex:412
+#: lib/dragonex/accounts.ex:483
 #, elixir-autogen, elixir-format
 msgid "kind es obligatorio"
 msgstr "kind is required"
 
-#: lib/dragonex/accounts.ex:425
+#: lib/dragonex/accounts.ex:496
 #, elixir-autogen, elixir-format
 msgid "kind inválido (debe ser weapon, spell o item)"
 msgstr "invalid kind (must be weapon, spell or item)"
 
-#: lib/dragonex/accounts.ex:562
-#: lib/dragonex/accounts.ex:566
+#: lib/dragonex/accounts.ex:633
+#: lib/dragonex/accounts.ex:637
 #, elixir-autogen, elixir-format
 msgid "level debe ser un entero 0–9"
 msgstr "level must be an integer 0–9"
 
-#: lib/dragonex/accounts.ex:555
+#: lib/dragonex/accounts.ex:626
 #, elixir-autogen, elixir-format
 msgid "level es obligatorio"
 msgstr "level is required"
 
-#: lib/dragonex/accounts.ex:415
+#: lib/dragonex/accounts.ex:486
 #, elixir-autogen, elixir-format
 msgid "name_es es obligatorio"
 msgstr "name_es is required"
@@ -2393,7 +2379,7 @@ msgstr "name_es is required"
 msgid "nivel %{level}"
 msgstr "level %{level}"
 
-#: lib/dragonex_web/live/game_live/settings.ex:252
+#: lib/dragonex_web/live/game_live/settings.ex:383
 #, elixir-autogen, elixir-format
 msgid "no se pudieron cargar los modelos — escribe el slug abajo"
 msgstr "couldn't load models — type the slug below"
@@ -2408,7 +2394,7 @@ msgstr "invalid (use 2d6, 1d8+2…)"
 msgid "no válido (usa 6d6, 3d8+2…)"
 msgstr "invalid (use 6d6, 3d8+2…)"
 
-#: lib/dragonex_web/live/game_live/settings.ex:267
+#: lib/dragonex_web/live/game_live/settings.ex:402
 #, elixir-autogen, elixir-format
 msgid "o escribe un slug (ej: deepseek/deepseek-v4.1-flash)"
 msgstr "or type a slug (e.g. deepseek/deepseek-v4.1-flash)"
@@ -2418,28 +2404,28 @@ msgstr "or type a slug (e.g. deepseek/deepseek-v4.1-flash)"
 msgid "pts"
 msgstr "pts"
 
-#: lib/dragonex/accounts.ex:601
-#: lib/dragonex/accounts.ex:605
+#: lib/dragonex/accounts.ex:672
+#: lib/dragonex/accounts.ex:676
 #, elixir-autogen, elixir-format
 msgid "qty debe ser un entero ≥ 1"
 msgstr "qty must be an integer ≥ 1"
 
-#: lib/dragonex/accounts.ex:495
+#: lib/dragonex/accounts.ex:566
 #, elixir-autogen, elixir-format
 msgid "save_ability debe ser una de str/dex/con/int/wis/cha"
 msgstr "save_ability must be one of str/dex/con/int/wis/cha"
 
-#: lib/dragonex/accounts.ex:487
+#: lib/dragonex/accounts.ex:558
 #, elixir-autogen, elixir-format
 msgid "save_ability es obligatoria cuando kind es 'save'"
 msgstr "save_ability is required when kind is 'save'"
 
-#: lib/dragonex/accounts.ex:502
+#: lib/dragonex/accounts.ex:573
 #, elixir-autogen, elixir-format
 msgid "save_ability inválido"
 msgstr "invalid save_ability"
 
-#: lib/dragonex_web/live/game_live/settings.ex:250
+#: lib/dragonex_web/live/game_live/settings.ex:381
 #, elixir-autogen, elixir-format
 msgid "sin API key para este provider — escribe el slug abajo"
 msgstr "no API key for this provider — type the slug below"
@@ -2482,7 +2468,7 @@ msgstr "your email"
 msgid "una taberna, un calabozo, un bosque…"
 msgstr "a tavern, a dungeon, a forest…"
 
-#: lib/dragonex/accounts.ex:612
+#: lib/dragonex/accounts.ex:683
 #, elixir-autogen, elixir-format
 msgid "valor booleano inválido"
 msgstr "invalid boolean value"
@@ -2610,6 +2596,7 @@ msgstr "← hero sheet"
 msgid "← mis héroes"
 msgstr "← my heroes"
 
+#: lib/dragonex_web/live/account_live.ex:99
 #: lib/dragonex_web/live/custom_content_live.ex:361
 #: lib/dragonex_web/live/game_live/components.ex:920
 #: lib/dragonex_web/live/hero_live/index.ex:58
@@ -2668,22 +2655,23 @@ msgstr "✓ valid"
 msgid "🤖 %{actor} (auto)"
 msgstr "🤖 %{actor} (auto)"
 
-#: lib/dragonex/models.ex:242
+#: lib/dragonex/models.ex:408
+#: lib/dragonex_web/live/game_live/settings.ex:182
 #, elixir-autogen, elixir-format
 msgid "Elige un modelo antes de aplicar los ajustes."
 msgstr "Choose a model before applying the settings."
 
-#: lib/dragonex/models.ex:280
+#: lib/dragonex/models.ex:446
 #, elixir-autogen, elixir-format
 msgid "Elige un proveedor disponible."
 msgstr "Choose an available provider."
 
-#: lib/dragonex/models.ex:249
+#: lib/dragonex/models.ex:415
 #, elixir-autogen, elixir-format
 msgid "Esta mesa necesita un modelo que permita desactivar el razonamiento."
 msgstr "This table needs a model that allows reasoning to be turned off."
 
-#: lib/dragonex/models.ex:245
+#: lib/dragonex/models.ex:411
 #, elixir-autogen, elixir-format
 msgid "Este proveedor todavía no tiene una clave configurada."
 msgstr "This provider has no key configured yet."
@@ -2703,7 +2691,7 @@ msgstr "Limit reached: %{count} 1st-level spells for %{class}."
 msgid "Límite alcanzado: %{count} trucos para %{class}."
 msgstr "Limit reached: %{count} cantrips for %{class}."
 
-#: lib/dragonex/models.ex:272
+#: lib/dragonex/models.ex:438
 #, elixir-autogen, elixir-format
 msgid "No se pudo confirmar un perfil compatible. Elige otro modelo; tu partida conserva su IA actual."
 msgstr "Could not confirm a compatible profile. Choose another model; your game keeps its current AI."
@@ -2812,3 +2800,166 @@ msgstr "Narrator (AI)"
 #, elixir-autogen, elixir-format
 msgid "cerrar sesión"
 msgstr "log out"
+
+#: lib/dragonex_web/live/account_live.ex:152
+#, elixir-autogen, elixir-format
+msgid "Clave comprobada y guardada."
+msgstr "Key checked and saved."
+
+#: lib/dragonex_web/live/account_live.ex:133
+#, elixir-autogen, elixir-format
+msgid "Clave de %{provider}"
+msgstr "%{provider} key"
+
+#: lib/dragonex_web/live/account_live.ex:109
+#, elixir-autogen, elixir-format
+msgid "Claves de IA"
+msgstr "AI keys"
+
+#: lib/dragonex_web/live/game_live/settings.ex:413
+#, elixir-autogen, elixir-format
+msgid "Comprobando el modelo…"
+msgstr "Checking the model…"
+
+#: lib/dragonex_web/live/account_live.ex:138
+#, elixir-autogen, elixir-format
+msgid "Comprobando…"
+msgstr "Checking…"
+
+#: lib/dragonex_web/live/account_live.ex:122
+#, elixir-autogen, elixir-format
+msgid "Conseguir una clave"
+msgstr "Get a key"
+
+#: lib/dragonex_web/live/game_live/settings.ex:263
+#, elixir-autogen, elixir-format
+msgid "De la casa"
+msgstr "House"
+
+#: lib/dragonex/ai_providers.ex:126
+#, elixir-autogen, elixir-format
+msgid "El proveedor no acepta esta clave."
+msgstr "The provider does not accept this key."
+
+#: lib/dragonex/ai_providers.ex:129
+#, elixir-autogen, elixir-format
+msgid "El proveedor respondió con un error (%{status})."
+msgstr "The provider answered with an error (%{status})."
+
+#: lib/dragonex_web/live/game_live/settings.ex:189
+#, elixir-autogen, elixir-format
+msgid "Ese modelo no aparece en el catálogo de OpenRouter con herramientas y sin razonamiento obligatorio."
+msgstr "That model is not in the OpenRouter catalogue with tools and optional reasoning."
+
+#: lib/dragonex_web/live/account_live.ex:89
+#, elixir-autogen, elixir-format
+msgid "Eso no parece una clave: sin espacios, entre 8 y 512 caracteres."
+msgstr "That does not look like a key: no spaces, 8 to 512 characters."
+
+#: lib/dragonex/ai_providers.ex:136
+#: lib/dragonex_web/live/game_live/settings.ex:252
+#, elixir-autogen, elixir-format
+msgid "Este modelo no funciona con la mesa (herramientas o razonamiento). Elige otro."
+msgstr "This model does not work with the table (tools or reasoning). Pick another one."
+
+#: lib/dragonex_web/live/account_live.ex:121
+#, elixir-autogen, elixir-format
+msgid "Guardada · …%{hint}"
+msgstr "Saved · …%{hint}"
+
+#: lib/dragonex_web/live/account_live.ex:114
+#, elixir-autogen, elixir-format
+msgid "Guardamos las claves cifradas y nunca te las volvemos a mostrar: solo sus últimos caracteres."
+msgstr "We store keys encrypted and never show them to you again: only their last characters."
+
+#: lib/dragonex_web/live/account_live.ex:138
+#, elixir-autogen, elixir-format
+msgid "Guardar"
+msgstr "Save"
+
+#: lib/dragonex_web/live/game_live/settings.ex:361
+#, elixir-autogen, elixir-format
+msgid "La mesa usa %{model} con la clave de Dragonex, en el proveedor más barato."
+msgstr "The table uses %{model} with Dragonex's key, on the cheapest provider."
+
+#: lib/dragonex_web/live/game_live/settings.ex:363
+#, elixir-autogen, elixir-format
+msgid "La mesa usa el modelo por defecto del servidor."
+msgstr "The table uses the server's default model."
+
+#: lib/dragonex/ai_providers.ex:132
+#, elixir-autogen, elixir-format
+msgid "No se pudo contactar con el proveedor. Inténtalo de nuevo."
+msgstr "Could not reach the provider. Try again."
+
+#: lib/dragonex_web/live/account_live.ex:86
+#, elixir-autogen, elixir-format
+msgid "Pega la clave antes de guardarla."
+msgstr "Paste the key before saving it."
+
+#: lib/dragonex_web/live/account_live.ex:132
+#, elixir-autogen, elixir-format
+msgid "Pega otra clave para sustituirla"
+msgstr "Paste another key to replace it"
+
+#: lib/dragonex_web/live/account_live.ex:132
+#, elixir-autogen, elixir-format
+msgid "Pega tu clave"
+msgstr "Paste your key"
+
+#: lib/dragonex_web/live/account_live.ex:148
+#, elixir-autogen, elixir-format
+msgid "Quitar"
+msgstr "Remove"
+
+#: lib/dragonex_web/live/game_live/settings.ex:342
+#, elixir-autogen, elixir-format
+msgid "Quién paga la IA"
+msgstr "Who pays for the AI"
+
+#: lib/dragonex_web/live/game_live/settings.ex:408
+#, elixir-autogen, elixir-format
+msgid "Se cobra en tu cuenta de %{provider}. Al aplicar, Dragonex hace una petición mínima para comprobar que el modelo funciona con la mesa."
+msgstr "Billed to your %{provider} account. When you apply, Dragonex makes one tiny request to check the model works with the table."
+
+#: lib/dragonex_web/live/game_live/settings.ex:433
+#, elixir-autogen, elixir-format
+msgid "Servidor: %{provider}"
+msgstr "Server: %{provider}"
+
+#: lib/dragonex_web/live/account_live.ex:111
+#, elixir-autogen, elixir-format
+msgid "Sin claves, tus mesas usan el modelo de la casa. Con una clave tuya puedes elegir cualquier modelo de ese proveedor en los Ajustes de IA de tus partidas; lo pagas tú, directamente al proveedor."
+msgstr "Without keys, your tables use the house model. With a key of your own you can pick any model from that provider in your games' AI settings; you pay for it, directly to the provider."
+
+#: lib/dragonex_web/live/game_live/settings.ex:430
+#, elixir-autogen, elixir-format
+msgid "Tu %{provider} (…%{hint})"
+msgstr "Your %{provider} (…%{hint})"
+
+#: lib/dragonex_web/layouts/root.html.heex:194
+#: lib/dragonex_web/live/account_live.ex:103
+#: lib/dragonex_web/live/game_live/settings.ex:368
+#, elixir-autogen, elixir-format
+msgid "Tu cuenta"
+msgstr "Your account"
+
+#: lib/dragonex_web/live/game_live/settings.ex:248
+#, elixir-autogen, elixir-format
+msgid "Ya no tienes una clave guardada para este proveedor."
+msgstr "You no longer have a saved key for this provider."
+
+#: lib/dragonex_web/live/game_live/settings.ex:367
+#, elixir-autogen, elixir-format
+msgid "¿Quieres elegir otro modelo? Añade tu propia clave en"
+msgstr "Want another model? Add your own key in"
+
+#: lib/dragonex_web/live/account_live.ex:146
+#, elixir-autogen, elixir-format
+msgid "¿Quitar tu clave de %{provider}? Las mesas que la usan volverán al modelo de la casa."
+msgstr "Remove your %{provider} key? Tables using it will go back to the house model."
+
+#: lib/dragonex_web/live/game_live/settings.ex:401
+#, elixir-autogen, elixir-format
+msgid "o escribe el id de otro modelo"
+msgstr "or type another model id"

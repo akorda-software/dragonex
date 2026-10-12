@@ -84,6 +84,7 @@ defmodule Dragonex.Game do
             combat_handoffs: :initiative,
             pc_agents: %{},
             model: nil,
+            summarizer: nil,
             scene_model: nil,
             roller: nil,
             participants: %{},
@@ -168,6 +169,7 @@ defmodule Dragonex.Game do
   """
   @spec restart(term(), keyword()) :: {:ok, pid()} | {:error, term()}
   def restart(game_id, opts \\ []) do
+    {ai, opts} = Keyword.pop(opts, :ai)
     _ = Dragonex.Game.Supervisor.stop_game(game_id)
 
     # terminate_child is synchronous, but the Registry drops the key
@@ -177,10 +179,21 @@ defmodule Dragonex.Game do
     # until the key is gone, then start a brand new process.
     wait_until_gone(game_id)
 
+    # A new table AI (D242) is saved with no Game alive, so nothing else writes
+    # the row meanwhile; a failed start puts the previous choice back.
+    previous = if ai, do: Dragonex.Games.get_game(game_id).ai
+    if ai, do: :ok = Dragonex.Games.set_ai(game_id, ai)
+
     case Dragonex.Game.Supervisor.start_game(game_id, opts) do
-      {:ok, pid} -> {:ok, pid}
-      {:error, {:already_started, pid}} -> {:ok, pid}
-      other -> other
+      {:ok, pid} ->
+        {:ok, pid}
+
+      {:error, {:already_started, pid}} ->
+        {:ok, pid}
+
+      other ->
+        if ai, do: :ok = Dragonex.Games.set_ai(game_id, previous || %{})
+        other
     end
   end
 
@@ -500,7 +513,7 @@ defmodule Dragonex.Game do
             Bootstrap.start_pc_agent(
               state.game_id,
               state.model,
-              Dragonex.Models.summarizer(),
+              state.summarizer || Dragonex.Models.summarizer(),
               participant,
               character,
               "auto-#{participant}"

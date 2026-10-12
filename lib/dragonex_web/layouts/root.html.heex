@@ -191,7 +191,7 @@
         <.link navigate="/">{dgettext("ui", "Partidas")}</.link>
         <.link navigate="/heroes">{dgettext("ui", "Héroes")}</.link>
         <%= if @current_user do %>
-          <span class="user-tag"><i class="px px-shield" aria-hidden="true"></i>{@current_user.display_name}</span>
+          <.link navigate="/cuenta" class="user-tag" title={dgettext("ui", "Tu cuenta")}><i class="px px-shield" aria-hidden="true"></i><span class="user-name">{@current_user.display_name}</span></.link>
           <form id="logout-form" action="/logout" method="post">
             <input type="hidden" name="_method" value="delete" />
             <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />

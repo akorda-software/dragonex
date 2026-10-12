@@ -838,6 +838,16 @@ defmodule Dragonex.Games do
     {:ok, get_game(game_id)}
   end
 
+  @doc """
+  Set which AI plays the table (`Dragonex.GameAI`, D242). Only
+  `Dragonex.Game.restart/2` calls it, between stopping and starting the table.
+  """
+  @spec set_ai(term(), map()) :: :ok
+  def set_ai(game_id, ai) when is_map(ai) do
+    Repo.update_all(from(g in Game, where: g.id == ^game_id), set: [ai: ai])
+    :ok
+  end
+
   @doc "Set only the status (e.g. :waiting, :paused, :running)."
   @spec set_status(term(), atom()) :: {:ok, Game.t()} | {:error, term()}
   def set_status(game_id, status) do

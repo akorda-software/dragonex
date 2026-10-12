@@ -82,32 +82,53 @@ defmodule Dragonex.Models do
 
   def request_settings(_model, settings, _extra), do: settings
 
-  @doc "Construye un perfil Chat explícito desde metadatos públicos, sin IO."
-  def chat_model(provider, id, api_key, metadata, opts \\ []) do
+  @doc """
+  True when the catalogue confirms tools and a way to run without reasoning:
+  the only profiles exAgent 2.1 admits (`chat_model/5`).
+  """
+  def chat_compatible?(metadata) when is_map(metadata) do
+    "tools" in (metadata["supported_parameters"] || []) and reasoning_profile(metadata) != nil
+  end
+
+  def chat_compatible?(_), do: false
+
+  defp reasoning_profile(metadata) do
     parameters = metadata["supported_parameters"] || []
     reasoning = metadata["reasoning"]
+
+    cond do
+      is_map(reasoning) and reasoning["mandatory"] == false and
+          "reasoning_effort" in parameters ->
+        {%{
+           enabled: true,
+           effort: %{supported: true, values: ["none"]},
+           thinking: %{disable_supported: true}
+         }, :none}
+
+      is_nil(reasoning) and
+          not Enum.any?(parameters, &(&1 in ["reasoning", "reasoning_effort"])) ->
+        {%{enabled: false}, nil}
+
+      true ->
+        nil
+    end
+  end
+
+  @doc """
+  Construye un perfil Chat explícito desde metadatos públicos, sin IO.
+  `opts[:base_url]` apunta a otro endpoint compatible (claves de jugador, D242)
+  y `opts[:routing]` sustituye el routing de OpenRouter de `routing_for/1`.
+  """
+  def chat_model(provider, id, api_key, metadata, opts \\ []) do
+    parameters = metadata["supported_parameters"] || []
 
     unless "tools" in parameters,
       do: raise(ArgumentError, "El catálogo no confirma herramientas para #{id}.")
 
     {reasoning_caps, mode} =
-      cond do
-        is_map(reasoning) and reasoning["mandatory"] == false and
-            "reasoning_effort" in parameters ->
-          {%{
-             enabled: true,
-             effort: %{supported: true, values: ["none"]},
-             thinking: %{disable_supported: true}
-           }, :none}
-
-        is_nil(reasoning) and
-            not Enum.any?(parameters, &(&1 in ["reasoning", "reasoning_effort"])) ->
-          {%{enabled: false}, nil}
-
-        true ->
-          raise ArgumentError,
-                "El catálogo no confirma que se pueda desactivar el razonamiento de #{id}."
-      end
+      reasoning_profile(metadata) ||
+        raise ArgumentError,
+              "El catálogo no confirma que se pueda desactivar el razonamiento de #{id}."
 
     Models.ReqLLM.new(
       model: %{
@@ -117,13 +138,13 @@ defmodule Dragonex.Models do
         extra: %{wire: %{protocol: "openai_chat"}}
       },
       api_key: api_key,
-      base_url: base_url(provider),
+      base_url: Keyword.get_lazy(opts, :base_url, fn -> base_url(provider) end),
       tool_profile:
         if(provider == :openrouter, do: :openrouter_chat_tools_v1, else: :chat_tools_v1),
       provider_options:
         if(provider == :openrouter,
           do: [
-            openrouter_provider: routing_for(id),
+            openrouter_provider: Keyword.get_lazy(opts, :routing, fn -> routing_for(id) end),
             app_title: System.get_env("DRAGONEX_APP_TITLE", "dragonex")
           ],
           else: []
@@ -166,20 +187,14 @@ defmodule Dragonex.Models do
   end
 
   @doc """
-  The active provider.
-
-  Resolved as: runtime override (`Dragonex.ModelConfig`) → `DRAGONEX_PROVIDER`
-  env (default `openrouter`). Returns `:openrouter` or `:opencode`; an unknown
-  env value falls back to `:openrouter` (logged as a warning) so a typo never
-  silently breaks the app.
+  The server's default provider for new tables in dev (`:open` mode):
+  `DRAGONEX_PROVIDER` (default `openrouter`). Returns `:openrouter` or
+  `:opencode`; an unknown value falls back to `:openrouter` (logged as a
+  warning) so a typo never silently breaks the app. Each table keeps its own
+  choice in `games.ai` (D242).
   """
   @spec provider() :: :openrouter | :opencode
-  def provider do
-    case Dragonex.ModelConfig.get().provider do
-      p when p in [:openrouter, :opencode] -> p
-      nil -> env_provider()
-    end
-  end
+  def provider, do: env_provider()
 
   @doc "The provider resolved purely from `DRAGONEX_PROVIDER` (ignores override)."
   @spec env_provider() :: :openrouter | :opencode
@@ -197,19 +212,170 @@ defmodule Dragonex.Models do
     end
   end
 
-  @doc """
-  The effective DM model slug: runtime override → `DRAGONEX_MODEL` env → the
-  active provider's catalogue default.
-  """
+  @doc "The default DM model slug: `DRAGONEX_MODEL` → the provider's catalogue default."
   @spec model() :: String.t()
-  def model do
-    cfg = @providers[provider()]
+  def model, do: blank_to_nil(System.get_env("DRAGONEX_MODEL")) || @providers[provider()].dm
 
-    Dragonex.ModelConfig.get().model
-    |> blank_to_nil()
-    |> case do
-      nil -> System.get_env("DRAGONEX_MODEL") || cfg.dm
-      slug -> slug
+  # ---------------------------------------------------------------------------
+  # Server-paid tables (D242)
+  # ---------------------------------------------------------------------------
+
+  @house_model "deepseek/deepseek-v4.1-flash"
+
+  # Share of tokens per request in our tables: long prompts, mostly cached,
+  # short narration. Ranks providers by what a turn really costs, not by the
+  # prompt price alone (OpenRouter's `:floor` picked the priciest output).
+  @house_weights %{cached: 0.77, prompt: 0.19, completion: 0.04}
+  @house_fallback_order ["morph", "decart", "relace", "deepseek"]
+  @house_routing_ttl :timer.hours(6)
+
+  # Catalogue values for the house model, used when the catalogue is unreachable.
+  @house_metadata %{
+    "supported_parameters" => ["tools", "reasoning", "reasoning_effort"],
+    "reasoning" => %{"mandatory" => false}
+  }
+
+  @doc """
+  How tables paid with the server key choose their model:
+
+    * `:fixed` (production) — only `#{@house_model}`, on the cheapest
+      providers for our usage. Choosing a model needs the player's own key.
+    * `:open` (dev) — the creator picks any OpenRouter/OpenCode model with
+      the server keys, to try them out.
+
+  `DRAGONEX_SERVER_MODELS=open|fixed` overrides `config :dragonex, :server_models`.
+  """
+  @spec server_mode() :: :fixed | :open
+  def server_mode do
+    case System.get_env("DRAGONEX_SERVER_MODELS") do
+      "open" -> :open
+      "fixed" -> :fixed
+      _ -> Application.get_env(:dragonex, :server_models, :fixed)
+    end
+  end
+
+  @doc "The only model the server pays for in production."
+  def house_model_id, do: @house_model
+
+  @doc """
+  The house model for every role (DM, summarizer, TurnMaster), or `[]` without
+  a server key so the table falls back to the offline Test models.
+  """
+  @spec house_models() :: keyword()
+  def house_models do
+    case blank_to_nil(System.get_env("OPENROUTER_API_KEY")) do
+      nil ->
+        []
+
+      key ->
+        metadata =
+          try do
+            catalogue_metadata!(:openrouter, @house_model)
+          rescue
+            ArgumentError -> @house_metadata
+          end
+
+        model =
+          chat_model(:openrouter, @house_model, key, metadata, routing: house_routing())
+
+        [model: model, summarizer: model, turnmaster_model: model]
+    end
+  end
+
+  @doc """
+  OpenRouter routing for the house model: providers that run tools, cheapest
+  first for our token mix, refreshed every few hours. Falls back to a known
+  cheap order when OpenRouter cannot be reached.
+  """
+  def house_routing do
+    order =
+      case :persistent_term.get({__MODULE__, :house_routing}, nil) do
+        {at, order} when is_list(order) ->
+          if System.monotonic_time(:millisecond) - at < @house_routing_ttl,
+            do: order,
+            else: fetch_house_order()
+
+        _ ->
+          fetch_house_order()
+      end
+
+    %{order: order, allow_fallbacks: true, require_parameters: true}
+  end
+
+  defp fetch_house_order do
+    url = "#{base_url(:openrouter)}/models/#{@house_model}/endpoints"
+
+    order =
+      case Req.get(url, [receive_timeout: 5_000, retry: false] ++ ai_http()) do
+        {:ok, %{status: 200, body: %{"data" => %{"endpoints" => endpoints}}}} ->
+          rank_endpoints(endpoints)
+
+        _ ->
+          []
+      end
+
+    order = if order == [], do: @house_fallback_order, else: order
+
+    :persistent_term.put(
+      {__MODULE__, :house_routing},
+      {System.monotonic_time(:millisecond), order}
+    )
+
+    order
+  rescue
+    _ -> @house_fallback_order
+  end
+
+  @doc """
+  Provider slugs of OpenRouter endpoints that run tools, cheapest first for
+  `@house_weights` (a provider without cache pricing pays the prompt price
+  for cached tokens). At most 32, as OpenRouter routing allows.
+  """
+  @spec rank_endpoints([map()]) :: [String.t()]
+  def rank_endpoints(endpoints) when is_list(endpoints) do
+    endpoints
+    |> Enum.filter(&("tools" in (&1["supported_parameters"] || [])))
+    |> Enum.filter(&((&1["status"] || 0) >= 0))
+    |> Enum.flat_map(fn e ->
+      slug = e["tag"] || (e["provider_name"] && String.downcase(e["provider_name"]))
+
+      with true <- is_binary(slug) and Regex.match?(~r/\A[a-zA-Z0-9][a-zA-Z0-9_.\/-]*\z/, slug),
+           {:ok, prompt} <- price(e, "prompt"),
+           {:ok, completion} <- price(e, "completion") do
+        cached =
+          case price(e, "input_cache_read") do
+            {:ok, p} -> p
+            :error -> prompt
+          end
+
+        cost =
+          @house_weights.cached * cached + @house_weights.prompt * prompt +
+            @house_weights.completion * completion
+
+        [{cost, slug}]
+      else
+        _ -> []
+      end
+    end)
+    |> Enum.sort()
+    |> Enum.map(&elem(&1, 1))
+    |> Enum.uniq()
+    |> Enum.take(32)
+  end
+
+  defp price(endpoint, key) do
+    case (endpoint["pricing"] || %{})[key] do
+      value when is_binary(value) ->
+        case Float.parse(value) do
+          {p, _} when p >= 0 -> {:ok, p}
+          _ -> :error
+        end
+
+      value when is_number(value) and value >= 0 ->
+        {:ok, value * 1.0}
+
+      _ ->
+        :error
     end
   end
 
@@ -322,40 +488,11 @@ defmodule Dragonex.Models do
   # `prepare_selection/3` and `build/1` refuse any other effort.
 
   @doc """
-  Effective reasoning effort: runtime override (an effort string such as
-  `"high"` or `"minimal"`) → `:none`. `:none` sends no reasoning param, so the
-  model uses its default behaviour.
+  Reasoning effort for engine requests: always `:none`, the only mode exAgent
+  2.x admits for these tables (`chat_model/5`).
   """
-  @spec reasoning() :: :none | String.t()
-  def reasoning do
-    case Dragonex.ModelConfig.get().reasoning do
-      effort when is_binary(effort) and effort != "" -> effort
-      _ -> :none
-    end
-  end
-
-  @doc """
-  The `ModelSettings.extra` map that carries the reasoning effort to the active
-  provider, or `nil` when reasoning is `:none`.
-
-    * OpenRouter — `reasoning: %{"effort" => effort}` (Chat Completions form).
-    * OpenCode   — `reasoning_effort: effort` (OpenAI-compatible top-level).
-
-  Models that don't support reasoning ignore the param.
-  """
-  @spec reasoning_extra() :: map() | nil
-  def reasoning_extra do
-    case reasoning() do
-      :none ->
-        nil
-
-      effort ->
-        case provider() do
-          :openrouter -> %{"reasoning" => %{"effort" => effort}}
-          :opencode -> %{"reasoning_effort" => effort}
-        end
-    end
-  end
+  @spec reasoning() :: :none
+  def reasoning, do: :none
 
   # ---------------------------------------------------------------------------
   # OpenRouter upstream provider routing — OPENROUTER_PROVIDER_ORDER
@@ -408,19 +545,11 @@ defmodule Dragonex.Models do
   end
 
   @doc """
-  The full `ModelSettings.extra` map for engine requests (DM beats, PC bots,
-  TurnMaster): reasoning effort + OpenRouter provider routing merged. `nil`
-  when both are unset — nothing is sent and the gateway uses its defaults.
+  The `ModelSettings.extra` map for engine requests (DM beats, PC bots,
+  TurnMaster): OpenRouter provider routing, or `nil` to send nothing.
   """
   @spec request_extra() :: map() | nil
-  def request_extra do
-    case {reasoning_extra(), openrouter_provider_extra()} do
-      {nil, nil} -> nil
-      {nil, provider} -> provider
-      {reasoning, nil} -> reasoning
-      {reasoning, provider} -> Map.merge(reasoning, provider)
-    end
-  end
+  def request_extra, do: openrouter_provider_extra()
 
   # ---------------------------------------------------------------------------
   # UI helpers (provider catalogue + live model discovery)
@@ -506,10 +635,13 @@ defmodule Dragonex.Models do
       true ->
         url = String.trim_trailing(info.base_url, "/") <> "/models"
 
-        case Req.get(url,
-               headers: [{"authorization", "Bearer " <> info.api_key}],
-               receive_timeout: 20_000,
-               retry: false
+        case Req.get(
+               url,
+               [
+                 headers: [{"authorization", "Bearer " <> info.api_key}],
+                 receive_timeout: 20_000,
+                 retry: false
+               ] ++ ai_http()
              ) do
           {:ok, %{status: s, body: body}} when s in 200..299 ->
             raw = body["data"] || []
@@ -683,6 +815,10 @@ defmodule Dragonex.Models do
               "No hay un perfil confirmado para #{id} en el catálogo del proveedor."
     end
   end
+
+  # Extra Req options for provider calls (`config :dragonex, :ai_http`): tests
+  # plug a stub there so no request leaves the machine.
+  defp ai_http, do: Application.get_env(:dragonex, :ai_http, [])
 
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(value), do: value

@@ -2,16 +2,15 @@ defmodule Dragonex.ModelsProviderOrderTest do
   @moduledoc """
   OPENROUTER_PROVIDER_ORDER: el routing de upstream providers de OpenRouter.
 
-  Cobra el parseo CSV, el gate por provider activo, el merge con el extra de
-  reasoning y el cableado en los tres agentes del motor (DM ya lo recibía vía
+  Cobra el parseo CSV, el gate por provider activo y el cableado en los tres agentes del motor (DM ya lo recibía vía
   `bootstrap.ex`; PC bots y TurnMaster lo leen en `new`).
   """
 
   use ExUnit.Case, async: false
 
-  alias Dragonex.{ModelConfig, Models, PCAgent, TurnMaster}
+  alias Dragonex.{Models, PCAgent, TurnMaster}
 
-  # Env + ModelConfig son globales de nodo: snapshot/restore en cada test para
+  # El env es global de nodo: snapshot/restore en cada test para
   # que estos knobs no se filtren al resto de la suite (el .env.dev del
   # usuario puede traer DRAGONEX_PROVIDER=seteado).
   setup do
@@ -19,9 +18,6 @@ defmodule Dragonex.ModelsProviderOrderTest do
       "DRAGONEX_PROVIDER" => System.get_env("DRAGONEX_PROVIDER"),
       "OPENROUTER_PROVIDER_ORDER" => System.get_env("OPENROUTER_PROVIDER_ORDER")
     }
-
-    cfg = ModelConfig.get()
-    ModelConfig.clear()
 
     # Hermético: el suite puede arrancar con .env.dev ya cargado por
     # runtime.exs (test_helper lo neutraliza, pero este archivo no debe
@@ -35,8 +31,6 @@ defmodule Dragonex.ModelsProviderOrderTest do
         {k, nil} -> System.delete_env(k)
         {k, v} -> System.put_env(k, v)
       end)
-
-      restore_config(cfg)
     end)
 
     :ok
@@ -81,15 +75,6 @@ defmodule Dragonex.ModelsProviderOrderTest do
 
       assert Models.openrouter_provider_extra() == nil
     end
-
-    test "override runtime de provider a :openrouter gana sobre el env opencode" do
-      System.put_env("DRAGONEX_PROVIDER", "opencode")
-      System.put_env("OPENROUTER_PROVIDER_ORDER", "deepinfra,relace")
-      ModelConfig.set(provider: :openrouter)
-
-      assert Models.openrouter_provider_extra() ==
-               %{"provider" => %{"order" => ["deepinfra", "relace"], "allow_fallbacks" => true}}
-    end
   end
 
   describe "routing_for/1 con OPENROUTER_PROVIDER_ORDER" do
@@ -114,24 +99,6 @@ defmodule Dragonex.ModelsProviderOrderTest do
   end
 
   describe "request_extra/0" do
-    test "fusiona reasoning + provider order cuando ambos están activos" do
-      System.put_env("DRAGONEX_PROVIDER", "openrouter")
-      System.put_env("OPENROUTER_PROVIDER_ORDER", "deepinfra,relace")
-      ModelConfig.set(reasoning: "high")
-
-      assert Models.request_extra() == %{
-               "reasoning" => %{"effort" => "high"},
-               "provider" => %{"order" => ["deepinfra", "relace"], "allow_fallbacks" => true}
-             }
-    end
-
-    test "sólo reasoning → sólo su clave" do
-      System.put_env("DRAGONEX_PROVIDER", "openrouter")
-      ModelConfig.set(reasoning: "low")
-
-      assert Models.request_extra() == %{"reasoning" => %{"effort" => "low"}}
-    end
-
     test "sólo provider order → sólo su clave" do
       System.put_env("DRAGONEX_PROVIDER", "openrouter")
       System.put_env("OPENROUTER_PROVIDER_ORDER", "wafer")
@@ -181,15 +148,5 @@ defmodule Dragonex.ModelsProviderOrderTest do
 
       assert TurnMaster.new(%ExAgent.Models.Test{label: "tm"}).settings.extra == %{}
     end
-  end
-
-  defp restore_config(%ModelConfig{} = cfg) do
-    ModelConfig.clear()
-
-    fields =
-      [provider: cfg.provider, model: cfg.model, reasoning: cfg.reasoning]
-      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
-
-    if fields != [], do: ModelConfig.set(fields)
   end
 end
