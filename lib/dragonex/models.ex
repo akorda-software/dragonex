@@ -174,10 +174,15 @@ defmodule Dragonex.Models do
   def routing_for("xiaomi/mimo-v2.6-flash"),
     do: %{order: ["io-net"], only: ["io-net"], allow_fallbacks: false, require_parameters: true}
 
+  # ReqLLM valida `openrouter_provider` como mapa de claves atom; el fragmento
+  # de `openrouter_provider_extra/0` lleva claves string para el cuerpo JSON.
   def routing_for(_id) do
     case openrouter_provider_extra() do
-      %{"provider" => routing} -> routing
-      _ -> %{}
+      %{"provider" => %{"order" => order, "allow_fallbacks" => fallbacks}} ->
+        %{order: order, allow_fallbacks: fallbacks}
+
+      _ ->
+        %{}
     end
   end
 

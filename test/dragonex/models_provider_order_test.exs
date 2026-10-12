@@ -92,6 +92,27 @@ defmodule Dragonex.ModelsProviderOrderTest do
     end
   end
 
+  describe "routing_for/1 con OPENROUTER_PROVIDER_ORDER" do
+    # Regresión: ReqLLM rechaza `openrouter_provider` con claves string
+    # ("expected atom, got: \"allow_fallbacks\""), y cada beat real fallaba
+    # antes de salir hacia OpenRouter.
+    test "devuelve claves atom que el esquema de ReqLLM acepta" do
+      System.put_env("DRAGONEX_PROVIDER", "openrouter")
+      System.put_env("OPENROUTER_PROVIDER_ORDER", "makora,wafer/fast")
+
+      routing = Models.routing_for("deepseek/deepseek-v4-flash-0731")
+      assert routing == %{order: ["makora", "wafer/fast"], allow_fallbacks: true}
+
+      schema = ReqLLM.Providers.OpenRouter.provider_schema()
+      assert {:ok, _} = NimbleOptions.validate([openrouter_provider: routing], schema)
+    end
+
+    test "sin lista no fija routing" do
+      System.put_env("DRAGONEX_PROVIDER", "openrouter")
+      assert Models.routing_for("deepseek/deepseek-v4-flash-0731") == %{}
+    end
+  end
+
   describe "request_extra/0" do
     test "fusiona reasoning + provider order cuando ambos están activos" do
       System.put_env("DRAGONEX_PROVIDER", "openrouter")
