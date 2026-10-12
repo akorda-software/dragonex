@@ -677,17 +677,17 @@ msgstr ""
 msgid "Daño"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/components.ex:974
+#: lib/dragonex_web/live/game_live/components.ex:975
 #, elixir-autogen, elixir-format
 msgid "Declara tu intención (en pausa)…"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/components.ex:979
+#: lib/dragonex_web/live/game_live/components.ex:980
 #, elixir-autogen, elixir-format
 msgid "Declara tu intención (turno de %{actor})…"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/components.ex:983
+#: lib/dragonex_web/live/game_live/components.ex:984
 #: lib/dragonex_web/live/game_live/index.ex:232
 #, elixir-autogen, elixir-format
 msgid "Declara tu intención…"
@@ -918,7 +918,7 @@ msgstr ""
 msgid "Equipo que has creado en tu biblioteca. Toca para equipárselo (se añade al inicial)."
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/components.ex:994
+#: lib/dragonex_web/live/game_live/components.ex:995
 #, elixir-autogen, elixir-format
 msgid "Es tu turno — ¿qué hace %{name}?"
 msgstr ""
@@ -1239,7 +1239,7 @@ msgstr ""
 msgid "Héroes"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/components.ex:927
+#: lib/dragonex_web/live/game_live/components.ex:928
 #, elixir-autogen, elixir-format
 msgid "IA"
 msgstr ""
@@ -1314,7 +1314,7 @@ msgstr ""
 msgid "Juega solo o con amigos"
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/components.ex:928
+#: lib/dragonex_web/live/game_live/components.ex:929
 #, elixir-autogen, elixir-format
 msgid "Jugador"
 msgstr ""
@@ -1354,7 +1354,7 @@ msgstr ""
 msgid "La flecha se clava limpia en el lomo de la rata, que cae de costado entre la harina."
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/components.ex:975
+#: lib/dragonex_web/live/game_live/components.ex:976
 #, elixir-autogen, elixir-format
 msgid "La partida ha terminado"
 msgstr ""
@@ -2424,11 +2424,6 @@ msgstr ""
 msgid "qty debe ser un entero ≥ 1"
 msgstr ""
 
-#: lib/dragonex_web/layouts/root.html.heex:198
-#, elixir-autogen, elixir-format
-msgid "salir"
-msgstr ""
-
 #: lib/dragonex/accounts.ex:495
 #, elixir-autogen, elixir-format
 msgid "save_ability debe ser una de str/dex/con/int/wis/cha"
@@ -2558,7 +2553,7 @@ msgstr ""
 msgid "¿Borrar «%{title}»? No se puede deshacer."
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/components.ex:976
+#: lib/dragonex_web/live/game_live/components.ex:977
 #, elixir-autogen, elixir-format
 msgid "¿Qué haces?"
 msgstr ""
@@ -2733,7 +2728,7 @@ msgstr ""
 msgid "La partida está en pausa."
 msgstr ""
 
-#: lib/dragonex_web/live/game_live/components.ex:981
+#: lib/dragonex_web/live/game_live/components.ex:982
 #, elixir-autogen, elixir-format
 msgid "Declara tu intención (turno del DM)…"
 msgstr ""
@@ -2801,4 +2796,19 @@ msgstr ""
 #: lib/dragonex_web/live/game_live/components.ex:441
 #, elixir-autogen, elixir-format
 msgid "Tiempo transcurrido en la partida"
+msgstr ""
+
+#: lib/dragonex_web/live/game_live/components.ex:850
+#, elixir-autogen, elixir-format
+msgid "DM"
+msgstr ""
+
+#: lib/dragonex_web/live/game_live/components.ex:927
+#, elixir-autogen, elixir-format
+msgid "Narrador (IA)"
+msgstr ""
+
+#: lib/dragonex_web/layouts/root.html.heex:198
+#, elixir-autogen, elixir-format
+msgid "cerrar sesión"
 msgstr ""

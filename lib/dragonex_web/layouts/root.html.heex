@@ -186,7 +186,7 @@
   </head>
   <body>
     <nav class="topbar">
-      <.link href="/" class="brand"><i class="px px-torch" aria-hidden="true"></i><img src="/assets/wordmark.svg" alt="Dragonex" class="brand-mark" width="122" height="30" /></.link>
+      <.link href="/" class="brand" aria-label="Dragonex"><i class="px px-torch" aria-hidden="true"></i><img src="/assets/wordmark.svg" alt="Dragonex" class="brand-mark" width="122" height="30" /></.link>
       <div class={"nav-links#{if @current_user, do: "", else: " is-guest"}"}>
         <.link navigate="/">{dgettext("ui", "Partidas")}</.link>
         <.link navigate="/heroes">{dgettext("ui", "Héroes")}</.link>
@@ -195,7 +195,7 @@
           <form id="logout-form" action="/logout" method="post">
             <input type="hidden" name="_method" value="delete" />
             <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
-            <button type="submit">{dgettext("ui", "salir")}</button>
+            <button type="submit">{dgettext("ui", "cerrar sesión")}</button>
           </form>
         <% else %>
           <.link navigate="/login">{dgettext("ui", "Entrar")}</.link>

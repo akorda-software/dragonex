@@ -279,8 +279,18 @@ strong { font-weight: 700; }
 .copy-btn:active,
 .start-btn:active,
 .btn-random:active { transform: translateY(2px); }
+/* Flat and legible: a dimmed orange read as a broken button, not as "not yet". */
 .btn:disabled,
-.ctl-btn:disabled { opacity: 0.45; cursor: not-allowed; filter: none; transform: none; }
+.btn:disabled:hover,
+.ctl-btn:disabled,
+.ctl-btn:disabled:hover {
+  --bg: var(--stone);
+  --fg: var(--text-dim);
+  --ring: var(--stone-3);
+  cursor: not-allowed;
+  filter: none;
+  transform: none;
+}
 
 .btn-primary,
 .start-btn { --bg: var(--torch); --fg: #2a1004; }
@@ -1183,6 +1193,11 @@ a.quest-title:hover { color: var(--gold); }
   .inline { grid-template-columns: 1fr; }
   /* Invitado en móvil: solo Entrar / Registro (Héroes exige sesión). */
   nav.topbar .nav-links.is-guest > a:nth-child(-n + 2) { display: none; }
+}
+@media (max-width: 420px) {
+  /* The torch alone links home, so the links and the language switch fit. */
+  nav.topbar .brand-mark { display: none; }
+  nav.topbar button { white-space: nowrap; }
 }
 
 /* ------------------------------------------------------- reduced motion */

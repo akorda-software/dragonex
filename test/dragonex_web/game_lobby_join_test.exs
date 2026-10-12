@@ -46,6 +46,12 @@ defmodule DragonexWeb.GameLobbyJoinTest do
     user
   end
 
+  test "the AI DM appears as the narrator, not as a member called dm", ctx do
+    {:ok, view, _} = live(ctx.conn, "/games/#{ctx.game.id}")
+    assert has_element?(view, ".slot-card .shero", "Narrador (IA)")
+    refute has_element?(view, ".slot-card .sname", "dm")
+  end
+
   test "an unavailable hero shows an alert and choosing one's own hero clears the error", ctx do
     {:ok, view, _} = live(ctx.conn, "/games/#{ctx.game.id}")
     render_click(view, "join_with_hero", %{"hero_id" => ctx.foreign.id})

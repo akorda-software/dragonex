@@ -847,7 +847,7 @@ defmodule DragonexWeb.GameLive.Components do
                 <div class="avatar">
                   <i class={"px #{if p.kind == :ai, do: "px-orb", else: "px-shield"}"} aria-hidden="true"></i>
                 </div>
-                <div class="sname">{p.name}</div>
+                <div class="sname">{if p.side == "dm", do: dgettext("ui", "DM"), else: p.name}</div>
                 <div class="shero">{hero_role(p)}</div>
                 <div class="sbadge sbadge-ready">{if you, do: dgettext("ui", "TÚ ✓"), else: dgettext("ui", "Listo")}</div>
               </div>
@@ -924,6 +924,7 @@ defmodule DragonexWeb.GameLive.Components do
     """
   end
 
+  defp hero_role(%{side: "dm"}), do: dgettext("ui", "Narrador (IA)")
   defp hero_role(%{kind: :ai}), do: dgettext("ui", "IA")
   defp hero_role(%{kind: :human}), do: dgettext("ui", "Jugador")
 
