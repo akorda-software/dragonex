@@ -18,12 +18,13 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 - **Medición:** `bin/dev dragonex.metrics --last 10` (partidas guardadas) y
   `bin/dev dragonex.playtest` (mesa real sin interfaz, gasta tokens) (D238).
 
-| Medida (proveedor real) | Mesas del 4-oct (7) | Playtest 19455 (12-oct) |
-|---|---|---|
-| Fallos por turno IA | 9,1 % | 0 % (2 reintentos TM recuperados) |
-| Ida y vuelta humana p50 / p90 | 22 s / 42 s | 12 s / 52 s |
-| Turno DM p50 | 13 s | 8 s |
-| Turno PC IA p50 | 7 s | 3 s |
+| Medida (proveedor real) | Mesas del 4-oct (7) | Playtest 19455 (12-oct) | Tanda D239 19462–64 (12-oct) |
+|---|---|---|---|
+| Fallos por turno IA | 9,1 % | 0 % (2 reintentos TM recuperados) | 1,9 % (1 `narrate` vacío, reanudado) |
+| Ida y vuelta humana p50 / p90 | 22 s / 42 s | 12 s / 52 s | 10 s / 22 s |
+| Turno DM p50 | 13 s | 8 s | 7 s |
+| Turno PC IA p50 | 7 s | 3 s | 3 s |
+| Recogidas/entregas con stock al día | — | — | 4/5; la 5.ª era un plan y no cambiaba nada |
 
 ## ✅ Funciona
 
@@ -54,14 +55,13 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 
 1. **Desplegar prod con D237** (exAgent 2.1 / dic_ex 0.3). Necesita
    confirmación del usuario.
-2. **Inventario de objetos de misión:** en 19457 el libro quedó ×2 tras
-   entregarlo (doble `grant_item`, ningún `remove_item`). D239 exige un
-   comprobante de inventario antes de publicar el cierre del DM cuando el
-   jugador declara recoger o entregar; falta medirlo en vivo
-   (`dragonex.playtest` informa «recogidas/entregas sin cambio»). El duplicado
-   de `grant_item` no lo impide el motor.
+2. **Inventario de objetos de misión:** D239 exige comprobante de inventario
+   antes de publicar el cierre del DM; en la tanda 19462–64 las 4 recogidas o
+   entregas reales cambiaron el stock. Queda abierto: el motor no impide un
+   `grant_item` duplicado (19457 acabó con el libro ×2).
 3. **Fiabilidad del proveedor:** argumentos de tool inválidos (DM y TM),
-   retención de 4 KiB (19447) y caídas. Medir con `dragonex.playtest --games N`
+   retención de 4 KiB (19447), `narrate` vacío hasta agotar reintentos
+   (19463) y caídas. Medir con `dragonex.playtest --games N`
    antes de corregir.
 4. **Narración en vivo (R16, D234):** decidir el proveedor por defecto; Decart
    entrega los argumentos de golpe y fireworks sí los trocea.
