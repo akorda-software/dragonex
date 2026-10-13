@@ -358,7 +358,7 @@ defmodule DragonexWeb.GameLive.Settings do
         <div :if={@current && @current.kind == :house} class="settings-section">
           <div class="settings-msg">
             <%= if @fixed? do %>
-              {dgettext("ui", "La mesa usa %{model} con la clave de Dragonex, en el proveedor más barato.", model: @house_model)}
+              {dgettext("ui", "La mesa usa %{model} con la clave de Dragonex.", model: @house_model)}
             <% else %>
               {dgettext("ui", "La mesa usa el modelo por defecto del servidor.")}
             <% end %>

@@ -86,8 +86,8 @@ deterministas.
 - `DRAGONEX_SERVER_MODELS` = `fixed` (default; producción) | `open` (dev y
   test vía `config :dragonex, :server_models`).
 - **Casa** en `fixed`: `deepseek/deepseek-v4.1-flash` en los tres roles con
-  `OPENROUTER_API_KEY`, routing por coste ponderado
-  (`Models.house_routing/0`, cache 6 h). En `open`, los defaults de env.
+  `OPENROUTER_API_KEY`, Decart primero y el resto por coste ponderado como
+  respaldo (`Models.house_routing/0`, cache 6 h; D243). En `open`, los defaults de env.
 - **Clave propia** (`Dragonex.AIProviders`): el jugador la guarda en
   `/cuenta`, cifrada con una clave derivada de `SECRET_KEY_BASE`
   (`Accounts.KeyVault`). En el modal Ajustes elige proveedor y modelo; al

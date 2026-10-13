@@ -226,7 +226,12 @@ defmodule Dragonex.Models do
   # short narration. Ranks providers by what a turn really costs, not by the
   # prompt price alone (OpenRouter's `:floor` picked the priciest output).
   @house_weights %{cached: 0.77, prompt: 0.19, completion: 0.04}
-  @house_fallback_order ["morph", "decart", "relace", "deepseek"]
+
+  # Decart goes first (D243): ~13 % dearer than the cheapest endpoint for our
+  # mix, but the cheapest tripled the DM turn (21 s vs 7 s). The rest, ranked
+  # by cost, are only fallbacks.
+  @house_provider "decart"
+  @house_fallback_order ["decart", "morph", "relace", "deepseek"]
   @house_routing_ttl :timer.hours(6)
 
   # Catalogue values for the house model, used when the catalogue is unreachable.
@@ -283,9 +288,9 @@ defmodule Dragonex.Models do
   end
 
   @doc """
-  OpenRouter routing for the house model: providers that run tools, cheapest
-  first for our token mix, refreshed every few hours. Falls back to a known
-  cheap order when OpenRouter cannot be reached.
+  OpenRouter routing for the house model: Decart first, then the providers
+  that run tools, cheapest first for our token mix, refreshed every few hours.
+  Falls back to a known order when OpenRouter cannot be reached.
   """
   def house_routing do
     order =
@@ -308,13 +313,14 @@ defmodule Dragonex.Models do
     order =
       case Req.get(url, [receive_timeout: 5_000, retry: false] ++ ai_http()) do
         {:ok, %{status: 200, body: %{"data" => %{"endpoints" => endpoints}}}} ->
-          rank_endpoints(endpoints)
+          case rank_endpoints(endpoints) do
+            [] -> @house_fallback_order
+            ranked -> house_first(ranked)
+          end
 
         _ ->
-          []
+          @house_fallback_order
       end
-
-    order = if order == [], do: @house_fallback_order, else: order
 
     :persistent_term.put(
       {__MODULE__, :house_routing},
@@ -324,6 +330,16 @@ defmodule Dragonex.Models do
     order
   rescue
     _ -> @house_fallback_order
+  end
+
+  defp house_first(ranked) do
+    rest =
+      Enum.reject(
+        ranked,
+        &(&1 == @house_provider or String.starts_with?(&1, @house_provider <> "/"))
+      )
+
+    Enum.take([@house_provider | rest], 32)
   end
 
   @doc """

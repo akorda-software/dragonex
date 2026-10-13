@@ -7942,7 +7942,7 @@ paga él. Sin topes por partida ni por usuario.
   endpoints con tools y activos, ordenados por coste ponderado según nuestro
   consumo real (77 % prompt cacheado, 19 % prompt, 4 % salida), con
   `allow_fallbacks` y `require_parameters`; se cachea 6 h y, si OpenRouter no
-  responde, usa un orden conocido (morph, decart, relace, deepseek). El sufijo
+  responde, usa un orden conocido. D243 pone Decart primero. El sufijo
   `:floor` se descartó: ordena por precio de entrada y elegía el endpoint con
   la salida más cara.
 - **Claves del jugador** en «Tu cuenta» (`/cuenta`, enlazada desde su nombre en
@@ -7979,6 +7979,27 @@ de modelos de OpenAI y Google es por nombre; uno nuevo con otro prefijo no
 aparece en la lista, pero se puede escribir su slug. El coste ponderado
 supone nuestra mezcla de tokens actual. En los proveedores compatibles no se
 aplica caché explícita de prompt.
+
+## D243 — La casa sirve DeepSeek por Decart
+
+**Estado:** Aceptada. **Fecha:** 2026-10-13. Ajusta el routing de D242.
+
+**Contexto:** con el routing de D242 (el más barato para nuestra mezcla de
+tokens primero), la sesión larga 19465 salió estable (40 declaraciones, 0
+fallos) pero lenta: turno DM p50 21 s frente a 7 s con Decart (tanda D239), e
+ida y vuelta humana p50 32 s frente a 10 s. Encabezaba sail-research, nunca
+medido. Una petición corta idéntica tardó 12,7 s en sail-research y 8,8 s en
+Decart. El coste ponderado es 0,0337 $/M frente a 0,0382 $/M: Decart cuesta
+un 13 % más, menos de un céntimo por sesión de 40 turnos.
+
+**Decisión:** el modelo de la casa va primero por `decart`. Detrás, como
+respaldo (`allow_fallbacks`), el resto de endpoints con tools ordenados por
+coste. Sin respuesta de OpenRouter: decart, morph, relace, deepseek. El
+usuario eligió Decart frente a morph, que fue más rápido en una sola muestra
+pero nunca se ha medido en partida.
+
+**Límites:** si Decart cae, el respaldo vuelve a ser el más barato y puede
+ser lento. Cambiar de proveedor exige desplegar (constante en `Models`).
 
 ## Pendientes de decisión (abiertas)
 

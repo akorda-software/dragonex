@@ -11,7 +11,7 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 
 ## Último estado — 2026-10-12
 
-- **Gates:** 3105 passed / 3 excluded en ambos grafos (local y Hex),
+- **Gates:** 3107 passed / 3 excluded en ambos grafos (local y Hex),
   `--warnings-as-errors` limpio, formato limpio.
 - **Dependencias:** dev usa `../exAgent` 2.1 y `../dic_ex` 0.3; prod, las
   mismas versiones de Hex (D237). **Sin desplegar** desde ese cambio.
@@ -47,8 +47,8 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
   XP 5e D43), contenido custom por usuario.
 - **Web:** mesa responsive 375–1440, dados 2D/3D, multijugador con sala de
   espera, home con crónica viva (D233).
-- **Quién paga la IA (D242):** la casa solo paga DeepSeek v4.1 Flash en el
-  proveedor más barato para nuestro consumo. Con su propia clave (OpenRouter,
+- **Quién paga la IA (D242):** la casa solo paga DeepSeek v4.1 Flash, servido
+  por Decart (D243; el más barato triplicaba la latencia). Con su propia clave (OpenRouter,
   OpenCode Go, OpenAI, Google, Anthropic; guardada cifrada en «Tu cuenta»),
   cada jugador elige cualquier modelo compatible en Ajustes de IA. La
   elección se guarda por partida y sobrevive a reinicios.

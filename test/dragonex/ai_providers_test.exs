@@ -102,7 +102,7 @@ defmodule Dragonex.AIProvidersTest do
       assert Models.rank_endpoints(endpoints) == ["mid", "cached", "cheap-prompt"]
     end
 
-    test "production plays every role with the house model on the ranked routing" do
+    test "production plays every role with the house model, Decart first" do
       System.put_env("OPENROUTER_API_KEY", "server-key")
       System.put_env("DRAGONEX_SERVER_MODELS", "fixed")
       :persistent_term.erase(@routing_key)
@@ -114,7 +114,7 @@ defmodule Dragonex.AIProvidersTest do
       assert models[:model].model.id == "deepseek/deepseek-v4.1-flash"
 
       assert models[:model].provider_options[:openrouter_provider] == %{
-               order: ["morph", "decart"],
+               order: ["decart", "morph"],
                allow_fallbacks: true,
                require_parameters: true
              }
@@ -123,6 +123,27 @@ defmodule Dragonex.AIProvidersTest do
       flush_requests()
       Models.house_routing()
       refute_received {:request, _, "/api/v1/models/deepseek/deepseek-v4.1-flash/endpoints", _}
+    end
+
+    test "Decart leads even when a tagged endpoint of another provider is cheaper" do
+      endpoints = [
+        endpoint("sail-research/fp4", "0.09", "0.30", "0.006"),
+        endpoint("decart/fp4", "0.09", "0.18", "0.018"),
+        endpoint("morph/fp8", "0.042", "0.60", "0.009")
+      ]
+
+      Application.put_env(:dragonex, :ai_http,
+        plug: &Req.Test.json(&1, %{"data" => %{"endpoints" => endpoints}})
+      )
+
+      :persistent_term.erase(@routing_key)
+      assert Models.house_routing().order == ["decart", "sail-research/fp4", "morph/fp8"]
+    end
+
+    test "with OpenRouter unreachable the house keeps a known order, Decart first" do
+      Application.put_env(:dragonex, :ai_http, plug: &Plug.Conn.send_resp(&1, 503, ""))
+      :persistent_term.erase(@routing_key)
+      assert ["decart" | _] = Models.house_routing().order
     end
 
     test "without a server key the house falls back to the offline models" do
