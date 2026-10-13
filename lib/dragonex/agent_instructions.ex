@@ -115,14 +115,15 @@ defmodule Dragonex.AgentInstructions do
     case SharedState.read(shared) do
       %Dragonex.World{} = world ->
         ending =
-          if Dragonex.World.combat_over?(world),
-            do:
-              dgettext(
-                "prompts",
-                "No hay enemigos presentes con PG positivos. No son objetivos de otro ataque; " <>
-                  "el cierre del combate corresponde al motor."
-              ) <> "\n",
-            else: ""
+          if Dragonex.World.combat_over?(world) and
+               not Dragonex.World.has_living_enemies?(world),
+             do:
+               dgettext(
+                 "prompts",
+                 "No hay enemigos presentes con PG positivos. No son objetivos de otro ataque; " <>
+                   "el cierre del combate corresponde al motor."
+               ) <> "\n",
+             else: ""
 
         content =
           world_prefix() <>

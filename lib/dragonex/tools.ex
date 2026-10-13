@@ -335,6 +335,7 @@ defmodule Dragonex.Tools do
   """
   deftool leave_scene(ctx, who :: String.t(), reason :: String.t()) do
     with :ok <- assert_scene_presence(ctx),
+         :proceed <- already_absent(ctx, who),
          {:ok, _} <- propose(ctx, Dragonex.World.leave_scene(who, reason)) do
       {:ok,
        dgettext(
@@ -348,9 +349,42 @@ defmodule Dragonex.Tools do
   @doc "DM only: bring an absent creature back with its stored HP/resources. Combat reinforcements join at the end; never spawn a fresh copy of the same name."
   deftool return_to_scene(ctx, who :: String.t()) do
     with :ok <- assert_scene_presence(ctx),
+         :proceed <- already_present(ctx, who),
          {:ok, _} <- propose(ctx, Dragonex.World.return_to_scene(who)) do
       {:ok, dgettext("engine", "%{who} vuelve a la escena con su ficha conservada.", who: who)}
     end
+  end
+
+  # The scene already is what the DM asks for: say so instead of rejecting.
+  # A rejection here only made the DM retry until the beat failed (game 19466).
+  defp already_absent(ctx, who) do
+    world = world(ctx)
+
+    case is_binary(who) && Dragonex.World.character(world, who) do
+      %Dragonex.Character{side: side} when side != "pc" ->
+        if Dragonex.World.present?(world, who),
+          do: :proceed,
+          else:
+            {:ok,
+             dgettext(
+               "engine",
+               "%{who} ya estaba fuera de escena; no hace falta registrarlo otra vez.",
+               who: who
+             )}
+
+      _ ->
+        :proceed
+    end
+  end
+
+  defp already_present(ctx, who) do
+    world = world(ctx)
+
+    if is_binary(who) and Dragonex.World.character(world, who) != nil and
+         Dragonex.World.present?(world, who),
+       do:
+         {:ok, dgettext("engine", "%{who} ya está en escena; no hace falta traerlo.", who: who)},
+       else: :proceed
   end
 
   defp assert_scene_presence(ctx) do
@@ -861,9 +895,11 @@ defmodule Dragonex.Tools do
           end
         else
           {:ok,
-           dgettext("engine", "Tipo de monstruo desconocido '%{kind}'. Disponibles: %{kinds}",
+           dgettext(
+             "engine",
+             "Tipo de monstruo desconocido '%{kind}'. Disponibles, de menor a mayor desafío: %{kinds}. Si ninguno encaja, usa el de CR más parecido a la criatura que pide la historia, nunca uno más fuerte.",
              kind: kind,
-             kinds: Enum.join(Dragonex.Monsters.keys(), ", ")
+             kinds: Dragonex.Monsters.catalogue_by_cr()
            )}
         end
     end

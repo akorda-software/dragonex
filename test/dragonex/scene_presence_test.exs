@@ -253,6 +253,43 @@ defmodule Dragonex.ScenePresenceTest do
     assert {:ok, _} = Dragonex.TurnMaster.Tools.give_turn_to(ctx, "g2")
   end
 
+  # Game 19466: rejecting an already-satisfied request made the DM retry
+  # until the beat failed and the table paused.
+  test "asking for the scene it already has is answered, not rejected" do
+    session =
+      Dragonex.Test.Harness.start_session(
+        world: leave(world()),
+        policy: {Dragonex.TurnPolicy.WorldDriven, dm: "dm"},
+        participants: Enum.map(["dm", "Thane", "Lyra"], &Dragonex.Test.Harness.p/1)
+      )
+
+    {:ok, _} = ExAgent.Session.start(session)
+    ctx = %{deps: %{state: ExAgent.Session.SharedState.new(session, "dm")}}
+    before = ExAgent.Session.read_state(session)
+
+    assert {:ok, msg} = Dragonex.Tools.leave_scene(ctx, "g1", "Se va otra vez")
+    assert msg =~ "ya estaba fuera de escena"
+    assert {:ok, msg} = Dragonex.Tools.return_to_scene(ctx, "g2")
+    assert msg =~ "ya está en escena"
+    assert ExAgent.Session.read_state(session) == before
+
+    # Unknown names and PCs still get the engine's rejection.
+    assert {:error, _} = Dragonex.Tools.leave_scene(ctx, "fantasma", "Se va")
+    assert {:error, _} = Dragonex.Tools.leave_scene(ctx, "Thane", "Se va")
+  end
+
+  test "a TM pick the engine refuses lists who can take the turn" do
+    world = world()
+    {:ok, world} = World.begin_combat(["Thane", "g1", "g2", "Lyra"]).(world)
+    lyra = %{world.characters["Lyra"] | hp: 0, death_saves: %{successes: 0, fails: 3}}
+    world = %{world | characters: Map.put(world.characters, "Lyra", lyra)}
+    ctx = %{deps: %{world: world, participants: ["dm", "Thane", "Lyra"]}}
+
+    assert {:error, message} = Dragonex.TurnMaster.Tools.give_turn_to(ctx, "Lyra")
+    assert message =~ "está muerto"
+    assert message =~ "Pueden recibir el turno: dm, Thane."
+  end
+
   test "scene presence tools are advertised only to the DM and guard forged PC calls" do
     dm_names = Enum.map(Dragonex.DM.tools(), & &1.name)
     pc_names = Enum.map(Dragonex.PCAgent.tools(), & &1.name)

@@ -8001,6 +8001,41 @@ pero nunca se ha medido en partida.
 **Límites:** si Decart cae, el respaldo vuelve a ser el más barato y puede
 ser lento. Cambiar de proveedor exige desplegar (constante en `Models`).
 
+## D244 — Un grupo caído sigue en combate; bestiario con CR
+
+**Estado:** Aceptada. **Fecha:** 2026-10-13.
+
+**Contexto:** en la partida 19466 (playtest D243) el escenario pedía dos ratas
+gigantes, que no existían en el bestiario. El DM usó la araña gigante (CR 1,
+26 PG, veneno) y el grupo de nivel 1 murió. Con todos los PJ a 0 PG,
+`World.combat_over?/1` cerraba el combate aunque las arañas siguieran en pie.
+El DM lo reabría en cada beat (60 turnos de DM para 10 declaraciones) y acabó
+intentando mover dos arañas en el mismo turno hasta agotar los reintentos.
+Otro beat falló porque el DM sacaba de escena a una araña que ya había salido.
+
+**Decisión:**
+- `combat_over?/1` cuenta como «en el combate» a quien tiene PG > 0 y a un PJ
+  moribundo (0 PG, ni muerto ni estable). El combate sigue mientras el grupo
+  pelea por su vida (salvaciones de muerte, enemigos que pueden rematar). El
+  aviso al DM de «no hay enemigos en pie» solo aparece si es verdad.
+- Bestiario: `giant_rat` (SRD, CR 1/8) y CR de cada tipo (`Monsters.cr/1`).
+  Pedir un tipo desconocido devuelve el catálogo de menor a mayor desafío y
+  pide el de CR más parecido, nunca uno más fuerte. Se corrige el CR de
+  kobold y bandido en la documentación (1/8).
+- `leave_scene` y `return_to_scene` responden `{:ok, …}` cuando la escena ya
+  es la pedida, sin tocar el mundo.
+- El TurnMaster, al ver rechazada su elección, recibe la lista de quién puede
+  recibir el turno.
+
+**Verificación:** tests de `combat_over?` (grupo moribundo, estable, muerto,
+enemigo caído), bestiario (rata SRD, CR completo y ordenado, mensaje de tipo
+desconocido), herramientas de escena idempotentes y pista del TurnMaster.
+
+**Límites:** no hay final de partida si muere todo el grupo; la partida
+sigue en exploración. Un PJ a 0 PG en exploración puede declarar acciones y
+el DM puede narrarlas. El DM aún puede insistir en mover a otro combatiente
+fuera de turno; el arreglo del combate quita la causa vista, no el patrón.
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,

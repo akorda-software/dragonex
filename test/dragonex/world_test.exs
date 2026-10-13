@@ -473,6 +473,37 @@ defmodule Dragonex.WorldTest do
     test "false outside combat" do
       refute World.combat_over?(World.new())
     end
+
+    # Game 19466: the whole party at 0 hp closed combat with the enemies
+    # standing, and the DM reopened it every beat.
+    test "a dying party keeps fighting until it is dead or stable" do
+      w =
+        World.new()
+        |> apply!(World.add_character(pc("rogue")))
+        |> apply!(World.add_character(goblin(7)))
+        |> apply!(World.begin_combat(["rogue", "goblin"]))
+        |> apply!(World.apply_damage("rogue", 12))
+
+      assert w.characters["rogue"].hp == 0
+      refute World.combat_over?(w)
+
+      stable = apply!(w, World.stabilize("rogue"))
+      assert World.combat_over?(stable)
+
+      dead = put_in(w.characters["rogue"].death_saves, %{successes: 0, fails: 3})
+      assert World.combat_over?(dead)
+    end
+
+    test "a downed enemy does not keep its side in the fight" do
+      w =
+        World.new()
+        |> apply!(World.add_character(pc("rogue")))
+        |> apply!(World.add_character(goblin(7)))
+        |> apply!(World.begin_combat(["rogue", "goblin"]))
+        |> apply!(World.apply_damage("goblin", 7))
+
+      assert World.combat_over?(w)
+    end
   end
 
   describe "apply_death_save/2" do

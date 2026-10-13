@@ -10,7 +10,8 @@ defmodule Dragonex.Monsters do
 
   Each monster is CR-rated so the DM can gauge encounter difficulty:
     * CR 0:   cat
-    * CR 1/4: goblin, kobold, bandit, skeleton, wolf
+    * CR 1/8: giant rat, kobold, bandit
+    * CR 1/4: goblin, skeleton, wolf
     * CR 1/2: orc, hobgoblin, black bear
     * CR 1:   giant spider (D75 — the engine's only poison source)
     * CR 3:   ogre (RAW: CR 3, PG 59, garrote 2d8+4)
@@ -35,6 +36,7 @@ defmodule Dragonex.Monsters do
       "skeleton" => &skeleton/1,
       "wolf" => &wolf/1,
       "cat" => &cat/1,
+      "giant_rat" => &giant_rat/1,
       "black_bear" => &black_bear/1,
       "orc" => &orc/1,
       "hobgoblin" => &hobgoblin/1,
@@ -56,6 +58,44 @@ defmodule Dragonex.Monsters do
   @doc "All monster keys."
   @spec keys() :: [String.t()]
   def keys, do: Map.keys(catalog()) |> Enum.sort()
+
+  @cr %{
+    "training_dummy" => "0",
+    "archery_target" => "0",
+    "cat" => "0",
+    "giant_rat" => "1/8",
+    "goblin" => "1/4",
+    "kobold" => "1/8",
+    "bandit" => "1/8",
+    "skeleton" => "1/4",
+    "wolf" => "1/4",
+    "black_bear" => "1/2",
+    "orc" => "1/2",
+    "hobgoblin" => "1/2",
+    "giant_spider" => "1",
+    "ogre" => "3"
+  }
+
+  @doc "Challenge rating of a monster key, as printed in the SRD (`\"1/4\"`)."
+  @spec cr(String.t()) :: String.t() | nil
+  def cr(key), do: Map.get(@cr, key)
+
+  @doc """
+  The catalogue for the DM, weakest first: `"cat (CR 0), giant_rat (CR 1/8), …"`.
+  Shown when it asks for a kind that does not exist, so it substitutes a
+  creature of similar strength instead of the first plausible name (a giant
+  rat played as a CR 1 giant spider wiped a level-1 party).
+  """
+  @spec catalogue_by_cr() :: String.t()
+  def catalogue_by_cr do
+    keys()
+    |> Enum.sort_by(&{cr_value(cr(&1)), &1})
+    |> Enum.map_join(", ", &"#{&1} (CR #{cr(&1)})")
+  end
+
+  defp cr_value(nil), do: 99.0
+  defp cr_value("1/" <> d), do: 1 / String.to_integer(d)
+  defp cr_value(n), do: String.to_integer(n) * 1.0
 
   # ----------------------------------------------------------------- CR 1/4
 
@@ -164,6 +204,25 @@ defmodule Dragonex.Monsters do
       wis: 12,
       cha: 7,
       weapons: [cat_bite()],
+      inventory: [],
+      saves: []
+    )
+  end
+
+  @doc """
+  Giant rat (CR 1/8, SRD): AC 12, 7 PG, bite +4 for 1d4+2 piercing (DEX +2
+  on top of the bare `1d4`). Pack Tactics is not modelled (no positioning).
+  """
+  @spec giant_rat(opts()) :: Character.t()
+  def giant_rat(opts \\ []) do
+    base(opts, "beast", "giant rat", "A dog-sized rat with yellowed teeth.", 7, 12, 30,
+      str: 7,
+      dex: 15,
+      con: 11,
+      int: 2,
+      wis: 10,
+      cha: 4,
+      weapons: [rat_bite()],
       inventory: [],
       saves: []
     )
@@ -383,6 +442,16 @@ defmodule Dragonex.Monsters do
       dice: "1d4",
       damage_type: "piercing",
       attack_ability: :str,
+      finesse: true
+    }
+
+  # Giant rat bite RAW: 1d4+2 (DEX 15 → +2 sobre los "1d4" pelados).
+  defp rat_bite,
+    do: %Weapon{
+      name: "bite",
+      dice: "1d4",
+      damage_type: "piercing",
+      attack_ability: :dex,
       finesse: true
     }
 

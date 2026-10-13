@@ -11,7 +11,7 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 
 ## Último estado — 2026-10-12
 
-- **Gates:** 3107 passed / 3 excluded en ambos grafos (local y Hex),
+- **Gates:** 3114 passed / 3 excluded en ambos grafos (local y Hex),
   `--warnings-as-errors` limpio, formato limpio.
 - **Dependencias:** dev usa `../exAgent` 2.1 y `../dic_ex` 0.3; prod, las
   mismas versiones de Hex (D237). **Sin desplegar** desde ese cambio.

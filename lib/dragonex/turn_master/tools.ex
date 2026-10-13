@@ -106,7 +106,8 @@ defmodule Dragonex.TurnMaster.Tools do
         {:error, dgettext("engine", "participante vacío")}
 
       canonical != nil ->
-        check_vitality(world, canonical)
+        with {:error, reason} <- check_vitality(world, canonical),
+             do: {:error, reason <> options_hint(ctx, world)}
 
       roster != [] ->
         {:error, dgettext("engine", "%{name} no es un participante de esta partida", name: name)}
@@ -118,6 +119,20 @@ defmodule Dragonex.TurnMaster.Tools do
 
   defp resolve_target(_ctx, name),
     do: {:error, dgettext("engine", "%{name} no es un participante válido", name: inspect(name))}
+
+  # Who can take the turn instead, so a rejected choice does not repeat.
+  defp options_hint(ctx, world) do
+    case (participants(ctx) ++ ["dm"])
+         |> Enum.uniq()
+         |> Enum.filter(&match?({:ok, _}, check_vitality(world, &1))) do
+      [] ->
+        ""
+
+      names ->
+        " " <>
+          dgettext("engine", "Pueden recibir el turno: %{names}.", names: Enum.join(names, ", "))
+    end
+  end
 
   defp check_vitality(world, name) do
     cond do

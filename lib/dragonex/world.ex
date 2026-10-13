@@ -231,18 +231,31 @@ defmodule Dragonex.World do
     end
   end
 
-  @doc "Combat is over once at most one side still has conscious (hp > 0) fighters."
+  @doc """
+  Combat is over once at most one side is still in the fight: conscious
+  (hp > 0), or a dying PC (0 hp, neither dead nor stable). A party that is
+  all down keeps fighting for its life: death saves on its turns, enemies may
+  finish it. Ending combat there made the DM reopen it every beat.
+  """
   @spec combat_over?(t()) :: boolean()
   def combat_over?(%__MODULE__{phase: :combat} = w) do
     present_characters(w)
     |> Map.values()
-    |> Enum.filter(&((&1.hp || 0) > 0))
+    |> Enum.filter(&in_fight?/1)
     |> Enum.map(& &1.side)
     |> Enum.uniq()
     |> length() <= 1
   end
 
   def combat_over?(_), do: false
+
+  defp in_fight?(%Character{hp: hp}) when is_integer(hp) and hp > 0, do: true
+
+  defp in_fight?(%Character{side: "pc", max_hp: max, death_saves: saves})
+       when is_integer(max) and max > 0 and is_map(saves),
+       do: (saves[:fails] || 0) < 3 and (saves[:successes] || 0) < 3
+
+  defp in_fight?(_), do: false
 
   @doc "The set of living enemy (side `\"enemy\"`) character names."
   @spec living_enemies(t()) :: MapSet.t(String.t())
