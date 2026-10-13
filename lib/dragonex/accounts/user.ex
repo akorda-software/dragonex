@@ -3,7 +3,9 @@ defmodule Dragonex.Accounts.User do
   A registered player. Owns heroes (created characters) and games (partidas).
 
   Passwords are hashed with bcrypt (`Bcrypt.hash_pwd_salt/1`). The `password_hash`
-  column stores the hash; the plaintext never touches the database.
+  column stores the hash; the plaintext never touches the database. An account
+  opened with Google (D245) keeps Google's subject id in `google_sub` and may
+  have no password at all.
   """
 
   use Ecto.Schema
@@ -12,6 +14,7 @@ defmodule Dragonex.Accounts.User do
     field(:email, :string)
     field(:password, :string, virtual: true, redact: true)
     field(:password_hash, :string, redact: true)
+    field(:google_sub, :string, redact: true)
     field(:display_name, :string)
 
     has_many(:heroes, Dragonex.Accounts.Hero)

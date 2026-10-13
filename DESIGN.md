@@ -181,7 +181,7 @@ A cold dungeon violet stone carries the interface. Torch orange and gold light i
 **Character:** A pixel blackletter for ceremony, a warm humanist serif for the story, and a pixel mono for anything mechanical (numbers, dice, controls). All fonts are self-hosted OFL, Latin subset, and `font-synthesis: none` stops faux bold on the single-weight pixel faces.
 
 ### Hierarchy
-- **Display** (400, clamp(40px, 5vw, 60px), 0.95): page titles, waiting-room and wizard titles (up to 68–72px), the hero-sheet name (up to 88px), modal titles (40–44px), auth title (56px), hero portrait initial. Always gold with a 3px Old Blood offset shadow, plus a second 6px black one at page scale. In game, it is also the rubric drop cap (3.2em) that opens each DM turn.
+- **Display** (400, clamp(40px, 5vw, 60px), 0.95): page titles, waiting-room and wizard titles (up to 68–72px), the hero-sheet name (up to 88px), modal titles (40–44px), hero portrait initial. Always gold with a 3px Old Blood offset shadow, plus a second 6px black one at page scale. In game, it is also the rubric drop cap (3.2em) that opens each DM turn.
 - **Title** (Alegreya 700, 20–23px, 1.15): card, quest, hero and item names, usually gold.
 - **Body** (Alegreya 400, 17px, 1.5): interface prose. Italic is used for subtitles, hints, placeholders and whose-turn.
 - **Chronicle** (Alegreya 400, 18px, 1.6–1.62): narration on parchment. Player lines are italic, and the home stays at 16.5px on mobile.
@@ -245,6 +245,9 @@ Every corner is square (`border-radius: 0`). The only "rounding" is the pixel st
 
 ### Navigation
 - **Topbar:** dark violet gradient, a stacked hard underline (edge, stone-3, black drop), the wordmark at left, mono 15px links in text-dim. On hover a link turns gold and a pixel ▶ arrow sprite slides in from the left in 2 steps. At ≤720px the links shrink to 13px, the arrow and user tag hide, and guests see only Entrar/Registro.
+
+### Access (Entrar / Crear cuenta)
+The wordmark at min(400px, 78vw) with the home's torch-glow shadow, above a 420px stone window flanked by two 3px torches whose glow lights the wall (torches hide at ≤620px). The window opens with two mono tabs on a pit strip (the current one torch, like `.tab.active`), an italic text-dim line, «Continuar con Google» as a stone button whose colour «G» sits on a white square (Google's brand rule), a dashed «o con tu correo» divider, then the form. A field error turns its inset ring blood and adds a 15px `#ff9d94` line under it.
 
 ### Chronicle (signature)
 A parchment sheet (48px parchment tile plus burnt-edge gradients), framed by a 3px parch-rim border and a parch-edge ring. Each turn header is a dashed ink line with the actor in rubric (green `#1c6a3c` for you, violet `#4b2d9a` for auto). DM prose opens with a drop capital, and player lines are italic with a 3px rubric left rule. Rolls are dark ink stubs with a d20 sprite and a mono line: hits and successes get a moss bar, misses a blood bar, crits a full gold stub, critical fails a full blood-dim stub. The "thinking" state is an animated quill.

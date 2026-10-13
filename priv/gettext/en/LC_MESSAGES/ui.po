@@ -65,15 +65,15 @@ msgid_plural "%{count} éxitos"
 msgstr[0] "%{count} success"
 msgstr[1] "%{count} successes"
 
-#: lib/dragonex/accounts.ex:590
-#: lib/dragonex/accounts.ex:600
+#: lib/dragonex/accounts.ex:636
+#: lib/dragonex/accounts.ex:646
 #, elixir-autogen, elixir-format
 msgid "%{field} es obligatorio"
 msgstr "%{field} is required"
 
-#: lib/dragonex/accounts.ex:593
-#: lib/dragonex/accounts.ex:597
-#: lib/dragonex/accounts.ex:603
+#: lib/dragonex/accounts.ex:639
+#: lib/dragonex/accounts.ex:643
+#: lib/dragonex/accounts.ex:649
 #, elixir-autogen, elixir-format
 msgid "%{field} inválido"
 msgstr "Invalid %{field}"
@@ -552,12 +552,12 @@ msgstr "Conditions"
 msgid "Confirmar subida →"
 msgstr "Confirm level up →"
 
-#: lib/dragonex_web/controllers/user_session_html.ex:24
+#: lib/dragonex_web/controllers/user_session_html.ex:14
 #, elixir-autogen, elixir-format
 msgid "Contraseña"
 msgstr "Password"
 
-#: lib/dragonex_web/controllers/user_session_html.ex:57
+#: lib/dragonex_web/controllers/user_session_html.ex:32
 #, elixir-autogen, elixir-format
 msgid "Contraseña (mínimo 8)"
 msgstr "Password (min. 8)"
@@ -577,7 +577,7 @@ msgstr "Copy link"
 msgid "Costes: 8→0, 9→1, 10→2, 11→3, 12→4, 13→5, 14→7, 15→9"
 msgstr "Costs: 8→0, 9→1, 10→2, 11→3, 12→4, 13→5, 14→7, 15→9"
 
-#: lib/dragonex_web/controllers/user_session_html.ex:46
+#: lib/dragonex_web/controllers/user_session_html.ex:25
 #, elixir-autogen, elixir-format
 msgid "Crea tu cuenta de aventurero."
 msgstr "Create your adventurer account."
@@ -587,17 +587,13 @@ msgstr "Create your adventurer account."
 msgid "Crea tu propia aventura desde cero."
 msgstr "Create your own adventure from scratch."
 
-#: lib/dragonex_web/controllers/user_session_html.ex:30
-#, elixir-autogen, elixir-format
-msgid "Crea una"
-msgstr "Create one"
-
 #: lib/dragonex_web/live/custom_content_live.ex:388
 #, elixir-autogen, elixir-format
 msgid "Crear"
 msgstr "Create"
 
-#: lib/dragonex_web/controllers/user_session_html.ex:59
+#: lib/dragonex_web/controllers/user_session_html.ex:37
+#: lib/dragonex_web/controllers/user_session_html.ex:60
 #: lib/dragonex_web/live/game_live/index.ex:234
 #, elixir-autogen, elixir-format
 msgid "Crear cuenta"
@@ -855,8 +851,8 @@ msgstr "Choose a race."
 msgid "Elige una subraza."
 msgstr "Choose a subrace."
 
-#: lib/dragonex_web/controllers/user_session_html.ex:22
-#: lib/dragonex_web/controllers/user_session_html.ex:55
+#: lib/dragonex_web/controllers/user_session_html.ex:12
+#: lib/dragonex_web/controllers/user_session_html.ex:30
 #, elixir-autogen, elixir-format
 msgid "Email"
 msgstr "Email"
@@ -886,12 +882,8 @@ msgstr "Enemy"
 msgid "Enlace copiado — pásaselo a tu grupo"
 msgstr "Link copied — send it to your group"
 
-#: lib/dragonex_web/controllers/user_session_html.ex:63
-#, elixir-autogen, elixir-format
-msgid "Entra"
-msgstr "Log in"
-
-#: lib/dragonex_web/controllers/user_session_html.ex:26
+#: lib/dragonex_web/controllers/user_session_html.ex:16
+#: lib/dragonex_web/controllers/user_session_html.ex:59
 #: lib/dragonex_web/layouts/root.html.heex:201
 #: lib/dragonex_web/live/game_live/index.ex:247
 #, elixir-autogen, elixir-format
@@ -1606,7 +1598,7 @@ msgstr "Undead in an ancient crypt. The heroes must descend and lay the dead to 
 msgid "Nombre"
 msgstr "Name"
 
-#: lib/dragonex_web/controllers/user_session_html.ex:53
+#: lib/dragonex_web/controllers/user_session_html.ex:28
 #, elixir-autogen, elixir-format
 msgid "Nombre de aventurero"
 msgstr "Adventurer name"
@@ -1890,7 +1882,7 @@ msgstr "Second Wind"
 msgid "Selecciona al menos un personaje."
 msgstr "Select at least one character."
 
-#: lib/dragonex_web/controllers/user_session_controller.ex:72
+#: lib/dragonex_web/controllers/user_session_controller.ex:81
 #, elixir-autogen, elixir-format
 msgid "Sesión cerrada."
 msgstr "Logged out."
@@ -2162,7 +2154,7 @@ msgstr "Back to your games"
 msgid "Volver al último turno ↓"
 msgstr "Jump to latest turn ↓"
 
-#: lib/dragonex_web/controllers/user_session_html.ex:15
+#: lib/dragonex_web/controllers/user_session_html.ex:9
 #, elixir-autogen, elixir-format
 msgid "Vuelve a la mesa, aventurero."
 msgstr "Return to the table, adventurer."
@@ -2219,12 +2211,12 @@ msgstr "acting"
 msgid "ataque"
 msgstr "attack"
 
-#: lib/dragonex/accounts.ex:646
+#: lib/dragonex/accounts.ex:692
 #, elixir-autogen, elixir-format
 msgid "attack_ability debe ser una de str/dex/con/int/wis/cha"
 msgstr "attack_ability must be one of str/dex/con/int/wis/cha"
 
-#: lib/dragonex/accounts.ex:639
+#: lib/dragonex/accounts.ex:685
 #, elixir-autogen, elixir-format
 msgid "attack_ability es obligatorio"
 msgstr "attack_ability is required"
@@ -2240,17 +2232,17 @@ msgstr "loading models…"
 msgid "caído"
 msgstr "down"
 
-#: lib/dragonex/accounts.ex:659
+#: lib/dragonex/accounts.ex:705
 #, elixir-autogen, elixir-format
 msgid "classes contiene claves desconocidas: %{keys}"
 msgstr "classes contains unknown keys: %{keys}"
 
-#: lib/dragonex/accounts.ex:663
+#: lib/dragonex/accounts.ex:709
 #, elixir-autogen, elixir-format
 msgid "classes debe ser una lista de clases"
 msgstr "classes must be a list of classes"
 
-#: lib/dragonex/accounts.ex:648
+#: lib/dragonex/accounts.ex:694
 #, elixir-autogen, elixir-format
 msgid "classes es obligatorio"
 msgstr "classes is required"
@@ -2276,32 +2268,32 @@ msgstr "caster · d%{die}"
 msgid "daño"
 msgstr "damage"
 
-#: lib/dragonex/accounts.ex:712
+#: lib/dragonex/accounts.ex:764
 #, elixir-autogen, elixir-format
 msgid "debe ser un email válido"
 msgstr "must be a valid email"
 
-#: lib/dragonex/accounts.ex:489
+#: lib/dragonex/accounts.ex:535
 #, elixir-autogen, elixir-format
 msgid "definition es obligatorio"
 msgstr "definition is required"
 
-#: lib/dragonex/accounts.ex:515
+#: lib/dragonex/accounts.ex:561
 #, elixir-autogen, elixir-format
 msgid "definition inválido"
 msgstr "invalid definition"
 
-#: lib/dragonex/accounts.ex:624
+#: lib/dragonex/accounts.ex:670
 #, elixir-autogen, elixir-format
 msgid "dice debe ser texto"
 msgstr "dice must be text"
 
-#: lib/dragonex/accounts.ex:606
+#: lib/dragonex/accounts.ex:652
 #, elixir-autogen, elixir-format
 msgid "dice es obligatorio"
 msgstr "dice is required"
 
-#: lib/dragonex/accounts.ex:621
+#: lib/dragonex/accounts.ex:667
 #, elixir-autogen, elixir-format
 msgid "dice no es una expresión válida (p. ej. 2d6, 1d8+2)"
 msgstr "dice is not a valid expression (e.g. 2d6, 1d8+2)"
@@ -2341,33 +2333,33 @@ msgstr "awaiting player"
 msgid "iniciativa"
 msgstr "initiative"
 
-#: lib/dragonex/accounts.ex:504
+#: lib/dragonex/accounts.ex:550
 #, elixir-autogen, elixir-format
 msgid "key vacío tras normalizar"
 msgstr "key empty after normalization"
 
-#: lib/dragonex/accounts.ex:483
+#: lib/dragonex/accounts.ex:529
 #, elixir-autogen, elixir-format
 msgid "kind es obligatorio"
 msgstr "kind is required"
 
-#: lib/dragonex/accounts.ex:496
+#: lib/dragonex/accounts.ex:542
 #, elixir-autogen, elixir-format
 msgid "kind inválido (debe ser weapon, spell o item)"
 msgstr "invalid kind (must be weapon, spell or item)"
 
-#: lib/dragonex/accounts.ex:633
-#: lib/dragonex/accounts.ex:637
+#: lib/dragonex/accounts.ex:679
+#: lib/dragonex/accounts.ex:683
 #, elixir-autogen, elixir-format
 msgid "level debe ser un entero 0–9"
 msgstr "level must be an integer 0–9"
 
-#: lib/dragonex/accounts.ex:626
+#: lib/dragonex/accounts.ex:672
 #, elixir-autogen, elixir-format
 msgid "level es obligatorio"
 msgstr "level is required"
 
-#: lib/dragonex/accounts.ex:486
+#: lib/dragonex/accounts.ex:532
 #, elixir-autogen, elixir-format
 msgid "name_es es obligatorio"
 msgstr "name_es is required"
@@ -2404,23 +2396,23 @@ msgstr "or type a slug (e.g. deepseek/deepseek-v4.1-flash)"
 msgid "pts"
 msgstr "pts"
 
-#: lib/dragonex/accounts.ex:672
-#: lib/dragonex/accounts.ex:676
+#: lib/dragonex/accounts.ex:718
+#: lib/dragonex/accounts.ex:722
 #, elixir-autogen, elixir-format
 msgid "qty debe ser un entero ≥ 1"
 msgstr "qty must be an integer ≥ 1"
 
-#: lib/dragonex/accounts.ex:566
+#: lib/dragonex/accounts.ex:612
 #, elixir-autogen, elixir-format
 msgid "save_ability debe ser una de str/dex/con/int/wis/cha"
 msgstr "save_ability must be one of str/dex/con/int/wis/cha"
 
-#: lib/dragonex/accounts.ex:558
+#: lib/dragonex/accounts.ex:604
 #, elixir-autogen, elixir-format
 msgid "save_ability es obligatoria cuando kind es 'save'"
 msgstr "save_ability is required when kind is 'save'"
 
-#: lib/dragonex/accounts.ex:573
+#: lib/dragonex/accounts.ex:619
 #, elixir-autogen, elixir-format
 msgid "save_ability inválido"
 msgstr "invalid save_ability"
@@ -2457,8 +2449,8 @@ msgstr "rolling…"
 msgid "truco"
 msgstr "cantrip"
 
-#: lib/dragonex_web/controllers/user_session_html.ex:23
-#: lib/dragonex_web/controllers/user_session_html.ex:56
+#: lib/dragonex_web/controllers/user_session_html.ex:13
+#: lib/dragonex_web/controllers/user_session_html.ex:31
 #, elixir-autogen, elixir-format
 msgid "tu correo"
 msgstr "your email"
@@ -2468,7 +2460,7 @@ msgstr "your email"
 msgid "una taberna, un calabozo, un bosque…"
 msgstr "a tavern, a dungeon, a forest…"
 
-#: lib/dragonex/accounts.ex:683
+#: lib/dragonex/accounts.ex:729
 #, elixir-autogen, elixir-format
 msgid "valor booleano inválido"
 msgstr "invalid boolean value"
@@ -2494,7 +2486,7 @@ msgstr "Welcome back, %{name}!"
 msgid "¡Crítico!"
 msgstr "Critical hit!"
 
-#: lib/dragonex_web/controllers/user_session_controller.ex:56
+#: lib/dragonex_web/controllers/user_session_controller.ex:64
 #, elixir-autogen, elixir-format
 msgid "¡Cuenta creada! Bienvenido, %{name}."
 msgstr "Account created! Welcome, %{name}."
@@ -2544,12 +2536,6 @@ msgstr "Delete “%{title}”? This can't be undone."
 msgid "¿Qué haces?"
 msgstr "What do you do?"
 
-#: lib/dragonex_web/controllers/user_session_html.ex:30
-#, elixir-autogen, elixir-format
-msgid "¿Sin cuenta?"
-msgstr "No account?"
-
-#: lib/dragonex_web/controllers/user_session_html.ex:63
 #: lib/dragonex_web/live/game_live/index.ex:247
 #, elixir-autogen, elixir-format
 msgid "¿Ya tienes cuenta?"
@@ -2964,3 +2950,48 @@ msgstr "or type another model id"
 #, elixir-autogen, elixir-format
 msgid "La mesa usa %{model} con la clave de Dragonex."
 msgstr "The table uses %{model} with Dragonex's key."
+
+#: lib/dragonex_web/controllers/user_session_html.ex:58
+#, elixir-autogen, elixir-format
+msgid "Acceso"
+msgstr "Access"
+
+#: lib/dragonex_web/controllers/user_session_html.ex:75
+#, elixir-autogen, elixir-format
+msgid "Continuar con Google"
+msgstr "Continue with Google"
+
+#: lib/dragonex_web/controllers/google_auth_controller.ex:45
+#, elixir-autogen, elixir-format
+msgid "Google no ha verificado ese correo."
+msgstr "Google has not verified that email."
+
+#: lib/dragonex_web/controllers/google_auth_controller.ex:55
+#, elixir-autogen, elixir-format
+msgid "No se pudo entrar con Google. Prueba otra vez."
+msgstr "Could not sign in with Google. Try again."
+
+#: lib/dragonex_web/controllers/user_session_html.ex:35
+#, elixir-autogen, elixir-format
+msgid "Repite la contraseña"
+msgstr "Repeat the password"
+
+#: lib/dragonex_web/controllers/user_session_controller.ex:70
+#, elixir-autogen, elixir-format
+msgid "Revisa los campos marcados."
+msgstr "Check the marked fields."
+
+#: lib/dragonex/accounts.ex:773
+#, elixir-autogen, elixir-format
+msgid "las dos contraseñas no coinciden"
+msgstr "the two passwords do not match"
+
+#: lib/dragonex_web/controllers/user_session_html.ex:77
+#, elixir-autogen, elixir-format
+msgid "o con tu correo"
+msgstr "or with your email"
+
+#: lib/dragonex_web/controllers/google_auth_controller.ex:40
+#, elixir-autogen, elixir-format
+msgid "¡Bienvenido, %{name}!"
+msgstr "Welcome, %{name}!"

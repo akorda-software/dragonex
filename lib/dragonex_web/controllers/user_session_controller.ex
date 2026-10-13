@@ -16,7 +16,7 @@ defmodule DragonexWeb.UserSessionController do
     if conn.assigns[:current_user] do
       redirect(conn, to: "/")
     else
-      render(conn, :login)
+      render(conn, :login, email: "")
     end
   end
 
@@ -34,7 +34,7 @@ defmodule DragonexWeb.UserSessionController do
       {:error, :invalid} ->
         conn
         |> put_flash(:error, dgettext("ui", "Email o contraseña incorrectos."))
-        |> render(:login)
+        |> render(:login, email: email)
     end
   end
 
@@ -42,12 +42,20 @@ defmodule DragonexWeb.UserSessionController do
     if conn.assigns[:current_user] do
       redirect(conn, to: "/")
     else
-      render(conn, :register)
+      render(conn, :register, values: %{}, errors: %{})
     end
   end
 
-  def register(conn, %{"email" => email, "password" => password, "display_name" => name}) do
-    case Accounts.register(%{email: email, password: password, display_name: name}) do
+  def register(conn, %{"email" => email, "password" => password, "display_name" => name} = params) do
+    attrs = %{
+      email: email,
+      password: password,
+      # The form always repeats the password; a missing field never matches.
+      password_confirmation: params["password_confirmation"] || "",
+      display_name: name
+    }
+
+    case Accounts.register(attrs) do
       {:ok, user} ->
         conn
         |> UserAuth.log_in(user)
@@ -58,11 +66,12 @@ defmodule DragonexWeb.UserSessionController do
         |> redirect(to: "/")
 
       {:error, changeset} ->
-        errors = format_errors(changeset)
-
         conn
-        |> put_flash(:error, errors)
-        |> render(:register)
+        |> put_flash(:error, dgettext("ui", "Revisa los campos marcados."))
+        |> render(:register,
+          values: %{"display_name" => name, "email" => email},
+          errors: field_errors(changeset)
+        )
     end
   end
 
@@ -73,5 +82,12 @@ defmodule DragonexWeb.UserSessionController do
     |> redirect(to: "/login")
   end
 
-  defp format_errors(changeset), do: DragonexWeb.ErrorTranslation.flash_message(changeset)
+  # One message per form field, the first check it failed (Ecto prepends, so
+  # the last pair wins). The confirmation's error belongs to its own field.
+  defp field_errors(changeset) do
+    changeset.errors
+    |> Map.new(fn {field, error} ->
+      {to_string(field), DragonexWeb.ErrorTranslation.translate_error(error)}
+    end)
+  end
 end

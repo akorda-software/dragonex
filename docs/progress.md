@@ -9,12 +9,12 @@ detalle de cada entrega (D1–D237, playtests, gates por fecha) está en
 qué cambia, `Dxxx`) y su detalle va al ADR. Si algo se abre o se cierra, se
 mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de sesión.
 
-## Último estado — 2026-10-12
+## Último estado — 2026-10-13
 
-- **Gates:** 3114 passed / 3 excluded en ambos grafos (local y Hex),
+- **Gates:** 3126 passed / 3 excluded en ambos grafos (local y Hex),
   `--warnings-as-errors` limpio, formato limpio.
 - **Dependencias:** dev usa `../exAgent` 2.1 y `../dic_ex` 0.3; prod, las
-  mismas versiones de Hex (D237). **Sin desplegar** desde ese cambio.
+  mismas versiones de Hex (D237). Prod desplegado el 2026-10-13 (93599ba).
 - **Medición:** `bin/dev dragonex.metrics --last 10` (partidas guardadas) y
   `bin/dev dragonex.playtest` (mesa real sin interfaz, gasta tokens) (D238).
 
@@ -52,6 +52,9 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
   OpenCode Go, OpenAI, Google, Anthropic; guardada cifrada en «Tu cuenta»),
   cada jugador elige cualquier modelo compatible en Ajustes de IA. La
   elección se guarda por partida y sobrevive a reinicios.
+- **Acceso (D245):** Entrar y Crear cuenta en una ventana con pestañas y el
+  wordmark; el registro pide repetir la contraseña y marca cada error en su
+  campo; «Continuar con Google» (OIDC + PKCE) cuando hay cliente OAuth.
 - **Bilingüe es/en por partida** (D235/D236).
 - **Solo exAgent 2.1:** retirado el modo de compatibilidad con 1.2
   (`Models.backend/0`, `Agent.LegacyHistory`, selector de razonamiento) (D237).

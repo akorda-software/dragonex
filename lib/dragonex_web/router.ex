@@ -27,6 +27,8 @@ defmodule DragonexWeb.Router do
     get("/login", UserSessionController, :login_form)
     post("/login", UserSessionController, :login)
     delete("/logout", UserSessionController, :logout)
+    get("/auth/google", GoogleAuthController, :request)
+    get("/auth/google/callback", GoogleAuthController, :callback)
 
     # Interface language (ES | EN switch of the top bar)
     get("/locale/:locale", LocaleController, :update)

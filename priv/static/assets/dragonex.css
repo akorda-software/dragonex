@@ -886,36 +886,128 @@ a.quest-title:hover { color: var(--gold); }
 
 /* ------------------------------------------------------------------ auth */
 
+/* Entrar y Crear cuenta: el logotipo de 16 bits arriba, como en la home, y la
+   ventana del formulario entre dos antorchas que iluminan el muro. */
+main.game-layout:has(.auth-wrap) > .app-flashes { display: none; }
 .auth-wrap {
-  min-height: calc(100dvh - 90px);
-  display: grid;
-  place-items: center;
-  padding: 2rem 1rem;
-}
-.auth-page {
-  width: min(420px, 100%);
-  padding: 1.75rem 1.75rem 1.5rem;
-}
-.auth-head {
+  flex: 1 0 auto;
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: 0.9rem;
-  margin-bottom: 0.2rem;
+  gap: clamp(1rem, 3vh, 1.8rem);
+  padding: clamp(1.2rem, 4vh, 3rem) 1rem 2rem;
 }
-.auth-head .px-torch { --s: 2px; }
-.auth-page h1 {
-  margin: 0;
-  font-family: var(--f-display);
-  font-size: 56px;
-  line-height: 0.9;
-  color: var(--gold);
-  text-shadow: 3px 3px 0 var(--blood-dim);
+.auth-mark {
+  display: block;
+  width: min(400px, 78vw);
+  height: auto;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 10px 24px rgba(255, 138, 31, 0.22)) drop-shadow(0 4px 0 rgba(0, 0, 0, 0.45));
 }
-.auth-page .sub { text-align: center; margin-bottom: 1.4rem; font-size: 17px; }
+.auth-stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 420px) auto;
+  align-items: center;
+  gap: clamp(1rem, 4vw, 2.6rem);
+  width: 100%;
+  justify-content: center;
+}
+.auth-stage::before {
+  content: "";
+  position: absolute;
+  inset: -10% 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 26% 50% at calc(50% - 300px) 50%, rgba(255, 138, 31, 0.26), transparent 70%),
+    radial-gradient(ellipse 26% 50% at calc(50% + 300px) 50%, rgba(255, 138, 31, 0.26), transparent 70%);
+  animation: torchlight 2.6s steps(4) infinite;
+}
+.auth-torch { --s: 3px; filter: drop-shadow(0 0 14px rgba(255, 163, 36, 0.65)); }
+.auth-page { width: 100%; padding: 1.5rem 1.75rem 1.75rem; }
+
+.auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--p);
+  margin: 0 0 1.2rem;
+  padding: var(--p);
+  background: #0d0914;
+  box-shadow: inset 0 0 0 var(--p) var(--stone-3);
+}
+.auth-tabs a {
+  padding: 0.55rem 0.5rem 0.6rem;
+  font-family: var(--f-ui);
+  font-size: 15px;
+  text-align: center;
+  text-decoration: none;
+  color: var(--text-dim);
+}
+.auth-tabs a:hover { color: var(--gold); }
+.auth-tabs a.is-current {
+  color: #2a1004;
+  background: var(--torch);
+  box-shadow: inset 0 0 0 2px var(--torch-hi), inset 0 -3px 0 0 var(--ember);
+}
+.auth-tabs a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.auth-page .sub {
+  margin: 0 0 1.2rem;
+  font-family: var(--f-body);
+  font-size: 18px;
+  font-style: italic;
+  text-align: center;
+  color: var(--text-dim);
+}
+.auth-page .flash { margin: 0 0 1rem; }
 .auth-page label { display: block; margin: 1rem 0 0.4rem; }
-.auth-page .btn { width: 100%; margin-top: 1.6rem; font-size: 17px; padding: 0.7rem 1rem 0.8rem; }
-.auth-page .alt { margin-top: 1.3rem; text-align: center; font-size: 16px; color: var(--text-dim); }
+.auth-page input[aria-invalid="true"] { box-shadow: inset 0 0 0 var(--p) var(--blood), inset 0 calc(var(--p) * 2) 0 0 rgba(0, 0, 0, 0.5); }
+.auth-page .field-error { margin: 0.35rem 0 0; font-size: 15px; color: #ff9d94; }
+.auth-submit { width: 100%; margin-top: 1.6rem; font-size: 17px; padding: 0.7rem 1rem 0.8rem; }
+
+/* Google pide su «G» a color sobre blanco; el botón sigue siendo de piedra. */
+.btn-google {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.6rem 1rem 0.65rem;
+  font-size: 16px;
+  text-decoration: none;
+}
+.btn-google .g-logo {
+  flex: 0 0 auto;
+  box-sizing: content-box;
+  padding: 4px;
+  background: #fff;
+  box-shadow: 0 0 0 2px var(--edge);
+}
+.auth-or {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin: 1.3rem 0 0.2rem;
+  font-family: var(--f-ui);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+}
+.auth-or::before,
+.auth-or::after {
+  content: "";
+  flex: 1;
+  height: var(--p);
+  background: repeating-linear-gradient(90deg, var(--stone-3) 0 6px, transparent 6px 12px);
+}
+
+@media (max-width: 620px) {
+  .auth-stage { grid-template-columns: minmax(0, 420px); }
+  .auth-torch, .auth-stage::before { display: none; }
+  .auth-page { padding: 1.2rem 1.1rem 1.4rem; }
+}
 
 /* ---------------------------------------------------------- hero gallery */
 

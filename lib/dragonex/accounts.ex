@@ -37,16 +37,62 @@ defmodule Dragonex.Accounts do
     lower = String.downcase(email)
 
     case Repo.one(from(u in User, where: u.email == ^lower)) do
-      %User{password_hash: hash} = user ->
+      %User{password_hash: hash} = user when is_binary(hash) ->
         if Bcrypt.verify_pass(password, hash),
           do: {:ok, user},
           else: {:error, :invalid}
 
-      nil ->
-        # Run a dummy verify to avoid timing attacks that reveal valid emails.
+      # No such user, or an account opened with Google that has no password.
+      # Run a dummy verify to avoid timing attacks that reveal valid emails.
+      _ ->
         Bcrypt.no_user_verify()
         {:error, :invalid}
     end
+  end
+
+  @doc """
+  Sign in with a Google identity (D245), already checked by
+  `Dragonex.Accounts.Google`. The account is found by Google's subject id;
+  failing that, a verified email links the Google identity to the existing
+  account with that email; failing that, a new account without password is
+  opened. An unverified email never links nor opens anything.
+  """
+  @spec sign_in_with_google(%{
+          sub: String.t(),
+          email: String.t(),
+          email_verified: boolean(),
+          name: String.t() | nil
+        }) :: {:ok, User.t()} | {:error, :unverified | Ecto.Changeset.t()}
+  def sign_in_with_google(%{sub: sub} = identity) when is_binary(sub) and sub != "" do
+    email = identity.email |> to_string() |> String.trim() |> String.downcase()
+
+    cond do
+      user = Repo.get_by(User, google_sub: sub) ->
+        {:ok, user}
+
+      identity.email_verified != true ->
+        {:error, :unverified}
+
+      user = Repo.get_by(User, email: email) ->
+        user |> Ecto.Changeset.change(google_sub: sub) |> Repo.update()
+
+      true ->
+        %User{}
+        |> Ecto.Changeset.cast(
+          %{email: email, google_sub: sub, display_name: google_name(identity.name, email)},
+          [:email, :google_sub, :display_name]
+        )
+        |> Ecto.Changeset.validate_required([:email, :google_sub, :display_name])
+        |> Ecto.Changeset.unique_constraint(:email)
+        |> Ecto.Changeset.unique_constraint(:google_sub)
+        |> Repo.insert()
+    end
+  end
+
+  defp google_name(name, email) do
+    name = if is_binary(name), do: String.trim(name), else: ""
+    name = if name == "", do: email |> String.split("@") |> hd(), else: name
+    String.slice(name, 0, 60)
   end
 
   @doc "Fetch a user by id."
@@ -694,24 +740,40 @@ defmodule Dragonex.Accounts do
 
   # --------------------------------------------------------------- helpers
 
+  # The sign-up form repeats the password: when the attrs carry
+  # `password_confirmation`, it must match (D245).
   defp user_registration_changeset(user, attrs) do
     email =
       (attrs[:email] || attrs["email"] || "") |> to_string() |> String.trim() |> String.downcase()
 
-    user
-    |> Ecto.Changeset.cast(
+    name = attrs[:display_name] || attrs["display_name"]
+    confirmation = Map.get(attrs, :password_confirmation, attrs["password_confirmation"])
+
+    params =
       %{
         email: email,
-        display_name: attrs[:display_name] || attrs["display_name"],
+        display_name: if(is_binary(name), do: String.trim(name), else: name),
         password: attrs[:password] || attrs["password"]
-      },
-      [:email, :display_name, :password]
-    )
-    |> Ecto.Changeset.validate_required([:email, :password])
+      }
+      |> then(&if(confirmation, do: Map.put(&1, :password_confirmation, confirmation), else: &1))
+
+    user
+    |> Ecto.Changeset.cast(params, [:email, :display_name, :password])
+    |> Ecto.Changeset.validate_required([:email, :display_name, :password])
     |> Ecto.Changeset.validate_format(:email, ~r/^[^\s]+@[^\s]+$/,
       message: dgettext("ui", "debe ser un email válido")
     )
+    |> Ecto.Changeset.validate_length(:display_name, max: 60)
     |> Ecto.Changeset.validate_length(:password, min: 8, max: 72)
+    |> then(fn changeset ->
+      if confirmation,
+        do:
+          Ecto.Changeset.validate_confirmation(changeset, :password,
+            required: true,
+            message: dgettext("ui", "las dos contraseñas no coinciden")
+          ),
+        else: changeset
+    end)
     |> Ecto.Changeset.unique_constraint(:email)
     |> put_password_hash()
   end

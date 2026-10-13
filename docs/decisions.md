@@ -8036,6 +8036,41 @@ sigue en exploración. Un PJ a 0 PG en exploración puede declarar acciones y
 el DM puede narrarlas. El DM aún puede insistir en mover a otro combatiente
 fuera de turno; el arreglo del combate quita la causa vista, no el patrón.
 
+## D245 — Entrar con Google y contraseña repetida al registrarse
+
+**Estado:** Aceptada. **Fecha:** 2026-10-13.
+
+**Contexto:** con prod abierto a betas con humanos, la página de acceso seguía
+con el «Dragonex» en blackletter que DESIGN.md prohíbe como logotipo, el
+registro aceptaba una contraseña tecleada una sola vez y no había forma de
+entrar sin crear otra contraseña. Un nombre de aventurero vacío además
+reventaba en la base de datos en vez de avisar.
+
+**Decisión:**
+- Entrar y Crear cuenta comparten una ventana con pestañas, el wordmark SVG
+  encima y dos antorchas; cada error del registro se marca en su campo y el
+  formulario conserva nombre y correo.
+- El registro exige `password_confirmation` (el formulario siempre la envía;
+  si falta, no coincide). El nombre es obligatorio (máx. 60).
+- Google por OpenID Connect con código + PKCE, `state` y `nonce` en sesión,
+  sin dependencia nueva (Req). El ID token llega directo del endpoint de
+  tokens por TLS, así que basta comprobar `aud`, `iss`, `exp` y `nonce`
+  (OIDC Core §3.1.3.7), sin JWKS.
+- La cuenta se busca por `google_sub`; si no, un correo verificado por Google
+  enlaza la cuenta existente con ese correo; si no, se abre una cuenta sin
+  contraseña (`password_hash` pasa a admitir NULL y `authenticate/2` la
+  rechaza). Un correo no verificado no enlaza ni crea nada.
+- Sin `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` el botón no aparece. La URI
+  de retorno es `Endpoint.url() <> "/auth/google/callback"`.
+
+**Verificación:** `test/dragonex_web/auth_test.exs` (pestañas y wordmark,
+botón según configuración, confirmación distinta o ausente, nombre vacío,
+URL de Google con PKCE, cuenta nueva, segunda visita, enlace por correo,
+correo no verificado, `state`/`aud`/`nonce`/`exp` manipulados).
+
+**Límites:** una cuenta abierta con Google no tiene contraseña ni forma de
+crearla, y no hay recuperación de contraseña para nadie.
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,

@@ -58,6 +58,7 @@ y lo mete en `System.put_env`. Los valores del entorno real **ganan** sobre `.en
 | `DATABASE_URL` | — | **prod obligatoria** |
 | `SECRET_KEY_BASE` | — | **prod obligatoria** (`mix phx.gen.secret`) |
 | `LIVE_VIEW_SIGNING_SALT` | derivado del secret | signing salt de LiveView en prod |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | — | Cliente OAuth web de Google para «Continuar con Google» (D245). Sin ellas no hay botón. Redirección: `<url pública>/auth/google/callback` |
 | `DB_HOST`/`DB_PORT`/`DB_USER`/`DB_PASS`/`DB_NAME` | `127.0.0.1`/`5432`/… | override de DB (dev/test) |
 | `PORT` | `4000` | puerto http del endpoint |
 | `PHX_BIND_IP` | `127.0.0.1` | IP de bind |
