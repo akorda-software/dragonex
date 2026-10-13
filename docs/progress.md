@@ -58,8 +58,11 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 
 ## 🟡 Abierto, por prioridad
 
-1. **Desplegar prod con D237** (exAgent 2.1 / dic_ex 0.3). Necesita
-   confirmación del usuario.
+1. **Betas con humanos en prod:** desplegado el 2026-10-13 (commit 93599ba,
+   D237–D244) en `https://dragones.kukapu.dev` (Dokploy, Oracle Madrid). La
+   app de Dokploy apunta a `akorda-software/dragonex` y despliega sola en cada
+   push a `master`; casa fija (`DRAGONEX_SERVER_MODELS=fixed`). Recoger fallos
+   de partidas reales con `dragonex.metrics` antes de iterar.
 2. **Inventario de objetos de misión:** D239 exige comprobante de inventario
    antes de publicar el cierre del DM; en la tanda 19462–64 las 4 recogidas o
    entregas reales cambiaron el stock. D240 rechaza conceder otra vez un
