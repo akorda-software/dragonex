@@ -90,7 +90,7 @@ defmodule DragonexWeb.GameLive.Index do
 
     if user do
       case Games.delete_game(user, id) do
-        {:ok, _} -> _ = Dragonex.Game.Supervisor.stop_game(id)
+        {:ok, game} -> _ = Dragonex.Game.Supervisor.stop_game(game.id)
         _ -> :ok
       end
     end
