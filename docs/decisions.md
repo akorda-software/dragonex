@@ -8298,6 +8298,119 @@ un despliegue condicionado al gate; esa integración queda fuera de esta entrega
 Fuentes: [setup-beam](https://github.com/erlef/setup-beam),
 [servicios PostgreSQL en Actions](https://docs.github.com/en/actions/tutorials/use-containerized-services/create-postgresql-service-containers).
 
+## D255 — Recuperación arcana revalida su plan al confirmar
+
+**Estado:** Aceptada. **Fecha:** 2026-10-25.
+
+**Contexto:** la preparación comprobaba el límite de Recuperación arcana,
+pero devolvía una escritura de casillas sin validar el World que la recibía.
+Aplicar otra vez ese cambio, gastar una casilla entre ambas fases o entrar en
+combate permitía restaurar recursos con un plan obsoleto.
+
+**Decisión:** la acción usa la misma guardia de actor, turno y recursos que
+las demás acciones voluntarias. Valida antes de preparar y antes de confirmar;
+rechaza incapacidad, cambio de fase/tiempo o de las reservas del mago sin
+sobrescribirlas. Cambios de otro personaje no invalidan la recuperación.
+
+**Verificación/límites:** cinco regresiones nuevas fallaron antes del arreglo;
+seis casos nuevos cubren doble aplicación, gasto intermedio, incapacidad,
+combate/tiempo y cambios ajenos. D51 mantiene su reparto determinista,
+frecuencia por descanso largo, límite de casilla y disponibilidad sin exigir
+un descanso corto previo. No añade coste de acción ni tiempo, ni cambia la
+primitiva World de composición. Gate completo vigente en `progress.md`.
+
+## D256 — Nombres de grupo válidos antes de construir la partida
+
+**Estado:** Aceptada. **Fecha:** 2026-10-25.
+
+**Contexto:** el asistente evita repetir claves de héroes/arquetipos, pero dos
+claves distintas pueden tener el mismo nombre. `World.add_character` entonces
+rechazaba el segundo y el match obligatorio tumbaba la LiveView. El nombre
+`dm` además colisionaba con el participante reservado.
+
+**Decisión:** Games valida el roster antes de construir World o llamar a Repo.
+Usa la misma comparación trim/downcase de la sala de espera y reserva `dm`.
+Devuelve un conflicto recuperable; el asistente explica el nombre, conserva
+héroe, compañeros y detalles y permite corregir la selección. No renombra
+fichas ni altera vínculos con héroes guardados.
+
+**Verificación/límites:** siete casos puros, sin Sandbox, comprueban nombres
+repetidos, variantes de mayúsculas/espacios, reserva del DM y enemigos
+repetidos. Dos LiveView verifican error, selección conservada y creación tras
+corregir con título/escena/estilo y hero_id íntegros. Reutiliza el mensaje ya
+traducido del lobby. No cambia la comparación histórica de nombres ni el
+single-writer de partidas iniciadas. Gate completo en `progress.md`.
+
+## D257 — Editar un héroe conserva su progreso y su gasto
+
+**Estado:** Aceptada. **Fecha:** 2026-10-25.
+
+**Contexto:** el editor reutilizaba el creador de nivel 1 en cada preview.
+Editar una historia podía convertir un héroe de nivel 2/300 XP/20 PG en
+nivel 1/0 XP/12 PG; al borrar su antigua mesa, el héroe volvía a ser editable
+y podía guardarse esa pérdida. Una pestaña abierta tampoco detectaba XP,
+subidas de nivel u otra edición posteriores.
+
+**Decisión:** `Heroes.Edit` es un derivador offline anclado a la ficha y
+formulario originales del montaje. Nombre, sexo e historia solo sustituyen
+sus campos: conservan íntegro el resto. Cambios mecánicos mantienen nivel y
+XP y reconstruyen los derivados afectados; los ASI conocidos proceden de la
+diferencia respecto del draft original, sin ejecutar subidas de nivel otra
+vez. Legacy conserva puntuaciones confirmadas y datos no afectados, sin
+inventar ASI históricos. Los PG actuales no se recargan.
+
+El draft conserva un registro limitado de gasto de pools con saldo/capacidad
+proyectados: cambiar de clase, reducir capacidad o volver no reembolsa usos.
+Si la ficha vigente cambia saldo/capacidad, pasa a ser la referencia; un
+descanso real puede recargar. No hay campos nuevos de Character/World ni
+migración. Equipo y hechizos no afectados se conservan; cambios explícitos
+reconstruyen elecciones compatibles y sus aptitudes. Hunter's Mark conserva
+su objetivo al cambiar equipo.
+
+Guardar bloquea la misma fila que XP/level-up y compara sheet+draft con el
+snapshot que originó el editor. Un guardado obsoleto no escribe y conserva
+el formulario con error traducido. El bloqueo de héroes ya usados permanece.
+
+**Verificación/límites:**13 casos puros y 9 LiveView verifican identidad de
+fichas avanzadas, ASI/CON/PG sin acumulación, equipo/clase/hechizos, legacy,
+cambio de clase y regreso entre guardados, reducción/recuperación de
+capacidad, descanso real, error ES/EN y conflictos con XP/level-up/otra edición.
+La UI conserva el selector existente del creador, sin añadir uno de hechizos
+de nivel alto. Sin señal durable de descanso en la biblioteca, una recarga
+externa seguida de gasto que vuelva exactamente al saldo/capacidad anteriores
+es indistinguible; no se atribuye a este registro memoria ilimitada de usos.
+Gate completo en `progress.md`.
+
+## D258 — Reintentos de ataques con nombres de arma equivalentes
+
+**Estado:** Aceptada. **Fecha:** 2026-10-25.
+
+**Contexto:** el motor acepta aliases de armas y normaliza el modo omitido,
+null o explícito. El replay usaba argumentos distintos como claves distintas:
+un retry que cambiaba `long sword` por `sword` podía volver a tirar y dañar en
+exploración; en combate, el cupo rechazaba recuperar un resultado ya pagado.
+
+**Decisión:** make_attack comparte el matcher de Actions y la interpretación
+de modo de Tools para construir la clave canónica. La ficha vigente decide
+el arma; si ya desapareció, solo un alias histórico inequívoco puede recuperar
+su recibo. Armas o modos distintos conservan claves distintas.
+
+Cada entrada nueva make_attack guarda `key_version: 1` en el checkpoint. Las
+entradas antiguas conservan su procedencia al volver a guardar y reiniciar.
+Cambios solo de espacios/case recuperan la entrada antigua; un alias fuzzy
+legacy ambiguo se rechaza antes de RNG, solicitando el argumento exacto del
+recibo. No se adivina qué arma representaba ese alias contra una ficha cambiada.
+Los recibos nuevos siguen la resolución actual incluso cuando el texto de la
+llamada coincide con un nombre anterior que ahora resuelve a otra arma.
+
+**Verificación/límites:** dos variantes legacy reprodujeron daño duplicado
+antes de corregirlas. Casos de Game cubren retry, restart, defaults, JSON y
+segunda reapertura, feedback en inglés, armas/modos distintos, retirada por
+Wild Shape y nuevas armas exactas o ambiguas. No cambia el presupuesto de
+combate, las reglas de ataque ni la semántica de aliases del motor; protege
+la identidad de un efecto dentro del beat, no prohíbe ataques de turnos nuevos.
+El gate completo vigente se registra en `progress.md`.
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,

@@ -87,6 +87,16 @@ proficiencias, save DC, modifiers — calculados por `Heroes.build`.
 Un héroe editable mientras no esté en partida activa; los cambios no afectan
 partidas ya creadas (snapshot, D22 mismo principio).
 
+- AC-6.1 (D257): editar nombre/sexo/historia conserva exactamente el resto
+  de una ficha avanzada. Cambios mecánicos mantienen nivel/XP, ASI ya ganados,
+  PG actuales y gasto sin acumular beneficios al recalcular previews.
+- AC-6.2 (D257): cambiar de clase/capacidad y volver entre guardados no
+  reembolsa pools; una recarga real que modifica la ficha supera la proyección
+  anterior. Legacy conserva estadísticas no afectadas sin deducir ASI ausentes.
+- AC-6.3 (D257): XP, level-up u otra edición posteriores al montaje invalidan
+  el guardado bajo bloqueo de fila. El editor conserva borrador y muestra error
+  ES/EN (`heroes/edit_test.exs`, `hero_edit_progress_test.exs`).
+
 ### R07 — Contenido custom por usuario ✅
 CRUD en `/mi-contenido` de armas, hechizos y objetos propios, con validación
 server-side de mecánicas (dados parseables, kind de spell válido, ability
@@ -174,6 +184,11 @@ hechizos nuevos respetando `max_spell_level`, half-casters desde nivel 2.
   colleges/arquetipos de subclase. Cada ADR declara sus recortes exactos.
 - Empate de iniciativa por DEX score y luego nombre; sin roll-off extra (D39).
 
+- AC-9.1 (D255): Recuperación arcana comprueba actor, turno y reservas al
+  preparar y confirmar. Gasto intermedio, doble aplicación, incapacidad o
+  cambio de fase/tiempo rechazan el plan; cambios ajenos no lo invalidan ni
+  añaden costes (`arcane_recovery_test.exs`).
+
 > **No son bugs.** Cambiar cualquiera exige un ADR que reemplace al vigente.
 
 ---
@@ -204,6 +219,11 @@ custom con título/escena inicial/estilo de DM) + personajes.
   LiveView, DMStyle largo y30 focalizados por grafo; rojo causal2/7. Chrome
   1440/375/teclado crea19443 con476 caracteres exactos y3D. Migración text
   test/dev preserva47 estilos existentes; producción pendiente de deploy.
+
+- AC-10.6 (D256): nombres repetidos por trim/case y nombre reservado `dm`
+  devuelven error antes de World/Repo. El asistente conserva selección y
+  detalles; sustituir el personaje permite crear sin renombrar el héroe ni
+  perder su vínculo (`game_roster_names_test.exs`, `game_creation_names_test.exs`).
 
 ### R11 — Compañeros: héroes, arquetipos y monstruos ✅
 El creador añade sus héroes, arquetipos predefinidos (guerrero/maga/pícaro) o
@@ -1652,6 +1672,12 @@ fallbacks de D17 para actores), combate fantasma forzado (D18), UTF-8 sanitize
   transitorio ya consumido. Tres 503, un corte y otro 503 pausan tras cinco
   peticiones; un 503, corte, dos 503 y cierre válido usan el margen restante
   sin duplicar narración ni efectos (`game_retry_budget_test.exs`).
+
+- AC-35.7 (D258): reintentar make_attack con arma equivalente o modo normal
+  omitido/null/explícito recupera el efecto pagado, también tras restart. La
+  resolución vigente impide conflar otra arma; legacy fuzzy ambiguo se rechaza
+  antes de RNG y mantiene su metadata tras JSON y segunda reapertura. Armas
+  y modos distintos siguen independientes (`game_attack_alias_replay_test.exs`).
 
 ### R36 — Sin API key = TestModel ✅
 Sin `OPENROUTER_API_KEY`, los beats usan `TestModel` (no narran, no consumen

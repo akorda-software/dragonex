@@ -11,7 +11,7 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 
 ## Último estado — 2026-10-25
 
-- **Gates:** 3172 passed / 3 excluded en ambos grafos (local y Hex).
+- **Gates:** 3224 passed / 3 excluded en ambos grafos (local y Hex).
   Código propio sin warnings, formato limpio; dependencias frías conservan
   avisos de terceros documentados en `tecnico/09-estrategia-pruebas.md`.
 - **Dependencias:** dev usa `../exAgent` 2.2.2 y `../dic_ex` 0.3; el lock de
@@ -47,6 +47,9 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
   fallo de turno → pausa con motivo y reanudación sin duplicar (D228).
 - **Reintentos (D248):** una reacción conserva su turno y recursos principales;
   el corte por tokens no repone el presupuesto de fallos transitorios.
+- **Recursos y replay (D255/D258):** Recuperación arcana revalida el plan al
+  confirmar; aliases de armas equivalentes recuperan el ataque pagado y los
+  recibos antiguos ambiguos piden su argumento exacto antes de tirar.
 - **Humano caído (D253):** debe resolver su salvación de muerte antes de
   cerrar el turno principal; 20 natural permite actuar y reiniciar no repite dados.
 - **Agentes:** DM con narración estructurada (D222), PCs IA con voz propia,
@@ -55,10 +58,13 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
   Los PCs IA no actúan solos en exploración si no se les interpela (D32).
 - **Creador de héroes y subida de nivel** (SRD 12 clases, golden L1/L3/L5;
   XP 5e D43), contenido custom por usuario.
+- **Edición de héroes (D257):** conserva progreso, ASI, PG y gasto; previews
+  no acumulan beneficios y una pestaña obsoleta no sobrescribe la ficha nueva.
 - **Web:** mesa responsive 375–1440, dados 2D/3D, multijugador con sala de
   espera, home con crónica viva (D233).
-- **Operaciones web (D249–D250):** cancelar ajustes o quitar una clave impide
-  aplicar comprobaciones tardías; borrar una mesa cierra sus agentes.
+- **Operaciones web (D249–D250/D256):** cancelar ajustes o quitar una clave
+  impide aplicar comprobaciones tardías; borrar una mesa cierra sus agentes;
+  nombres repetidos al crear muestran un error sin perder el formulario.
 - **Playtest y métricas (D251–D252):** recuperación también en la última
   declaración; los relevos de emergencia no suman deliberación humana a la
   latencia IA y los retornos históricos ambiguos se excluyen.

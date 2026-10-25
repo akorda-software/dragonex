@@ -5,8 +5,8 @@
 > declarar "hecho". Regla fundacional: **verificabilidad antes que
 > afirmaciones** — nada está "funcionando" sin un test verde que lo pruebe.
 
-Últimos gates completos, **D246–D253**, 2026-10-25: **3172 passed / 3 excluded**
-en ambos grafos, seed0; local 135,0 s y Hex 129,8 s, secuenciales. Código propio
+Últimos gates completos, **D246–D258**, 2026-10-25: **3224 passed / 3 excluded**
+en ambos grafos, seed0; local 133,4 s y Hex 133,8 s, secuenciales. Código propio
 dev/test/prod compila con `--warnings-as-errors`, formato limpio y ambos
 `mix hex.audit` sin avisos. Compilar dependencias frías con Elixir1.20 emite
 avisos de terceros (toml, websockex, gettext y plug), sin avisos de Dragonex;
@@ -63,6 +63,24 @@ avisos inesperados; cinco deliberados breaker.32 focalizados en1,7 s limpios.
 Gate D1782549/3 final49,3 s/seed30343/max_cases48 sin errores/desconexiones
 ni avisos inesperados; cinco breaker. El primero49,4 s descubrió un fixture
 anti-repeat agotado, reproducido con oráculo exacto y corregido abajo.
+
+## D255–D258 — Recursos, creación, edición y replay de armas
+
+- D255: seis regresiones puras de Recuperación arcana (cinco rojas antes del
+  cambio), incluidas segunda aplicación y reservas/fase/capacidad cambiadas.
+- D256: siete rechazos de roster antes de Repo y dos flujos LiveView que
+  conservan selección/detalles y crean tras corregir.
+- D257: 13 casos puros y 9 LiveView sobre fichas avanzadas, previews repetidos,
+  ASI/PG/recursos, cambios de clase guardados, recarga real, legacy y guardado
+  obsoleto frente a XP, level-up u otra edición; feedback también en inglés.
+- D258: 15 casos de aliases/defaults, retry/restart y armas/modos distintos; dos aliases
+  legacy reprodujeron daño duplicado. La metadata sobrevive JSON y segunda
+  reapertura; alias fuzzy legacy ambiguo pide su argumento guardado antes de
+  RNG, con arma vigente o retirada. Se comprueba feedback en inglés.
+
+Los focales incluyen casos existentes de reglas, incapacidad, rehidratación y
+acciones pagadas; no se cambian sus oráculos para aceptar efectos duplicados.
+Los gates finales quedan registrados arriba y en `progress.md`.
 
 ## D253 — Salvación pendiente y elegibilidad inicial durable
 

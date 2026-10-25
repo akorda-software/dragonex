@@ -16,7 +16,7 @@ existe" sino por "se verifica".**
 
 ## Iteración vigente — 2026-10-25
 
-Correcciones verificadas: 3172 passed / 3 excluded en local y Hex; auditoría
+Correcciones verificadas: 3224 passed / 3 excluded en local y Hex; auditoría
 de ambos locks sin avisos. El resultado vigente de los gates se publica en
 [`../progress.md`](../progress.md), sin sustituir las pruebas con humanos.
 
@@ -29,6 +29,12 @@ de ambos locks sin avisos. El resultado vigente de los gates se publica en
 | Cierre de mesas (D250) | Borrar la mesa propia cierra sus procesos y conserva las demás; AC-33.3 | `game_delete_live_test.exs` |
 | Medición (D251–D252) | Recuperación final y latencias sin deliberación humana tras fallback; AC-NFR-2b/2c | `playtest/playtest_test.exs`, `playtest/metrics_test.exs`, `game_combat_fallback_test.exs` |
 | Salvaciones humanas (D253) | Humano moribundo resuelve su salvación antes de cerrar; elegibilidad y tirada sobreviven a retry/restart; AC-22.8 | `game_human_death_save_test.exs` |
+
+La tanda D255–D258 añade revalidación de Recuperación arcana,
+creación con nombres sin colisión, edición de héroes con progreso y replay
+canónico de ataques. Criterios: AC-9.1, AC-10.6, AC-6.1/6.2/6.3 y AC-35.7.
+Verificación focal y gates completos local/Hex superados (3224/3).
+D254 mantiene CI preparada con primer check remoto pendiente.
 
 Después: mantener el orden de [`../progress.md`](../progress.md): evidencia de
 partidas humanas, inventario de misión y fiabilidad/latencia del proveedor.

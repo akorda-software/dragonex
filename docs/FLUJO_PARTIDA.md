@@ -277,6 +277,12 @@ El fallback de un actor fallido también sincroniza el combatiente siguiente.
 
 ## 4. El `Game` GenServer: estado y lifecycle
 
+Antes de crear una mesa, Games comprueba que todos los nombres del grupo sean
+únicos con la comparación del lobby y que nadie use `dm` (D256). Si un héroe
+guardado coincide con un arquetipo, el asistente muestra el conflicto y
+conserva los detalles y selecciones para corregirlo; no llega a construir un
+World parcial ni a persistir participantes.
+
 Al borrar una partida desde la lista, el ID entero del registro eliminado
 identifica el supervisor que se debe detener (D250). Se cierran también
 Session, DM, TurnMaster, PCs y peticiones en curso; otras mesas conservan sus
@@ -1242,6 +1248,12 @@ narración, conservan si el beat era una reacción. Aunque todavía no exista
 un recibo durable, ni el backoff ni pausar/reanudar convierten esa reacción
 en turno principal ni marcan al reactor como actuado en la ronda.
 
+Los reintentos de ataque usan el nombre de arma que resuelve el motor y el
+modo normalizado (D258), para no repetir daño por cambiar un alias. La ficha
+vigente tiene prioridad; un arma retirada puede recuperar su recibo si el
+alias histórico es único. Los recibos legacy ambiguos piden su argumento
+exacto antes de tirar, y su procedencia se conserva tras reiniciar.
+
 ### 15.2 Combate fantasma — `maybe_force_combat` (`game.ex`, §bug #2)
 Si un beat **introduce** un enemigo vivo (`side == "enemy"`, hp > 0) mientras la
 fase es `:exploration`, el motor tira iniciativa él mismo y hace `begin_combat`.
@@ -1639,6 +1651,22 @@ tópico `dragonex:game:<id>` y re-fetch del snapshot al recibir
 - [ ] _(sin pendientes menores abiertos)_
 
 ---
+
+## Editar un héroe sin perder progreso (D257)
+
+Si el héroe vuelve a ser editable, cada preview parte de la ficha/formulario
+originales del montaje. Cambiar identidad conserva todo lo demás; cambiar
+opciones mecánicas mantiene nivel y XP, conserva ASI y gasto, y recalcula los
+derivados afectados sin curar. En fichas legacy no se inventa una creación de
+nivel 1 para reemplazar datos que la elección no afecta. El registro de gasto
+en draft evita reembolsos al cambiar de clase y volver; una recarga real de la
+ficha puede sustituir esa proyección.
+
+Al guardar se bloquea la fila y se comparan ficha y draft con el montaje.
+Si XP, nivel u otra edición cambiaron, la pestaña antigua conserva su borrador
+y muestra un error; no pisa el nuevo progreso. Esta edición solo cambia la
+biblioteca: las partidas ya creadas conservan sus snapshots y las guardas
+anteriores de edición.
 
 ## Subir un héroe con partidas abiertas (D124–D125)
 
