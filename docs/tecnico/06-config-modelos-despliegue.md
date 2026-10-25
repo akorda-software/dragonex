@@ -176,6 +176,13 @@ Las promociones posteriores quedan en el
 [historial de CI](https://github.com/akorda-software/dragonex/actions/workflows/ci.yml)
 y en los despliegues de Dokploy, con el SHA correspondiente.
 
+La promoción completa se verificó sobre `59b362e` en
+[40185544102](https://github.com/akorda-software/dragonex/actions/runs/40185544102):
+check y promoción verdes, webhook recibido por Dokploy y release con el mismo
+SHA respondiendo HTTP200 y conectando LiveView. Un commit posterior de solo
+documentación puede registrar esta evidencia con `[skip ci]`; no avanza
+`production` ni vuelve a desplegar el código ya probado.
+
 Los despliegues manuales desde el panel o API siguen siendo operaciones de
 administración: comprobar el SHA y su CI antes de usarlos. El script de
 bootstrap crea infraestructura nueva; su plantilla apunta a `production`.

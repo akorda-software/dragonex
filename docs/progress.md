@@ -14,6 +14,10 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 - **Gates:** 3266 passed / 4 excluded en ambos grafos (local y Hex).
   Código propio sin warnings, formato limpio; dependencias frías conservan
   avisos de terceros documentados en `tecnico/09-estrategia-pruebas.md`.
+- **Producción verificada:** `59b362e`, desplegado el 2026-10-25 tras
+  [CI 40185544102](https://github.com/akorda-software/dragonex/actions/runs/40185544102)
+  verde (3266/4) y promoción automática a `production`. Dokploy confirmó ese
+  SHA; HTTP 200, LiveView conectado y móvil sin errores JS ni desbordamiento.
 - **Dependencias:** dev usa `../exAgent` 2.2.2 y `../dic_ex` 0.3; el lock de
   producción adopta exAgent 2.2.2, ReqLLM 1.29.0 y Bandit 1.13.1. Ambos locks
   pasan `mix hex.audit` sin avisos (D246). Tanda D259–D264 validada local/Hex y

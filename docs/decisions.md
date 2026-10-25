@@ -8512,6 +8512,11 @@ el token efímero del job y el webhook existente de GitHub.
 
 **Verificación/límites:** actionlint y primera CI remota sobre f6383da verdes
 ([40182791446](https://github.com/akorda-software/dragonex/actions/runs/40182791446)).
+La promoción completa de 59b362e pasó en
+[40185544102](https://github.com/akorda-software/dragonex/actions/runs/40185544102):
+3266/4, rama production actualizada y webhook a Dokploy. El despliegue
+IXucKhhjeT4DHIIIYAxZ2 terminó con ese SHA; servicio running, HTTP200,
+LiveView conectado y sin errores JS en la comprobación móvil.
 La comparación master/promotion no es atómica: puede promover un commit ya
 superado, pero probado; no puede hacer retroceder una promoción posterior.
 La evidencia de las promociones queda en Actions y Dokploy, enlazados desde
