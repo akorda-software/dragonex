@@ -2908,6 +2908,13 @@ Proveedor real y navegador: partida 19468, eventos 12/13 (recibe/devuelve),
 22/23 (presta/recupera) y 31 (rechazo sin transferencia), descritos en
 `producto/05-cierre-version-jugable.md`. Gates vigentes en `progress.md`.
 
+Durante la CI de D265 se detectó una carrera en `CredentialRevocationTest`:
+el `DOWN` de la petición no implica que la partición de Registry ya haya
+retirado su entrada. Las pruebas de cancelación esperan ahora esa condición
+con un plazo acotado, conservando las aserciones de proceso muerto y rechazo
+de nuevas admisiones. El cierre del stream en el propio proceso conserva su
+comprobación inmediata; no cambia el código de revocación en producción.
+
 ## Límites declarados
 
 - D254/D262: `.github/workflows/ci.yml` ejecuta el gate Hex offline con

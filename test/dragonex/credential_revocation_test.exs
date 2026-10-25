@@ -127,7 +127,7 @@ defmodule Dragonex.CredentialRevocationTest do
     assert {:error, :credential_revoked} =
              Model.request(model, [], nil, %ModelRequestParameters{})
 
-    assert Registry.lookup(Dragonex.GameAI.RequestRegistry, {user.id, "openai"}) == []
+    assert_request_unregistered(user.id)
   end
 
   test "stream admission is lazy and halted streams release their registration", %{user: user} do
@@ -166,10 +166,11 @@ defmodule Dragonex.CredentialRevocationTest do
     assert :ok = Accounts.delete_api_key(user, "openai")
     assert_receive {:DOWN, ^ref, :process, ^task, _}, 1_000
     refute_received {:stream_finished, _}
-    assert Registry.lookup(Dragonex.GameAI.RequestRegistry, {user.id, "openai"}) == []
 
     assert Model.request_stream(model, [], nil, %ModelRequestParameters{}) |> Enum.to_list() ==
              [{:error, :credential_revoked}]
+
+    assert_request_unregistered(user.id)
   end
 
   test "a retired probe cannot apply its cached model after the key disappears", %{user: user} do
@@ -317,6 +318,27 @@ defmodule Dragonex.CredentialRevocationTest do
       )
 
     {game, pid}
+  end
+
+  # DOWN confirms cancellation; Registry's partition removes the dead process's
+  # entries independently. Wait for that postcondition, not an assumed delay.
+  defp assert_request_unregistered(user_id),
+    do: await_request_unregistered(user_id, System.monotonic_time(:millisecond) + 1_000)
+
+  defp await_request_unregistered(user_id, deadline) do
+    case Registry.lookup(Dragonex.GameAI.RequestRegistry, {user_id, "openai"}) do
+      [] ->
+        :ok
+
+      _entries ->
+        assert System.monotonic_time(:millisecond) < deadline,
+               "Registry did not remove the cancelled request registration"
+
+        receive do
+        after
+          1 -> await_request_unregistered(user_id, deadline)
+        end
+    end
   end
 
   defp own,
