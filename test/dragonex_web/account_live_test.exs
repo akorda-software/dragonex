@@ -83,6 +83,90 @@ defmodule DragonexWeb.AccountLiveTest do
     assert Accounts.api_key(user.id, "anthropic") == :error
   end
 
+  test "removing a key cancels its replacement without affecting a newer check", ctx do
+    %{conn: conn, user: user} = ctx
+    :ok = Accounts.put_api_key(user, "openai", "sk-original-key-1111")
+    block_key_checks()
+    {:ok, view, _} = live(conn, "/cuenta")
+
+    view
+    |> form("#key-form-openai", provider: "openai", key: "sk-cancelled-key-2222")
+    |> render_submit()
+
+    first = pending_check()
+    view |> element("#key-openai button", "Quitar") |> render_click()
+    refute has_element?(view, "#key-openai .key-saved")
+    assert Accounts.api_key(user.id, "openai") == :error
+
+    view
+    |> form("#key-form-openai", provider: "openai", key: "sk-current-key-3333")
+    |> render_submit()
+
+    second = pending_check()
+    release_check(first)
+    assert has_element?(view, "#key-form-openai button[disabled]", "Comprobando")
+    assert Accounts.api_key(user.id, "openai") == :error
+    refute has_element?(view, "#key-openai .key-saved")
+
+    :ok = :sys.suspend(view.pid)
+
+    try do
+      release_check(second)
+      {:messages, messages} = Process.info(view.pid, :messages)
+      assert Enum.any?(messages, &match?({:key_checked, _, "openai", {:ok, _}}, &1))
+      refute inspect(messages) =~ "sk-current-key-3333"
+    after
+      :sys.resume(view.pid)
+    end
+
+    eventually(fn -> has_element?(view, "#key-openai .key-saved", "3333") end)
+    assert Accounts.api_key(user.id, "openai") == {:ok, "sk-current-key-3333"}
+    refute render(view) =~ "sk-cancelled-key-2222"
+    refute render(view) =~ "sk-current-key-3333"
+    refute inspect(:sys.get_state(view.pid).socket.assigns) =~ "sk-current-key-3333"
+  end
+
+  test "closing the account page before validation finishes does not save a key", ctx do
+    %{conn: conn, user: user} = ctx
+    block_key_checks()
+    {:ok, view, _} = live(conn, "/cuenta")
+
+    view
+    |> form("#key-form-openai", provider: "openai", key: "sk-abandoned-key-4444")
+    |> render_submit()
+
+    checker = pending_check()
+    assert :ok == stop_supervised({Dragonex.Test.LiveViewFixture, view.pid})
+    release_check(checker)
+    assert Accounts.api_key(user.id, "openai") == :error
+  end
+
+  defp block_key_checks do
+    test_pid = self()
+
+    Application.put_env(:dragonex, :ai_http,
+      plug: fn conn ->
+        send(test_pid, {:key_check_started, self()})
+
+        receive do
+          :finish -> Req.Test.json(conn, %{"data" => [%{"id" => "gpt-test"}]})
+        end
+      end
+    )
+  end
+
+  defp pending_check do
+    assert_receive {:key_check_started, pid}
+    on_exit(fn -> send(pid, :finish) end)
+    pid
+  end
+
+  defp release_check(pid) do
+    ref = Process.monitor(pid)
+    send(pid, :finish)
+    assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 2_000
+  end
+
   defp stub(conn) do
     case Plug.Conn.get_req_header(conn, "authorization") do
       ["Bearer sk-good-key-abcd"] -> Req.Test.json(conn, %{"data" => [%{"id" => "gpt-5-mini"}]})

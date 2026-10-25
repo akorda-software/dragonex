@@ -49,7 +49,9 @@ defmodule DragonexWeb.GameLive.Settings do
         settings_models: [],
         settings_models_status: :idle,
         settings_error: nil,
-        settings_checking: false
+        settings_checking: false,
+        settings_models_ref: nil,
+        settings_probe_ref: nil
       )
       |> fetch_models()
       |> then(&{:noreply, &1})
@@ -57,7 +59,14 @@ defmodule DragonexWeb.GameLive.Settings do
   end
 
   def handle_event("close_settings", _params, socket),
-    do: {:noreply, assign(socket, show_settings: false, settings_checking: false)}
+    do:
+      {:noreply,
+       assign(socket,
+         show_settings: false,
+         settings_checking: false,
+         settings_models_ref: nil,
+         settings_probe_ref: nil
+       )}
 
   def handle_event("settings_select_source", %{"source" => key}, socket) do
     if creator?(socket) and Enum.any?(socket.assigns.settings_sources, &(&1.key == key)) do
@@ -68,7 +77,10 @@ defmodule DragonexWeb.GameLive.Settings do
         settings_model: nil,
         settings_custom_model: "",
         settings_models_status: :idle,
-        settings_error: nil
+        settings_error: nil,
+        settings_checking: false,
+        settings_models_ref: nil,
+        settings_probe_ref: nil
       )
       |> fetch_models()
       |> then(&{:noreply, &1})
@@ -78,10 +90,25 @@ defmodule DragonexWeb.GameLive.Settings do
   end
 
   def handle_event("settings_select_model", %{"model" => model}, socket),
-    do: {:noreply, assign(socket, settings_model: model, settings_custom_model: "")}
+    do:
+      {:noreply,
+       assign(socket,
+         settings_model: model,
+         settings_custom_model: "",
+         settings_checking: false,
+         settings_probe_ref: nil,
+         settings_error: nil
+       )}
 
   def handle_event("settings_custom_model", %{"value" => value}, socket),
-    do: {:noreply, assign(socket, settings_custom_model: value || "")}
+    do:
+      {:noreply,
+       assign(socket,
+         settings_custom_model: value || "",
+         settings_checking: false,
+         settings_probe_ref: nil,
+         settings_error: nil
+       )}
 
   def handle_event("settings_refresh_models", _params, socket),
     do: {:noreply, fetch_models(socket)}
@@ -94,17 +121,24 @@ defmodule DragonexWeb.GameLive.Settings do
     end
   end
 
-  # The listing task of the source still selected; late answers are dropped.
-  def handle_info({:settings_models, source, result}, socket) do
-    if socket.assigns.show_settings and socket.assigns.settings_source == source do
+  # Only the latest listing may update this opening of the modal, including
+  # when a source was selected, left and selected again while HTTP was pending.
+  def handle_info({:settings_models, {ref, source}, result}, socket) do
+    if socket.assigns.show_settings and socket.assigns[:settings_models_ref] == ref and
+         socket.assigns.settings_source == source do
+      socket = assign(socket, settings_models_ref: nil)
+
       case result do
         {:ok, models} ->
           current = socket.assigns.settings_model
+          custom = socket.assigns.settings_custom_model
 
           {model, custom} =
-            if current != nil and Enum.any?(models, &(&1.id == current)),
-              do: {current, ""},
-              else: {nil, current || ""}
+            cond do
+              custom != "" -> {nil, custom}
+              current != nil and Enum.any?(models, &(&1.id == current)) -> {current, ""}
+              true -> {nil, current || ""}
+            end
 
           {:noreply,
            assign(socket,
@@ -131,10 +165,11 @@ defmodule DragonexWeb.GameLive.Settings do
   end
 
   # The probe of an own-key model finished: restart the table or explain why not.
-  def handle_info({:settings_probe, source, model_id, result}, socket) do
+  def handle_info({:settings_probe, {ref, source}, model_id, result}, socket) do
     if socket.assigns.show_settings and socket.assigns.settings_checking and
+         socket.assigns[:settings_probe_ref] == ref and
          socket.assigns.settings_source == source do
-      socket = assign(socket, settings_checking: false)
+      socket = assign(socket, settings_checking: false, settings_probe_ref: nil)
 
       case result do
         {:ok, selection, models} -> restart(socket, selection, models)
@@ -195,6 +230,7 @@ defmodule DragonexWeb.GameLive.Settings do
       true ->
         selection = %{source: :own, provider: provider, model: model_id, metadata: metadata}
         parent = self()
+        ref = make_ref()
 
         Task.Supervisor.start_child(ExAgent.TaskSupervisor, fn ->
           result =
@@ -203,10 +239,11 @@ defmodule DragonexWeb.GameLive.Settings do
               {:ok, selection, models}
             end
 
-          send(parent, {:settings_probe, source, model_id, result})
+          send(parent, {:settings_probe, {ref, source}, model_id, result})
         end)
 
-        {:noreply, assign(socket, settings_checking: true, settings_error: nil)}
+        {:noreply,
+         assign(socket, settings_checking: true, settings_probe_ref: ref, settings_error: nil)}
     end
   end
 
@@ -287,6 +324,7 @@ defmodule DragonexWeb.GameLive.Settings do
     source = socket.assigns.settings_source
     user_id = socket.assigns.current_user.id
     parent = self()
+    ref = make_ref()
 
     Task.Supervisor.start_child(ExAgent.TaskSupervisor, fn ->
       result =
@@ -301,10 +339,14 @@ defmodule DragonexWeb.GameLive.Settings do
             Models.list_models(String.to_existing_atom(provider))
         end
 
-      send(parent, {:settings_models, source, result})
+      send(parent, {:settings_models, {ref, source}, result})
     end)
 
-    assign(socket, settings_models_status: :loading, settings_error: nil)
+    assign(socket,
+      settings_models_status: :loading,
+      settings_models_ref: ref,
+      settings_error: nil
+    )
   end
 
   # Server-side ownership guard for privileged actions (the buttons are UI-gated

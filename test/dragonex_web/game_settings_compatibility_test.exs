@@ -160,6 +160,119 @@ defmodule DragonexWeb.GameSettingsCompatibilityTest do
     assert Games.get_game(game.id).ai == %{}
   end
 
+  test "a cancelled probe cannot apply after reopening for the same source and model", ctx do
+    %{conn: conn, user: user, game: game} = ctx
+    :ok = Accounts.put_api_key(user, "openai", "sk-test-own-key-1234")
+    block_probes()
+    {:ok, view, _} = live(conn, "/games/#{game.id}")
+    original = Game.Supervisor.whereis(game.id)
+    world = Game.world(original)
+    events = Games.list_events(game.id)
+
+    select_own_model(view)
+    render_click(view, "settings_apply")
+    first = pending_probe()
+    render_click(view, "close_settings")
+    select_own_model(view)
+    render_click(view, "settings_apply")
+    second = pending_probe()
+
+    release_task(first)
+    assert has_element?(view, ".settings-modal [role=status]", "Comprobando")
+    assert Game.Supervisor.whereis(game.id) == original
+    assert Games.get_game(game.id).ai == %{}
+    assert Game.world(original) == world
+    assert Games.list_events(game.id) == events
+
+    release_task(second)
+    eventually(fn -> not has_element?(view, ".settings-modal") end)
+    assert Game.Supervisor.whereis(game.id) != original
+    assert Games.get_game(game.id).ai["model"] == "gpt-test"
+    assert Games.load_world(Games.get_game(game.id)) == world
+  end
+
+  test "editing a model cancels its probe and only the newly applied choice can restart", ctx do
+    %{conn: conn, user: user, game: game} = ctx
+    :ok = Accounts.put_api_key(user, "openai", "sk-test-own-key-1234")
+    block_probes()
+    {:ok, view, _} = live(conn, "/games/#{game.id}")
+    original = Game.Supervisor.whereis(game.id)
+
+    select_own_model(view)
+    render_click(view, "settings_apply")
+    first = pending_probe()
+    view |> form("#settings-custom-model", value: "gpt-new-choice") |> render_change()
+    refute has_element?(view, ".settings-modal [role=status]")
+    render_click(view, "settings_apply")
+    second = pending_probe()
+
+    release_task(first)
+    assert has_element?(view, ".settings-modal [role=status]", "Comprobando")
+    assert Game.Supervisor.whereis(game.id) == original
+    assert Games.get_game(game.id).ai == %{}
+
+    release_task(second)
+    eventually(fn -> not has_element?(view, ".settings-modal") end)
+    assert Games.get_game(game.id).ai["model"] == "gpt-new-choice"
+  end
+
+  test "switching to the house during a probe leaves Apply available", ctx do
+    %{conn: conn, user: user, game: game} = ctx
+    :ok = Accounts.put_api_key(user, "openai", "sk-test-own-key-1234")
+    block_probes()
+    {:ok, view, _} = live(conn, "/games/#{game.id}")
+
+    select_own_model(view)
+    render_click(view, "settings_apply")
+    first = pending_probe()
+    render_click(view, "settings_select_source", %{"source" => "house"})
+    refute has_element?(view, "button[phx-click=settings_apply][disabled]")
+    render_click(view, "settings_apply")
+    refute has_element?(view, ".settings-modal")
+    current = Game.Supervisor.whereis(game.id)
+
+    release_task(first)
+    refute has_element?(view, ".settings-modal")
+    assert Game.Supervisor.whereis(game.id) == current
+    assert Games.get_game(game.id).ai == %{"source" => "house"}
+  end
+
+  test "old catalogues are ignored and a completed listing preserves a typed model", ctx do
+    %{conn: conn, user: user} = ctx
+    :ok = Accounts.put_api_key(user, "openai", "sk-test-own-key-1234")
+    test_pid = self()
+
+    Application.put_env(:dragonex, :ai_http,
+      plug: fn conn ->
+        send(test_pid, {:listing_started, self()})
+
+        receive do
+          {:models, models} -> Req.Test.json(conn, %{"data" => Enum.map(models, &%{"id" => &1})})
+        end
+      end
+    )
+
+    {:ok, view, _} = live(conn, "/games/#{ctx.game.id}")
+    render_click(view, "open_settings")
+    render_click(view, "settings_select_source", %{"source" => "own:openai"})
+    assert_receive {:listing_started, first}
+    on_exit(fn -> send(first, {:models, []}) end)
+    render_click(view, "settings_select_source", %{"source" => "house"})
+    render_click(view, "settings_select_source", %{"source" => "own:openai"})
+    assert_receive {:listing_started, second}
+    on_exit(fn -> send(second, {:models, []}) end)
+    view |> form("#settings-custom-model", value: "gpt-typed-choice") |> render_change()
+
+    release_task(first, {:models, ["gpt-stale"]})
+    assert has_element?(view, ".settings-msg", "cargando modelos")
+    refute has_element?(view, "#settings-select-model option", "gpt-stale")
+    assert has_element?(view, "#settings-custom-model input[value=gpt-typed-choice]")
+
+    release_task(second, {:models, ["gpt-current"]})
+    eventually(fn -> has_element?(view, "#settings-select-model option", "gpt-current") end)
+    assert has_element?(view, "#settings-custom-model input[value=gpt-typed-choice]")
+  end
+
   test "server keys with enabled-only reasoning are rejected before restart", ctx do
     %{conn: conn, game: game} = ctx
     # The table starts on the offline default; the key only feeds the modal.
@@ -225,6 +338,37 @@ defmodule DragonexWeb.GameSettingsCompatibilityTest do
       _ ->
         conn |> Plug.Conn.put_status(404) |> Req.Test.json(%{})
     end
+  end
+
+  defp select_own_model(view) do
+    render_click(view, "open_settings")
+    render_click(view, "settings_select_source", %{"source" => "own:openai"})
+    eventually(fn -> has_element?(view, "#settings-select-model option", "gpt-test") end)
+    view |> form("#settings-select-model", model: "gpt-test") |> render_change()
+  end
+
+  defp block_probes do
+    test_pid = self()
+
+    Application.put_env(:dragonex, :ai_probe, fn _model ->
+      send(test_pid, {:probe_started, self()})
+
+      receive do
+        :finish -> :ok
+      end
+    end)
+  end
+
+  defp pending_probe do
+    assert_receive {:probe_started, pid}
+    on_exit(fn -> send(pid, :finish) end)
+    pid
+  end
+
+  defp release_task(pid, reply \\ :finish) do
+    ref = Process.monitor(pid)
+    send(pid, reply)
+    assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 2_000
   end
 
   defp eventually(fun, attempts \\ 100) do

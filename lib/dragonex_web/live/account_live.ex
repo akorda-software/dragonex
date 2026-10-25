@@ -12,6 +12,7 @@ defmodule DragonexWeb.AccountLive do
   use Gettext, backend: Dragonex.Gettext
 
   alias Dragonex.{Accounts, AIProviders}
+  alias Dragonex.Accounts.KeyVault
 
   @impl true
   def mount(_params, _session, socket) do
@@ -19,6 +20,7 @@ defmodule DragonexWeb.AccountLive do
      assign(socket,
        keys: keys(socket.assigns.current_user),
        checking: nil,
+       checking_ref: nil,
        errors: %{},
        saved: nil
      )}
@@ -27,8 +29,9 @@ defmodule DragonexWeb.AccountLive do
   @impl true
   def handle_event("save_key", %{"provider" => provider, "key" => key}, socket) do
     if AIProviders.get(provider) && is_nil(socket.assigns.checking) do
-      user = socket.assigns.current_user
       parent = self()
+      user_id = socket.assigns.current_user.id
+      ref = make_ref()
 
       Task.Supervisor.start_child(ExAgent.TaskSupervisor, fn ->
         result =
@@ -37,18 +40,18 @@ defmodule DragonexWeb.AccountLive do
               {:error, :blank}
 
             key ->
-              with {:ok, _models} <- AIProviders.list_models(provider, key),
-                   :ok <- Accounts.put_api_key(user, provider, key) do
-                :ok
+              with {:ok, _models} <- AIProviders.list_models(provider, key) do
+                {:ok, KeyVault.seal(key, user_id, provider)}
               end
           end
 
-        send(parent, {:key_checked, provider, result})
+        send(parent, {:key_checked, ref, provider, result})
       end)
 
       {:noreply,
        assign(socket,
          checking: provider,
+         checking_ref: ref,
          saved: nil,
          errors: Map.delete(socket.assigns.errors, provider)
        )}
@@ -58,6 +61,13 @@ defmodule DragonexWeb.AccountLive do
   end
 
   def handle_event("delete_key", %{"provider" => provider}, socket) do
+    # A pending replacement must not re-create a key after the player removes
+    # it. The task only checks the provider; this process owns the write.
+    socket =
+      if socket.assigns.checking == provider,
+        do: assign(socket, checking: nil, checking_ref: nil),
+        else: socket
+
     if AIProviders.get(provider) do
       :ok = Accounts.delete_api_key(socket.assigns.current_user, provider)
     end
@@ -66,8 +76,27 @@ defmodule DragonexWeb.AccountLive do
   end
 
   @impl true
-  def handle_info({:key_checked, provider, result}, socket) do
-    socket = assign(socket, checking: nil)
+  def handle_info(
+        {:key_checked, ref, provider, result},
+        %{assigns: %{checking: provider, checking_ref: ref}} = socket
+      ) do
+    # Carry ciphertext through the mailbox so even a failed callback's "last
+    # message" cannot reveal the key. It is opened only for the accepted write,
+    # never assigned or rendered. Cancelled checks do not touch storage.
+    result =
+      case result do
+        {:ok, sealed} ->
+          with {:ok, key} <- KeyVault.open(sealed, socket.assigns.current_user.id, provider) do
+            Accounts.put_api_key(socket.assigns.current_user, provider, key)
+          else
+            :error -> {:error, :invalid}
+          end
+
+        error ->
+          error
+      end
+
+    socket = assign(socket, checking: nil, checking_ref: nil)
 
     case result do
       :ok ->
