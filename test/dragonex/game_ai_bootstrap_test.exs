@@ -40,8 +40,8 @@ defmodule Dragonex.GameAIBootstrapTest do
 
     {:ok, pid} = Game.Supervisor.start_game(game.id, [])
     state = :sys.get_state(pid)
-    assert state.model.model.id == "gemini-2.5-flash"
-    assert state.model.api_key == "g-player-key-4242"
+    assert state.model.inner.model.id == "gemini-2.5-flash"
+    assert state.model.inner.api_key == "g-player-key-4242"
     assert state.summarizer == state.model
   end
 

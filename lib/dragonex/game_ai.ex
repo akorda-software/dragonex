@@ -57,8 +57,14 @@ defmodule Dragonex.GameAI do
 
   @doc "Build the models of a selection paid by `user_id` (`{:ok, kw}` or `{:error, reason}`)."
   def build(%{source: :own} = s, user_id) do
-    with {:ok, key} <- Accounts.api_key(user_id, s.provider) do
-      model = AIProviders.model(s.provider, s.model, key, s.metadata)
+    with {:ok, key, version} <- Accounts.api_key_with_version(user_id, s.provider) do
+      model = %Dragonex.GameAI.OwnKeyModel{
+        inner: AIProviders.model(s.provider, s.model, key, s.metadata),
+        user_id: user_id,
+        provider: s.provider,
+        version: version
+      }
+
       {:ok, [model: model, summarizer: model, turnmaster_model: model]}
     else
       :error -> {:error, :missing_key}

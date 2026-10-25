@@ -518,6 +518,7 @@ defmodule Dragonex.Game.Beats do
   # in-process Test model can't propagate its mutated script index back through
   # `request_stream`, so streaming it would loop on the same script item
   # forever. Anything that isn't the Test model gets the live-preview path.
+  defp stream_text_for(%Dragonex.GameAI.OwnKeyModel{inner: model}), do: stream_text_for(model)
   defp stream_text_for(%ExAgent.Models.Test{}), do: false
   defp stream_text_for(_), do: true
 

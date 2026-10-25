@@ -2999,3 +2999,11 @@ msgstr "Welcome, %{name}!"
 #, elixir-autogen, elixir-format
 msgid "Tu héroe ha cambiado. Recarga la página para editar la ficha actual; no hemos guardado este borrador."
 msgstr "Your hero has changed. Reload the page to edit the current sheet; this draft has not been saved."
+
+#, elixir-autogen, elixir-format
+msgid "La clave se ha actualizado, pero alguna mesa no pudo cambiar de modelo. Recarga la mesa antes de reanudar."
+msgstr "The key has changed, but a table could not switch models. Reload that table before resuming."
+
+#, elixir-autogen, elixir-format
+msgid "La clave cambió mientras se comprobaba. Vuelve a guardarla si quieres sustituir la clave actual."
+msgstr "The key changed while it was being checked. Save it again if you want to replace the current key."

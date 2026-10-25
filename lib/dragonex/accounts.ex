@@ -119,37 +119,63 @@ defmodule Dragonex.Accounts do
   end
 
   @doc "Save (or replace) a player's key for one provider, sealed at rest."
-  @spec put_api_key(User.t(), String.t(), String.t()) :: :ok | {:error, :invalid}
-  def put_api_key(%User{id: uid}, provider, key) when is_binary(provider) and is_binary(key) do
+  @spec put_api_key(User.t(), String.t(), String.t(), keyword()) ::
+          :ok | {:error, :invalid | :stale_key | :tables_not_updated}
+  def put_api_key(%User{id: uid}, provider, key, opts \\ [])
+      when is_binary(provider) and is_binary(key) do
     key = String.trim(key)
 
     if valid_api_key?(key) do
-      now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+      defaults = Dragonex.Game.KeyRevocation.defaults()
 
-      Repo.insert!(
-        %ApiKey{
-          user_id: uid,
-          provider: provider,
-          ciphertext: KeyVault.seal(key, uid, provider),
-          hint: String.slice(key, -4, 4),
-          inserted_at: now,
-          updated_at: now
-        },
-        on_conflict: {:replace, [:ciphertext, :hint, :updated_at]},
-        conflict_target: [:user_id, :provider]
-      )
+      Dragonex.Game.KeyRevocation.locked(uid, provider, fn ->
+        case Keyword.fetch(opts, :expected_version) do
+          {:ok, expected} ->
+            if api_key_version(uid, provider) == expected do
+              store_api_key(uid, provider, key)
+              Dragonex.Game.KeyRevocation.changed(uid, provider, {:replaced, defaults})
+            else
+              {:error, :stale_key}
+            end
 
-      :ok
+          :error ->
+            store_api_key(uid, provider, key)
+            Dragonex.Game.KeyRevocation.changed(uid, provider, {:replaced, defaults})
+        end
+      end)
     else
       {:error, :invalid}
     end
   end
 
-  @doc "Forget a player's key for one provider."
-  @spec delete_api_key(User.t(), String.t()) :: :ok
-  def delete_api_key(%User{id: uid}, provider) do
-    Repo.delete_all(from(k in ApiKey, where: k.user_id == ^uid and k.provider == ^provider))
+  defp store_api_key(uid, provider, key) do
+    now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+
+    Repo.insert!(
+      %ApiKey{
+        user_id: uid,
+        provider: provider,
+        ciphertext: KeyVault.seal(key, uid, provider),
+        hint: String.slice(key, -4, 4),
+        inserted_at: now,
+        updated_at: now
+      },
+      on_conflict: {:replace, [:ciphertext, :hint, :updated_at]},
+      conflict_target: [:user_id, :provider]
+    )
+
     :ok
+  end
+
+  @doc "Forget a provider key, cancel its active requests and move its tables to the house in pause."
+  @spec delete_api_key(User.t(), String.t()) :: :ok | {:error, :tables_not_updated}
+  def delete_api_key(%User{id: uid}, provider) do
+    defaults = Dragonex.Game.KeyRevocation.defaults()
+
+    Dragonex.Game.KeyRevocation.locked(uid, provider, fn ->
+      Repo.delete_all(from(k in ApiKey, where: k.user_id == ^uid and k.provider == ^provider))
+      Dragonex.Game.KeyRevocation.changed(uid, provider, {:removed, defaults})
+    end)
   end
 
   @doc """
@@ -160,9 +186,38 @@ defmodule Dragonex.Accounts do
   def api_key(nil, _provider), do: :error
 
   def api_key(uid, provider) do
+    case api_key_with_version(uid, provider) do
+      {:ok, key, _version} -> {:ok, key}
+      :error -> :error
+    end
+  end
+
+  @doc false
+  def api_key_with_version(nil, _provider), do: :error
+
+  def api_key_with_version(uid, provider) do
     case Repo.one(from(k in ApiKey, where: k.user_id == ^uid and k.provider == ^provider)) do
-      %ApiKey{ciphertext: sealed} -> KeyVault.open(sealed, uid, provider)
-      nil -> :error
+      %ApiKey{ciphertext: sealed} ->
+        case KeyVault.open(sealed, uid, provider) do
+          {:ok, key} -> {:ok, key, :crypto.hash(:sha256, sealed)}
+          :error -> :error
+        end
+
+      nil ->
+        :error
+    end
+  end
+
+  @doc "Opaque generation for request admission; replacement differs even within one timestamp second."
+  def api_key_version(uid, provider) do
+    case Repo.one(
+           from(k in ApiKey,
+             where: k.user_id == ^uid and k.provider == ^provider,
+             select: k.ciphertext
+           )
+         ) do
+      nil -> nil
+      sealed -> :crypto.hash(:sha256, sealed)
     end
   end
 

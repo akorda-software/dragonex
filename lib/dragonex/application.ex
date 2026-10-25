@@ -10,6 +10,7 @@ defmodule Dragonex.Application do
       {Phoenix.PubSub, name: Dragonex.PubSub},
       {Registry, keys: :unique, name: Dragonex.Game.Registry},
       {Registry, keys: :unique, name: Dragonex.Game.SupervisorRegistry},
+      {Registry, keys: :duplicate, name: Dragonex.GameAI.RequestRegistry},
       {Dragonex.Game.Supervisor, []},
       DragonexWeb.Endpoint
     ]

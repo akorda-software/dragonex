@@ -141,6 +141,45 @@ defmodule DragonexWeb.AccountLiveTest do
     assert Accounts.api_key(user.id, "openai") == :error
   end
 
+  test "a pending check cannot restore a key removed in another account page", ctx do
+    %{conn: conn, user: user} = ctx
+    :ok = Accounts.put_api_key(user, "openai", "sk-original-key-1111")
+    block_key_checks()
+    {:ok, first, _} = live(conn, "/cuenta")
+    {:ok, second, _} = live(conn, "/cuenta")
+
+    first
+    |> form("#key-form-openai", provider: "openai", key: "sk-pending-key-2222")
+    |> render_submit()
+
+    checker = pending_check()
+    second |> element("#key-openai button", "Quitar") |> render_click()
+    release_check(checker)
+    eventually(fn -> has_element?(first, "#key-error-openai", "La clave cambió") end)
+    assert Accounts.api_key(user.id, "openai") == :error
+    refute has_element?(first, "#key-openai .key-saved")
+    refute render(first) =~ "sk-pending-key-2222"
+    refute has_element?(first, "#key-form-openai button[disabled]")
+  end
+
+  test "a pending check cannot replace a newer saved generation", ctx do
+    %{conn: conn, user: user} = ctx
+    :ok = Accounts.put_api_key(user, "openai", "sk-original-key-1111")
+    block_key_checks()
+    {:ok, view, _} = live(conn, "/cuenta")
+
+    view
+    |> form("#key-form-openai", provider: "openai", key: "sk-pending-key-2222")
+    |> render_submit()
+
+    checker = pending_check()
+    :ok = Accounts.put_api_key(user, "openai", "sk-newer-key-3333")
+    release_check(checker)
+    eventually(fn -> has_element?(view, "#key-error-openai", "La clave cambió") end)
+    assert Accounts.api_key(user.id, "openai") == {:ok, "sk-newer-key-3333"}
+    assert has_element?(view, "#key-openai .key-saved", "3333")
+  end
+
   defp block_key_checks do
     test_pid = self()
 

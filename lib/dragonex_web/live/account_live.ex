@@ -21,6 +21,7 @@ defmodule DragonexWeb.AccountLive do
        keys: keys(socket.assigns.current_user),
        checking: nil,
        checking_ref: nil,
+       checking_version: nil,
        errors: %{},
        saved: nil
      )}
@@ -31,6 +32,7 @@ defmodule DragonexWeb.AccountLive do
     if AIProviders.get(provider) && is_nil(socket.assigns.checking) do
       parent = self()
       user_id = socket.assigns.current_user.id
+      version = Accounts.api_key_version(user_id, provider)
       ref = make_ref()
 
       Task.Supervisor.start_child(ExAgent.TaskSupervisor, fn ->
@@ -52,6 +54,7 @@ defmodule DragonexWeb.AccountLive do
        assign(socket,
          checking: provider,
          checking_ref: ref,
+         checking_version: version,
          saved: nil,
          errors: Map.delete(socket.assigns.errors, provider)
        )}
@@ -65,14 +68,22 @@ defmodule DragonexWeb.AccountLive do
     # it. The task only checks the provider; this process owns the write.
     socket =
       if socket.assigns.checking == provider,
-        do: assign(socket, checking: nil, checking_ref: nil),
+        do: assign(socket, checking: nil, checking_ref: nil, checking_version: nil),
         else: socket
 
-    if AIProviders.get(provider) do
-      :ok = Accounts.delete_api_key(socket.assigns.current_user, provider)
-    end
+    result =
+      if AIProviders.get(provider),
+        do: Accounts.delete_api_key(socket.assigns.current_user, provider),
+        else: :ok
 
-    {:noreply, assign(socket, keys: keys(socket.assigns.current_user), saved: nil)}
+    errors =
+      case result do
+        :ok -> Map.delete(socket.assigns.errors, provider)
+        error -> Map.put(socket.assigns.errors, provider, key_error(error))
+      end
+
+    {:noreply,
+     assign(socket, keys: keys(socket.assigns.current_user), saved: nil, errors: errors)}
   end
 
   @impl true
@@ -87,7 +98,9 @@ defmodule DragonexWeb.AccountLive do
       case result do
         {:ok, sealed} ->
           with {:ok, key} <- KeyVault.open(sealed, socket.assigns.current_user.id, provider) do
-            Accounts.put_api_key(socket.assigns.current_user, provider, key)
+            Accounts.put_api_key(socket.assigns.current_user, provider, key,
+              expected_version: socket.assigns.checking_version
+            )
           else
             :error -> {:error, :invalid}
           end
@@ -96,7 +109,7 @@ defmodule DragonexWeb.AccountLive do
           error
       end
 
-    socket = assign(socket, checking: nil, checking_ref: nil)
+    socket = assign(socket, checking: nil, checking_ref: nil, checking_version: nil)
 
     case result do
       :ok ->
@@ -104,7 +117,10 @@ defmodule DragonexWeb.AccountLive do
 
       error ->
         {:noreply,
-         assign(socket, errors: Map.put(socket.assigns.errors, provider, key_error(error)))}
+         assign(socket,
+           keys: keys(socket.assigns.current_user),
+           errors: Map.put(socket.assigns.errors, provider, key_error(error))
+         )}
     end
   end
 
@@ -116,6 +132,20 @@ defmodule DragonexWeb.AccountLive do
 
   defp key_error({:error, :invalid}),
     do: dgettext("ui", "Eso no parece una clave: sin espacios, entre 8 y 512 caracteres.")
+
+  defp key_error({:error, :tables_not_updated}),
+    do:
+      dgettext(
+        "ui",
+        "La clave se ha actualizado, pero alguna mesa no pudo cambiar de modelo. Recarga la mesa antes de reanudar."
+      )
+
+  defp key_error({:error, :stale_key}),
+    do:
+      dgettext(
+        "ui",
+        "La clave cambió mientras se comprobaba. Vuelve a guardarla si quieres sustituir la clave actual."
+      )
 
   defp key_error(error), do: AIProviders.error_message(error)
 

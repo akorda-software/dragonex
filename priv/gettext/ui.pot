@@ -2999,3 +2999,11 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Tu héroe ha cambiado. Recarga la página para editar la ficha actual; no hemos guardado este borrador."
 msgstr ""
+
+#, elixir-autogen, elixir-format
+msgid "La clave se ha actualizado, pero alguna mesa no pudo cambiar de modelo. Recarga la mesa antes de reanudar."
+msgstr ""
+
+#, elixir-autogen, elixir-format
+msgid "La clave cambió mientras se comprobaba. Vuelve a guardarla si quieres sustituir la clave actual."
+msgstr ""

@@ -101,8 +101,8 @@ defmodule DragonexWeb.GameSettingsCompatibilityTest do
     render_click(view, "settings_apply")
 
     assert_receive {:probed, model}
-    assert model.base_url == "https://api.openai.com/v1"
-    assert model.tool_profile == :chat_tools_v1
+    assert model.inner.base_url == "https://api.openai.com/v1"
+    assert model.inner.tool_profile == :chat_tools_v1
     eventually(fn -> not has_element?(view, ".settings-modal") end)
 
     pid = Game.Supervisor.whereis(game.id)
@@ -189,6 +189,57 @@ defmodule DragonexWeb.GameSettingsCompatibilityTest do
     assert Game.Supervisor.whereis(game.id) != original
     assert Games.get_game(game.id).ai["model"] == "gpt-test"
     assert Games.load_world(Games.get_game(game.id)) == world
+  end
+
+  test "withdrawal cancels a running probe and leaves the modal usable", ctx do
+    %{conn: conn, user: user, game: game} = ctx
+    :ok = Accounts.put_api_key(user, "openai", "sk-test-own-key-1234")
+    parent = self()
+
+    Application.put_env(:dragonex, :ai_probe, fn guarded ->
+      inner = %ExAgent.Models.Test{
+        script: [
+          fn _, _ ->
+            send(parent, {:probe_started, self()})
+            receive do: (:finish -> "OK")
+          end
+        ]
+      }
+
+      ExAgent.Model.request(%{guarded | inner: inner}, [], nil, %ExAgent.ModelRequestParameters{})
+    end)
+
+    {:ok, view, _} = live(conn, "/games/#{game.id}")
+    original = Game.Supervisor.whereis(game.id)
+    select_own_model(view)
+    render_click(view, "settings_apply")
+    probe = pending_probe()
+    ref = Process.monitor(probe)
+    :ok = Accounts.delete_api_key(user, "openai")
+    assert_receive {:DOWN, ^ref, :process, ^probe, _}, 1_000
+    eventually(fn -> has_element?(view, "[role=alert]", "no funciona con la mesa") end)
+    refute has_element?(view, "button[phx-click=settings_apply][disabled]")
+    assert Game.Supervisor.whereis(game.id) == original
+    assert Games.get_game(game.id).ai == %{}
+    render_click(view, "settings_select_source", %{"source" => "house"})
+    render_click(view, "settings_apply")
+    refute has_element?(view, ".settings-modal")
+  end
+
+  test "a delayed successful probe cannot apply after withdrawal", ctx do
+    %{conn: conn, user: user, game: game} = ctx
+    :ok = Accounts.put_api_key(user, "openai", "sk-test-own-key-1234")
+    block_probes()
+    {:ok, view, _} = live(conn, "/games/#{game.id}")
+    original = Game.Supervisor.whereis(game.id)
+    select_own_model(view)
+    render_click(view, "settings_apply")
+    probe = pending_probe()
+    :ok = Accounts.delete_api_key(user, "openai")
+    release_task(probe)
+    eventually(fn -> has_element?(view, "[role=alert]", "No se pudieron aplicar") end)
+    assert Game.Supervisor.whereis(game.id) == original
+    assert Games.get_game(game.id).ai == %{}
   end
 
   test "editing a model cancels its probe and only the newly applied choice can restart", ctx do

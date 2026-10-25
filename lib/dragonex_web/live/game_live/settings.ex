@@ -233,10 +233,20 @@ defmodule DragonexWeb.GameLive.Settings do
         ref = make_ref()
 
         Task.Supervisor.start_child(ExAgent.TaskSupervisor, fn ->
+          # A credential withdrawal can stop the admitted request. Keep a
+          # separate observer alive so the modal leaves its checking state.
+          probe =
+            Task.Supervisor.async_nolink(ExAgent.TaskSupervisor, fn ->
+              with {:ok, models} <- GameAI.build(selection, user_id),
+                   :ok <- AIProviders.probe(models[:model]) do
+                {:ok, selection, models}
+              end
+            end)
+
           result =
-            with {:ok, models} <- GameAI.build(selection, user_id),
-                 :ok <- AIProviders.probe(models[:model]) do
-              {:ok, selection, models}
+            case Task.yield(probe, :infinity) do
+              {:ok, result} -> result
+              _ -> {:error, :probe_cancelled}
             end
 
           send(parent, {:settings_probe, {ref, source}, model_id, result})

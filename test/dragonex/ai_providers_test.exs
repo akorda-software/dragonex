@@ -169,8 +169,8 @@ defmodule Dragonex.AIProvidersTest do
       game = %{user_id: user.id, ai: own("openai", "gpt-5-mini")}
 
       models = GameAI.models(game)
-      assert models[:model].api_key == "sk-player-key-9999"
-      assert models[:model].model.id == "gpt-5-mini"
+      assert models[:model].inner.api_key == "sk-player-key-9999"
+      assert models[:model].inner.model.id == "gpt-5-mini"
       assert models[:summarizer] == models[:model]
       assert GameAI.label(game) == "OpenAI · gpt-5-mini"
     end

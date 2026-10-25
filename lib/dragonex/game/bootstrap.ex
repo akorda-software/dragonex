@@ -63,30 +63,7 @@ defmodule Dragonex.Game.Bootstrap do
     # system prefix, and a cheap summarizer powers compaction of old history.
     summarizer = Keyword.get(opts, :summarizer) || Dragonex.Models.summarizer()
 
-    dm_agent =
-      DM.new(model,
-        story_bible: game.story_bible || %{},
-        dm_style: game.dm_style,
-        summarizer: summarizer,
-        max_tokens: Dragonex.Models.dm_max_tokens(),
-        # Request extras (reasoning effort + OpenRouter provider order). Ride
-        # in ModelSettings.extra → top-level body knobs at the gateway.
-        reasoning: Dragonex.Models.request_extra(),
-        # With shared-history reconstruction from game_events, the history
-        # reflects the partida's full timeline (not just the DM's). Cap at
-        # 250k tokens — most modern long-context models (1M window) handle
-        # 200-300k comfortably, and compacting sooner would discard the
-        # hard-won cross-agent context that's the whole point.
-        compaction_threshold: env_int("DRAGONEX_COMPACTION_THRESHOLD", 250_000),
-        compaction_keep_recent: env_int("DRAGONEX_COMPACTION_KEEP_RECENT", 12)
-      )
-
-    {:ok, dm} =
-      Server.start_link(
-        agent: dm_agent,
-        agent_id: "game-#{game_id}-dm",
-        pubsub: :local
-      )
+    {:ok, dm} = start_dm_agent(game_id, game, model, summarizer)
 
     # TurnMaster (D25): cheap agent that only picks who acts next. Own model so
     # tests can inject a scripted TM without touching the DM script. When the
@@ -95,14 +72,7 @@ defmodule Dragonex.Game.Bootstrap do
     tm_model =
       Keyword.get(opts, :turnmaster_model) || default_turnmaster_model(model)
 
-    tm_agent = TurnMaster.new(tm_model)
-
-    {:ok, turnmaster} =
-      Server.start_link(
-        agent: tm_agent,
-        agent_id: turnmaster_agent_id(game_id),
-        pubsub: :local
-      )
+    {:ok, turnmaster} = start_turnmaster_agent(game_id, tm_model)
 
     # Create independent agents for AI-controlled PCs. Each gets its own
     # personality-driven prompt and uses the same combat tools. The DM handles
@@ -178,6 +148,61 @@ defmodule Dragonex.Game.Bootstrap do
   """
   @spec turnmaster_agent_id(term()) :: String.t()
   def turnmaster_agent_id(game_id), do: "game-#{game_id}-turnmaster"
+
+  @doc false
+  def start_dm_agent(game_id, game, model, summarizer) do
+    agent =
+      DM.new(model,
+        story_bible: game.story_bible || %{},
+        dm_style: game.dm_style,
+        summarizer: summarizer,
+        max_tokens: Dragonex.Models.dm_max_tokens(),
+        reasoning: Dragonex.Models.request_extra(),
+        compaction_threshold: env_int("DRAGONEX_COMPACTION_THRESHOLD", 250_000),
+        compaction_keep_recent: env_int("DRAGONEX_COMPACTION_KEEP_RECENT", 12)
+      )
+
+    Server.start_link(agent: agent, agent_id: "game-#{game_id}-dm", pubsub: :local)
+  end
+
+  @doc false
+  def start_turnmaster_agent(game_id, model),
+    do:
+      Server.start_link(
+        agent: TurnMaster.new(model),
+        agent_id: turnmaster_agent_id(game_id),
+        pubsub: :local
+      )
+
+  @doc "Replace role agents in the current Game, keeping its Session and turn bookkeeping."
+  def replace_agents(state, opts) do
+    model = Keyword.get(opts, :model) || default_model()
+    summarizer = Keyword.get(opts, :summarizer) || Dragonex.Models.summarizer()
+    tm_model = Keyword.get(opts, :turnmaster_model) || default_turnmaster_model(model)
+    {:ok, dm} = start_dm_agent(state.game_id, state.game, model, summarizer)
+    {:ok, turnmaster} = start_turnmaster_agent(state.game_id, tm_model)
+    world = Session.read_state(state.session)
+
+    pcs =
+      Map.new(state.pc_agents, fn {name, _pid} ->
+        suffix =
+          if state.participants[name].kind == :human, do: "auto-#{name}", else: "pc-#{name}"
+
+        start_pc_agent(state.game_id, model, summarizer, name, world.characters[name], suffix)
+      end)
+
+    Dragonex.Game.RunLifecycle.watch([self()], [dm, turnmaster])
+
+    %{
+      state
+      | model: model,
+        summarizer: summarizer,
+        scene_model: default_scene_model(model, summarizer),
+        dm: dm,
+        turnmaster: turnmaster,
+        pc_agents: pcs
+    }
+  end
 
   # --------------------------------------------------------------- models
 

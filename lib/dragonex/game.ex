@@ -169,6 +169,10 @@ defmodule Dragonex.Game do
   """
   @spec restart(term(), keyword()) :: {:ok, pid()} | {:error, term()}
   def restart(game_id, opts \\ []) do
+    Dragonex.Game.KeyRevocation.restart(game_id, opts, &restart_with_models(game_id, &1))
+  end
+
+  defp restart_with_models(game_id, opts) do
     {ai, opts} = Keyword.pop(opts, :ai)
     _ = Dragonex.Game.Supervisor.stop_game(game_id)
 
@@ -361,6 +365,11 @@ defmodule Dragonex.Game do
     do: GenServer.call(server, {:commit_rule_change, deps, change})
 
   @impl true
+  def handle_call({:credential_changed, user_id, provider, action}, _from, state) do
+    {reply, state} = Dragonex.Game.KeyRevocation.transition(state, user_id, provider, action)
+    {:reply, reply, state}
+  end
+
   def handle_call({:tool_replay, deps, key}, _from, state) do
     {reply, state} = Dragonex.Game.ToolReplay.lookup(state, deps, key)
     {:reply, reply, state}
@@ -719,6 +728,9 @@ defmodule Dragonex.Game do
       {:noreply, state}
     end
   end
+
+  def handle_info({:credential_transition_failed, id}, %{game_id: id} = state),
+    do: {:stop, :normal, state}
 
   def handle_info(_msg, state), do: {:noreply, state}
 

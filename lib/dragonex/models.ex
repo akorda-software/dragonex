@@ -70,9 +70,13 @@ defmodule Dragonex.Models do
 
   @doc "True para perfiles de proveedor real; `%Test{}` y demás valores no lo son."
   def live?(%Models.ReqLLM{}), do: true
+  def live?(%Dragonex.GameAI.OwnKeyModel{inner: model}), do: live?(model)
   def live?(_), do: false
 
   @doc "Settings admitidos por el modelo efectivo; Test conserva los extras offline."
+  def request_settings(%Dragonex.GameAI.OwnKeyModel{inner: model}, settings, extra),
+    do: request_settings(model, settings, extra)
+
   def request_settings(%Models.ReqLLM{} = model, settings, _extra) do
     if model.reasoning_mode == :none, do: Keyword.delete(settings, :temperature), else: settings
   end
