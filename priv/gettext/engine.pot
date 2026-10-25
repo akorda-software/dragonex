@@ -3217,3 +3217,23 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "El ataque puede corresponder a un comprobante anterior con un alias de arma. Para recuperar ese resultado sin repetir dados ni daño, usa el nombre de arma exacto del comprobante: %{weapons}."
 msgstr ""
+
+#: lib/dragonex/game/inventory_movement.ex
+#, elixir-autogen, elixir-format
+msgid "Indica un origen o destinatario de 1 a %{max} caracteres, u omítelo si no se conoce."
+msgstr ""
+
+#: lib/dragonex/game/inventory_movement.ex
+#, elixir-autogen, elixir-format
+msgid "Inventario · %{who}: %{sign}%{quantity} × %{item}; saldo %{before} → %{after}."
+msgstr ""
+
+#: lib/dragonex/game/inventory_movement.ex
+#, elixir-autogen, elixir-format
+msgid "Inventario · %{who} recibe %{quantity} × %{item} de %{source}; saldo %{before} → %{after}."
+msgstr ""
+
+#: lib/dragonex/game/inventory_movement.ex
+#, elixir-autogen, elixir-format
+msgid "Inventario · %{who} entrega %{quantity} × %{item} a %{recipient}; saldo %{before} → %{after}."
+msgstr ""

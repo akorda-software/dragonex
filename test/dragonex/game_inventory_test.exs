@@ -68,7 +68,12 @@ defmodule Dragonex.GameInventoryTest do
       )
 
       tool_calls([
-        call("grant_item", %{"who" => "Thane", "item" => "botón de latón", "quantity" => 2})
+        call("grant_item", %{
+          "who" => "Thane",
+          "item" => "botón de latón",
+          "quantity" => 2,
+          "source" => "  Ada  "
+        })
       ])
     end
 
@@ -80,7 +85,12 @@ defmodule Dragonex.GameInventoryTest do
       )
 
       tool_calls([
-        call("remove_item", %{"who" => "Thane", "item" => "botón de latón", "quantity" => 1})
+        call("remove_item", %{
+          "who" => "Thane",
+          "item" => "botón de latón",
+          "quantity" => 1,
+          "recipient" => "Elia"
+        })
       ])
     end
 
@@ -119,6 +129,24 @@ defmodule Dragonex.GameInventoryTest do
                world.characters["Thane"]
 
       assert Games.load_world(Games.get_game(game.id)) == world
+      assert [received, given] = movements(game.id)
+      assert received.payload["source"] == "Ada"
+      assert received.payload["recipient"] == "Thane"
+      assert received.payload["quantity"] == 2
+      assert received.payload["balance_before"] == 0
+      assert received.payload["balance_after"] == 2
+      assert given.payload["source"] == "Thane"
+      assert given.payload["recipient"] == "Elia"
+      assert given.payload["quantity"] == 1
+      assert given.payload["balance_before"] == 2
+      assert given.payload["balance_after"] == 1
+      assert given.payload["stock_owner"] == "Thane"
+      assert given.payload["item_key"] == "botón de latón"
+      assert given.payload["counterparty_declared"]
+      assert received.payload["turn_id"] != given.payload["turn_id"]
+      assert map_size(world.characters) == 1
+      history = Dragonex.History.from_events(Games.list_events(game.id), "dm")
+      assert inspect(history, limit: :infinity) =~ "a Elia; saldo 2 → 1"
       refute Enum.any?(Games.list_events(game.id), &(&1.type == :dice))
       refute_received :inventory_auxiliary_called
     after
@@ -179,10 +207,16 @@ defmodule Dragonex.GameInventoryTest do
     test "restart preserves committed #{operation} with equivalent spelling and a single effect" do
       operation = unquote(operation)
       parent = self()
+      field = if operation == "grant_item", do: "source", else: "recipient"
 
       first =
         tool_calls([
-          call(operation, %{"who" => "Thane", "item" => "botón de latón", "quantity" => 1})
+          call(operation, %{
+            "who" => "Thane",
+            "item" => "botón de latón",
+            "quantity" => 1,
+            field => "Ada"
+          })
         ])
 
       blocked = fn _, _ ->
@@ -204,6 +238,9 @@ defmodule Dragonex.GameInventoryTest do
         assert [%Item{qty: 1}] = saved.characters["Thane"].inventory
         assert saved.actor_checkpoint != nil
         assert Games.load_world(Games.get_game(game.id)) == saved
+        assert [movement] = movements(game.id)
+        assert movement.payload["turn_id"] == saved.actor_checkpoint["turn_id"]
+        assert movement.payload[field] == "Ada"
         monitor = Process.monitor(run)
 
         retry =
@@ -244,6 +281,7 @@ defmodule Dragonex.GameInventoryTest do
         assert %{before | characters: world.characters} == world
         assert Games.load_world(Games.get_game(game.id)) == world
         events = Games.list_events(game.id)
+        assert movements(game.id) == [movement]
 
         assert Enum.count(
                  events,
@@ -262,4 +300,55 @@ defmodule Dragonex.GameInventoryTest do
       end
     end
   end
+
+  for operation <- ["grant_item", "remove_item"] do
+    test "retry of #{operation} cannot repeat stock or rewrite the original counterparty" do
+      operation = unquote(operation)
+      field = if operation == "grant_item", do: "source", else: "recipient"
+      args = %{"who" => "Thane", "item" => "botón de latón", "quantity" => 1}
+      parent = self()
+
+      replayed = fn messages, _ ->
+        send(
+          parent,
+          {:inventory_replay,
+           inspect(messages, limit: :infinity) =~ "Resultado ya aplicado antes del fallo"}
+        )
+
+        narration("La entrega queda confirmada.")
+      end
+
+      {game, pid, _before} =
+        boot(
+          [
+            narration("Muestro el botón al zagal."),
+            tool_calls([call(operation, Map.put(args, field, "Ada"))]),
+            ExAgent.Message.new_response([], finish_reason: :length),
+            tool_calls([call(operation, Map.put(args, field, "Otra persona"))]),
+            replayed
+          ],
+          if(operation == "grant_item", do: 0, else: 2)
+        )
+
+      try do
+        assert {:ok, :resolving} = Game.declare(pid, "Thane", @question)
+        wait(pid)
+        assert_receive {:inventory_replay, true}
+        assert [%Item{qty: 1}] = Game.world(pid).characters["Thane"].inventory
+        assert [movement] = movements(game.id)
+        assert movement.payload[field] == "Ada"
+        assert movement.payload["quantity"] == 1
+        assert Games.load_world(Games.get_game(game.id)) == Game.world(pid)
+      after
+        Dragonex.Game.Supervisor.stop_game(game.id)
+      end
+    end
+  end
+
+  defp movements(game_id),
+    do:
+      Enum.filter(
+        Games.list_events(game_id),
+        &(&1.type == :system and &1.payload["kind"] == "inventory_movement")
+      )
 end

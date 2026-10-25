@@ -130,7 +130,13 @@ defmodule Dragonex.Game.ToolReplay do
 
   defp canonical_args(_ctx, name, args) when name in ["grant_item", "remove_item"] do
     args = if args["additional"] == true, do: args, else: Map.delete(args, "additional")
-    args |> Map.update("item", nil, &Dragonex.Rules.Inventory.key/1) |> without_nulls()
+
+    # Attribution does not create a second mechanical transfer. A recovered
+    # call retains its original movement even if the model changes/omits it.
+    args
+    |> Map.drop(["source", "recipient"])
+    |> Map.update("item", nil, &Dragonex.Rules.Inventory.key/1)
+    |> without_nulls()
   end
 
   defp canonical_args(_ctx, _name, args), do: without_nulls(args)

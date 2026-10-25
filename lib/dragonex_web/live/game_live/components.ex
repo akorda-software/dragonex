@@ -604,7 +604,13 @@ defmodule DragonexWeb.GameLive.Components do
         <p class="player-declaration-text">{@entry.text}</p>
       </details>
     </div>
-    <p :if={not @declaration} id={"event-#{@entry.seq}"} data-log-entry class={@msg_class}>
+    <p
+      :if={not @declaration}
+      id={"event-#{@entry.seq}"}
+      data-log-entry
+      data-event-kind={@entry.kind}
+      class={@msg_class}
+    >
       <span :if={@entry.who != ""}><span class="who">{@entry.who}</span>{" "}</span>{@entry.text}<span
         :if={Map.get(@entry, :consequence, "") != ""}
         class="roll-hp"

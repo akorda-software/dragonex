@@ -56,7 +56,12 @@ defmodule DragonexWeb.GameInventoryTest do
       script: [
         narration("Recojo el botón y pregunto al zagal."),
         tool_calls([
-          call("grant_item", %{"who" => card.name, "item" => "botón de latón", "quantity" => 1})
+          call("grant_item", %{
+            "who" => card.name,
+            "item" => "botón de latón",
+            "quantity" => 1,
+            "source" => "Ada"
+          })
         ]),
         narration("El zagal responde.")
       ]
@@ -89,8 +94,23 @@ defmodule DragonexWeb.GameInventoryTest do
       assert has_element?(view, own <> " .inventory-list li", "Botón de latón")
     end
 
+    assert has_element?(
+             view,
+             "[data-event-kind=inventory_movement]",
+             "Mara recibe 1 × botón de latón de Ada; saldo 0 → 1"
+           )
+
     {:ok, reloaded, _} = live(conn, "/games/#{game.id}")
     assert has_element?(reloaded, ".mobile-player-sheet .inventory-list li", "Botón de latón")
+
+    assert [movement] =
+             reloaded
+             |> render()
+             |> LazyHTML.from_document()
+             |> LazyHTML.query("[data-event-kind=inventory_movement]")
+             |> Enum.to_list()
+
+    assert LazyHTML.text(movement) =~ "de Ada; saldo 0 → 1"
     assert Accounts.hero_sheet(Accounts.get_hero(hero.id)).inventory == []
     assert [%Item{qty: 1}] = Game.world(pid).characters[card.name].inventory
     assert Games.load_world(Games.get_game(game.id)) == Game.world(pid)

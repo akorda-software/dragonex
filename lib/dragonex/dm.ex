@@ -169,7 +169,9 @@ defmodule Dragonex.DM do
 
   @spec system_prompt(map()) :: String.t()
   def system_prompt(story_bible) when is_map(story_bible) do
-    (rules_prompt() <> "\n" <> bible_section(story_bible) <> "\n")
+    (rules_prompt() <>
+       "\n" <>
+       Dragonex.Game.InventoryMovement.instruction() <> "\n" <> bible_section(story_bible) <> "\n")
     |> String.trim_trailing()
   end
 

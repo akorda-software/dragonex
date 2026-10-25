@@ -3217,3 +3217,23 @@ msgstr "Unknown monster kind '%{kind}'. Available, weakest to strongest: %{kinds
 #, elixir-autogen, elixir-format
 msgid "El ataque puede corresponder a un comprobante anterior con un alias de arma. Para recuperar ese resultado sin repetir dados ni daño, usa el nombre de arma exacto del comprobante: %{weapons}."
 msgstr "The attack may match an earlier receipt with a weapon alias. To recover that result without repeating rolls or damage, use the exact weapon name from the receipt: %{weapons}."
+
+#: lib/dragonex/game/inventory_movement.ex
+#, elixir-autogen, elixir-format
+msgid "Indica un origen o destinatario de 1 a %{max} caracteres, u omítelo si no se conoce."
+msgstr "Provide a source or recipient of 1 to %{max} characters, or omit it if unknown."
+
+#: lib/dragonex/game/inventory_movement.ex
+#, elixir-autogen, elixir-format
+msgid "Inventario · %{who}: %{sign}%{quantity} × %{item}; saldo %{before} → %{after}."
+msgstr "Inventory · %{who}: %{sign}%{quantity} × %{item}; balance %{before} → %{after}."
+
+#: lib/dragonex/game/inventory_movement.ex
+#, elixir-autogen, elixir-format
+msgid "Inventario · %{who} recibe %{quantity} × %{item} de %{source}; saldo %{before} → %{after}."
+msgstr "Inventory · %{who} receives %{quantity} × %{item} from %{source}; balance %{before} → %{after}."
+
+#: lib/dragonex/game/inventory_movement.ex
+#, elixir-autogen, elixir-format
+msgid "Inventario · %{who} entrega %{quantity} × %{item} a %{recipient}; saldo %{before} → %{after}."
+msgstr "Inventory · %{who} gives %{quantity} × %{item} to %{recipient}; balance %{before} → %{after}."

@@ -22,6 +22,13 @@ defmodule Dragonex.InventoryToolsTest do
     assert {:ok, _} = Tools.remove_item(ctx, "Mara", "botón de latón", 1)
     saved = Session.read_state(session)
     assert [%{qty: 1}] = saved.characters["Mara"].inventory
+
+    for invalid <- ["", String.duplicate("a", 81), <<255>>, 10] do
+      assert {:error, _} = Tools.grant_item(ctx, "Mara", "otro botón", 1, nil, invalid)
+      assert {:error, _} = Tools.remove_item(ctx, "Mara", "botón de latón", 1, invalid)
+      assert Session.read_state(session) == saved
+    end
+
     assert {:ok, "Mara"} = Session.handoff(session, "Mara")
     pc = %{deps: %{state: SharedState.new(session, "Mara")}}
     assert {:error, _} = Tools.grant_item(pc, "Mara", "botón", 1, nil)
@@ -36,6 +43,10 @@ defmodule Dragonex.InventoryToolsTest do
       assert tool.parameters_json_schema.properties["item"].maxLength == 160
       assert tool.parameters_json_schema.properties["quantity"].minimum == 1
       assert tool.parameters_json_schema.properties["quantity"].maximum == 9999
+      counterparty = if name == "grant_item", do: "source", else: "recipient"
+      assert tool.parameters_json_schema.properties[counterparty].type == ["string", "null"]
+      assert tool.parameters_json_schema.properties[counterparty].maxLength == 80
+      refute counterparty in tool.parameters_json_schema.required
       refute Enum.any?(PCAgent.tools(), &(&1.name == name))
     end
   end

@@ -21,6 +21,7 @@ defmodule Dragonex.Tools do
         properties =
           schema.properties
           |> optional_additional(name)
+          |> optional_counterparty(name)
           |> Map.update!(
             "item",
             &Map.merge(&1, %{minLength: 1, maxLength: Dragonex.Rules.Inventory.max_name()})
@@ -30,7 +31,7 @@ defmodule Dragonex.Tools do
             &Map.merge(&1, %{minimum: 1, maximum: Dragonex.Rules.Inventory.max_quantity()})
           )
 
-        required = schema.required -- ["additional"]
+        required = schema.required -- ["additional", "source", "recipient"]
         %{tool | parameters_json_schema: %{schema | properties: properties, required: required}}
 
       %{name: "record_npc_statement"} = tool ->
@@ -154,6 +155,20 @@ defmodule Dragonex.Tools do
     do: Map.update!(properties, "additional", &Map.put(&1, :type, ["boolean", "null"]))
 
   defp optional_additional(properties, _), do: properties
+
+  defp optional_counterparty(properties, name) do
+    field = if name == "grant_item", do: "source", else: "recipient"
+
+    Map.update!(
+      properties,
+      field,
+      &Map.merge(&1, %{
+        type: ["string", "null"],
+        minLength: 1,
+        maxLength: Dragonex.Game.InventoryMovement.max_counterparty()
+      })
+    )
+  end
 
   # 19451/26–30: a declared attack on a narrated creature without a sheet led
   # the manual resolver to retry spawn_monster until the turn failed.
@@ -401,15 +416,17 @@ defmodule Dragonex.Tools do
       else: {:error, dgettext("engine", "%{who} no está presente en la escena.", who: who)}
   end
 
-  @doc "DM only, exploration: MUST call before narrating descriptive gear actually collected or handed to a present PC, including an NPC returning an object into their hand. Adds quantity to the canonical inventory stack. A pending request/plan alone does not transfer stock; when the NPC agrees and actually hands it over, this tool is required. Never equip weapons/armor or grant mechanical effects. Copy the canonical item name when adding to a stack; name a new scene object exactly as narrated, in the language of the game (e.g. \"ledger\" / \"libro de cuentas\"), never translated. An object already in their inventory is rejected: omit additional (or false) for a single object; set additional true only for genuinely new, separate units of a stack (more arrows, coins)."
+  @doc "DM only, exploration: MUST call before narrating descriptive gear actually collected or handed to a present PC, including an NPC returning an object into their hand. Adds quantity to the canonical inventory stack. A pending request/plan alone does not transfer stock; when the NPC agrees and actually hands it over, this tool is required. Set optional source to the known giver's name/role or the object's origin; omit when unknown. This attribution does not validate/create an NPC or change another inventory. Never equip weapons/armor or grant mechanical effects. Copy the canonical item name when adding to a stack; name a new scene object exactly as narrated, in the language of the game (e.g. \"ledger\" / \"libro de cuentas\"), never translated. An object already in their inventory is rejected: omit additional (or false) for a single object; set additional true only for genuinely new, separate units of a stack (more arrows, coins)."
   deftool grant_item(
             ctx,
             who :: String.t(),
             item :: String.t(),
             quantity :: integer(),
-            additional :: boolean()
+            additional :: boolean(),
+            source :: String.t()
           ) do
     with :ok <- assert_inventory_dm(ctx),
+         {:ok, ctx} <- inventory_counterparty(ctx, source),
          {:ok, _} <- propose(ctx, Dragonex.World.grant_item(who, item, quantity, additional)) do
       {:ok,
        dgettext("engine", "%{who} recibe %{quantity} × %{item} en su inventario.",
@@ -420,9 +437,19 @@ defmodule Dragonex.Tools do
     end
   end
 
-  @doc "DM only, exploration: confirm a present PC actually handed over, dropped or lost owned descriptive gear. Removes only the requested positive quantity, rejects insufficient stock. Copy the canonical name from inventory. Does not equip/consume or alter combat equipment."
-  deftool remove_item(ctx, who :: String.t(), item :: String.t(), quantity :: integer()) do
+  def grant_item(ctx, who, item, quantity, additional),
+    do: grant_item(ctx, who, item, quantity, additional, nil)
+
+  @doc "DM only, exploration: confirm a present PC actually handed over, dropped or lost owned descriptive gear. Removes only the requested positive quantity, rejects insufficient stock. Set optional recipient to the known receiver's name or role; omit when unknown or no receiver. This attribution does not validate/create an NPC or change another inventory. Copy the canonical name from inventory. Does not equip/consume or alter combat equipment."
+  deftool remove_item(
+            ctx,
+            who :: String.t(),
+            item :: String.t(),
+            quantity :: integer(),
+            recipient :: String.t()
+          ) do
     with :ok <- assert_inventory_dm(ctx),
+         {:ok, ctx} <- inventory_counterparty(ctx, recipient),
          {:ok, _} <- propose(ctx, Dragonex.World.remove_item(who, item, quantity)) do
       {:ok,
        dgettext("engine", "%{who} entrega o deja %{quantity} × %{item}; inventario actualizado.",
@@ -431,6 +458,13 @@ defmodule Dragonex.Tools do
          item: Dragonex.Rules.Inventory.key(item)
        )}
     end
+  end
+
+  def remove_item(ctx, who, item, quantity), do: remove_item(ctx, who, item, quantity, nil)
+
+  defp inventory_counterparty(ctx, value) do
+    with {:ok, label} <- Dragonex.Game.InventoryMovement.counterparty(value),
+         do: {:ok, %{ctx | deps: Map.put(ctx.deps, :inventory_counterparty, label)}}
   end
 
   @doc "DM only, exploration: confirm that a player's declared pickup or handover does NOT change any inventory this turn (the object is not there, the attempt fails, they only look at it, or it is already in their inventory). Use it instead of grant_item/remove_item, never alongside a real change."

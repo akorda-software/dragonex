@@ -1589,3 +1589,8 @@ msgstr "PENDING DEATH SAVE: %{actor} started this turn down, alive and unstable.
 #, elixir-autogen, elixir-format
 msgid "Registra primero la salvación de muerte pendiente con make_death_save; no consume la acción."
 msgstr "Record the pending death save first with make_death_save; it does not spend the action."
+
+#: lib/dragonex/game/inventory_movement.ex
+#, elixir-autogen, elixir-format
+msgid "TRAZA DE INVENTARIO: en grant_item indica source si conoces quién entrega o de dónde procede el objeto; en remove_item indica recipient si conoces quién lo recibe. Son nombres o roles breves declarados por el DM, no personajes creados ni cambios en otro inventario. Omite la contraparte desconocida; no la inventes. El motor registra el objeto, la cantidad y el saldo real. Al recuperar una herramienta ya aplicada, conserva su movimiento original."
+msgstr "INVENTORY RECORD: in grant_item provide source when you know the giver or where the item came from; in remove_item provide recipient when you know the receiver. These are brief names or roles declared by the DM, not newly created characters or changes to another inventory. Omit an unknown counterparty; do not invent one. The engine records the item, quantity and actual balance. Recovering an already applied tool preserves its original movement."

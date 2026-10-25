@@ -42,7 +42,8 @@ defmodule Dragonex.Game.Persistence do
     entries = deps[:roll_log] |> RollLog.pending() |> RollLog.with_hp_changes(before, world)
     actor = Map.get(deps.beat, :actor, Session.current(state.session))
     metadata = Map.take(deps.beat, [:turn_id, :round, :phase])
-    persist_roll_change(state, world, entries, actor, metadata)
+    notes = Dragonex.Game.InventoryMovement.notes(before, world, deps)
+    persist_roll_change(state, world, entries, actor, metadata, notes)
   end
 
   # Automatic engine rolls have no model tool execution but need the same
