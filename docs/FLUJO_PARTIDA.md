@@ -277,6 +277,13 @@ El fallback de un actor fallido también sincroniza el combatiente siguiente.
 
 ## 4. El `Game` GenServer: estado y lifecycle
 
+Al borrar una partida desde la lista, el ID entero del registro eliminado
+identifica el supervisor que se debe detener (D250). Se cierran también
+Session, DM, TurnMaster, PCs y peticiones en curso; otras mesas conservan sus
+procesos. La autorización se comprueba antes del borrado. SQL y shutdown no
+forman una única transacción: una escritura que termine entre ambos puede
+fallar, sin recrear la mesa.
+
 Antes de arrancar, una sala con plazas humanas queda en `:configuring`.
 `Games.join_game` y `start_game` bloquean/releen la misma fila en transacción:
 una vista anterior no admite plazas de más ni escribe el World después del
@@ -1018,6 +1025,14 @@ peticiones del modelo; no sustituyen una medición de latencia real.
 
 ## 10. Herramientas y resolución por reglas
 
+Guiado se combina con las demás fuentes antes de cancelar ventaja y
+desventaja (D247): oculto + envenenado + Guiado sigue siendo una tirada
+normal. La marca afecta solo al primer ataque y se consume aunque falle;
+el furtivo consulta la ventaja efectiva de ese golpe. Los críticos de Arma
+espiritual tiran dados independientes, también al subir su nivel de casilla,
+y suman el modificador una vez. Su daño final nunca es negativo; el desglose
+conserva el subtotal para explicar el mínimo cero.
+
 `lib/dragonex/tools.ex`. Cada `deftool` propone un cambio vía `SharedState` tras
 pasar el guard de control (`assert_controls`). Las herramientas de resolución
 (`make_attack`, `cast_spell`, `ability_check`, `make_death_save`, `heal`,
@@ -1206,9 +1221,16 @@ Dos presupuestos de retry **independientes** por beat:
   reintenta con **backoff exponencial** (1s → 3s → 10s, máx. 3) vía
   `Process.send_after({:retry_beat, turn_id})`. Mientras duerme, `busy` queda
   como `pending_retry` (sin Task ref) para que `advance` no lance beats
-  competidores. Tras 3 intentos cae al fallback suave (`"X titubea y el turno
-  pasa de largo"`). Backoff overrideable por `{:dragonex, :transient_backoffs}`.
-- **Crash del Task** → `:DOWN` → fallback.
+  competidores. Tras agotar 3 reintentos, el actor pausa con su comprobante y
+  motivo; si el mismo turno vuelve a fallar al reanudar, se omite con nota
+  explícita (D228). Backoff overrideable por `{:dragonex, :transient_backoffs}`.
+- **Crash del Task** → `:DOWN` → la misma política de fallo del actor.
+
+Un reintento por tokens conserva el presupuesto transitorio ya gastado
+(D248). Las tres vías de retry, incluida la corrección del contrato de
+narración, conservan si el beat era una reacción. Aunque todavía no exista
+un recibo durable, ni el backoff ni pausar/reanudar convierten esa reacción
+en turno principal ni marcan al reactor como actuado en la ronda.
 
 ### 15.2 Combate fantasma — `maybe_force_combat` (`game.ex`, §bug #2)
 Si un beat **introduce** un enemigo vivo (`side == "enemy"`, hp > 0) mientras la
@@ -1371,6 +1393,8 @@ la lista evita falsos amigos con palabras castellanas.
 ---
 
 ## 16. Modelos — `lib/dragonex/models.ex`
+- El grafo publicado usa exAgent 2.2.2/ReqLLM 1.29.0; desarrollo sigue
+  resolviendo el checkout hermano. Ambos locks incluyen Bandit 1.13.1 (D246).
 - DM: `deepseek/deepseek-v4-flash` (env `DRAGONEX_MODEL`).
 - Sumarizador: `google/gemini-3.1-flash-lite` (env `DRAGONEX_SUMMARIZER_MODEL`).
 - `DRAGONEX_DM_MAX_TOKENS=1500`. PCs: 2048.
@@ -1381,6 +1405,16 @@ la lista evita falsos amigos con palabras castellanas.
 ---
 
 ## 17. UI — `DragonexWeb.GameLive.Show`
+
+Las comprobaciones de modelos y catálogos del modal de Ajustes están ligadas
+a una referencia por solicitud (D249). Cerrar, reabrir o cambiar selección
+invalida respuestas anteriores, incluso si se vuelve al mismo proveedor.
+El catálogo que llega después de escribir un modelo conserva ese texto.
+En Cuenta, Quitar cancela el guardado pendiente de esa clave; cerrar la
+página tampoco permite guardarla después. Solo el callback vigente escribe,
+y su mensaje transporta ciphertext. Esto no revoca claves ya cargadas por
+otras pestañas o agentes vivos ni aborta el HTTP iniciado.
+
 - Feed **agrupado por turnos** (`chat_blocks/2`): cada turno es un bloque con
   header (`Turno de X · ⚔ combate`) y eventos inline.
 - Auto-play: icono 🤖 (lila) cuando el viewer es auto-play; `· TÚ` (verde) si es
@@ -1711,14 +1745,20 @@ preparadas con roster/DEX antiguos; D216 recupera estado ya guardado.
 
 ## Cómo correr una partida de prueba
 
+`bin/dev dragonex.playtest` también admite mesas sin interfaz y consume
+créditos del proveedor. Tras la última declaración sigue atendiendo pausas
+con el mismo presupuesto de reanudación (D251): `turns_reached` requiere
+volver al humano; una pausa sin margen devuelve `paused`. Las omisiones y
+fallos siguen visibles en las métricas, aunque el bucle logre continuar.
+
 1. `docker compose -f compose.dev.yml up -d` (levanta Postgres + app; http://localhost:4035).
 2. Navegador → http://localhost:4035/games/new → escenario "Arena de Pruebas".
 3. Toggle auto-play en un PC para observar sin input humano.
 4. Pausar/reanudar cuando haga falta. Logs: `docker logs -f dragonex-app`.
 
 ## Tests
-- `MIX_ENV=test bin/dev test` → suite verde (**2808 passed / 3 excluded**,
-  2026-10-04); grafo Hex completo2800/3, gates en secuencia con la misma DB.
+- `MIX_ENV=test bin/dev test` → referencia vigente en `docs/progress.md`;
+  gates local/Hex en secuencia cuando comparten la misma DB.
 - D181: History conserva el outcome confirmado: crítico diferente de
   acierto, fallo normal de muerte explícito y doble fallo natural1 distinto.
   No deduce un crítico desde el dado ni recalcula reglas. Los eventos de dados

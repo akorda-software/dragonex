@@ -35,6 +35,11 @@ Registro, login y logout con email + contraseña (bcrypt, session cookies).
 - AC-1.2: rutas protegidas redirigen a login sin sesión — redirect del plug
   `:auth` en el render desconectado y live_redirect del mount hook
   (`test/dragonex_web/protected_routes_test.exs:23`).
+- AC-1.3 (D249): borrar una clave o cerrar la página de Cuenta invalida su comprobación
+  pendiente; una respuesta antigua no vuelve a guardarla ni sustituye una
+  comprobación nueva. El callback lleva una referencia y texto cifrado, nunca
+  la clave en claro; solo la LiveView vigente acepta la escritura
+  (`account_live_test.exs`).
 
 ### R02 — Galería de héroes ✅
 `/heroes` lista los héroes del usuario; cada héroe es un personaje 5e reusable
@@ -513,6 +518,15 @@ salvaciones, chequeos, death saves (nat 20 revive / nat 1 doble fallo / 3-3).
   aritmética del modelo. Cambios concurrentes de narración/chat/History se
   registran en el recibo; no garantiza fidelidad semántica ni beta lista.
 
+- AC-22.6 (D247): Guiding Bolt entra en el cálculo conjunto de ventaja y
+  desventaja de armas, conjuros, ráfaga y arma espiritual. Varias ventajas no
+  eliminan una desventaja; el furtivo usa el modo efectivo del primer golpe,
+  conservando su límite de uso y el consumo de la marca (`guiding_bolt_test.exs`).
+- AC-22.7 (D247): el crítico de arma espiritual tira por separado todos los
+  dados adicionales, también con upcast, y suma una sola vez el modificador.
+  El daño mínimo es cero en PG, feedback y RollLog; cero no consume PG
+  temporales ni provoca concentración (`spiritual_weapon_test.exs`).
+
 ### R23 — Hechizos ✅
 Tres kinds (`:automatic`, `:attack`, `:save` con mitad en éxito), consumo de
 slot (nivel > 0), save DC y spell attack por aptitud de conjuración.
@@ -880,6 +894,11 @@ pendientes** (D27): el TM las considera; no las resuelve.
 - AC-30.2d (D114): reabrir una reacción pausada conserva su tipo y dueño;
   éxito/fallo no consumen el ledger principal del reactor ni renuevan recursos
   del dueño. Tools ya comprometidas permanecen (`game_reaction_rehydration_test.exs`).
+- AC-30.2e (D248): reintentar una reacción humana, IA o de monstruo antes
+  del primer comprobante conserva su tipo ante 503, `max_tokens` y cierre
+  inválido, incluida pausa/reanudación. Devuelve el turno principal sin marcar
+  al reactor, cambiar ronda o renovar recursos; una sola narración del turno
+  y ningún dado añadido (`game_reaction_retry_test.exs`).
 - AC-30.3: `Brief.turnmaster_brief` lista intents humanos scrubbed; sin
   intents no aparece el bloque (`brief_test.exs`).
 - AC-30.4: un declare off-turn puede adelantar la intervención en exploración
@@ -1572,6 +1591,11 @@ en `game_events`. La partida se reconstruye por `game_id` (D3, D5).
   375/1440 px/teclado lo verifican. Actores sin comprobante, intentos incompletos
   y relevo posterior mantienen revisión propia.
 
+- AC-33.3 (D250): eliminar una partida propia desde el listado detiene su
+  Game, supervisor, Session y agentes, incluida una petición pendiente.
+  Conserva procesos, World e historial de otra mesa; una petición de borrado
+  sobre una partida ajena no detiene nada (`game_delete_live_test.exs`).
+
 ### R34 — Single-writer ✅ (D6)
 El `World` vivo se muta **sólo** vía el GenServer `Game`. La LiveView nunca
 escribe Repo/world; enruta (`declare`, `sync_hero_level_up`, pausa, auto-play).
@@ -1616,6 +1640,11 @@ fallbacks de D17 para actores), combate fantasma forzado (D18), UTF-8 sanitize
   Conserva reglas, validación, presupuestos/backoff y efectos confirmados.
   Cuatro nuevos, rojo1/4 y43 focales por grafo; no garantiza tool válida después.
 
+- AC-35.6 (D248): el reintento por `max_tokens` conserva el presupuesto
+  transitorio ya consumido. Tres 503, un corte y otro 503 pausan tras cinco
+  peticiones; un 503, corte, dos 503 y cierre válido usan el margen restante
+  sin duplicar narración ni efectos (`game_retry_budget_test.exs`).
+
 ### R36 — Sin API key = TestModel ✅
 Sin `OPENROUTER_API_KEY`, los beats usan `TestModel` (no narran, no consumen
 créditos). Los tests de la suite son 100% offline.
@@ -1657,6 +1686,16 @@ Prefijo cacheable medido 44–85% de input cacheado.
   cobra tiempo una vez; restart conserva configuración y partida. No acredita
   SLA, consumo fijo ni fiabilidad estadística del proveedor.
 
+- AC-37.4 (D249): catálogos y comprobaciones de modelos solo actualizan la
+  solicitud vigente. Cerrar/reabrir el modal, cambiar fuente/modelo o refrescar
+  invalida respuestas antiguas según su operación; el catálogo conserva un
+  modelo escrito manualmente. Una comprobación cancelada no reinicia la mesa
+  ni guarda otra selección (`game_settings_compatibility_test.exs`).
+- AC-37.5 (D246): los grafos local y Hex resuelven exAgent 2.2.2 con ReqLLM
+  1.29.0 y Bandit 1.13.1, conservando paquetes hermanos en dev/test y lock
+  independiente en producción. Verificar suite, compilación y `mix hex.audit`
+  en ambos grafos; el resultado vigente se registra en `../progress.md`.
+
 ---
 
 ## No funcionales (NFR)
@@ -1664,7 +1703,7 @@ Prefijo cacheable medido 44–85% de input cacheado.
 | # | Requisito | Estado |
 |---|---|---|
 | NFR-1 | Determinismo del motor: roller inyectado, nunca `:rand` en `Rules`/`Actions`/`World` | ✅ |
-| NFR-2 | Suite offline verde: `MIX_ENV=test bin/dev test` (2803 passed / 3 excluded), Hex completo 2795/3, TestModel/HTTP sintético sin peticiones LLM reales; seis avisos deliberados de breaker/retry; gates en secuencia si comparten DB | ✅ |
+| NFR-2 | Suite offline verde: `MIX_ENV=test bin/dev test`; referencia local/Hex vigente en `../progress.md`, TestModel/HTTP sintético sin peticiones LLM reales; seis avisos deliberados de breaker/retry; gates en secuencia si comparten DB | ✅ |
 | NFR-3 | `mix compile` sin warnings; `mix format` limpio | ✅ |
 | NFR-4 | Sanitización determinística en TODO texto persistido (D7) | ✅ |
 | NFR-5 | Latencia: streaming token-a-token; GenServer nunca bloquea en LLM (Task) | 🟡 D222 retiene deltas libres; preview estructurado pendiente. Task/etapas preservados |
@@ -1679,6 +1718,12 @@ Prefijo cacheable medido 44–85% de input cacheado.
   gates2532/3 en48,0/48,2 s, seeds944912/30343/max_cases48, sin errores ni
   avisos inesperados. No garantiza por sí solo causas históricas sin atribuir
   ni cambia el comportamiento de la aplicación al cerrar un navegador real.
+
+- AC-NFR-2b (D251): el playtest aplica a la última declaración el mismo
+  presupuesto de reanudación y plazo que a las anteriores. Solo devuelve
+  `turns_reached` al recuperar el turno humano; una pausa sin reanudaciones
+  disponibles devuelve `paused`, conservando la causa y los resultados
+  registrados (`playtest/playtest_test.exs`). No certifica fidelidad narrativa.
 
 ---
 

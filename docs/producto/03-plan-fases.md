@@ -14,6 +14,25 @@ existe" sino por "se verifica".**
 
 ---
 
+## Iteración vigente — 2026-10-25
+
+Correcciones verificadas: 3152 passed / 3 excluded en local y Hex; auditoría
+de ambos locks sin avisos. El resultado vigente de los gates se publica en
+[`../progress.md`](../progress.md), sin sustituir las pruebas con humanos.
+
+| Área | Cambio y criterios | Verificación focal |
+|---|---|---|
+| Dependencias (D246) | exAgent 2.2.2, ReqLLM 1.29.0 y Bandit 1.13.1; AC-37.5 | Compilación, suite y `mix hex.audit` en ambos grafos |
+| Combate (D247) | Guiado y furtivo respetan cancelación; críticos y mínimo cero de arma espiritual; AC-22.6/22.7 | `guiding_bolt_test.exs`, `spiritual_weapon_test.exs` |
+| Recuperación (D248) | Reacciones conservan su tipo y el corte por tokens no repone retries; AC-30.2e/35.6 | `game_reaction_retry_test.exs`, `game_retry_budget_test.exs` |
+| Cuenta y ajustes (D249) | Solo callbacks vigentes guardan claves o cambian modelo; clave cifrada en el callback; AC-1.3/37.4 | `account_live_test.exs`, `game_settings_compatibility_test.exs` |
+| Cierre de mesas (D250) | Borrar la mesa propia cierra sus procesos y conserva las demás; AC-33.3 | `game_delete_live_test.exs` |
+| Medición (D251) | La última declaración también se recupera; una pausa no cuenta como éxito; AC-NFR-2b | `playtest/playtest_test.exs` |
+
+Después: mantener el orden de [`../progress.md`](../progress.md): evidencia de
+partidas humanas, inventario de misión y fiabilidad/latencia del proveedor.
+Los tests offline de esta tanda no cierran esas mediciones ni R16.
+
 ## Fases entregadas ✅ (resumen; el detalle vive en `../progress-historial.md`)
 
 | Fase | Hito | Entregables clave |

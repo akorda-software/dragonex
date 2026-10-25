@@ -1,7 +1,7 @@
 # Dragonex — estado
 
 Página corta y vigente: qué funciona, qué está abierto y cómo se mide. El
-detalle de cada entrega (D1–D237, playtests, gates por fecha) está en
+detalle histórico de entregas (D1–D237, playtests, gates por fecha) está en
 [`progress-historial.md`](progress-historial.md); los porqués, en
 [`decisions.md`](decisions.md).
 
@@ -9,12 +9,15 @@ detalle de cada entrega (D1–D237, playtests, gates por fecha) está en
 qué cambia, `Dxxx`) y su detalle va al ADR. Si algo se abre o se cierra, se
 mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de sesión.
 
-## Último estado — 2026-10-13
+## Último estado — 2026-10-25
 
-- **Gates:** 3126 passed / 3 excluded en ambos grafos (local y Hex),
-  `--warnings-as-errors` limpio, formato limpio.
-- **Dependencias:** dev usa `../exAgent` 2.1 y `../dic_ex` 0.3; prod, las
-  mismas versiones de Hex (D237). Prod desplegado el 2026-10-13 (93599ba).
+- **Gates:** 3152 passed / 3 excluded en ambos grafos (local y Hex).
+  Código propio sin warnings, formato limpio; dependencias frías conservan
+  avisos de terceros documentados en `tecnico/09-estrategia-pruebas.md`.
+- **Dependencias:** dev usa `../exAgent` 2.2.2 y `../dic_ex` 0.3; el lock de
+  producción adopta exAgent 2.2.2, ReqLLM 1.29.0 y Bandit 1.13.1. Ambos locks
+  pasan `mix hex.audit` sin avisos (D246). Esta tanda no está desplegada;
+  último despliegue registrado: 2026-10-13 (93599ba).
 - **Medición:** `bin/dev dragonex.metrics --last 10` (partidas guardadas) y
   `bin/dev dragonex.playtest` (mesa real sin interfaz, gasta tokens) (D238).
 
@@ -36,9 +39,14 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
   reloj de efectos, inventario cuantificado. Rasgos de clase y raza de D35–D76,
   hechizos ejecutables (Bless, Heal, Shield of Faith, Sleep, Hold Person…) y
   upcasting curado (D74). El LLM no calcula resultados (D1).
+- **Precisión de combate (D247):** Guiado respeta todas las fuentes de ventaja
+  y desventaja y habilita furtivo cuando procede; Arma espiritual tira dados
+  independientes en crítico y muestra daño mínimo cero.
 - **Partida (`Game`):** single-writer (D6), persistencia y rehidratación,
   checkpoints y recibos que evitan repetir efectos al recuperar (D150–D164),
   fallo de turno → pausa con motivo y reanudación sin duplicar (D228).
+- **Reintentos (D248):** una reacción conserva su turno y recursos principales;
+  el corte por tokens no repone el presupuesto de fallos transitorios.
 - **Agentes:** DM con narración estructurada (D222), PCs IA con voz propia,
   TurnMaster que orquesta relevos, intenciones humanas en cola, testimonios de
   PNJ con fuente durable, esperas y viajes con reloj, contexto de tiradas.
@@ -47,6 +55,10 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
   XP 5e D43), contenido custom por usuario.
 - **Web:** mesa responsive 375–1440, dados 2D/3D, multijugador con sala de
   espera, home con crónica viva (D233).
+- **Operaciones web (D249–D250):** cancelar ajustes o quitar una clave impide
+  aplicar comprobaciones tardías; borrar una mesa cierra sus agentes.
+- **Playtest (D251):** la última declaración también se recupera; una pausa
+  sin presupuesto de reanudación se informa como tal, sin declarar la tanda completa.
 - **Quién paga la IA (D242):** la casa solo paga DeepSeek v4.1 Flash, servido
   por Decart (D243; el más barato triplicaba la latencia). Con su propia clave (OpenRouter,
   OpenCode Go, OpenAI, Google, Anthropic; guardada cifrada en «Tu cuenta»),
@@ -56,7 +68,7 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
   wordmark; el registro pide repetir la contraseña y marca cada error en su
   campo; «Continuar con Google» (OIDC + PKCE) cuando hay cliente OAuth.
 - **Bilingüe es/en por partida** (D235/D236).
-- **Solo exAgent 2.1:** retirado el modo de compatibilidad con 1.2
+- **exAgent 2.2.2 (D246):** conserva la retirada del modo de compatibilidad con 1.2
   (`Models.backend/0`, `Agent.LegacyHistory`, selector de razonamiento) (D237).
 
 ## 🟡 Abierto, por prioridad

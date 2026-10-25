@@ -5,7 +5,14 @@
 > declarar "hecho". Regla fundacional: **verificabilidad antes que
 > afirmaciones** — nada está "funcionando" sin un test verde que lo pruebe.
 
-Últimos gates completos, **con D222–D226**:
+Últimos gates completos, **D246–D251**, 2026-10-25: **3152 passed / 3 excluded**
+en ambos grafos, seed0; local134,7 s y Hex133,7 s, secuenciales. Código propio
+dev/test/prod compila con `--warnings-as-errors`, formato limpio y ambos
+`mix hex.audit` sin avisos. Compilar dependencias frías con Elixir1.20 emite
+avisos de terceros (toml, websockex, gettext y plug), sin avisos de Dragonex;
+no se silencian ni parchean dependencias para ocultarlos.
+
+Referencia histórica, **D222–D226**:
 **2871 passed, 3 excluded** (`MIX_ENV=test bin/dev test --seed 0`,
 2026-10-04,108,5 s) yHex **2861/3** en65,1 s. Ambos seed0/max_cases48,
 secuenciales sobre dragonex_combat_test, sin warnings/errores/desconexiones.
@@ -56,6 +63,38 @@ avisos inesperados; cinco deliberados breaker.32 focalizados en1,7 s limpios.
 Gate D1782549/3 final49,3 s/seed30343/max_cases48 sin errores/desconexiones
 ni avisos inesperados; cinco breaker. El primero49,4 s descubrió un fixture
 anti-repeat agotado, reproducido con oráculo exacto y corregido abajo.
+
+## D246–D251 — Regresiones de combate, recuperación y operaciones asíncronas
+
+La tanda del 2026-10-25 añade cobertura offline para:
+
+- D247: fuentes simultáneas de ventaja/desventaja, Guiado solo en el primer
+  ataque y furtivo; críticos de Arma espiritual con dados distintos y upcast;
+  daño cero con SAB baja, sin alterar PG temporales o concentración.
+- D248: reacción humana, IA y de monstruo reintentadas antes del checkpoint,
+  más pausa/reanudación. Secuencias 503/length con contador de peticiones
+  verifican presupuestos independientes sin reponer el margen agotado.
+- D249: sondas HTTP/modelo bloqueadas por mensajes, canceladas y reemplazadas.
+  El callback anterior no reinicia la mesa ni guarda una clave borrada. Una
+  LiveView suspendida permite comprobar que el mailbox lleva ciphertext y no
+  la clave; cerrar la página impide persistencia posterior.
+- D250: borrado desde la lista y cierre de Game, supervisor, Session y agentes;
+  cancelación de una petición en curso y conservación de otra mesa. Un ID
+  ajeno no detiene procesos.
+- D251: último turno del playtest fallido, con y sin presupuesto de reanudación.
+  El bot declara una vez y la pausa no se informa como `turns_reached`.
+
+Antes de corregir, las cuatro pruebas de reacción, dos de crítico, dos de
+borrado y dos de playtest reprodujeron sus fallos. Los tests de presupuesto y
+reacción filtran la narración por `turn_id`: la introducción creada con la mesa
+no es una respuesta del beat. Las pruebas no certifican latencia del proveedor,
+calidad narrativa o comportamiento visual en un navegador real.
+
+D246 comprueba los dos grafos en secuencia sobre la base de tests, con
+`MIX_DEPS_PATH=.hex_graph/deps MIX_BUILD_PATH=.hex_graph/_build` para Hex;
+la compilación de producción usa `.hex_graph/_build_prod`. La auditoría Hex
+se ejecuta para ambos locks. No se modifica el checkout de los paquetes ni
+se sustituye una prueba de rollback por un retry.
 
 ## D226 — Total del arma y componentes incluidos en el feedback
 

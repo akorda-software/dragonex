@@ -8071,6 +8071,136 @@ correo no verificado, `state`/`aud`/`nonce`/`exp` manipulados).
 **Límites:** una cuenta abierta con Google no tiene contraseña ni forma de
 crearla, y no hay recuperación de contraseña para nadie.
 
+## D246 — Dependencias compatibles con el checkout y sin avisos publicados
+
+**Estado:** Aceptada. **Fecha:** 2026-10-25.
+
+**Contexto:** el checkout hermano avanzó a exAgent 2.2.2; el lock local aún
+fijaba JSV 0.26.0 y ReqLLM 1.28.0, impidiendo compilar. La resolución reveló
+avisos publicados para Bandit 1.12.5 en ambos grafos y ReqLLM 1.27.0 en Hex.
+
+**Decisión:** actualizar los locks mediante Mix, manteniendo separados los
+grafos. Bandit requiere `~> 1.13` y queda en 1.13.1. Hex exige exAgent `~> 2.2.2`:
+2.1.0 exigía ReqLLM `~> 1.27.0` e impedía instalar la corrección 1.29.0. Dev/test
+siguen usando los hermanos sin fallback; no se modifican sus checkouts.
+Ambos locks incluyen ReqLLM 1.29.0, JSV 0.26.1, Plug Crypto 2.2.1 y Thousand
+Island 1.6.0. DicEx conserva su resolución existente.
+
+**Verificación/límites:** `mix hex.audit` sin paquetes retirados ni avisos en
+ambos grafos. Los avisos de Bandit afectan validación de autoridad HTTP y
+límites de espera HTTP/2; el de ReqLLM afecta TLS de WebSocket, no su streaming
+HTTP. Se actualiza preventivamente el paquete, sin afirmar exposición ni
+explotación de una mesa. No se despliega ni publica este cambio.
+Fuentes: [Bandit HTTP/2](https://github.com/mtrudel/bandit/security/advisories/GHSA-69m6-wcv4-rwcf),
+[Bandit autoridad HTTP](https://github.com/mtrudel/bandit/security/advisories/GHSA-v53v-9hvg-37jf),
+[ReqLLM TLS](https://github.com/agentjido/req_llm/security/advisories/GHSA-6vww-5m28-f26v).
+
+## D247 — Ventajas completas, furtivo guiado y dados de Arma espiritual
+
+**Estado:** Aceptada. **Fecha:** 2026-10-25.
+
+**Contexto:** combinar Guiado después de reducir las demás condiciones perdía
+la desventaja original: oculto + envenenado daba normal, y Guiado lo convertía
+indebidamente en ventaja. El furtivo, en cambio, no veía la ventaja de Guiado.
+Arma espiritual duplicaba un único resultado en los críticos y podía publicar
+daño negativo aunque el World no perdiera PG.
+
+**Decisión:** `Conditions.attack_mode` recibe Guiado junto a las demás fuentes
+antes de cancelar ventaja/desventaja. Armas y Ráfaga solo lo aplican al primer
+golpe y consumen la marca incluso al fallar; hechizos y Arma espiritual siguen
+el mismo criterio. Furtivo consulta el modo efectivo del primer ataque.
+Arma espiritual tira dos veces su expresión de dados en crítico, suma el
+modificador una vez y aplica `Combat.damage_total`; `raw_total` conserva el
+subtotal negativo para explicar el mínimo cero en la interfaz.
+
+**Verificación/límites:** casos deterministas de las cuatro rutas de ataque,
+cancelación de fuentes y furtivo sin aliado consciente. Crítico d8=[2,7] con
+modificador3 causa12; upcast2d8 tira cuatro dados [1,2,6,8] y causa20. SAB6 y
+d8=1 producen total0/subtotal−1, sin tocar PG temporales o concentración y
+con una sola bonus. No cambian distancias, caducidad de Guiado, structs,
+Codec ni la simplificación de Empowered Spell (D65).
+
+## D248 — Reintentos conservan el tipo y los límites del turno
+
+**Estado:** Aceptada. **Fecha:** 2026-10-25.
+
+**Contexto:** antes del primer comprobante durable, el intento inicial ya había
+consumido `pending_mini`. Un retry convertía una reacción en turno principal y
+marcaba al actor como si hubiera gastado ese turno. Además, un corte por tokens
+reiniciaba el contador de errores transitorios, ampliando el presupuesto real.
+
+**Decisión:** `mini_turn` viaja en las tres rutas de reintento (transitorio,
+max_tokens y contrato de narración), también en `PendingRetry`. Un checkpoint
+durable conserva prioridad. Reintentar por tokens mantiene los reintentos
+transitorios ya gastados; los límites y backoffs no aumentan.
+
+**Verificación/límites:** cuatro regresiones reprodujeron la pérdida de turno
+antes del arreglo. Reacción humana, PC IA y monstruo conservan dueño principal,
+ronda, ledger, bonus y un único marcador/narración, incluida pausa/reanudación.
+Dos secuencias mixtas verifican el presupuesto: 503×3→length→503 pausa en la
+quinta petición; 503→length→503×2→final cierra en cinco. Sin cambios de World,
+Codec ni proveedor; prueba offline, no medida de latencia real.
+
+## D249 — Respuestas asíncronas ligadas a la solicitud vigente
+
+**Estado:** Aceptada. **Fecha:** 2026-10-25.
+
+**Contexto:** una sonda de ajustes cancelada podía aplicar su modelo al volver
+a abrir el modal con el mismo proveedor. Cambiar selección no invalidaba la
+sonda; un catálogo tardío podía borrar el texto escrito. En Cuenta, el Task
+guardaba la clave después de comprobarla, incluso si se había pulsado Quitar
+o cerrado la página mientras esperaba.
+
+**Decisión:** referencias efímeras distintas para listado y sonda. Cerrar,
+reabrir o cambiar selección invalida las respuestas anteriores; un catálogo
+aceptado conserva el modelo escrito. En Cuenta, el Task comprueba y devuelve
+ciphertext ligado a usuario/proveedor con KeyVault. Solo la LiveView acepta la
+referencia vigente, abre la clave y la guarda. Quitar invalida la sustitución
+pendiente de ese proveedor, sin cancelar otra comprobación posterior.
+
+**Verificación/límites:** seis regresiones LiveView con HTTP/sondas bloqueadas
+por mensajes verifican cancelación, reelección idéntica, cambio de modelo,
+retorno a la casa, catálogo tardío, borrado y cierre. El mailbox, assigns y
+HTML no contienen la clave en claro. Descartar una respuesta no cancela IO ya
+iniciado ni invalida claves que otra pestaña o una partida viva ya cargaron.
+
+## D250 — Borrar una partida cierra sus procesos registrados
+
+**Estado:** Aceptada. **Fecha:** 2026-10-25.
+
+**Contexto:** el evento web recibe un ID string. Repo lo convertía para borrar
+la fila, pero el Registry usa enteros: `stop_game(id_string)` no encontraba
+la mesa y sus agentes continuaban vivos.
+
+**Decisión:** tras el borrado autorizado se usa el ID entero del registro
+retornado para detener el supervisor de la mesa, sus agentes y peticiones.
+
+**Verificación/límites:** los dos tests de cierre fallaron antes del arreglo.
+Borrar una mesa pausada cierra Game, TableSupervisor, Session, DM, TurnMaster
+y PCs; borrar una activa cancela la petición pendiente. Otra mesa conserva
+procesos, World y eventos; un borrado forjado no detiene la mesa ajena. No se
+introduce atomicidad distribuida entre DELETE y shutdown: una escritura que
+termine en ese intervalo puede fallar por la FK, sin recrear la partida.
+
+## D251 — El playtest espera el retorno humano también en la última acción
+
+**Estado:** Aceptada. **Fecha:** 2026-10-25.
+
+**Contexto:** tras la última declaración, el arnés aceptaba cualquier pausa
+como `turns_reached`; no reanudaba aunque tuviera presupuesto y presentaba el
+mismo motivo de parada que una tanda completada.
+
+**Decisión:** todas las declaraciones recorren el mismo bucle de recuperación,
+plazo y fin de partida. Alcanzar el número pedido termina solo cuando la mesa
+devuelve la palabra al humano. Una pausa consume `max_resumes` o devuelve
+`:paused`; el arnés no solicita otra declaración al jugador bot.
+
+**Verificación/límites:** dos casos rojos con la política anterior: fallo de
+la última declaración que se recupera una vez y vuelve al humano sin repetir
+acción; presupuesto cero que devuelve `:paused`. Los fallos/omisiones siguen
+en las métricas: `turns_reached` no certifica fidelidad narrativa ni ausencia
+de una omisión recuperable del motor. No hay llamada a proveedor real.
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,
