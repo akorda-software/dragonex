@@ -29,7 +29,7 @@ defmodule Dragonex.MixProject do
 
   defp deps do
     [
-      workspace_dep(:exagent, "exAgent", "~> 2.1"),
+      workspace_dep(:exagent, "exAgent", "~> 2.2.2"),
       workspace_dep(:dic_ex, "dic_ex", "~> 0.3"),
       {:ecto, "~> 3.12"},
       {:ecto_sql, "~> 3.12"},
@@ -39,7 +39,7 @@ defmodule Dragonex.MixProject do
       {:phoenix_live_view, "~> 1.0"},
       {:phoenix_pubsub, "~> 2.1"},
       {:phoenix_live_reload, "~> 1.4", only: :dev},
-      {:bandit, "~> 1.5"},
+      {:bandit, "~> 1.13"},
       {:jason, "~> 1.4"},
       {:bcrypt_elixir, "~> 3.0"},
       {:lazy_html, ">= 0.1.0", only: :test},
