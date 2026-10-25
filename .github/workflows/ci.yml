@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [master]
+    branches-ignore: [production]
   workflow_dispatch:
 
 permissions:
@@ -78,3 +78,32 @@ jobs:
 
       - name: Run offline suite
         run: mix test --seed 0
+
+  promote:
+    name: Promote tested commit to production
+    needs: hex
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    environment:
+      name: production
+      url: https://dragones.kukapu.dev
+    steps:
+      - name: Advance the deployment branch after successful tests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TESTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          current=$(gh api "repos/$REPOSITORY/git/ref/heads/master" --jq '.object.sha')
+          if [ "$current" != "$TESTED_SHA" ]; then
+            echo 'A newer commit is waiting for CI; leaving production unchanged.'
+            exit 0
+          fi
+          # Dokploy follows this protected branch, never the untested master tip.
+          # A non-fast-forward update fails instead of rolling production back.
+          gh api --method PATCH "repos/$REPOSITORY/git/refs/heads/production" \
+            -f sha="$TESTED_SHA" -F force=false > /dev/null
