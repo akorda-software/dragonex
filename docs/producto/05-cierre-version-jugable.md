@@ -181,6 +181,16 @@ sin errores JS ni desbordamiento horizontal. Evidencia temporal:
 al inicial. Reintentos, reinicio, carrera de commit, rollback y recuperación
 legacy se comprueban además en los tests deterministas D265.
 
+Entrega verificada en producción: `ad903ca`, con **3303 passed / 4 excluded**
+en [CI 40192812765](https://github.com/akorda-software/dragonex/actions/runs/40192812765)
+y promoción automática a `production`. Dokploy completó el despliegue
+`ON8twpDoY0GHFFfAJ0ccx` del mismo SHA (2026-10-25, 12:29 UTC). La web pública
+responde HTTP 200, conecta LiveView y a 375×812 no presenta errores JS ni
+desbordamiento; captura temporal `/tmp/dragonex-d265-production.png`.
+Los logs recientes confirman el arranque del Endpoint sin entradas `[error]`.
+La prueba con proveedor real descrita arriba se realizó en desarrollo;
+esta comprobación pública valida la entrega y conexión de la aplicación.
+
 Esto cierra el caso observado de préstamo y devolución inmediata. No convierte
 prosa histórica en eventos inventados ni promete comprender cualquier frase
 posible; las reglas nuevas verifican el episodio estructurado y su persistencia.
