@@ -234,6 +234,17 @@ defmodule DragonexWeb.GameLive.New do
       {:error, :no_characters} ->
         {:noreply, assign(socket, error: dgettext("ui", "Selecciona al menos un personaje."))}
 
+      {:error, {:name_taken, name}} ->
+        {:noreply,
+         assign(socket,
+           error:
+             dgettext(
+               "ui",
+               "Ya hay un personaje llamado %{name}. Elige otro héroe o cambia su nombre.",
+               name: name
+             )
+         )}
+
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, creation_error(socket, changeset)}
 

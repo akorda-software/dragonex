@@ -33,6 +33,12 @@ defmodule Dragonex.Games do
   """
   @spec create_game(keyword()) :: {:ok, Game.t()} | {:error, term()}
   def create_game(opts) do
+    with :ok <- validate_roster_names(Keyword.get(opts, :roster, [])) do
+      do_create_game(opts)
+    end
+  end
+
+  defp do_create_game(opts) do
     title = Keyword.get(opts, :title, "An Unremarkable Crossroads")
     story_bible = Keyword.get(opts, :story_bible, %{})
     dm_style = Keyword.get(opts, :dm_style, "vivid but brief")
@@ -352,6 +358,34 @@ defmodule Dragonex.Games do
   defp normalize_roster_entry({sheet, kind, hero_id}), do: {sheet, kind, hero_id}
   defp normalize_roster_entry({sheet, kind}), do: {sheet, kind, nil}
 
+  # Validate before building World or inserting associations: different hero
+  # keys can still name the same character, and the DM already owns "dm".
+  # Match the lobby's comparison without renaming any saved sheet.
+  defp validate_roster_names(roster) do
+    roster
+    |> Enum.reduce_while({:ok, MapSet.new(["dm"])}, fn entry, {:ok, names} ->
+      {sheet, _kind, _hero_id} = normalize_roster_entry(entry)
+      name = if is_binary(sheet.name), do: normalized_character_name(sheet.name)
+
+      cond do
+        name in [nil, ""] ->
+          {:halt, {:error, :invalid_character}}
+
+        MapSet.member?(names, name) ->
+          {:halt, {:error, {:name_taken, sheet.name}}}
+
+        true ->
+          {:cont, {:ok, MapSet.put(names, name)}}
+      end
+    end)
+    |> case do
+      {:ok, _names} -> :ok
+      error -> error
+    end
+  end
+
+  defp normalized_character_name(name), do: name |> String.trim() |> String.downcase()
+
   defp seed_bible_facts(world, bible) do
     Enum.reduce(Dragonex.Scenarios.seed_facts(bible), world, fn fact, w ->
       {:ok, next} = Dragonex.World.add_fact(fact).(w)
@@ -496,9 +530,9 @@ defmodule Dragonex.Games do
   end
 
   defp join_name_taken?(game, world, name) do
-    normalized = name |> String.trim() |> String.downcase()
+    normalized = normalized_character_name(name)
     names = Enum.map(game.participants, & &1.name) ++ Map.keys(world.characters)
-    Enum.any?(names, &(String.downcase(String.trim(&1)) == normalized))
+    Enum.any?(names, &(normalized_character_name(&1) == normalized))
   end
 
   @doc "Can the given user access this game (creator, participant, or open slots)?"
