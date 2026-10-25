@@ -115,6 +115,8 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
    portada.
 8. **Limpieza intermitente de tests** (Postgrex/owner): en seguimiento, sin
    reaparecer en los gates de 2026-10-12.
+9. **CI (D254):** workflow Hex offline preparado y validado localmente;
+   falta publicar y observar el primer check remoto. No gobierna el autodeploy.
 
 ## 🟡 Simplificaciones v1 asumidas
 

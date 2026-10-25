@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hex:
+    name: Published dependencies / offline tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      MIX_ENV: test
+      DRAGONEX_DEPS_SOURCE: hex
+      MIX_DEPS_PATH: .hex_graph/deps
+      MIX_BUILD_PATH: .hex_graph/_build
+      DRAGONEX_RUN_LIVE: "0"
+      OPENROUTER_API_KEY: ""
+      OPENCODE_API_KEY: ""
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASS: postgres
+      DB_TEST_NAME: dragonex_test
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dragonex_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d dragonex_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1
+        with:
+          # Keep the CI runtime aligned with the release Dockerfile.
+          otp-version: "29.0.2"
+          elixir-version: "1.20.2"
+          version-type: strict
+
+      - name: Fetch locked dependencies
+        run: mix deps.get --check-locked
+
+      - name: Audit published dependencies
+        run: mix hex.audit
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Compile
+        run: mix compile --warnings-as-errors
+
+      - name: Prepare test database
+        run: |
+          mix ecto.create
+          mix ecto.migrate
+
+      - name: Run offline suite
+        run: mix test --seed 0

@@ -2877,7 +2877,9 @@ opcionalmente: `DRAGONEX_RUN_LIVE=1 OPENROUTER_API_KEY=… mix test --include in
 
 ## Límites declarados
 
-- No hay CI que corra la suite en cada push (pendiente de infra; el verde de
-  referencia es local). Al añadir CI, este doc es el contrato de qué correr.
+- D254 prepara `.github/workflows/ci.yml`: gate Hex offline con Postgres 17,
+  formato, compile, auditoría y migraciones, validado con actionlint. Falta
+  publicar y observar su primer check remoto; no afirmar CI activa o verde
+  por la validación local. No condiciona el autodeploy existente de Dokploy.
 - Golden SRD del creador (F6.5): `test/dragonex/heroes/srd_golden_test.exs`
   (12 clases × L1/L3/L5).

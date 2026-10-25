@@ -8270,6 +8270,34 @@ Gates completos local/Hex: 3172 passed / 3 excluded en 135,0/129,8 s,
 respectivamente; compiles propios dev/test/prod con warnings-as-errors y
 formato limpios. No se ha ejecutado proveedor real.
 
+## D254 — Gate de CI reproducible para los paquetes publicados
+
+**Estado:** Aceptada; workflow preparado, ejecución remota pendiente.
+**Fecha:** 2026-10-25.
+
+**Contexto:** los gates de Dragonex se ejecutaban localmente; una modificación
+podía llegar al repositorio sin comprobar compilación, formato o regresiones.
+La máquina de CI tampoco dispone de los checkouts hermanos privados de dev.
+
+**Decisión:** `.github/workflows/ci.yml` define un único job para pull requests,
+pushes a master y ejecución manual. Usa Ubuntu 24.04, Elixir 1.20.2/OTP 29.0.2
+(alineados con Dockerfile), Postgres 17 y el grafo publicado de `mix.hex.lock`.
+Ejecuta resolución sin cambios de lock, auditoría Hex, formato, compile con
+warnings-as-errors, creación/migración de la DB de tests y suite offline.
+No incorpora claves de proveedores, deploy ni publicación. Permisos de lectura,
+acciones fijadas a commits oficiales y cancelación del job anterior de la misma
+rama. Los checkouts locales siguen verificándose con el gate de desarrollo.
+
+**Verificación/límites:** `actionlint` 1.7.7 valida el workflow; los commits de
+checkout/setup-beam se verifican contra sus tags oficiales (el tag anotado de
+setup-beam se resuelve a su commit). Los comandos de formato, compilación,
+auditoría, migración y suite tienen equivalente local verificable. No se afirma
+un check remoto verde hasta publicar el workflow y observarlo en GitHub.
+La CI tampoco controla el autodeploy existente de Dokploy ni lo convierte en
+un despliegue condicionado al gate; esa integración queda fuera de esta entrega.
+Fuentes: [setup-beam](https://github.com/erlef/setup-beam),
+[servicios PostgreSQL en Actions](https://docs.github.com/en/actions/tutorials/use-containerized-services/create-postgresql-service-containers).
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,
