@@ -2846,7 +2846,7 @@ defmodule Dragonex.Actions do
       count = if is_nil(hit_dice), do: min(1, available), else: hit_dice
 
       if is_integer(count) and count >= 0 and count <= available,
-        do: guard_rest(do_short_rest(world, name, roller, roll_log, count), world),
+        do: guard_rest(do_short_rest(world, name, roller, roll_log, count), world, name, 3600),
         else:
           {:error,
            dgettext("engine", "dados de golpe inválidos; disponibles %{available}",
@@ -2928,17 +2928,40 @@ defmodule Dragonex.Actions do
   @spec long_rest(World.t(), String.t()) :: result()
   def long_rest(world, name) do
     with :ok <- Dragonex.Rest.validate(world, name, :long),
-         do: guard_rest(do_long_rest(world, name), world)
+         do: guard_rest(do_long_rest(world, name), world, name, 28800)
   end
 
-  defp guard_rest({:ok, message, change}, before) do
+  defp guard_rest({:ok, message, change}, before, name, seconds) do
+    expected_body = rest_body(before, name, seconds)
+
     {:ok, message,
      fn current ->
-       with :ok <- unchanged_turn(before, current), do: change.(current)
+       with :ok <- unchanged_turn(before, current) do
+         if rest_body(current, name, seconds) == expected_body do
+           change.(current)
+         else
+           {:error,
+            dgettext(
+              "engine",
+              "los recursos de %{actor} han cambiado; vuelve a resolver la acción", actor: name)}
+         end
+       end
      end}
   end
 
-  defp guard_rest(error, _before), do: error
+  defp guard_rest(error, _before, _name, _seconds), do: error
+
+  # Compare the body that receives healing, after timed forms have expired.
+  # A party rest's first member expires everyone's forms; the next member's
+  # projection must still match, even though their pre-rest body has changed.
+  defp rest_body(world, name, seconds) do
+    projected = Dragonex.WorldClock.advance(world, seconds)
+
+    case World.present_character(projected, name) do
+      %Character{} = character -> Map.take(character, [:hp, :max_hp, :con, :class, :level])
+      nil -> nil
+    end
+  end
 
   defp do_long_rest(world, name) do
     # Report the body that will receive healing after the rest's timed
