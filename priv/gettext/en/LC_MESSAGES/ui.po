@@ -2995,3 +2995,7 @@ msgstr "or with your email"
 #, elixir-autogen, elixir-format
 msgid "¡Bienvenido, %{name}!"
 msgstr "Welcome, %{name}!"
+
+#, elixir-autogen, elixir-format
+msgid "Tu héroe ha cambiado. Recarga la página para editar la ficha actual; no hemos guardado este borrador."
+msgstr "Your hero has changed. Reload the page to edit the current sheet; this draft has not been saved."

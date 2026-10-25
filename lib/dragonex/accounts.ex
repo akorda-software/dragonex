@@ -221,35 +221,45 @@ defmodule Dragonex.Accounts do
     |> Repo.insert()
   end
 
-  @doc "Update a saved hero, only while it has not been imported into any game."
-  @spec update_hero(User.t(), term(), Dragonex.Character.t(), map() | nil) ::
+  @doc """
+  Update an unused saved hero under the same row lock as XP and level-ups.
+  `expected:` may carry the Hero used by an editor to prepare its preview;
+  a changed sheet or draft rejects that stale write without losing progress.
+  """
+  @spec update_hero(User.t(), term(), Dragonex.Character.t(), map() | nil, keyword()) ::
           {:ok, Hero.t()} | {:error, term()}
-  def update_hero(%User{} = user, id, %Dragonex.Character{} = sheet, draft \\ nil) do
-    case get_user_hero(user, id) do
-      nil ->
-        {:error, :not_found}
+  def update_hero(%User{} = user, id, %Dragonex.Character{} = sheet, draft \\ nil, opts \\ []) do
+    Repo.transaction(fn ->
+      hero = locked_user_hero(user, id)
+      if hero_used?(hero), do: Repo.rollback(:in_game)
 
-      %Hero{} = hero ->
-        if hero_used?(hero) do
-          {:error, :in_game}
-        else
-          encoded = Codec.encode_character(sheet)
+      case Keyword.get(opts, :expected) do
+        %Hero{sheet: previous_sheet, draft: previous_draft}
+        when previous_sheet != hero.sheet or previous_draft != hero.draft ->
+          Repo.rollback(:stale_hero)
 
-          hero
-          |> Ecto.Changeset.cast(
-            %{
-              name: sheet.name,
-              race: sheet.race,
-              class: sheet.class,
-              level: sheet.level,
-              sheet: encoded,
-              draft: draft
-            },
-            [:name, :race, :class, :level, :sheet, :draft]
-          )
-          |> Repo.update()
-        end
-    end
+        _ ->
+          :ok
+      end
+
+      hero
+      |> Ecto.Changeset.cast(
+        %{
+          name: sheet.name,
+          race: sheet.race,
+          class: sheet.class,
+          level: sheet.level,
+          sheet: Codec.encode_character(sheet),
+          draft: draft
+        },
+        [:name, :race, :class, :level, :sheet, :draft]
+      )
+      |> Repo.update()
+      |> case do
+        {:ok, saved} -> saved
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
+    end)
   end
 
   @doc "True when a saved hero has already been copied into at least one game."

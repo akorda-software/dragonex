@@ -2995,3 +2995,7 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "¡Bienvenido, %{name}!"
 msgstr ""
+
+#, elixir-autogen, elixir-format
+msgid "Tu héroe ha cambiado. Recarga la página para editar la ficha actual; no hemos guardado este borrador."
+msgstr ""

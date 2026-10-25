@@ -15,7 +15,7 @@ defmodule DragonexWeb.HeroLive.New do
   use Gettext, backend: Dragonex.Gettext
 
   alias Dragonex.{Character, Heroes, I18n}
-  alias Dragonex.Heroes.{Classes, Draft, Scoring}
+  alias Dragonex.Heroes.{Classes, Draft, Edit, Scoring}
 
   import DragonexWeb.HeroLive.New.Components,
     only: [
@@ -281,7 +281,8 @@ defmodule DragonexWeb.HeroLive.New do
             socket.assigns.current_user,
             socket.assigns.hero.id,
             char,
-            Draft.draft_from_form(socket.assigns.form)
+            Edit.draft(socket.assigns.form, socket.assigns.hero, char),
+            expected: socket.assigns.hero
           )
 
         :new ->
@@ -304,13 +305,26 @@ defmodule DragonexWeb.HeroLive.New do
            dgettext("ui", "Este héroe ya está en una partida y no se puede actualizar.")
          )}
 
+      {:error, :stale_hero} ->
+        {:noreply,
+         assign(
+           socket,
+           :error,
+           dgettext(
+             "ui",
+             "Tu héroe ha cambiado. Recarga la página para editar la ficha actual; no hemos guardado este borrador."
+           )
+         )}
+
       {:error, _} ->
         {:noreply, assign(socket, :error, dgettext("ui", "No se pudo guardar."))}
     end
   end
 
   def handle_event("save", _, socket),
-    do: {:noreply, assign(socket, :error, dgettext("ui", "Faltan datos."))}
+    do:
+      {:noreply,
+       assign(socket, :error, socket.assigns[:error] || dgettext("ui", "Faltan datos."))}
 
   # --- helpers ---
 
@@ -324,6 +338,7 @@ defmodule DragonexWeb.HeroLive.New do
           {:ok, Phoenix.LiveView.redirect(socket, to: "/heroes/#{hero.id}")}
         else
           sheet = Dragonex.Accounts.hero_sheet(hero)
+          form = Draft.form_from_hero(hero, sheet)
 
           {:ok,
            socket
@@ -331,7 +346,9 @@ defmodule DragonexWeb.HeroLive.New do
            |> assign(:hero, hero)
            |> assign(:step, :review)
            |> assign(:preview, sheet)
-           |> assign(:form, Draft.form_from_hero(hero, sheet))}
+           |> assign(:original_sheet, sheet)
+           |> assign(:original_form, form)
+           |> assign(:form, form)}
         end
     end
   end
@@ -344,6 +361,20 @@ defmodule DragonexWeb.HeroLive.New do
      |> assign(:step, :identity)
      |> assign(:preview, nil)
      |> assign(:form, Draft.initial_form())}
+  end
+
+  defp refresh_preview(%{assigns: %{mode: :edit}} = socket) do
+    case Edit.rebuild(
+           socket.assigns.original_sheet,
+           socket.assigns.original_form,
+           socket.assigns.form,
+           custom: socket.assigns.custom,
+           legacy: Edit.legacy?(socket.assigns.hero),
+           spent: Edit.spending(socket.assigns.hero)
+         ) do
+      {:ok, sheet} -> assign(socket, preview: sheet, error: nil)
+      {:error, message} -> assign(socket, preview: nil, error: message)
+    end
   end
 
   defp refresh_preview(socket) do
