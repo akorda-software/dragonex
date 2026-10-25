@@ -777,6 +777,18 @@ idempotentes, cap 30, visibles para todos los agentes cada turno — D16).
   mensaje al TestModel y World persistido coinciden
   (`rest_wild_shape_feedback_test.exs`, `game_rest_wild_shape_feedback_test.exs`).
 
+- AC-26.2 (D259): si cambian PG, máximo, Constitución, clase o nivel del
+  cuerpo que recibirá la recuperación, el descanso preparado se rechaza antes
+  de aplicar tiempo/recursos. Preparar otra vez alinea mensaje y curación.
+  Un grupo comparte su intervalo aunque el primer miembro haga caducar las
+  formas de todos; cambios ajenos no invalidan el plan
+  (`prepared_rest_test.exs`).
+
+- AC-26.3 (D264): el DM agrupa los participantes mediante rest_party. Dentro
+  de ese beat no suma un segundo descanso ni advance_time, incluso con
+  herramientas paralelas/retry/restart. Una declaración posterior permite un
+  nuevo intervalo; el PC conserva su descanso individual.
+
 ### R27 — Level-up in-game ✅
 El DM sube nivel a NPCs/enemigos/**PCs IA** con la tool `level_up`; los PCs
 humanos **siempre** desde su ficha (la tool los rechaza con mensaje directivo).
@@ -815,6 +827,11 @@ Iniciativa individual por monstruo → **D34 / F6.4**.
 - AC-38.2: mismo efecto confirmado sobrevive Codec/reinicio y replay del beat
   sin duplicarse por case/NFC/espacios; otro beat legítimo puede recibir más.
   Ficha del héroe reusable, PG/slots/reloj y progresión conservan su criterio.
+- AC-38.2b (D261): cada grant/remove confirmado tiene evento durable con
+  objeto, cantidad, propietario del stock, saldos y contraparte opcional
+  declarada. Rollback, rechazo y no-op no publican movimientos; retry/restart
+  no duplica ni cambia su atribución. UI/History y recarga conservan la misma
+  secuencia, con feedback ES/EN. No implica cotejo semántico de texto libre.
 - AC-38.3: brief y ficha detallada muestran nombres/cantidades actuales, con
   labels SRD traducidas cuando existen. Reload/móvil/teclado conservan lectura
   y no introducen escritor LiveView. Armas/armaduras/equipar/consumir/peso/

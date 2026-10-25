@@ -11,13 +11,14 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 
 ## Último estado — 2026-10-25
 
-- **Gates:** 3224 passed / 3 excluded en ambos grafos (local y Hex).
+- **Gates:** 3266 passed / 4 excluded en ambos grafos (local y Hex).
   Código propio sin warnings, formato limpio; dependencias frías conservan
   avisos de terceros documentados en `tecnico/09-estrategia-pruebas.md`.
 - **Dependencias:** dev usa `../exAgent` 2.2.2 y `../dic_ex` 0.3; el lock de
   producción adopta exAgent 2.2.2, ReqLLM 1.29.0 y Bandit 1.13.1. Ambos locks
-  pasan `mix hex.audit` sin avisos (D246). Esta tanda no está desplegada;
-  último despliegue registrado: 2026-10-13 (93599ba).
+  pasan `mix hex.audit` sin avisos (D246). Tanda D259–D264 validada local/Hex y
+  navegador. [CI y promociones](https://github.com/akorda-software/dragonex/actions/workflows/ci.yml)
+  registran el SHA probado que recibe Dokploy desde `production` (D262).
 - **Medición:** `bin/dev dragonex.metrics --last 10` (partidas guardadas) y
   `bin/dev dragonex.playtest` (mesa real sin interfaz, gasta tokens) (D238).
 
@@ -50,8 +51,13 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 - **Recursos y replay (D255/D258):** Recuperación arcana revalida el plan al
   confirmar; aliases de armas equivalentes recuperan el ataque pagado y los
   recibos antiguos ambiguos piden su argumento exacto antes de tirar.
+- **Descansos (D259/D264):** revalidan el cuerpo al confirmar; el DM agrupa
+  participantes en un solo intervalo y no vuelve a sumar su duración.
 - **Humano caído (D253):** debe resolver su salvación de muerte antes de
   cerrar el turno principal; 20 natural permite actuar y reiniciar no repite dados.
+- **Inventario trazable (D261):** movimiento durable con objeto, cantidad,
+  saldos y contraparte declarada; retry/restart no duplica. Entrega real a Ada
+  comprobada; destinatario obligatorio nullable en la tool.
 - **Agentes:** DM con narración estructurada (D222), PCs IA con voz propia,
   TurnMaster que orquesta relevos, intenciones humanas en cola, testimonios de
   PNJ con fuente durable, esperas y viajes con reloj, contexto de tiradas.
@@ -73,6 +79,13 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
   OpenCode Go, OpenAI, Google, Anthropic; guardada cifrada en «Tu cuenta»),
   cada jugador elige cualquier modelo compatible en Ajustes de IA. La
   elección se guarda por partida y sobrevive a reinicios.
+- **Retirada de claves (D260):** cancela peticiones, pausa mesas abiertas o
+  dormidas y rota a la casa; comprobaciones antiguas no restauran la clave.
+- **Validación web (D263):** aventura real 19467 en escritorio/móvil y fixture
+  Chromium 0→1→7 PG con dos reinicios sin repetir dados/curación
+  ([evidencia](producto/05-cierre-version-jugable.md#revalidación-del-2026-10-25-d259d264)).
+- **CI (D262):** primer gate remoto verde; Dokploy sigue `production`, protegida
+  por el check de pruebas. Solo una CI verde de master puede promoverla.
 - **Acceso (D245):** Entrar y Crear cuenta en una ventana con pestañas y el
   wordmark; el registro pide repetir la contraseña y marca cada error en su
   campo; «Continuar con Google» (OIDC + PKCE) cuando hay cliente OAuth.
@@ -82,15 +95,16 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 
 ## 🟡 Abierto, por prioridad
 
-1. **Betas con humanos en prod:** desplegado el 2026-10-13 (commit 93599ba,
-   D237–D244) en `https://dragones.kukapu.dev` (Dokploy, Oracle Madrid). La
-   app de Dokploy apunta a `akorda-software/dragonex` y despliega sola en cada
-   push a `master`; casa fija (`DRAGONEX_SERVER_MODELS=fixed`). Recoger fallos
-   de partidas reales con `dragonex.metrics` antes de iterar.
+1. **Betas con humanos en prod:** `https://dragones.kukapu.dev` (Dokploy,
+   Oracle Madrid), repo `akorda-software/dragonex`, casa fija
+   (`DRAGONEX_SERVER_MODELS=fixed`). El despliegue sigue `production` tras CI
+   verde (D262). Recoger fallos de partidas reales con `dragonex.metrics`.
 2. **Inventario de objetos de misión:** D239 exige comprobante de inventario
    antes de publicar el cierre del DM; en la tanda 19462–64 las 4 recogidas o
-   entregas reales cambiaron el stock. D240 rechaza conceder otra vez un
-   objeto ya poseído salvo `additional: true`. Falta medirlo en vivo.
+   entregas reales cambiaron el stock. D240 rechaza duplicados salvo
+   `additional: true`; D261 registra movimientos y se comprobó en 19467.
+   Sigue abierta la correspondencia semántica universal entre prosa y objeto,
+   incluido préstamo/devolución transitorios sin cambio neto de stock.
 3. **Fiabilidad del proveedor:** argumentos de tool inválidos (DM y TM),
    retención de 4 KiB (19447) y caídas. El `narrate` vacío de 19463 ya no
    tumba el turno (D240). Medir con `dragonex.playtest --games N`

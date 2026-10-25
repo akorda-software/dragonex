@@ -8411,6 +8411,160 @@ combate, las reglas de ataque ni la semántica de aliases del motor; protege
 la identidad de un efecto dentro del beat, no prohíbe ataques de turnos nuevos.
 El gate completo vigente se registra en `progress.md`.
 
+## D259 — Descansos preparados contra el cuerpo que recibirá la curación
+
+**Estado:** Aceptada. **Fecha:** 2026-10-25.
+
+**Contexto:** un descanso preparado a 2/8 PG anunciaba seis PG recuperados;
+una curación intermedia a 6/8 hacía que aplicase dos conservando aquel mensaje.
+El control de turno y reloj no detectaba el cambio de cuerpo.
+
+**Decisión:** comparar PG, máximo, Constitución, clase y nivel proyectados al
+final del intervalo al preparar y confirmar. Rechazar cambios sin volver a
+lanzar dados ni aplicar tiempo/recursos. La comparación tras caducidades permite
+que el primer miembro de `rest_party` venza las formas de todo el grupo y que
+los siguientes descansen con sus cuerpos nativos. Cambios ajenos al cálculo
+siguen permitidos. `Rest.complete` conserva sus validaciones de dados,
+recursos y descanso diario.
+
+**Verificación/límites:** nueve regresiones, cinco fallando antes del arreglo,
+y 36 casos focalizados verdes sin app/Repo. Cubren descansos corto/largo/grupal,
+caducidad en ambos órdenes y daño exclusivo de una forma que expira. No añade
+un sistema de interrupciones de descanso. Gate completo en `progress.md`.
+
+## D260 — Retirada de claves como barrera de ejecución
+
+**Estado:** Aceptada. **Fecha:** 2026-10-25.
+
+**Contexto:** borrar la clave cifrada no retiraba los modelos ya construidos
+ni las peticiones de mesas abiertas. Una comprobación de otra pestaña podía
+volver a guardar o aplicar una credencial que acababa de retirarse.
+
+**Decisión:** los modelos propios llevan una generación opaca derivada del
+ciphertext (renovada también al sustituir la misma clave). Antes de cada
+request/stream comprueban generación y registran la ejecución bajo un bloqueo
+breve por cuenta/proveedor; el bloqueo no abarca IO. Retirar/reemplazar cambia
+la credencial y cancela ejecuciones admitidas, incluidas sondas y streams.
+
+Game conserva Session, World, fase, intenciones/autoplay y checkpoint de efectos
+pagados, pausa y recrea los agentes. Retirada pasa a casa; reemplazo conserva
+la selección propia con la nueva generación. Las mesas sin PID guardan ai y
+pausa conjuntamente si estaban running/waiting; un segundo chequeo de Registry
+captura aperturas concurrentes. Configuring/ended conservan su estado.
+
+Settings reconstruye bajo el mismo bloqueo antes de aplicar una sonda; la
+cancelación devuelve error recuperable al modal. AccountLive compara la
+generación de inicio antes de guardar una validación: no resucita una clave
+retirada ni sobrescribe otra más reciente. Inspect no muestra el modelo
+interno ni la generación.
+
+**Verificación/límites:** 31 focales finales y 25 auxiliares verdes verifican
+rotación selectiva, reemplazo en el mismo segundo, request/stream activos,
+sondas, distintas pestañas, mesas dormidas y replay de hechizo pagado. La
+barrera se completa al retornar `:ok`; no retira IO que ya llegó al proveedor
+ni revoca la credencial en su servicio. La fase TurnMaster se conserva en el
+proceso; su persistencia tras un reinicio frío continúa siendo un límite
+previo. Gate completo en `progress.md`.
+
+## D261 — Movimientos de inventario durables y con contraparte explícita
+
+**Estado:** Aceptada. **Fecha:** 2026-10-25.
+
+**Contexto:** el comprobante de una tool podía impedir repetir el stock, pero
+no quedaba un movimiento factual visible tras cerrar el beat. Tampoco se
+registraba a quién se entregó un objeto de misión.
+
+**Decisión:** Game deriva el delta real de `grant_item`/`remove_item` del
+World anterior y posterior, agregando pilas por clave canónica. Guarda un
+evento `:system`, `kind: inventory_movement`, en la misma transacción que
+World y receipt. Su secuencia identifica el movimiento; objeto, cantidad,
+propietario del stock y saldos proceden del motor. No hay nueva migración.
+
+`source` en grant es opcional; `recipient` en remove debe figurar como nombre
+o `null` si no hay receptor conocido. Se fuerza esa decisión después de que
+el modelo omitiera Ada en la entrega real 19467/59. El texto es breve (80
+caracteres), NFC y `Text.scrub`, declarado por el DM. No prueba existencia de
+un PNJ ni modifica un segundo inventario. El replay excluye esa atribución de
+la identidad mecánica: omitirla/cambiarla al recuperar devuelve el movimiento
+original, sin sumar stock o eventos. La nota localizada entra en UI e History;
+los históricos sin evidencia no reciben movimientos inventados.
+
+**Verificación/límites:** ocho regresiones nuevas y 33 pruebas focalizadas
+verdes cubren ida/vuelta, contraparte, rechazo, rollback, UI y recuperación.
+D239 sigue exigiendo algún comprobante: no se afirma correlación semántica
+universal entre el texto libre y el objeto correcto. Evidencia de proveedor
+y gate completo en `progress.md`.
+
+## D262 — Producción avanza solo desde una CI verde
+
+**Estado:** Aceptada. **Fecha:** 2026-10-25.
+
+**Contexto:** el webhook desplegaba cada push a master antes de conocer el
+resultado de las pruebas. El workflow D254 solo se había validado localmente.
+
+**Decisión:** Dokploy sigue `production`, creada inicialmente en la release
+vigente 9601df2. GitHub protege esa rama con el check `Published dependencies /
+offline tests` de Actions (app 15368), también para administradores, sin force
+ni borrado. El job de promoción depende de ese check y solo corre en pushes a
+master; comprueba su SHA vigente y avanza production sin force. Los demás
+pushes y PRs prueban sin desplegar. No se exporta una clave de Dokploy: se usa
+el token efímero del job y el webhook existente de GitHub.
+
+**Verificación/límites:** actionlint y primera CI remota sobre f6383da verdes
+([40182791446](https://github.com/akorda-software/dragonex/actions/runs/40182791446)).
+La comparación master/promotion no es atómica: puede promover un commit ya
+superado, pero probado; no puede hacer retroceder una promoción posterior.
+La evidencia de las promociones queda en Actions y Dokploy, enlazados desde
+progress. El panel/API
+manual conserva capacidad administrativa de despliegue; el procedimiento
+exige verificar SHA/check antes de usarla. Configuración y reversión en
+`tecnico/06-config-modelos-despliegue.md`.
+
+## D263 — Recorrido de navegador reproducible para caída y recuperación
+
+**Estado:** Aceptada. **Fecha:** 2026-10-25.
+
+**Contexto:** las pruebas de motor cubrían muerte y replay, pero una aventura
+real sin daño no demostraba su presentación y recuperación desde el navegador.
+
+**Decisión:** test opt-in `:browser`, Python Playwright/Chromium sobre Endpoint
+real en un puerto efímero exclusivo de loopback, Sandbox y TestModel. Usa las
+rutas normales; no añade una API de depuración. Conserva capturas, trace y
+resultados JSON en `/tmp`, también cuando falla.
+
+**Verificación/límites:** recorrido verde (3,9 s): login, ficha a 0 PG, cierre
+prematuro rechazado, 20 natural a 1 PG, fallo después del pago, reload y restart,
+reanudación con replay, Segundo aliento a 7 PG y otro ciclo pausa/reload/restart.
+Dos eventos de dados y una sola voz humana; DOM y motor coinciden, sin errores
+JS. Lesión y proveedor son fixtures, no evidencia de obediencia de un LLM real.
+La aventura real complementaria se documenta en producto/05. Comando y
+prerrequisitos en `test/browser/README.md`; excluido de la suite ordinaria.
+
+## D264 — Un intervalo de descanso por turno del DM
+
+**Estado:** Aceptada. **Fecha:** 2026-10-25.
+
+**Contexto:** en el recorrido real 19467, el DM narró una hora de descanso
+para Bran y Lyra, pero el reloj pasó de 0 a 10800 segundos. Las herramientas
+permitían acumular descansos individuales y tiempo explícito en un mismo beat.
+
+**Decisión:** el DM resuelve todos los participantes con `rest_party`, incluso
+si solo descansa uno. Las llamadas individuales reciben un error directivo.
+Después de un descanso confirmado, otra llamada de descanso o advance_time
+se rechaza; tampoco se añade un descanso a un intervalo ya avanzado en ese
+beat. Una espera sin descanso mantiene las reglas existentes de D165.
+
+La admisión consulta receipts antes de preparar dados y se comprueba otra vez
+en el commit del Game, cubriendo herramientas paralelas. Los recibos pagados
+se recuperan antes de esta guardia; restart no libera el intervalo. Los PCs
+conservan su descanso individual y un beat nuevo puede registrar otro descanso.
+No modifica World/Codec ni resta tiempo a partidas históricas.
+
+**Límite deliberado:** un viaje o descanso posterior se pide en otra declaración.
+El motor no adivina si dos intervalos expresados libremente eran simultáneos o
+sucesivos. Feedback/prompts ES/EN explican la restricción. Las pruebas Game y
+la repetición real se registran en la estrategia de pruebas y progress.
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,

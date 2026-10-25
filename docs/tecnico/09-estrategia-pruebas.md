@@ -2895,9 +2895,11 @@ opcionalmente: `DRAGONEX_RUN_LIVE=1 OPENROUTER_API_KEY=… mix test --include in
 
 ## Límites declarados
 
-- D254 prepara `.github/workflows/ci.yml`: gate Hex offline con Postgres 17,
-  formato, compile, auditoría y migraciones, validado con actionlint. Falta
-  publicar y observar su primer check remoto; no afirmar CI activa o verde
-  por la validación local. No condiciona el autodeploy existente de Dokploy.
+- D254/D262: `.github/workflows/ci.yml` ejecuta el gate Hex offline con
+  Postgres 17, formato, compile, auditoría y migraciones. Primera ejecución
+  remota verde: [40182791446](https://github.com/akorda-software/dragonex/actions/runs/40182791446).
+  Solo después se puede avanzar `production`, la rama protegida que sigue
+  Dokploy. El estado remoto no sustituye el recorrido de navegador/proveedor;
+  la evidencia vigente de cada tanda está en `progress.md`.
 - Golden SRD del creador (F6.5): `test/dragonex/heroes/srd_golden_test.exs`
   (12 clases × L1/L3/L5).

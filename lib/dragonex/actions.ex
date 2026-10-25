@@ -2943,7 +2943,9 @@ defmodule Dragonex.Actions do
            {:error,
             dgettext(
               "engine",
-              "los recursos de %{actor} han cambiado; vuelve a resolver la acción", actor: name)}
+              "los recursos de %{actor} han cambiado; vuelve a resolver la acción",
+              actor: name
+            )}
          end
        end
      end}

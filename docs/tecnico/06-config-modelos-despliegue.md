@@ -6,8 +6,8 @@
 
 ## Dependencias (`mix.exs`)
 
-- **`exagent`** — dev/test resuelve siempre `../exAgent`; prod, Hex `~> 2.1`
-  (D237). Ambos grafos ejecutan la misma API v2.
+- **`exagent`** — dev/test resuelve siempre `../exAgent`; prod, Hex `~> 2.2.2`
+  (D246). Ambos grafos ejecutan la misma API v2.
 - **`dic_ex`** — dev/test resuelve siempre `../dic_ex`; prod, Hex `~> 0.3`.
   Endpoint sirve JS/CSS directamente del `priv/static` del `dic_ex` cargado.
   Los builds de test Hex no pueden sobrescribir los assets de una VM local.
@@ -98,6 +98,16 @@ deterministas.
 - La elección vive en `games.ai`; `Game.restart/2` la guarda y `Bootstrap` la
   reconstruye al arrancar (`Dragonex.GameAI`).
 
+### Retirar o reemplazar una clave propia (D260)
+
+Al completar la operación, las mesas afectadas quedan pausadas: al retirar
+usan la casa; al reemplazar conservan la selección con la clave nueva. Se
+cancelan las peticiones activas y se impide admitir otra con la generación
+retirada. World, historial e identidad de efectos pagados sobreviven; reanudar
+recupera el turno. Una petición ya enviada al proveedor puede tener coste.
+Las comprobaciones antiguas no vuelven a guardar ni aplicar la clave y el
+modal muestra un error recuperable si se cancela una comprobación.
+
 ## Puertos
 
 | Qué | Host | Contenedor |
@@ -135,6 +145,45 @@ DB_PORT=5455 mix phx.server               # http://localhost:4035
   provider elegido. Opcional `LIVE_VIEW_SIGNING_SALT`, `PHX_HOST`, `PHX_SERVER`.
 - Despliegue vía Dokploy (`scripts/deploy-dokploy.sh`): imagen Docker + env vars
   inyectadas.
+
+### CI antes de producción (D262)
+
+`.github/workflows/ci.yml` prueba cada push salvo `production`, además de PRs
+y ejecuciones manuales. El job `Published dependencies / offline tests`
+instala el grafo Hex bloqueado, audita paquetes, comprueba formato y compile
+sin warnings propios, migra PostgreSQL 17 y ejecuta la suite offline.
+
+Solo un push a `master` con ese job verde puede promover su SHA a
+`production`. La promoción comprueba que sigue siendo la punta de `master`
+y actualiza la referencia sin force; una promoción antigua no puede hacer
+retroceder una más reciente. La comprobación de punta no es atómica con la
+actualización: puede promover un commit probado ya superado, nunca uno sin
+probar. La rama `production` exige el check de GitHub Actions también a
+administradores y prohíbe force-push/borrado.
+
+Dokploy (Oracle Madrid, aplicación `3qfR_NLCaXL7Sw9Hvu9Ye`) sigue
+`production`, con auto-deploy activo. No se comparte la API key de Dokploy
+con Actions: el webhook GitHub de la rama protegida inicia el despliegue.
+Un fallo o cancelación de CI deja la rama y el servicio en su última versión.
+La promoción usa el `GITHUB_TOKEN` efímero con `contents: write` solo en ese
+job; los tests tienen permiso de lectura y credenciales LLM vacías.
+
+Antes de habilitar el flujo, `production` se creó en el commit desplegado
+`9601df2`; cambiar la rama de Dokploy no reinició la aplicación. La primera
+ejecución remota del gate, sobre `f6383da`, pasó:
+[run 40182791446](https://github.com/akorda-software/dragonex/actions/runs/40182791446).
+Las promociones posteriores quedan en el
+[historial de CI](https://github.com/akorda-software/dragonex/actions/workflows/ci.yml)
+y en los despliegues de Dokploy, con el SHA correspondiente.
+
+Los despliegues manuales desde el panel o API siguen siendo operaciones de
+administración: comprobar el SHA y su CI antes de usarlos. El script de
+bootstrap crea infraestructura nueva; su plantilla apunta a `production`.
+Revertir una release normalmente se hace mediante un commit de revert en
+`master`, que vuelve a pasar CI, sin forzar la rama protegida.
+
+Fuentes: [autodeploy de Dokploy](https://docs.dokploy.com/docs/core/auto-deploy),
+[permisos y eventos de GITHUB_TOKEN](https://docs.github.com/en/actions/concepts/security/github_token).
 
 ## Comandos del día a día
 

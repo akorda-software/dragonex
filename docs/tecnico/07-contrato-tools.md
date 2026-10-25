@@ -70,14 +70,21 @@ Fuente canónica del código: `lib/dragonex/tools.ex` (S5), sets por agente en
 | `set_scene` | `(narration: String)` | Escena actual scrubbed; valida actor/roster vigente y rechaza texto vacío o acciones ajenas/colectivas explícitas, también con clíticos antes del predicado, o disparadores temporales plurales acotados antes de proponer. Solo actor dm antes de leer/proponer World (D195); conserva World/log/cola al rechazar. Admite entorno/invitaciones PNJ; el humano resuelve su acción y espera confirmación DM (D135/D137/D141/D195) |
 | `establish_fact` | `(fact: String)` | Solo actor dm antes de leer/proponer World (D195); hecho durable canónico (D16), idempotente, cap30, scrubbed; no convierte prosa humana en confirmación |
 | `record_npc_statement` | `(speaker: String, statement: String)` | Solo DM: fuente80/contenido800, scrub/NFC/espacios/citas internas, rechazo de fuente PJ completa/corta. Guarda «fuente afirma: contenido» como testimonio en facts existentes, cap30/idempotencia/replay; no confirma contenido ni cambia entorno/presencia/recursos/reloj/marca de revisión previa (D176) |
-| `grant_item` | `(who: String, item: String, quantity: Integer, additional: Boolean?)` | Solo DM/exploración/PC presente; confirma entrega efectiva sumando a Item :gear. Un objeto que el PC ya tiene se rechaza salvo `additional: true` (unidades nuevas de una pila) (D240). Nombre scrub/NFC1..160, identidad case/espacios, cantidad1..9999, pila≤9999, inventario≤80 entradas. Rechaza colisión con equipo no :gear; solicita revisión de escena, sin PG/slots/reloj/equipar/efectos (D190) |
-| `remove_item` | `(who: String, item: String, quantity: Integer)` | Mismas guardas; resta del stock real :gear, rechaza inexistente/insuficiente y elimina pila vacía. No retira equipo de combate ni consume efectos; solicita revisión de escena (D190) |
+| `grant_item` | `(who: String, item: String, quantity: Integer, additional: Boolean?, source: String?)` | Solo DM/exploración/PC presente; confirma entrega efectiva sumando a Item :gear. Un objeto que el PC ya tiene se rechaza salvo `additional: true` (unidades nuevas de una pila) (D240). Nombre scrub/NFC1..160, identidad case/espacios, cantidad1..9999, pila≤9999, inventario≤80 entradas. Rechaza colisión con equipo no :gear; solicita revisión de escena, sin PG/slots/reloj/equipar/efectos (D190) |
+| `remove_item` | `(who: String, item: String, quantity: Integer, recipient: String|null)` | Mismas guardas; resta del stock real :gear, rechaza inexistente/insuficiente y elimina pila vacía. No retira equipo de combate ni consume efectos; solicita revisión de escena (D190) |
 | `confirm_inventory_unchanged` | `(who: String, reason: String)` | Solo DM; no muta World. Comprobante de que una recogida/entrega declarada no cambia de manos (no está, falla, solo se mira, ya poseído). Junto a `grant_item`/`remove_item` cierra el requisito de D239; replay/checkpoint como cualquier tool |
 | `leave_scene` | `(who: String, reason: String)` | Solo DM, no-PC existente; motivo scrubbed/acotado; conserva ficha/PG/recursos y termina concentración/presencia activa. No decide una huida (D115) |
 | `return_to_scene` | `(who: String)` | Solo DM; recupera la ficha ausente, sin curar/renovar recursos; refuerzo al final del combate, con ledger conservado (D115) |
 | `spawn_monster` | `(kind: String, name: String)` | Solo dm antes de World/propuesta (D196); añade monstruo del bestiario (`Monsters`) y lo une a iniciativa sin reroll si hay combate; nombre único/ausentes conservados por World. Si `kind` no existe, lista disponibles |
 
 D190 expone límites reales en JSON Schema y excluye ambas tools de PCAgent.
+D261 registra cada delta efectivo como evento durable `inventory_movement`,
+atómico con World y recibo: objeto, cantidad, propietario del stock y saldos.
+`source` es opcional y `recipient` debe ser nombre o null si no hay receptor
+conocido. Son atribuciones del DM (80 caracteres, NFC/scrub), no prueban existencia de un PNJ ni mutan otro inventario. El replay
+conserva el movimiento original aunque cambie u omita esa atribución. Sin
+cambio real, rechazo o rollback no hay movimiento.
+
 Una devolución PNJ efectiva requiere grant_item antes de narrarla; una petición
 pendiente conserva stock. Wrapper normaliza identidad NFC/case/espacios para
 replay del mismo beat, sin duplicar efecto tras caída. Game persiste el cambio
@@ -235,6 +242,14 @@ perder o reemplazar concentración retira los efectos de la fuente.
 | `short_rest` | `(target, hit_dice?)` | DM cualquiera; PC sólo sí mismo | 1 h; dados finitos, 0 para recuperar solo rasgos; omitir gasta como máximo 1. Recarga rasgos de corto, CD de Furia implacable e inspiración de bardo L5+. No devuelve usos de Furia ni reservas de largo (D83) |
 | `long_rest` | `(target)` | DM cualquiera; PC sólo sí mismo | 8 h, máximo uno cada 24 h. PG y reservas de largo, hasta la mitad de dados de golpe (mínimo 1), elimina PG temporales y procesa caducidades (D83) |
 | `rest_party` | `(targets, kind)` | Solo DM | Descanso simultáneo y atómico; `targets` lista sin duplicados, `kind` short/long. Un único intervalo para todo el grupo. Devuelve el reloj confirmado y pide registrar el entorno con `set_scene` sin repetir efectos (D144). La tool marca pendiente; el cierre de beat D145 puede registrar una instantánea sin repetir el descanso. Feedback long informa el cuerpo vigente después de caducar efectos (D146) |
+
+D264: en Game el DM usa `rest_party` incluso para un único participante;
+short_rest/long_rest individuales reciben un error directivo. Un beat no
+puede acumular otro descanso ni advance_time después de ese intervalo, ni
+añadir descanso tras advance_time. La guardia se aplica antes de RNG y al
+confirmar; replay recupera lo pagado. Viaje/descanso posterior necesita otra
+declaración. Los descansos individuales de PCs siguen disponibles.
+
 | `advance_time` | `(seconds)` | Solo DM | Entero ≥0, fuera de combate; avanza reloj y caduca efectos. En combate el tiempo avanza con rondas |
 | `roll_dice` | `(count, sides)` | — | Tirada libre NdM para el modelo |
 | `end_combat` | `()` | Solo dm antes de propuesta (D196) | Vuelve a `:exploration`; apaga raging, reckless y smite_slot en todos (D42 / D44 / D46) |

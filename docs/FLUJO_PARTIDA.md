@@ -981,6 +981,15 @@ UI1440/375 reproduce solo payload716 sin nueva tirada y verifica teclado;
 Escape también funciona en tirada724. Pista nueva queda solo en narración;
 memoria durable de observaciones y callbacks 3D sin generación siguen acotados.
 
+D261 añade movimientos visibles y durables para cada cambio real de stock:
+objeto, cantidad, propietario, saldo anterior/posterior y contraparte opcional.
+`grant_item` acepta `source` opcional y `remove_item` exige `recipient`
+(nombre o null si no hay receptor conocido); esa contraparte es
+una atribución del DM, no otro inventario ni una prueba de existencia del PNJ.
+World, receipt y movimiento se guardan juntos. Recuperar no duplica el evento;
+la recarga conserva su secuencia. D239 aún no coteja semánticamente cada
+objeto de una declaración libre con sus herramientas.
+
 D190 registra posesión descriptiva con grant_item/remove_item del DM en
 exploración: Rules valida nombre, cantidad, stock, identidad y límites, World
 aplica mediante Game. El narrador humano no puede confirmar inventario; el

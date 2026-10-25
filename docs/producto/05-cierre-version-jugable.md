@@ -111,3 +111,50 @@ geometría táctica, multiclase y dotes siguen sus límites documentados.
   red móvil física, monedas/recompensas mecánicas ni todo el catálogo SRD.
 - La colisión intermitente de email en fixture de autenticación sigue siendo
   deuda de aislamiento; no apareció en esta suite final.
+
+
+## Revalidación del 2026-10-25 (D259–D264)
+
+- Cuenta de playtest propia y héroe **Bran Octubre**, humano guerrero nivel 1,
+  creados desde Chromium mediante los formularios normales. Héroe `/heroes/5901`.
+- Partida real `/games/19467`, «El sello de Ada», con Lyra como compañera IA.
+  OpenRouter `deepseek/deepseek-v4-flash-0731` según el entorno de desarrollo;
+  no es una medición del modelo de casa fijado en producción.
+- Combate: iniciativa factual, mordisco contra Bran fallido (8 contra CA19),
+  Rayo ígneo de Lyra (19 contra CA12, 8 de daño), rata a 0/7 y vuelta a turno
+  humano. Segundo aliento y descanso recuperan el recurso. Nadie cayó en este
+  combate; esa ruta se verifica con el navegador determinista descrito abajo.
+- Hallazgo real corregido: el primer descanso narró una hora pero llevó el
+  reloj de 0 a 10800 s. D264 limita el intervalo del DM; tras cargar la corrección,
+  repetir el descanso grupal avanzó exactamente 3600 s (10800 → 14400).
+  El histórico anterior conserva lo ocurrido; no se corrigió retroactivamente.
+- Inventario real: evento 51 recoge un sello de bronce del cofre, saldo 0 → 1;
+  evento 59 lo entrega, saldo 1 → 0, y el DM cierra el encargo. Ese primer
+  remove omitió el receptor: motivó `recipient` obligatorio nullable. En la
+  comprobación posterior, evento 82 entrega el trofeo de Bran a **Ada**, con
+  contraparte registrada y saldo 1 → 0. No se altera el comprobante previo.
+  Un préstamo narrado con devolución inmediata no generó cambios de stock;
+  D239 no garantiza trazar todos los traspasos transitorios de la prosa.
+- Escritorio 1440×900 y móvil 375×812: controles operables, ficha propia con
+  inventario, sin desbordamiento horizontal. Entrega desde móvil, pausa,
+  recarga y reinicios del contenedor dev conservan la mesa y los movimientos.
+  Estado final: pausada, reloj 14400 s, sello y trofeo fuera del inventario.
+- Capturas temporales: `/tmp/dragonex-oct25-final-desktop.png`,
+  `/tmp/dragonex-oct25-final-mobile.png` y
+  `/tmp/dragonex-oct25-mobile-inventory.png`.
+
+### Caída y recuperación con navegador determinista
+
+`MIX_ENV=test bin/dev test --include browser test/browser/death_save_journey_test.exs`
+verifica Endpoint/LiveView/Game/SQL desde Chromium, con TestModel y dados
+controlados: 0 PG, cierre prematuro rechazado, 20 natural → 1 PG, fallo después
+del pago, recarga/reinicio, replay y Segundo aliento → 7 PG. Otra pausa/recarga
+con segundo reinicio conserva dos eventos de dados y una voz humana, sin
+repetir salvación ni curación. Resultado integrado: **1 passed, 3,9 s**, cero
+errores JS; evidencia en
+`/tmp/dragonex-browser-death-save-9aa8b1fd-4cc7-4237-b897-a3287f34ed25/`.
+
+El escenario controlado arranca a 0 PG y no usa proveedor externo. La aventura
+real y este recorrido se complementan; ninguno certifica todos los conjuros,
+campañas largas ni fidelidad universal del texto generado. Gates y despliegue
+vigentes en `../progress.md`.
