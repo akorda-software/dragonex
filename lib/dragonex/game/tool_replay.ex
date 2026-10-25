@@ -24,36 +24,84 @@ defmodule Dragonex.Game.ToolReplay do
 
     # Omitted optional arguments and explicit nulls have the same meaning to
     # the bridge; provider call IDs do not identify a logical repeated action.
-    key = {name, canonical_args(ctx, name, args) |> scrub_args()}
+    with canonical when is_map(canonical) <- canonical_args(ctx, name, args) do
+      key = {name, scrub_args(canonical)}
 
-    case GenServer.call(owner, {:tool_replay, deps, key}) do
-      :execute ->
-        id = make_ref()
+      case GenServer.call(owner, {:tool_replay, deps, key}) do
+        :execute ->
+          id = make_ref()
 
-        deps =
-          deps
-          |> Map.put(:tool_commit, %{id: id, key: key})
-          |> Map.put(:roll_log, Dragonex.RollLog.for_tool(deps[:roll_log], id))
+          deps =
+            deps
+            |> Map.put(:tool_commit, %{id: id, key: key})
+            |> Map.put(:roll_log, Dragonex.RollLog.for_tool(deps[:roll_log], id))
 
-        ctx = %{ctx | deps: deps}
-        result = original.(ctx, args)
-        :ok = GenServer.call(owner, {:remember_tool_result, ctx.deps, key, result})
-        result
+          ctx = %{ctx | deps: deps}
+          result = original.(ctx, args)
+          :ok = GenServer.call(owner, {:remember_tool_result, ctx.deps, key, result})
+          result
 
-      {:replay, value} ->
-        {:ok,
-         dgettext(
-           "engine",
-           "Resultado ya aplicado antes del fallo; no repitas la acción: %{result}",
-           result: value
-         )}
+        {:replay, value} ->
+          {:ok,
+           dgettext(
+             "engine",
+             "Resultado ya aplicado antes del fallo; no repitas la acción: %{result}",
+             result: value
+           )}
 
-      {:error, _} = error ->
-        error
+        {:error, _} = error ->
+          error
+      end
     end
   end
 
   defp invoke(ctx, _name, args, original), do: original.(ctx, args)
+
+  defp canonical_args(ctx, "make_attack", args) do
+    world = SharedState.read(ctx.deps.state)
+    normalized = args |> without_nulls() |> attack_mode_key()
+
+    {receipts, legacy_keys} =
+      case restore(world, ctx.deps.state.participant_id) do
+        %{turn_id: turn_id, tool_results: results, legacy_attack_keys: legacy}
+        when turn_id == ctx.deps.beat.turn_id ->
+          receipts =
+            for {{"make_attack", saved}, _values} <- results,
+                is_binary(saved["weapon"]),
+                Map.delete(attack_mode_key(saved), "weapon") == Map.delete(normalized, "weapon"),
+                do: saved
+
+          {receipts, legacy}
+
+        _ ->
+          {[], MapSet.new()}
+      end
+
+    # Exact legacy arguments are the recovery escape hatch for ambiguous old
+    # aliases. Versioned receipts always follow the current engine resolution.
+    exact_legacy = Enum.filter(receipts, &MapSet.member?(legacy_keys, {"make_attack", &1}))
+
+    case matching_attack_receipt(exact_legacy, normalized) do
+      nil ->
+        current = Dragonex.Actions.weapon_definition(world, args["attacker"], args["weapon"])
+        weapon = current || historical_weapon(receipts, args["weapon"])
+
+        normalized = if weapon, do: Map.put(normalized, "weapon", weapon.name), else: normalized
+
+        case matching_attack_receipt(receipts, normalized) do
+          nil ->
+            legacy_attack_or_new(receipts, legacy_keys, current, normalized)
+
+          saved ->
+            if is_nil(current) and MapSet.member?(legacy_keys, {"make_attack", saved}),
+              do: legacy_attack_error([saved]),
+              else: saved
+        end
+
+      saved ->
+        saved
+    end
+  end
 
   defp canonical_args(ctx, "cast_spell", args) do
     world = SharedState.read(ctx.deps.state)
@@ -87,6 +135,64 @@ defmodule Dragonex.Game.ToolReplay do
 
   defp canonical_args(_ctx, _name, args), do: without_nulls(args)
   defp without_nulls(args), do: Map.reject(args, fn {_key, value} -> is_nil(value) end)
+
+  defp attack_mode_key(args) do
+    case Dragonex.Tools.normalize_mode(args["mode"]) do
+      :normal -> Map.delete(args, "mode")
+      mode -> Map.put(args, "mode", Atom.to_string(mode))
+    end
+  end
+
+  defp matching_attack_receipt(receipts, args),
+    do:
+      Enum.find(receipts, fn saved ->
+        Dragonex.Actions.same_weapon_name?(saved["weapon"], args["weapon"])
+      end)
+
+  defp legacy_attack_or_new(receipts, legacy_keys, current, normalized) do
+    ambiguous =
+      if current do
+        Enum.filter(receipts, fn saved ->
+          MapSet.member?(legacy_keys, {"make_attack", saved}) and
+            Dragonex.Actions.unique_weapon_definition(
+              [%Dragonex.Weapon{name: saved["weapon"]}],
+              current.name
+            ) != nil
+        end)
+      else
+        []
+      end
+
+    if ambiguous == [] do
+      normalized
+    else
+      legacy_attack_error(ambiguous)
+    end
+  end
+
+  defp legacy_attack_error(receipts) do
+    {:error,
+     dgettext(
+       "engine",
+       "El ataque puede corresponder a un comprobante anterior con un alias de arma. " <>
+         "Para recuperar ese resultado sin repetir dados ni daño, usa el nombre de arma exacto del comprobante: %{weapons}.",
+       weapons: Enum.map_join(receipts, ", ", & &1["weapon"])
+     )}
+  end
+
+  # A paid weapon may have disappeared through Wild Shape before recovery.
+  # Only an unambiguous historical match may stand in for an absent weapon;
+  # a different weapon that the current sheet resolves always takes priority.
+  defp historical_weapon(receipts, name) do
+    weapons =
+      receipts
+      |> Enum.map(& &1["weapon"])
+      |> Enum.filter(&is_binary/1)
+      |> Enum.uniq()
+      |> Enum.map(&%Dragonex.Weapon{name: &1})
+
+    Dragonex.Actions.unique_weapon_definition(weapons, name)
+  end
 
   defp cast_level(level) when is_binary(level) do
     case Integer.parse(String.trim(level)) do
@@ -293,10 +399,17 @@ defmodule Dragonex.Game.ToolReplay do
          true <- Enum.all?(tools, &valid_entry?/1) do
       results = Map.new(tools, fn entry -> {{entry["name"], entry["args"]}, entry["values"]} end)
 
+      legacy_attack_keys =
+        for entry <- tools,
+            entry["name"] == "make_attack" and entry["key_version"] != 1,
+            into: MapSet.new(),
+            do: {"make_attack", entry["args"]}
+
       %{
         turn_id: turn_id,
         inventory_scene_before: Map.get(saved, "inventory_scene_before"),
         tool_results: results,
+        legacy_attack_keys: legacy_attack_keys,
         mini_turn: mini,
         death_save_required: saved["death_save_required"] == true,
         phase: if(phase == "combat", do: :combat, else: :exploration),
@@ -335,7 +448,12 @@ defmodule Dragonex.Game.ToolReplay do
       "enemies_before" => MapSet.to_list(beat.enemies_before),
       "tools" =>
         Enum.map(beat.tool_results, fn {{name, args}, values} ->
-          %{"name" => name, "args" => args, "values" => values}
+          entry = %{"name" => name, "args" => args, "values" => values}
+
+          if name == "make_attack" and
+               not MapSet.member?(beat.legacy_attack_keys, {name, args}),
+             do: Map.put(entry, "key_version", 1),
+             else: entry
         end)
     }
   end

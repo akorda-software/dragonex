@@ -5793,6 +5793,32 @@ defmodule Dragonex.Actions do
 
   defp find_spell(%Character{spells: spells}, name), do: match_named(spells, name)
 
+  @doc "Read the same weapon definition used by attack resolution, without rolling or mutating."
+  def weapon_definition(%World{} = world, attacker, name) when is_binary(name) do
+    case World.present_character(world, attacker) do
+      %Character{} = character -> find_weapon(character, name)
+      _ -> nil
+    end
+  end
+
+  def weapon_definition(_world, _attacker, _name), do: nil
+
+  @doc false
+  def unique_weapon_definition(weapons, name) when is_list(weapons) and is_binary(name) do
+    case matching_named(weapons, name) do
+      [weapon] -> weapon
+      _ -> nil
+    end
+  end
+
+  def unique_weapon_definition(_weapons, _name), do: nil
+
+  @doc false
+  def same_weapon_name?(left, right) when is_binary(left) and is_binary(right),
+    do: normalized_name(left) == normalized_name(right)
+
+  def same_weapon_name?(_left, _right), do: false
+
   @doc "Read the same spell definition/name used by resolution, without rolling or mutating."
   def spell_definition(%World{} = world, caster, name) when is_binary(name) do
     case World.present_character(world, caster) do
@@ -5816,16 +5842,25 @@ defmodule Dragonex.Actions do
   # "longsword", "firebolt" for "fire bolt", or varies casing. We match
   # case/space-insensitively first, then fall back to a substring containment
   # (both directions) so a short or approximate name still resolves.
-  defp match_named(items, name) do
-    norm = fn s -> s |> String.downcase() |> String.replace(~r/[\s_-]+/, "") end
-    n = norm.(name)
+  defp match_named(items, name), do: items |> matching_named(name) |> List.first()
 
-    Enum.find(items, &(norm.(&1.name) == n)) ||
-      Enum.find(items, fn item ->
-        iname = norm.(item.name)
-        String.contains?(iname, n) or String.contains?(n, iname)
-      end)
+  defp matching_named(items, name) do
+    n = normalized_name(name)
+
+    case Enum.filter(items, &(normalized_name(&1.name) == n)) do
+      [] ->
+        Enum.filter(items, fn item ->
+          iname = normalized_name(item.name)
+          String.contains?(iname, n) or String.contains?(n, iname)
+        end)
+
+      exact ->
+        exact
+    end
   end
+
+  defp normalized_name(name),
+    do: name |> String.downcase() |> String.replace(~r/[\s_-]+/, "")
 
   defp compose_rest(name, heal_amount, restore_slots?, kind, dice_spent) do
     fn w ->

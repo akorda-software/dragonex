@@ -390,6 +390,7 @@ defmodule Dragonex.Game.Beats do
             ),
           tool_results: results,
           replay_results: results,
+          legacy_attack_keys: if(restored, do: restored.legacy_attack_keys, else: MapSet.new()),
           max_token_retries: retries.max_token_retries,
           transient_retries: retries.transient_retries,
           narration_retries: Map.get(retries, :narration_retries, 0),

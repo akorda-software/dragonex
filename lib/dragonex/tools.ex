@@ -1486,9 +1486,12 @@ defmodule Dragonex.Tools do
     end
   end
 
-  defp parse_mode("advantage"), do: :advantage
-  defp parse_mode("disadvantage"), do: :disadvantage
-  defp parse_mode(_), do: :normal
+  @doc false
+  def normalize_mode("advantage"), do: :advantage
+  def normalize_mode("disadvantage"), do: :disadvantage
+  def normalize_mode(_), do: :normal
+
+  defp parse_mode(value), do: normalize_mode(value)
 
   # Read the current shared world through the Session handle.
   defp world(ctx), do: ExAgent.Session.SharedState.read(ctx.deps.state)

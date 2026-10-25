@@ -35,6 +35,7 @@ defmodule Dragonex.Game.Beat do
     tool_results: %{},
     tool_commits: %{},
     replay_results: %{},
+    legacy_attack_keys: MapSet.new(),
     replay_counts: %{},
     max_token_retries: 0,
     transient_retries: 0,

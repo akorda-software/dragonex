@@ -3212,3 +3212,8 @@ msgstr "Who can take the turn: %{names}."
 #, elixir-autogen, elixir-format
 msgid "Tipo de monstruo desconocido '%{kind}'. Disponibles, de menor a mayor desafío: %{kinds}. Si ninguno encaja, usa el de CR más parecido a la criatura que pide la historia, nunca uno más fuerte."
 msgstr "Unknown monster kind '%{kind}'. Available, weakest to strongest: %{kinds}. If none fits, use the one with the closest CR to the creature the story calls for, never a stronger one."
+
+#: lib/dragonex/game/tool_replay.ex
+#, elixir-autogen, elixir-format
+msgid "El ataque puede corresponder a un comprobante anterior con un alias de arma. Para recuperar ese resultado sin repetir dados ni daño, usa el nombre de arma exacto del comprobante: %{weapons}."
+msgstr "The attack may match an earlier receipt with a weapon alias. To recover that result without repeating rolls or damage, use the exact weapon name from the receipt: %{weapons}."
