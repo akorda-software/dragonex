@@ -1527,6 +1527,10 @@ defmodule Dragonex.Actions do
   """
   @spec arcane_recovery(World.t(), String.t()) :: result()
   def arcane_recovery(world, who) do
+    with_actor(world, who, fn -> do_arcane_recovery(world, who) end)
+  end
+
+  defp do_arcane_recovery(world, who) do
     case World.present_character(world, who) do
       nil ->
         {:error, dgettext("engine", "no existe el personaje: %{actor}", actor: who)}

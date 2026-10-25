@@ -163,6 +163,88 @@ defmodule Dragonex.ArcaneRecoveryTest do
     end
   end
 
+  describe "validación de la recuperación preparada" do
+    test "un mago caído, muerto o incapacitado no puede recuperar voluntariamente" do
+      for opts <- [
+            [hp: 0],
+            [hp: 0, death_saves: %{successes: 0, fails: 3}],
+            [conditions: ["incapacitated"]],
+            [conditions: ["stunned"]],
+            [conditions: ["paralyzed"]],
+            [conditions: ["petrified"]],
+            [conditions: ["unconscious"]]
+          ] do
+        w = world([wizard(opts)]) |> consume("Lyra", 1)
+        assert {:error, _} = Actions.arcane_recovery(w, "Lyra")
+      end
+    end
+
+    test "rechaza el cambio si el mago cae o queda incapacitado después de preparar" do
+      w = world([wizard([])]) |> consume("Lyra", 1)
+      assert {:ok, _, change} = Actions.arcane_recovery(w, "Lyra")
+      {:ok, downed} = World.apply_damage("Lyra", 7).(w)
+      {:ok, stunned} = World.apply_condition("Lyra", "stunned").(w)
+
+      for current <- [downed, stunned] do
+        assert {:error, _} = change.(current)
+        assert current.spell_slots["Lyra"][1] == 1
+        refute current.characters["Lyra"].arcane_recovery_used
+      end
+    end
+
+    test "no sobrescribe una casilla gastada desde la preparación" do
+      w = world([wizard([])]) |> consume("Lyra", 1)
+      assert {:ok, _, change} = Actions.arcane_recovery(w, "Lyra")
+      current = consume(w, "Lyra", 1)
+      assert current.spell_slots["Lyra"][1] == 0
+      assert {:error, _} = change.(current)
+      refute current.characters["Lyra"].arcane_recovery_used
+    end
+
+    test "el mismo cambio no recupera otra vez aunque se vuelva al stock inicial" do
+      w = world([wizard([])]) |> consume("Lyra", 1)
+      assert {:ok, _, change} = Actions.arcane_recovery(w, "Lyra")
+      assert {:ok, recovered} = change.(w)
+      assert recovered.spell_slots["Lyra"][1] == 2
+      assert recovered.characters["Lyra"].arcane_recovery_used
+      assert {:error, _} = change.(recovered)
+
+      current = consume(recovered, "Lyra", 1)
+      assert current.spell_slots == w.spell_slots
+      assert {:error, _} = change.(current)
+    end
+
+    test "entrar en combate o avanzar el tiempo invalida la recuperación preparada" do
+      enemy = Character.new(name: "goblin", hp: 7, max_hp: 7, side: "enemy")
+      w = world([wizard([]), enemy]) |> consume("Lyra", 1)
+      assert {:ok, _, change} = Actions.arcane_recovery(w, "Lyra")
+      assert {:ok, combat} = World.begin_combat(["Lyra", "goblin"]).(w)
+      assert {:ok, later} = World.advance_time(60).(w)
+
+      for current <- [combat, later] do
+        assert {:error, _} = change.(current)
+        assert current.spell_slots["Lyra"][1] == 1
+        refute current.characters["Lyra"].arcane_recovery_used
+      end
+    end
+
+    test "sigue disponible sin descanso previo y admite cambios de otro personaje" do
+      w = world([wizard([]), fighter([])]) |> consume("Lyra", 1)
+      assert {:ok, message, change} = Actions.arcane_recovery(w, "Lyra")
+      assert {:ok, current} = World.apply_damage("Thane", 1).(w)
+      assert {:ok, next} = change.(current)
+
+      assert message =~ "recupera 1 hueco de nivel 1"
+      assert next.spell_slots["Lyra"][1] == 2
+      assert next.characters["Lyra"].arcane_recovery_used
+      assert next.characters["Thane"] == current.characters["Thane"]
+      assert next.characters["Lyra"].hp == w.characters["Lyra"].hp
+      assert next.elapsed_seconds == w.elapsed_seconds
+      assert next.rest_state == w.rest_state
+      assert next.turn_state == w.turn_state
+    end
+  end
+
   describe "rest recarga" do
     test "short_rest NO recarga el flag" do
       w = world([wizard(hp: 5, max_hp: 7, arcane_recovery_used: true, con: 13)])

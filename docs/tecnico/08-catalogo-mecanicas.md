@@ -489,7 +489,10 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   `arcane_recovery_used = false`; `short_rest` no. Level-up no
   resetea. Sin Signature Spells, Spell Mastery, ritual_casting como
   tool, feats, multiclase.
-- **Tests**: `arcane_recovery_test.exs`.
+- **Confirmación (D255)**: actor, turno y reservas se revalidan al aplicar
+  el plan; no se pueden reusar casillas antiguas tras otro gasto, una segunda
+  recuperación, incapacidad o cambio de fase/tiempo. Cambios ajenos se admiten.
+- **Tests**: `arcane_recovery_test.exs` y `action_incapacitation_test.exs`.
 
 ### M36 — Divine Sense (`divine_sense_uses`, D52)
 - **Dónde**: `Character.divine_sense_uses` (integer restantes, Codec,
