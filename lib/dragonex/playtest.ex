@@ -103,19 +103,6 @@ defmodule Dragonex.Playtest do
 
   # ------------------------------------------------------------ bucle
 
-  # Tras la última declaración, deja que la mesa la resuelva antes de parar:
-  # pausar con el beat en vuelo descartaría la respuesta del mundo.
-  defp loop(%{declarations: n, turns: n} = s) do
-    settled =
-      Game.await(
-        s.pid,
-        &(&1.status in [:paused, :ended] or (&1.status == :waiting and &1.current == s.human)),
-        max(s.deadline - System.monotonic_time(:millisecond), 0)
-      )
-
-    {if(settled == :ok, do: :turns_reached, else: :deadline), s}
-  end
-
   defp loop(s) do
     if System.monotonic_time(:millisecond) > s.deadline do
       {:deadline, s}
@@ -134,6 +121,15 @@ defmodule Dragonex.Playtest do
     _ = Game.resume(s.pid)
     loop(%{s | resumes: s.resumes + 1})
   end
+
+  # The final declaration has the same recovery and deadline budget as every
+  # earlier one. Reaching the requested count only completes the run once the
+  # table actually gives the human the floor again; a pause is not success.
+  defp step(
+         %{status: :waiting, current: human},
+         %{human: human, declarations: n, turns: n} = s
+       ),
+       do: {:turns_reached, s}
 
   defp step(%{status: :waiting, current: human, events: events} = snap, %{human: human} = s) do
     s = close_check(s, snap.world)

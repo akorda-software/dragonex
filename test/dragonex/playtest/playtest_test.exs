@@ -1,3 +1,47 @@
+defmodule Dragonex.PlaytestTest.InterruptedNarrator do
+  @behaviour ExAgent.Model
+  defstruct [:failures]
+
+  @impl true
+  def request(model, messages, settings, params) do
+    fail? =
+      Agent.get_and_update(model.failures, fn
+        0 -> {false, 0}
+        n -> {true, n - 1}
+      end)
+
+    if fail? do
+      {:error,
+       %ExAgent.RequestError{
+         provider: :test,
+         reason: :bad_request,
+         status: 400,
+         body: "synthetic playtest failure"
+       }}
+    else
+      {:ok, response, _} =
+        Dragonex.Test.Narrator.request(%Dragonex.Test.Narrator{}, messages, settings, params)
+
+      {:ok, response, model}
+    end
+  end
+
+  @impl true
+  def request_stream(model, messages, settings, params) do
+    case request(model, messages, settings, params) do
+      {:ok, response, updated} -> [Dragonex.Test.Harness.stream_response(response, updated)]
+      {:error, error} -> [{:error, error}]
+    end
+  end
+
+  @impl true
+  def model_name(_), do: "interrupted-playtest-narrator"
+  @impl true
+  def system(_), do: "test"
+  @impl true
+  def profile(_), do: ExAgent.Models.Test.profile(%ExAgent.Models.Test{})
+end
+
 defmodule Dragonex.PlaytestTest do
   use ExUnit.Case, async: false
   @moduletag :capture_log
@@ -72,6 +116,61 @@ defmodule Dragonex.PlaytestTest do
 
     assert result.stop == {:player_failed, :no_idea}
     assert result.declarations == 0
+  end
+
+  test "reanuda un fallo de la última declaración antes de dar por terminada la tanda" do
+    test_pid = self()
+    failures = start_supervised!({Agent, fn -> 0 end})
+
+    result =
+      Playtest.run(
+        companions: [],
+        turns: 1,
+        minutes: 1,
+        max_resumes: 1,
+        player: fn _ ->
+          send(test_pid, :player_called)
+          Agent.update(failures, fn _ -> 1 end)
+          {:ok, "Miro a mi alrededor con calma."}
+        end,
+        on_event: &send(test_pid, &1),
+        game_opts: [model: %__MODULE__.InterruptedNarrator{failures: failures}]
+      )
+
+    assert result.stop == :turns_reached
+    assert result.resumes == 1
+    assert result.declarations == 1
+    assert_received {:resume, 1}
+    assert_received :player_called
+    refute_received :player_called
+    assert result.metrics.retained == 1
+    assert result.metrics.skipped == 0
+
+    events = Dragonex.Games.list_events(result.game_id)
+    assert Enum.count(events, &(&1.type == :action)) == 1
+    assert List.last(events).payload["to"] == "Thane"
+  end
+
+  test "un fallo final sin presupuesto de reanudación devuelve paused, no éxito" do
+    failures = start_supervised!({Agent, fn -> 0 end})
+
+    result =
+      Playtest.run(
+        companions: [],
+        turns: 1,
+        minutes: 1,
+        max_resumes: 0,
+        player: fn _ ->
+          Agent.update(failures, fn _ -> 1 end)
+          {:ok, "Miro a mi alrededor con calma."}
+        end,
+        game_opts: [model: %__MODULE__.InterruptedNarrator{failures: failures}]
+      )
+
+    assert result.stop == :paused
+    assert result.resumes == 0
+    assert result.declarations == 1
+    assert result.metrics.retained == 1
   end
 
   describe "Player" do
