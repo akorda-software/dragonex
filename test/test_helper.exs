@@ -15,4 +15,6 @@ unless System.get_env("DRAGONEX_RUN_LIVE") == "1" do
   System.delete_env("DRAGONEX_PROVIDER")
 end
 
-ExUnit.start(exclude: [:integration])
+# Optional real-browser journeys also stay out of the ordinary offline gate.
+# They require Python Playwright + Chromium; see test/browser/README.md.
+ExUnit.start(exclude: [:integration, :browser])
