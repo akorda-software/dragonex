@@ -8235,6 +8235,41 @@ combate del problema histórico D244. No representa una petición individual
 de 423 s ni una mejora medida con el proveedor después de esta tanda. La
 consulta es de solo lectura; no se han creado partidas ni consumido créditos.
 
+## D253 — Salvación del humano caído antes de cerrar su turno
+
+**Estado:** Aceptada. **Fecha:** 2026-10-25.
+
+**Contexto:** en 19466 el humano declaró varias acciones a 0 PG sin registrar
+salvaciones de muerte. El motor rechazaba ataques, pero el resolvedor humano
+podía cerrar el turno sin tirar. Tres regresiones reprodujeron el cierre sin
+salvación, la ausencia de recuperación con 20 natural y la omisión repetida.
+La muerte instantánea por daño masivo sigue fuera del motor (D80), por lo que
+no explica esas omisiones.
+
+**Decisión:** un beat humano principal de combate que empieza caído, vivo e
+inestable requiere resolver `make_death_save` antes de publicar su cierre. Se
+usa el cupo propio y durable del motor, sin tirar automáticamente ni gastar la
+acción. Un 20 natural permite continuar con la acción declarada si las demás
+guardas lo admiten. Estables, muertos, exploración, reacciones y PCs IA quedan
+fuera de esta nueva frontera.
+
+La elegibilidad se captura al iniciar el beat y se conserva como booleano,
+incluido `false`, en retries y checkpoint. Empezar sano y caer durante ese
+beat no genera una salvación inmediata al reintentar o reiniciar. Un checkpoint
+legacy sin ese dato conserva `false`; no se reconstruye una obligación desde
+los PG actuales. No hay campos nuevos en Character ni World ni migración.
+
+**Verificación/límites:** diez casos nuevos y 58 focalizados verdes comprueban
+cierre corregido, 20 natural seguido de ataque, tirada explícita única,
+omisión reiterada con pausa, guía y feedback en inglés, reinicio con save
+pagada sin dados nuevos, caída propia posterior al inicio sano, exclusiones,
+cupo por actor/ronda y JSON true/false/legacy. La guía pide la tool; la IA no
+calcula la tirada. Los fallos duros siguen D228. El alcance empieza después
+de los efectos de inicio que ya aplica el motor: no redefine su orden.
+Gates completos local/Hex: 3172 passed / 3 excluded en 135,0/129,8 s,
+respectivamente; compiles propios dev/test/prod con warnings-as-errors y
+formato limpios. No se ha ejecutado proveedor real.
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,

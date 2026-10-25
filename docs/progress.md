@@ -11,7 +11,7 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 
 ## Último estado — 2026-10-25
 
-- **Gates:** 3162 passed / 3 excluded en ambos grafos (local y Hex).
+- **Gates:** 3172 passed / 3 excluded en ambos grafos (local y Hex).
   Código propio sin warnings, formato limpio; dependencias frías conservan
   avisos de terceros documentados en `tecnico/09-estrategia-pruebas.md`.
 - **Dependencias:** dev usa `../exAgent` 2.2.2 y `../dic_ex` 0.3; el lock de
@@ -47,6 +47,8 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
   fallo de turno → pausa con motivo y reanudación sin duplicar (D228).
 - **Reintentos (D248):** una reacción conserva su turno y recursos principales;
   el corte por tokens no repone el presupuesto de fallos transitorios.
+- **Humano caído (D253):** debe resolver su salvación de muerte antes de
+  cerrar el turno principal; 20 natural permite actuar y reiniciar no repite dados.
 - **Agentes:** DM con narración estructurada (D222), PCs IA con voz propia,
   TurnMaster que orquesta relevos, intenciones humanas en cola, testimonios de
   PNJ con fuente durable, esperas y viajes con reloj, contexto de tiradas.

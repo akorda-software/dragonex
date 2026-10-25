@@ -527,6 +527,14 @@ salvaciones, chequeos, death saves (nat 20 revive / nat 1 doble fallo / 3-3).
   El daño mínimo es cero en PG, feedback y RollLog; cero no consume PG
   temporales ni provoca concentración (`spiritual_weapon_test.exs`).
 
+- AC-22.8 (D253): el resolvedor de un humano que inicia su beat principal de
+  combate caído, vivo e inestable no cierra con éxito sin su salvación de
+  muerte. Usa su cupo propio; 20 natural permite gastar la acción después.
+  Retry/restart conservan la elegibilidad inicial, incluso false, y una
+  tirada pagada no se duplica. Omisión reiterada pausa el turno. Estables,
+  muertos, IA, reacciones y exploración quedan fuera; legacy no fabrica una
+  obligación nueva (`game_human_death_save_test.exs`).
+
 ### R23 — Hechizos ✅
 Tres kinds (`:automatic`, `:attack`, `:save` con mitad en éxito), consumo de
 slot (nivel > 0), save DC y spell attack por aptitud de conjuración.

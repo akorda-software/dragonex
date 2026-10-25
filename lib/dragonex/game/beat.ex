@@ -29,6 +29,7 @@ defmodule Dragonex.Game.Beat do
     # Whether this actor beat is a mini-turn (cut_in/react) — does not mark
     # acted_this_round when it settles.
     mini_turn: false,
+    death_save_required: false,
     wait_resolution: nil,
     inventory_scene_before: nil,
     tool_results: %{},
@@ -51,6 +52,7 @@ defmodule Dragonex.Game.Beat do
           kind: :actor | :turnmaster,
           stage: :acting | :scene_review | :turnmaster,
           mini_turn: boolean(),
+          death_save_required: boolean(),
           max_token_retries: non_neg_integer(),
           transient_retries: non_neg_integer(),
           narration_retries: non_neg_integer()

@@ -691,6 +691,7 @@ defmodule Dragonex.Game do
         max_token_retries: mr,
         model_retry: state.busy.model_retry,
         mini_turn: state.busy.mini_turn,
+        death_save_required: state.busy.death_save_required,
         narration_retries: state.busy.narration_retries,
         tool_results: state.busy.tool_results
       }

@@ -298,6 +298,7 @@ defmodule Dragonex.Game.ToolReplay do
         inventory_scene_before: Map.get(saved, "inventory_scene_before"),
         tool_results: results,
         mini_turn: mini,
+        death_save_required: saved["death_save_required"] == true,
         phase: if(phase == "combat", do: :combat, else: :exploration),
         enemies_before: MapSet.new(enemies)
       }
@@ -329,6 +330,7 @@ defmodule Dragonex.Game.ToolReplay do
       "turn_id" => beat.turn_id,
       "phase" => Atom.to_string(beat.phase),
       "mini_turn" => beat.mini_turn,
+      "death_save_required" => beat.death_save_required,
       "inventory_scene_before" => beat.inventory_scene_before,
       "enemies_before" => MapSet.to_list(beat.enemies_before),
       "tools" =>

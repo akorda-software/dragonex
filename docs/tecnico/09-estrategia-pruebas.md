@@ -5,8 +5,8 @@
 > declarar "hecho". Regla fundacional: **verificabilidad antes que
 > afirmaciones** — nada está "funcionando" sin un test verde que lo pruebe.
 
-Últimos gates completos, **D246–D252**, 2026-10-25: **3162 passed / 3 excluded**
-en ambos grafos, seed0; local 131,5 s y Hex 130,8 s, secuenciales. Código propio
+Últimos gates completos, **D246–D253**, 2026-10-25: **3172 passed / 3 excluded**
+en ambos grafos, seed0; local 135,0 s y Hex 129,8 s, secuenciales. Código propio
 dev/test/prod compila con `--warnings-as-errors`, formato limpio y ambos
 `mix hex.audit` sin avisos. Compilar dependencias frías con Elixir1.20 emite
 avisos de terceros (toml, websockex, gettext y plug), sin avisos de Dragonex;
@@ -63,6 +63,18 @@ avisos inesperados; cinco deliberados breaker.32 focalizados en1,7 s limpios.
 Gate D1782549/3 final49,3 s/seed30343/max_cases48 sin errores/desconexiones
 ni avisos inesperados; cinco breaker. El primero49,4 s descubrió un fixture
 anti-repeat agotado, reproducido con oráculo exacto y corregido abajo.
+
+## D253 — Salvación pendiente y elegibilidad inicial durable
+
+`game_human_death_save_test.exs` añade diez casos offline. Tres de los cuatro
+primeros reprodujeron el fallo antes del cambio; el caso de tirada explícita
+ya pasaba. Verifica corrección de cierre, 20 natural seguido de ataque sin
+gasto doble, pausa al omitir y entrega efectiva de guía/feedback en inglés.
+Un fallo posterior al dado seguido de Codec/JSON y reinicio conserva una
+salvación, un marcador y una declaración. Empezar sano y caer en la propia
+acción no crea una salvación al reintentar; el booleano false y legacy
+sobreviven Codec/restore. Casos puros cubren exclusiones y cupo actor/ronda.
+58 focalizados verdes y gates completos indicados arriba. Sin proveedor real.
 
 ## D252 — Retornos explícitos y ventanas de latencia acotadas
 

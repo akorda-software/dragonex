@@ -1579,3 +1579,13 @@ msgstr "PENDING PICKUP OR HANDOVER: %{actor} has just declared picking up or han
 #, elixir-autogen, elixir-format
 msgid "Registra primero el inventario: grant_item, remove_item o confirm_inventory_unchanged."
 msgstr "Record the inventory first: grant_item, remove_item or confirm_inventory_unchanged."
+
+#: lib/dragonex/game/death_save_resolution.ex
+#, elixir-autogen, elixir-format
+msgid "SALVACIÓN DE MUERTE PENDIENTE: %{actor} empezó este turno caído, vivo e inestable. Antes de cerrar con final_result, llama make_death_save para %{actor}, salvo que la salvación de este turno ya esté registrada o ya no esté moribundo. No repitas una tirada registrada. Esta salvación tiene su propio cupo, no gasta la acción. Si un 20 natural lo deja con 1 PG, puedes resolver después su declaración con las herramientas permitidas; si sigue caído, no puede atacar ni actuar."
+msgstr "PENDING DEATH SAVE: %{actor} started this turn down, alive and unstable. Before closing with final_result, call make_death_save for %{actor}, unless this turn's save is already recorded or they are no longer dying. Do not repeat a recorded roll. This save has its own allowance and does not spend the action. If a natural 20 restores them to 1 HP, you may then resolve their declaration with the permitted tools; if they remain down, they cannot attack or act."
+
+#: lib/dragonex/narration/contract.ex
+#, elixir-autogen, elixir-format
+msgid "Registra primero la salvación de muerte pendiente con make_death_save; no consume la acción."
+msgstr "Record the pending death save first with make_death_save; it does not spend the action."

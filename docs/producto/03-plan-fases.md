@@ -16,7 +16,7 @@ existe" sino por "se verifica".**
 
 ## Iteración vigente — 2026-10-25
 
-Correcciones verificadas: 3162 passed / 3 excluded en local y Hex; auditoría
+Correcciones verificadas: 3172 passed / 3 excluded en local y Hex; auditoría
 de ambos locks sin avisos. El resultado vigente de los gates se publica en
 [`../progress.md`](../progress.md), sin sustituir las pruebas con humanos.
 
@@ -28,6 +28,7 @@ de ambos locks sin avisos. El resultado vigente de los gates se publica en
 | Cuenta y ajustes (D249) | Solo callbacks vigentes guardan claves o cambian modelo; clave cifrada en el callback; AC-1.3/37.4 | `account_live_test.exs`, `game_settings_compatibility_test.exs` |
 | Cierre de mesas (D250) | Borrar la mesa propia cierra sus procesos y conserva las demás; AC-33.3 | `game_delete_live_test.exs` |
 | Medición (D251–D252) | Recuperación final y latencias sin deliberación humana tras fallback; AC-NFR-2b/2c | `playtest/playtest_test.exs`, `playtest/metrics_test.exs`, `game_combat_fallback_test.exs` |
+| Salvaciones humanas (D253) | Humano moribundo resuelve su salvación antes de cerrar; elegibilidad y tirada sobreviven a retry/restart; AC-22.8 | `game_human_death_save_test.exs` |
 
 Después: mantener el orden de [`../progress.md`](../progress.md): evidencia de
 partidas humanas, inventario de misión y fiabilidad/latencia del proveedor.

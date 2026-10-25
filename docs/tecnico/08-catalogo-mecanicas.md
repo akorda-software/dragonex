@@ -201,8 +201,16 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   `successes: 3` como indicador de estabilidad; al recibir daño que registra
   fallos, elimina ese indicador y comienza un contador nuevo (1 fallo,
   2 si crítico). Daño cero no rompe la estabilidad.
+- **Humano manual (D253)**: iniciar un beat principal de combate moribundo
+  exige registrar `make_death_save` antes del cierre. Su cupo no consume la
+  acción; tras 20 natural puede actuar. La elegibilidad inicial true/false
+  sobrevive retries y checkpoint; empezar sano y caer después no genera una
+  salvación inmediata al recuperar. IA, reacciones, estables y muertos quedan
+  fuera de esta frontera. Sin tirada automática ni cambios de muerte masiva.
 - **Tests**: `actions_test.exs`, `world_test.exs`, `stabilization_test.exs`
-  (secuencia completa y compatibilidad de mundos serializados).
+  (secuencia completa y compatibilidad de mundos serializados),
+  `game_human_death_save_test.exs` (cierre, 20+ataque, inglés, replay/restart,
+  presupuesto, exclusiones y Codec).
 
 ## Curación y descansos
 

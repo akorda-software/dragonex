@@ -152,6 +152,24 @@ defmodule Dragonex.Game.Beats do
 
     restored = Dragonex.Game.ToolReplay.restore(world, participant)
     restored = if restored && restored.turn_id == turn_id, do: restored, else: nil
+
+    # A retry can precede the first durable tool or speech receipt. The first
+    # attempt already consumed pending_mini, so retain its kind explicitly.
+    mini =
+      if restored,
+        do: restored.mini_turn,
+        else: Map.get(retries, :mini_turn, state.pending_mini == true)
+
+    manual? =
+      Participants.human?(state, participant) and not Participants.ai_pc?(state, participant)
+
+    death_save_required =
+      cond do
+        restored -> restored.death_save_required
+        Map.has_key?(retries, :death_save_required) -> retries.death_save_required
+        true -> Dragonex.Game.DeathSaveResolution.required?(world, participant, manual?, mini)
+      end
+
     results = Map.get(retries, :tool_results, if(restored, do: restored.tool_results, else: %{}))
     completed = if restored, do: Games.completed_narration(game_id, participant, turn_id)
 
@@ -196,6 +214,7 @@ defmodule Dragonex.Game.Beats do
 
     prompt =
       Brief.turn_prompt(world, participant, instruction, "dm", kinds) <>
+        Dragonex.Game.DeathSaveResolution.instruction(death_save_required, participant) <>
         Dragonex.Game.WaitResolution.instruction(wait_resolution, world, turn_id) <>
         if(archive == "", do: "", else: "\n\n" <> archive) <>
         Instructions.inventory_instruction(world, participant, events) <>
@@ -216,6 +235,7 @@ defmodule Dragonex.Game.Beats do
       actor: participant,
       round: world.round,
       phase: world.phase,
+      death_save_required: death_save_required,
       pc_names: Participants.pc_names(world),
       character_names: Map.keys(world.characters),
       wait_resolution: wait_resolution,
@@ -346,13 +366,6 @@ defmodule Dragonex.Game.Beats do
         end
       end)
 
-    # A retry can precede the first durable tool or speech receipt. The first
-    # attempt already consumed pending_mini, so retain its kind explicitly.
-    mini =
-      if restored,
-        do: restored.mini_turn,
-        else: Map.get(retries, :mini_turn, state.pending_mini == true)
-
     state = %{
       state
       | pending_mini: false,
@@ -365,6 +378,7 @@ defmodule Dragonex.Game.Beats do
           instruction: instruction,
           kind: :actor,
           mini_turn: mini,
+          death_save_required: death_save_required,
           wait_resolution: wait_resolution,
           inventory_scene_before:
             if(restored,

@@ -477,6 +477,16 @@ Spec de diseño: [`TURNMASTER.md`](TURNMASTER.md).
 
 ### Tipos de turno (fase `:actor`)
 
+**Humano caído (D253):** si su beat principal de combate empieza a 0 PG,
+vivo e inestable, el cierre exige registrar `make_death_save` con el cupo
+propio del motor. Un 20 natural permite resolver después la acción declarada;
+seguir caído mantiene las guardas contra ataques. Una omisión reiterada pausa
+sin dar el turno por resuelto. Se conserva la elegibilidad inicial y la
+salvación pagada en retries/reinicio: ni se repite la tirada ni se inventa
+otra por haber caído durante la propia acción. Estables, muertos, IA,
+reacciones y exploración conservan sus flujos; los checkpoints legacy no
+reciben una obligación inferida de sus PG actuales.
+
 **IA PC**: agent propio + `PCAgent.instruction/3` + anti-loop, `run_beat`.
 
 **Pregunta a compañeros (D120)**: el modelo que actúa como PC registra
