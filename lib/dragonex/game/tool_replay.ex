@@ -233,6 +233,14 @@ defmodule Dragonex.Game.ToolReplay do
   # Enemy weapon attacks belong to an initiative slot. Admission runs inside
   # Game before the tool callback, so a rejected opening attack spends no RNG
   # or resources. Paid receipts still replay before this check.
+  defp admit_execution(state, {tool, _} = key)
+       when tool in ["short_rest", "long_rest", "rest_party", "advance_time"] do
+    case Dragonex.Game.RestResolution.validate(state.busy, key) do
+      :ok -> :execute
+      error -> error
+    end
+  end
+
   defp admit_execution(state, {"make_attack", %{"attacker" => actor}}) do
     world = ExAgent.Session.read_state(state.session)
     character = Dragonex.World.present_character(world, actor)

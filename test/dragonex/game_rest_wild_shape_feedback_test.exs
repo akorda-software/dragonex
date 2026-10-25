@@ -38,7 +38,7 @@ defmodule Dragonex.GameRestWildShapeFeedbackTest do
 
     model = %Test{
       script: [
-        tool_calls([call("long_rest", %{"target" => "Sylvi"})]),
+        tool_calls([call("rest_party", %{"targets" => ["Sylvi"], "kind" => "long"})]),
         fn messages, _ ->
           send(parent, {:rest_feedback, inspect(messages, limit: :infinity)})
           narration("Sylvi, ¿qué quieres observar?")

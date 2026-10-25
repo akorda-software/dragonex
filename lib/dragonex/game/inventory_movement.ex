@@ -34,7 +34,7 @@ defmodule Dragonex.Game.InventoryMovement do
     {:error,
      dgettext(
        "engine",
-       "Indica un origen o destinatario de 1 a %{max} caracteres, u omítelo si no se conoce.",
+       "Indica un origen o destinatario de 1 a %{max} caracteres, o null si no se conoce.",
        max: @max_counterparty
      )}
   end
@@ -42,7 +42,7 @@ defmodule Dragonex.Game.InventoryMovement do
   def instruction do
     dgettext(
       "prompts",
-      "TRAZA DE INVENTARIO: en grant_item indica source si conoces quién entrega o de dónde procede el objeto; en remove_item indica recipient si conoces quién lo recibe. Son nombres o roles breves declarados por el DM, no personajes creados ni cambios en otro inventario. Omite la contraparte desconocida; no la inventes. El motor registra el objeto, la cantidad y el saldo real. Al recuperar una herramienta ya aplicada, conserva su movimiento original."
+      "TRAZA DE INVENTARIO: en grant_item indica source si conoces quién entrega o de dónde procede el objeto; source se puede omitir. En remove_item SIEMPRE incluye recipient: nombre o rol de quien recibe el objeto, o null únicamente si no hay receptor o se desconoce. Son atribuciones breves del DM, no personajes creados ni cambios en otro inventario. No inventes una contraparte. El motor registra el objeto, la cantidad y el saldo real. Al recuperar una herramienta ya aplicada, conserva su movimiento original."
     )
   end
 

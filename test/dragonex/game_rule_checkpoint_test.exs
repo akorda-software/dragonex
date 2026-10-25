@@ -220,7 +220,12 @@ defmodule Dragonex.GameRuleCheckpointTest do
     {:ok, game} = Games.create_game(title: "Una noche interrumpida", roster: [{hero, :human}])
     before = Games.load_world(game)
     {:ok, _} = Games.save_state(game.id, before, "dm", before.round, :paused)
-    {pid, run} = start_blocked(game, [tool_calls([call("long_rest", %{"target" => "Thane"})])])
+
+    {pid, run} =
+      start_blocked(game, [
+        tool_calls([call("rest_party", %{"targets" => ["Thane"], "kind" => "long"})])
+      ])
+
     {game, pid, run}
   end
 

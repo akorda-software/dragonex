@@ -237,7 +237,9 @@ defmodule Dragonex.GameNarrationContractTest do
     private = String.duplicate("private deliberation ", 300)
     {:ok, stocked} = World.grant_item("Thane", item, 1).(before)
     {:ok, _} = Games.save_state(game.id, stocked, "dm", stocked.round, :paused)
-    remove = call("remove_item", %{"who" => "Thane", "item" => item, "quantity" => 1})
+
+    remove =
+      call("remove_item", %{"who" => "Thane", "item" => item, "quantity" => 1, "recipient" => nil})
 
     partial =
       Message.new_response([%Part.Text{content: private}, remove], finish_reason: :length)

@@ -243,14 +243,18 @@ defmodule Dragonex.GameInventoryTest do
         assert movement.payload[field] == "Ada"
         monitor = Process.monitor(run)
 
-        retry =
-          tool_calls([
-            call(operation, %{
-              "who" => "Thane",
-              "item" => " BOTO\u0301N   DE LATO\u0301N ",
-              "quantity" => 1
-            })
-          ])
+        retry_args = %{
+          "who" => "Thane",
+          "item" => " BOTO\u0301N   DE LATO\u0301N ",
+          "quantity" => 1
+        }
+
+        retry_args =
+          if operation == "remove_item",
+            do: Map.put(retry_args, "recipient", nil),
+            else: retry_args
+
+        retry = tool_calls([call(operation, retry_args)])
 
         final = fn messages, _ ->
           send(

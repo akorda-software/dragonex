@@ -3220,7 +3220,7 @@ msgstr ""
 
 #: lib/dragonex/game/inventory_movement.ex
 #, elixir-autogen, elixir-format
-msgid "Indica un origen o destinatario de 1 a %{max} caracteres, u omítelo si no se conoce."
+msgid "Indica un origen o destinatario de 1 a %{max} caracteres, o null si no se conoce."
 msgstr ""
 
 #: lib/dragonex/game/inventory_movement.ex
@@ -3236,4 +3236,20 @@ msgstr ""
 #: lib/dragonex/game/inventory_movement.ex
 #, elixir-autogen, elixir-format
 msgid "Inventario · %{who} entrega %{quantity} × %{item} a %{recipient}; saldo %{before} → %{after}."
+msgstr ""
+
+#, elixir-autogen
+msgid "Para resolver un descanso como DM usa rest_party con todos los participantes, aunque sea uno. El intervalo se registra una sola vez."
+msgstr ""
+
+#, elixir-autogen
+msgid "Este turno ya registró el intervalo. No añadas otro descanso ni sumes su duración con advance_time. Consulta el reloj y cierra la narración; un viaje o descanso posterior requiere otra declaración."
+msgstr ""
+
+#, elixir-autogen, elixir-format
+msgid "La clave de IA se ha retirado. La mesa usa el modelo de la casa y queda en pausa; reanuda cuando quieras."
+msgstr ""
+
+#, elixir-autogen, elixir-format
+msgid "La clave de IA se ha actualizado. La mesa queda en pausa con la nueva clave; reanuda cuando quieras."
 msgstr ""

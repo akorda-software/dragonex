@@ -46,7 +46,22 @@ defmodule Dragonex.InventoryToolsTest do
       counterparty = if name == "grant_item", do: "source", else: "recipient"
       assert tool.parameters_json_schema.properties[counterparty].type == ["string", "null"]
       assert tool.parameters_json_schema.properties[counterparty].maxLength == 80
-      refute counterparty in tool.parameters_json_schema.required
+      args = %{"who" => "Mara", "item" => "sello", "quantity" => 1}
+
+      if name == "remove_item" do
+        assert counterparty in tool.parameters_json_schema.required
+        assert {:error, errors} = ExAgent.Tool.validate_args(tool, args)
+        assert Enum.any?(errors, &(&1.keyword == "required"))
+      else
+        refute counterparty in tool.parameters_json_schema.required
+        assert {:ok, ^args} = ExAgent.Tool.validate_args(tool, args)
+      end
+
+      for recipient <- [nil, "Ada"] do
+        explicit = Map.put(args, counterparty, recipient)
+        assert {:ok, ^explicit} = ExAgent.Tool.validate_args(tool, explicit)
+      end
+
       refute Enum.any?(PCAgent.tools(), &(&1.name == name))
     end
   end

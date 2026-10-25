@@ -21,7 +21,7 @@ defmodule Dragonex.Tools do
         properties =
           schema.properties
           |> optional_additional(name)
-          |> optional_counterparty(name)
+          |> nullable_counterparty(name)
           |> Map.update!(
             "item",
             &Map.merge(&1, %{minLength: 1, maxLength: Dragonex.Rules.Inventory.max_name()})
@@ -31,7 +31,7 @@ defmodule Dragonex.Tools do
             &Map.merge(&1, %{minimum: 1, maximum: Dragonex.Rules.Inventory.max_quantity()})
           )
 
-        required = schema.required -- ["additional", "source", "recipient"]
+        required = schema.required -- ["additional", "source"]
         %{tool | parameters_json_schema: %{schema | properties: properties, required: required}}
 
       %{name: "record_npc_statement"} = tool ->
@@ -156,7 +156,7 @@ defmodule Dragonex.Tools do
 
   defp optional_additional(properties, _), do: properties
 
-  defp optional_counterparty(properties, name) do
+  defp nullable_counterparty(properties, name) do
     field = if name == "grant_item", do: "source", else: "recipient"
 
     Map.update!(
@@ -440,7 +440,7 @@ defmodule Dragonex.Tools do
   def grant_item(ctx, who, item, quantity, additional),
     do: grant_item(ctx, who, item, quantity, additional, nil)
 
-  @doc "DM only, exploration: confirm a present PC actually handed over, dropped or lost owned descriptive gear. Removes only the requested positive quantity, rejects insufficient stock. Set optional recipient to the known receiver's name or role; omit when unknown or no receiver. This attribution does not validate/create an NPC or change another inventory. Copy the canonical name from inventory. Does not equip/consume or alter combat equipment."
+  @doc "DM only, exploration: confirm a present PC actually handed over, dropped or lost owned descriptive gear. Removes only the requested positive quantity, rejects insufficient stock. ALWAYS include recipient: the known receiver's name or role, or null only when unknown or no receiver. This attribution does not validate/create an NPC or change another inventory. Copy the canonical name from inventory. Does not equip/consume or alter combat equipment."
   deftool remove_item(
             ctx,
             who :: String.t(),
@@ -718,7 +718,7 @@ defmodule Dragonex.Tools do
     end
   end
 
-  @doc "One-hour short rest. Optional hit_dice: 0 to recover features only, or available dice to spend; omitted spends at most one."
+  @doc "PC self-rest only; the DM must use rest_party, including for one target. One-hour short rest. Optional hit_dice: 0 to recover features only, or available dice to spend; omitted spends at most one."
   deftool short_rest(ctx, target :: String.t(), hit_dice :: integer()) do
     with :ok <- assert_rest_target(ctx, target),
          {:ok, msg, change} <-
@@ -760,7 +760,7 @@ defmodule Dragonex.Tools do
     end
   end
 
-  @doc "DM only: advance explicit exploration time in seconds. Never use to skip combat turns."
+  @doc "DM only: advance explicit exploration time in seconds. Never use to skip combat turns or add a rest's duration: rest_party already advances time. A separate interval after a rest requires another player declaration."
   deftool advance_time(ctx, seconds :: integer()) do
     if ctx.deps.state.participant_id == "dm" do
       with {:ok, committed} <-
@@ -783,7 +783,7 @@ defmodule Dragonex.Tools do
     end
   end
 
-  @doc "DM only: simultaneous party rest. kind is short (1h) or long (8h); time advances once for all targets."
+  @doc "DM only: resolve one simultaneous rest with ALL resting targets (even a solo rest uses this tool). kind is short (1h) or long (8h); time advances once. Do not call short_rest/long_rest per target or advance_time for this interval. A subsequent rest/travel interval requires another player declaration."
   deftool rest_party(ctx, targets :: [String.t()], kind :: String.t()) do
     if ctx.deps.state.participant_id == "dm" do
       with {:ok, message, change} <-
@@ -811,7 +811,7 @@ defmodule Dragonex.Tools do
     end
   end
 
-  @doc "Long rest: restore all HP. Available outside combat."
+  @doc "PC self-rest only; the DM must use rest_party, including for one target. Long rest: restore all HP. Available outside combat."
   deftool long_rest(ctx, target :: String.t()) do
     with :ok <- assert_rest_target(ctx, target),
          {:ok, msg, change} <- Dragonex.Actions.long_rest(world(ctx), target),

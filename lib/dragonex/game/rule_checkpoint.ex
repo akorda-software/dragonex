@@ -24,7 +24,9 @@ defmodule Dragonex.Game.RuleCheckpoint do
     if Process.alive?(owner) and Session.current(session) == actor do
       before = Session.read_state(session)
 
-      with {:ok, candidate} <- evaluate(change, before) do
+      with :ok <-
+             Dragonex.Game.RestResolution.validate(busy, get_in(deps, [:tool_commit, :key])),
+           {:ok, candidate} <- evaluate(change, before) do
         {next, candidate} = Dragonex.Game.ToolReplay.stage_change(state, deps, candidate)
 
         with {:ok, entries} <- Persistence.persist_tool_change(state, candidate, deps, before),

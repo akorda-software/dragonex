@@ -3220,8 +3220,8 @@ msgstr "The attack may match an earlier receipt with a weapon alias. To recover 
 
 #: lib/dragonex/game/inventory_movement.ex
 #, elixir-autogen, elixir-format
-msgid "Indica un origen o destinatario de 1 a %{max} caracteres, u omítelo si no se conoce."
-msgstr "Provide a source or recipient of 1 to %{max} characters, or omit it if unknown."
+msgid "Indica un origen o destinatario de 1 a %{max} caracteres, o null si no se conoce."
+msgstr "Provide a source or recipient of 1 to %{max} characters, or null if unknown."
 
 #: lib/dragonex/game/inventory_movement.ex
 #, elixir-autogen, elixir-format
@@ -3237,3 +3237,19 @@ msgstr "Inventory · %{who} receives %{quantity} × %{item} from %{source}; bala
 #, elixir-autogen, elixir-format
 msgid "Inventario · %{who} entrega %{quantity} × %{item} a %{recipient}; saldo %{before} → %{after}."
 msgstr "Inventory · %{who} gives %{quantity} × %{item} to %{recipient}; balance %{before} → %{after}."
+
+#, elixir-autogen
+msgid "Para resolver un descanso como DM usa rest_party con todos los participantes, aunque sea uno. El intervalo se registra una sola vez."
+msgstr "As DM, use rest_party with all resting participants, even for one. The interval is recorded only once."
+
+#, elixir-autogen
+msgid "Este turno ya registró el intervalo. No añadas otro descanso ni sumes su duración con advance_time. Consulta el reloj y cierra la narración; un viaje o descanso posterior requiere otra declaración."
+msgstr "This turn already recorded the interval. Do not add another rest or its duration with advance_time. Check the clock and finish the narration; a later journey or rest requires another declaration."
+
+#, elixir-autogen, elixir-format
+msgid "La clave de IA se ha retirado. La mesa usa el modelo de la casa y queda en pausa; reanuda cuando quieras."
+msgstr "The AI key has been removed. The table now uses the house model and is paused; resume when ready."
+
+#, elixir-autogen, elixir-format
+msgid "La clave de IA se ha actualizado. La mesa queda en pausa con la nueva clave; reanuda cuando quieras."
+msgstr "The AI key has been updated. The table is paused with the new key; resume when ready."

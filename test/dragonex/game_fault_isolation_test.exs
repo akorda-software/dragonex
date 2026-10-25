@@ -20,7 +20,7 @@ defmodule Dragonex.GameFaultIsolationTest do
 
     model = %Test{
       script: [
-        tool_calls([call("long_rest", %{"target" => "Thane"})]),
+        tool_calls([call("rest_party", %{"targets" => ["Thane"], "kind" => "long"})]),
         fn _, _ ->
           send(parent, {:rest_applied, self()})
           receive do: (:complete -> narration("Una narración que llega tarde."))

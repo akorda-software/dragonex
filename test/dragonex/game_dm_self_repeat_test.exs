@@ -49,7 +49,8 @@ defmodule Dragonex.GameDMSelfRepeatTest do
                 call("remove_item", %{
                   "who" => "Thane",
                   "item" => "farol de señales",
-                  "quantity" => 1
+                  "quantity" => 1,
+                  "recipient" => nil
                 })
               ])
             end,
