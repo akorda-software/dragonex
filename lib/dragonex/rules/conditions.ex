@@ -36,7 +36,9 @@ defmodule Dragonex.Rules.Conditions do
 
   Reckless Attack (D44): melee Strength attacks by a reckless attacker have
   advantage; any attack against a reckless target has advantage. Combines
-  with conditions via `combine/2`.
+  with conditions via `combine/2`. `guided: true` adds Guiding Bolt's
+  advantage before cancellation: an extra advantage never overrides an
+  existing disadvantage, even when other sources already cancelled it.
   """
   @spec attack_mode(Character.t(), Character.t(), keyword()) :: mode()
   def attack_mode(%Character{} = attacker, %Character{} = target, opts \\ []) do
@@ -47,6 +49,7 @@ defmodule Dragonex.Rules.Conditions do
 
     advantage? =
       requested == :advantage or
+        Keyword.get(opts, :guided, false) == true or
         Enum.any?(attacker_conds, &(&1 in @attack_self_advantage)) or
         target_grants_attack_advantage?(target_conds, ranged?) or
         reckless_attacker_advantage?(attacker, opts) or

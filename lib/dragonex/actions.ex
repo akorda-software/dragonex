@@ -236,22 +236,28 @@ defmodule Dragonex.Actions do
              )}
 
           weapon ->
-            effective_mode =
-              Conditions.attack_mode(a, t,
-                requested: mode,
-                ranged: weapon.ranged == true,
-                attack_ability: weapon.attack_ability,
-                finesse: weapon.finesse == true
-              )
+            attack_opts = [
+              requested: mode,
+              ranged: weapon.ranged == true,
+              attack_ability: weapon.attack_ability,
+              finesse: weapon.finesse == true
+            ]
+
+            effective_mode = Conditions.attack_mode(a, t, attack_opts)
 
             # D95 Guiding Bolt: la marca del objetivo ventajea SOLO el primer
             # swing del ataque (RAW: la primera tirada posterior) y se
             # consume con él acierte o falle.
             guided? = Guided.active?(world, t)
-            first_mode = if(guided?, do: Guided.combine(effective_mode, true), else: nil)
+
+            first_mode =
+              if(guided?,
+                do: Conditions.attack_mode(a, t, Keyword.put(attack_opts, :guided, true)),
+                else: nil
+              )
 
             n = Progression.attack_count(a.class, a.level)
-            sneak = sneak_opts(world, a, attacker, target, weapon, effective_mode)
+            sneak = sneak_opts(world, a, attacker, target, weapon, first_mode || effective_mode)
             smite = smite_opts(a, weapon)
             inspired? = a.inspired == true
             mark? = mark_target?(a, target)
@@ -1841,18 +1847,18 @@ defmodule Dragonex.Actions do
         # D61: the target's concentration saves ride this aura.
         aura = aura_save_bonus(world, target)
 
-        effective_mode =
-          Conditions.attack_mode(monk, t,
-            requested: mode,
-            ranged: false,
-            attack_ability: :dex,
-            finesse: true
-          )
+        attack_opts = [requested: mode, ranged: false, attack_ability: :dex, finesse: true]
+        effective_mode = Conditions.attack_mode(monk, t, attack_opts)
 
         # D95 Guiding Bolt: mismo criterio que do_attack — ventaja solo al
         # primer golpe, consumo acierte o falle.
         guided? = Guided.active?(world, t)
-        first_mode = if(guided?, do: Guided.combine(effective_mode, true), else: nil)
+
+        first_mode =
+          if(guided?,
+            do: Conditions.attack_mode(monk, t, Keyword.put(attack_opts, :guided, true)),
+            else: nil
+          )
 
         # N=2 fijo (D54): sin sneak, sin smite, sin Extra Attack, sin marca (D55).
         swings =
@@ -3767,9 +3773,8 @@ defmodule Dragonex.Actions do
     mod = entry["mod"] || 0
     dice = entry["dice"] || "1d8"
     bonus = Ability.proficiency(c.level) + mod
-    base_mode = Conditions.attack_mode(c, t, requested: :normal, ranged: false)
     guided? = Guided.active?(world, t)
-    effective_mode = Guided.combine(base_mode, guided?)
+    effective_mode = Conditions.attack_mode(c, t, ranged: false, guided: guided?)
 
     {r, close} =
       RollLog.open(
@@ -3815,8 +3820,16 @@ defmodule Dragonex.Actions do
           )
 
         base = Dice.roll_expr(dice, r2)
-        dmg = if crit?, do: base + base + mod, else: base + mod
-        RollLog.close(close_dmg, total: dmg, against: nil, outcome: nil)
+        raw_dmg = if crit?, do: base + Dice.roll_expr(dice, r2) + mod, else: base + mod
+        dmg = Combat.damage_total(raw_dmg)
+        damage_summary = [total: dmg, against: nil, outcome: nil]
+
+        damage_summary =
+          if raw_dmg < 0,
+            do: Keyword.put(damage_summary, :raw_total, raw_dmg),
+            else: damage_summary
+
+        RollLog.close(close_dmg, damage_summary)
 
         aura = aura_save_bonus(world, target_name)
         verb = if crit?, do: dgettext("engine", "CRÍTICO"), else: dgettext("engine", "acierta")
@@ -4310,11 +4323,10 @@ defmodule Dragonex.Actions do
 
       :attack ->
         bonus = Combat.spell_attack_bonus(c, spell)
-        base_mode = Conditions.attack_mode(c, t, requested: :normal, ranged: true)
         # D95: un objetivo guiado por guiding bolt concede ventaja a esta
-        # tirada (combinable/cancelable vía combine, patrón D57).
+        # tirada junto a todas las fuentes de ventaja/desventaja.
         guided? = Guided.active?(world, t)
-        effective_mode = Guided.combine(base_mode, guided?)
+        effective_mode = Conditions.attack_mode(c, t, ranged: true, guided: guided?)
         # D57: a hidden caster keeps the advantage for free (attack_mode),
         # but the spell attack reveals them just like a weapon swing.
         hidden? = "hidden" in Character.condition_names(c)

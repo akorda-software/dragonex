@@ -47,6 +47,10 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   `:disadvantage` bloquea. Crítico tira 2N d6 (roller inyectado). Mismo
   `damage_type` del arma (`apply_damage/3`). Sin grid. El string
   `sneak_attack` del catálogo L1 no es la fuente de verdad.
+- **D247 — furtivo con Guiding Bolt**: la circunstancia usa el modo real
+  del primer ataque, incluida la ventaja guiada. Guiado sin desventaja
+  habilita furtivo aun sin aliado consciente; si cancela una desventaja,
+  el modo normal requiere ese aliado. Se conserva el límite por turno.
 - **Rage (D42)**: `Progression.rage_damage/1` + bonus en cada hit melee
   (`weapon.ranged != true`) si `attacker.raging`. Overlay B/P/S en
   `incoming_damage/3`. Ver M26.
@@ -57,7 +61,7 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   `Character.ac`); dueling +2 al daño si melee. Ver M32.
 - **Tests**: `test/dragonex/rules/combat_test.exs`, `actions_test.exs`,
   `sneak_attack_test.exs`, `rage_test.exs`, `reckless_attack_test.exs`,
-  `fighting_style_test.exs`.
+  `fighting_style_test.exs`, `guiding_bolt_test.exs`.
 
 ### M04 — Daño y críticos
 - **Dónde**: `Rules.Combat.damage_roll/4`.
@@ -76,12 +80,19 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
   VM19438/restart/reload375/1440 px y teclado verificados.
 
 ### M05 — Ventaja/desventaja (cancelación 5e)
-- **Dónde**: `Rules.Conditions.combine/2` (fuentes: condiciones + `mode`
-  pedido por el modelo + Reckless D44). `Actions` lo aplica en ataque,
-  salvación y chequeo.
+- **Dónde**: `Rules.Conditions.attack_mode/3`, `save_mode/4` y `check_mode/3`
+  reúnen sus fuentes y las reducen con `combine/2`. En ataques: condiciones,
+  `mode` pedido por el modelo, Reckless D44 y guiado D95/D247.
 - **5e**: cualquier ventaja + cualquier desventaja = normal.
+- **D247 — guiado antes de cancelar**: Guiding Bolt entra junto a las demás
+  fuentes, antes de reducirlas al modo final. Oculto + envenenado + guiado
+  sigue siendo normal: una segunda ventaja no elimina la desventaja.
+  Se aplica a armas, Ráfaga, ataques de conjuro y Arma espiritual. Armas y
+  Ráfaga conservan guiado solo para el primer golpe; la marca se consume
+  aunque ese ataque falle.
 - **Tests**: `test/dragonex/rules/conditions_test.exs`, `conditions_test.exs`,
-  `reckless_attack_test.exs`.
+  `reckless_attack_test.exs`, `guiding_bolt_test.exs` (fuentes combinadas,
+  caras y cantidad de dados, PG, recursos y consumo de marca).
 
 ### M06 — Condiciones → ataque / salvación / chequeo
 - **D80 — actuación**: `World.validate_actor/2` impide acciones, bonus y
@@ -127,7 +138,21 @@ de `Rules`/`Actions` son deterministas con `roller` inyectado; los tests usan
 - **Dónde**: rama `:attack` (p.ej. fire bolt) — usa `spell_attack_bonus`.
 - **5e**: d20+bonus vs AC; **crítico dobla dados** (regla RAW; bug corregido,
   hay test de regresión).
-- **Tests**: `actions_test.exs`.
+- **Arma espiritual (D99/D247)**: `Actions.spiritual_weapon_attack/5`
+  consume una acción adicional y usa los dados y el modificador guardados
+  en la postura, sin otra casilla. Un crítico tira los dados dos veces de
+  forma independiente y suma el modificador una sola vez; con upcast de
+  2d8 tira 4d8, todos registrados en el mismo grupo de daño.
+  `Rules.Combat.damage_total/1` aplica mínimo cero al total final; si el
+  subtotal es negativo, `raw_total` lo conserva para explicar el modificador
+  y el mínimo en la interfaz (M04). Mensaje y grupo muestran el total no
+  negativo que recibe el pipeline de daño; cero no consume PG temporales
+  ni provoca salvación de concentración.
+  La lanzadura inicial mantiene la simplificación de D99, y Empowered
+  conserva el contrato de D65.
+- **Tests**: `actions_test.exs`, `guiding_bolt_test.exs`,
+  `spiritual_weapon_test.exs` (crítico normal y con upcast, grupo de dados,
+  PG, recursos y modificador negativo).
 
 ### M09 — Hechizo `:save`
 - **Dónde**: rama `:save` — `spell_save_dc` + `saving_throw`.

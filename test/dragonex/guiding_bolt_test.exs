@@ -13,7 +13,7 @@ defmodule Dragonex.GuidingBoltTest do
 
   use ExUnit.Case, async: true
 
-  alias Dragonex.{Actions, Character, Codec, Rules.Guided, Spell, World, Weapon}
+  alias Dragonex.{Actions, Character, Codec, Rules.Conditions, Rules.Guided, Spell, World, Weapon}
 
   defp seq(values) do
     Process.put(:seq, values)
@@ -26,6 +26,17 @@ defmodule Dragonex.GuidingBoltTest do
   end
 
   defp spent?, do: Process.get(:seq, [])
+
+  defp typed_rolls(values) do
+    Process.put(:seq, values)
+
+    fn sides ->
+      assert [{^sides, value} | rest] = Process.get(:seq)
+      assert value in 1..sides
+      Process.put(:seq, rest)
+      value
+    end
+  end
 
   defp sheet_spell(name, level, kind, dice, opts) do
     %Spell{
@@ -186,17 +197,62 @@ defmodule Dragonex.GuidingBoltTest do
   defp guided_entry(w, name),
     do: Enum.find(w.characters[name].conditions, &match?(%{"condition" => "guided"}, &1))
 
+  defp marked_world(attacker, source \\ cleric()) do
+    w = world([source, attacker, goblin()]) |> turn!("Cora")
+    {:ok, w} = World.mark_guided("goblin", "Cora").(w)
+    turn!(w, "Thane")
+  end
+
+  defp rogue(opts \\ []) do
+    fighter(
+      Keyword.merge(
+        [
+          class: "rogue",
+          dex: 16,
+          weapons: [
+            %Weapon{
+              name: "shortbow",
+              dice: "1d6",
+              damage_type: "piercing",
+              attack_ability: :dex,
+              ranged: true
+            }
+          ]
+        ],
+        opts
+      )
+    )
+  end
+
   # Cora L3: SAB 16 (+3), prof 2 → ataque +5. Goblin CA 12.
   # Thane L1: FUE 16 (+3), prof 2 → ataque +5; longsword 1d8+3.
 
   describe "Rules.Guided (unidad)" do
-    test "combine: la ventaja guiada combina y cancela vía D57" do
-      assert Guided.combine(:normal, true) == :advantage
-      assert Guided.combine(:disadvantage, true) == :normal
-      assert Guided.combine(:advantage, true) == :advantage
-      assert Guided.combine(:normal, false) == :normal
-      assert Guided.combine(:disadvantage, false) == :disadvantage
-      assert Guided.combine(:advantage, false) == :advantage
+    test "la ventaja guiada se combina antes de cancelar todas las fuentes" do
+      for {requested, guided, expected} <- [
+            {:normal, true, :advantage},
+            {:disadvantage, true, :normal},
+            {:advantage, true, :advantage},
+            {:normal, false, :normal},
+            {:disadvantage, false, :disadvantage},
+            {:advantage, false, :advantage}
+          ] do
+        assert Conditions.attack_mode(fighter(), goblin(),
+                 requested: requested,
+                 guided: guided
+               ) == expected
+      end
+
+      # Varias ventajas nunca anulan una desventaja restante.
+      for conditions <- [["hidden", "poisoned"], ["invisible", "restrained"]] do
+        assert Conditions.attack_mode(fighter(conditions: conditions), goblin(), guided: true) ==
+                 :normal
+      end
+
+      assert Conditions.attack_mode(fighter(), goblin(conditions: ["prone"]),
+               requested: :disadvantage,
+               guided: true
+             ) == :normal
     end
 
     test "active?: en combate hasta el siguiente turno del LANZADOR" do
@@ -344,6 +400,140 @@ defmodule Dragonex.GuidingBoltTest do
       assert spent?() == []
       w2 = elem(change.(w), 1)
       assert guided_entry(w2, "goblin") == nil
+    end
+  end
+
+  describe "guiado conserva la cancelación de las demás fuentes" do
+    test "arma: oculto y envenenado tira un d20 y consume la marca" do
+      w = marked_world(fighter(conditions: ["hidden", "poisoned"]))
+
+      assert {:ok, msg, change} =
+               Actions.attack(w, "Thane", "goblin", "longsword", typed_rolls([{20, 15}, {8, 4}]))
+
+      refute msg =~ "(ventaja)"
+      refute msg =~ "(desventaja)"
+      assert {:ok, next} = change.(w)
+      assert next.characters["goblin"].hp == 33
+      assert guided_entry(next, "goblin") == nil
+      refute "hidden" in Character.condition_names(next.characters["Thane"])
+      assert spent?() == []
+    end
+
+    test "ataque de conjuro: oculto y envenenado tira un d20" do
+      w = marked_world(wizard_thane(conditions: ["hidden", "poisoned"]))
+
+      assert {:ok, msg, change} =
+               Actions.spell(w, "Thane", "fire bolt", "goblin", typed_rolls([{20, 15}, {10, 4}]))
+
+      refute msg =~ "(ventaja)"
+      assert {:ok, next} = change.(w)
+      assert next.characters["goblin"].hp == 36
+      assert guided_entry(next, "goblin") == nil
+      assert spent?() == []
+    end
+
+    test "ráfaga: invisible y envenenado conserva un d20 por golpe" do
+      w =
+        marked_world(
+          fighter(class: "monk", level: 2, dex: 16, ki: 2, conditions: ["invisible", "poisoned"])
+        )
+
+      {:ok, w} = Dragonex.TurnBudget.spend(w, "Thane", :attack)
+
+      assert {:ok, msg, change} =
+               Actions.flurry_of_blows(
+                 w,
+                 "Thane",
+                 "goblin",
+                 typed_rolls([{20, 15}, {4, 2}, {20, 15}, {4, 3}])
+               )
+
+      refute msg =~ "(ventaja)"
+      assert {:ok, next} = change.(w)
+      assert next.characters["goblin"].hp == 29
+      assert next.characters["Thane"].ki == 1
+      assert next.turn_state["Thane"]["bonus"]
+      assert guided_entry(next, "goblin") == nil
+      assert spent?() == []
+    end
+
+    test "arma espiritual: invisible y envenenado conserva un d20" do
+      w =
+        marked_world(
+          fighter(class: "cleric", level: 3, wis: 16, conditions: ["invisible", "poisoned"])
+        )
+
+      {:ok, w} = World.grant_spiritual_weapon("Thane", "1d8", 3, 10).(w)
+
+      assert {:ok, msg, change} =
+               Actions.spiritual_weapon_attack(
+                 w,
+                 "Thane",
+                 "goblin",
+                 typed_rolls([{20, 15}, {8, 4}])
+               )
+
+      refute msg =~ "(ventaja)"
+      assert {:ok, next} = change.(w)
+      assert next.characters["goblin"].hp == 33
+      assert next.turn_state["Thane"]["bonus"]
+      assert guided_entry(next, "goblin") == nil
+      assert spent?() == []
+    end
+  end
+
+  describe "ataque furtivo con guiado" do
+    test "la ventaja guiada habilita el furtivo sin otro aliado consciente" do
+      w = marked_world(rogue(), cleric(hp: 0))
+
+      assert {:ok, msg, change} =
+               Actions.attack(
+                 w,
+                 "Thane",
+                 "goblin",
+                 "shortbow",
+                 typed_rolls([{20, 3}, {20, 15}, {6, 4}, {6, 5}])
+               )
+
+      assert msg =~ "5 sneak"
+      assert {:ok, next} = change.(w)
+      assert next.characters["goblin"].hp == 28
+      assert next.turn_state["Thane"]["sneak_turn"] == Dragonex.TurnBudget.turn_id(next)
+      assert guided_entry(next, "goblin") == nil
+      assert spent?() == []
+    end
+
+    test "guiado cancelado por veneno no habilita el furtivo sin aliado consciente" do
+      w = marked_world(rogue(conditions: ["poisoned"]), cleric(hp: 0))
+
+      assert {:ok, msg, change} =
+               Actions.attack(w, "Thane", "goblin", "shortbow", typed_rolls([{20, 15}, {6, 4}]))
+
+      refute msg =~ "sneak"
+      assert {:ok, next} = change.(w)
+      assert next.characters["goblin"].hp == 33
+      refute next.turn_state["Thane"]["sneak_turn"]
+      assert guided_entry(next, "goblin") == nil
+      assert spent?() == []
+    end
+
+    test "guiado cancela desventaja y permite furtivo por aliado consciente" do
+      w = marked_world(rogue(conditions: ["poisoned"]))
+
+      assert {:ok, msg, change} =
+               Actions.attack(
+                 w,
+                 "Thane",
+                 "goblin",
+                 "shortbow",
+                 typed_rolls([{20, 15}, {6, 4}, {6, 5}])
+               )
+
+      assert msg =~ "5 sneak"
+      assert {:ok, next} = change.(w)
+      assert next.characters["goblin"].hp == 28
+      assert guided_entry(next, "goblin") == nil
+      assert spent?() == []
     end
   end
 

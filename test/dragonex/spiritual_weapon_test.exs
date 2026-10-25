@@ -8,7 +8,7 @@ defmodule Dragonex.SpiritualWeaponTest do
   existente. Oráculos con dados inyectados y conteo exacto.
   """
 
-  alias Dragonex.{Actions, Character, Codec, World}
+  alias Dragonex.{Actions, Character, Codec, RollLog, World}
   alias Dragonex.Heroes.Spells
 
   defp seq(values) do
@@ -150,12 +150,15 @@ defmodule Dragonex.SpiritualWeaponTest do
     {:ok, w} = World.next_round().(w)
     w = turn!(w, "Cora", seq([]))
 
-    # Nat 20: (4+4) + 3 = 11.
-    assert {:ok, msg, change} = Actions.spiritual_weapon_attack(w, "Cora", "Goblin", seq([20, 4]))
+    # Nat 20: dos d8 independientes (2+7) + 3 = 12.
+    assert {:ok, msg, change} =
+             Actions.spiritual_weapon_attack(w, "Cora", "Goblin", seq([20, 2, 7]))
+
     assert msg =~ "CRÍTICO"
-    assert msg =~ "11 de daño de fuerza"
+    assert msg =~ "12 de daño de fuerza"
     assert {:ok, w2} = change.(w)
-    assert w2.characters["Goblin"].hp == 30 - 6 - 11
+    assert w2.characters["Goblin"].hp == 30 - 6 - 12
+    assert spent?() == []
 
     {:ok, w3} = World.next_round().(w2)
     w3 = turn!(w3, "Cora", seq([]))
@@ -163,8 +166,77 @@ defmodule Dragonex.SpiritualWeaponTest do
     # Fallo: 2 (+6 = 8 vs CA 12).
     assert {:ok, miss, _} = Actions.spiritual_weapon_attack(w3, "Cora", "Goblin", seq([2]))
     assert miss =~ "fallo"
-    assert w3.characters["Goblin"].hp == 30 - 6 - 11
+    assert w3.characters["Goblin"].hp == 30 - 6 - 12
     assert spent?() == []
+  end
+
+  test "crítico con upcast registra cuatro dados independientes y solo suma una vez el modificador" do
+    w = world([cleric(level: 9), goblin(hp: 60, max_hp: 60)]) |> turn!("Cora")
+    {_msg, w} = cast!(w, "Goblin", seq([15, 1, 2]), 4)
+    assert spent?() == []
+
+    {:ok, w} = World.next_round().(w)
+    w = turn!(w, "Cora", seq([]))
+    roller = seq([20, 1, 2, 6, 8])
+    {:ok, recorder} = RollLog.start()
+    roll_log = %RollLog{base: roller, recorder: recorder}
+
+    try do
+      assert {:ok, msg, change} =
+               Actions.spiritual_weapon_attack(w, "Cora", "Goblin", roller, roll_log)
+
+      # 2d8 de base + 2d8 de crítico + SAB 3: 1+2+6+8+3 = 20.
+      assert msg =~ "CRÍTICO"
+      assert msg =~ "20 de daño de fuerza"
+      assert {:ok, next} = change.(w)
+      assert next.characters["Goblin"].hp == 37
+      assert next.spell_slots == w.spell_slots
+      assert next.turn_state["Cora"]["bonus"]
+      assert spent?() == []
+
+      assert [attack, damage] = RollLog.entries(recorder)
+      assert attack.dice == [[20, 20]]
+      assert attack.outcome == :crit
+      assert damage.dice == [[8, 1], [8, 2], [8, 6], [8, 8]]
+      assert damage.total == 20
+    after
+      RollLog.stop(recorder)
+    end
+  end
+
+  test "SAB baja limita el daño a cero sin consumir PG temporales ni concentración" do
+    w = world([cleric(wis: 6), goblin(temp_hp: 4)]) |> turn!("Cora")
+    {_msg, w} = cast!(w, "Goblin", seq([15, 3]))
+    assert posture(w)["mod"] == -2
+    assert w.characters["Goblin"].temp_hp == 1
+
+    {:ok, w} = World.next_round().(w)
+    w = turn!(w, "Cora", seq([]))
+    {:ok, w} = World.set_concentration("Goblin", "bless").(w)
+    roller = seq([15, 1])
+    {:ok, recorder} = RollLog.start()
+    roll_log = %RollLog{base: roller, recorder: recorder}
+
+    try do
+      assert {:ok, msg, change} =
+               Actions.spiritual_weapon_attack(w, "Cora", "Goblin", roller, roll_log)
+
+      assert msg =~ "0 de daño de fuerza"
+      refute msg =~ "-1 de daño"
+      assert {:ok, next} = change.(w)
+      assert next.characters["Goblin"] == w.characters["Goblin"]
+      assert next.spell_slots == w.spell_slots
+      assert next.turn_state["Cora"]["bonus"]
+      assert spent?() == []
+
+      assert [attack, damage] = RollLog.entries(recorder)
+      assert attack.outcome == :hit
+      assert damage.dice == [[8, 1]]
+      assert damage.raw_total == -1
+      assert damage.total == 0
+    after
+      RollLog.stop(recorder)
+    end
   end
 
   test "faerie fire concede ventaja al golpe del arma espiritual" do

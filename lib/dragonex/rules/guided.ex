@@ -11,7 +11,6 @@ defmodule Dragonex.Rules.Guided do
   """
 
   alias Dragonex.Character
-  alias Dragonex.Rules.Conditions
   alias Dragonex.World
 
   @condition "guided"
@@ -39,17 +38,4 @@ defmodule Dragonex.Rules.Guided do
   end
 
   def active?(_world, _target), do: false
-
-  @doc """
-  Combina la ventaja del marcador con el modo base vía `Conditions.combine/2`
-  (patrón D57): ventaja + desventaja = normal; ya-ventaja se mantiene.
-  """
-  @spec combine(:normal | :advantage | :disadvantage, boolean()) ::
-          :normal | :advantage | :disadvantage
-  def combine(base_mode, guided?)
-
-  def combine(base_mode, false), do: base_mode
-
-  def combine(base_mode, true),
-    do: Conditions.combine(true, base_mode == :disadvantage)
 end
