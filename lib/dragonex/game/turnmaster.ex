@@ -603,6 +603,7 @@ defmodule Dragonex.Game.Turnmaster do
       Games.append_event(state.game_id, :system, "system", "all", %{
         note: Dragonex.Text.scrub(note),
         kind: :turnmaster_fallback,
+        to: next,
         reason: reason
       })
 

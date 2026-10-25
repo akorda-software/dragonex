@@ -121,6 +121,30 @@ defmodule Dragonex.GameCombatFallbackTest do
     assert Games.load_world(Games.get_game(state.game_id)) == world
   end
 
+  for {next, controller, order} <- [
+        {"Thane", "Thane", ["g1", "Thane", "g2", "Lyra"]},
+        {"Lyra", "Lyra", ["g1", "Lyra", "g2", "Thane"]},
+        {"g2", "dm", ["g1", "g2", "Thane", "Lyra"]}
+      ] do
+    test "fallback to #{next} records the actual controller #{controller} for metrics" do
+      state = state(unquote(order)) |> settle("dm", :ok)
+      state = Turnmaster.fallback_world_driven(state, :no_decision)
+
+      assert Session.read_state(state.session).current_combatant == unquote(next)
+      assert Session.current(state.session) == unquote(controller)
+
+      note =
+        state.game_id
+        |> Games.list_events()
+        |> Enum.find(&(&1.payload["kind"] == "turnmaster_fallback"))
+
+      assert note.type == :system
+      assert note.actor == "system"
+      assert note.payload["to"] == unquote(controller)
+      assert note.payload["reason"] == "no_decision"
+    end
+  end
+
   for result <- [:error, :ok] do
     test "#{result} after a named monster handoff skips already spent PC slots" do
       state = state(["g1", "Thane", "g2", "Lyra"]) |> mark(["g1", "Thane"])

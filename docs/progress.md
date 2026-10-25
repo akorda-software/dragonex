@@ -11,7 +11,7 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 
 ## Último estado — 2026-10-25
 
-- **Gates:** 3152 passed / 3 excluded en ambos grafos (local y Hex).
+- **Gates:** 3162 passed / 3 excluded en ambos grafos (local y Hex).
   Código propio sin warnings, formato limpio; dependencias frías conservan
   avisos de terceros documentados en `tecnico/09-estrategia-pruebas.md`.
 - **Dependencias:** dev usa `../exAgent` 2.2.2 y `../dic_ex` 0.3; el lock de
@@ -57,8 +57,9 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
   espera, home con crónica viva (D233).
 - **Operaciones web (D249–D250):** cancelar ajustes o quitar una clave impide
   aplicar comprobaciones tardías; borrar una mesa cierra sus agentes.
-- **Playtest (D251):** la última declaración también se recupera; una pausa
-  sin presupuesto de reanudación se informa como tal, sin declarar la tanda completa.
+- **Playtest y métricas (D251–D252):** recuperación también en la última
+  declaración; los relevos de emergencia no suman deliberación humana a la
+  latencia IA y los retornos históricos ambiguos se excluyen.
 - **Quién paga la IA (D242):** la casa solo paga DeepSeek v4.1 Flash, servido
   por Decart (D243; el más barato triplicaba la latencia). Con su propia clave (OpenRouter,
   OpenCode Go, OpenAI, Google, Anthropic; guardada cifrada en «Tu cuenta»),

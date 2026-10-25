@@ -15,7 +15,9 @@ defmodule Dragonex.Playtest.Metrics do
       del TurnMaster (`turnmaster_fallback`);
     * **ida y vuelta**: segundos desde que un humano declara hasta que vuelve a
       tener la palabra, sin contar los tramos con una pausa por fallo (incluyen
-      la espera del usuario);
+      la espera del usuario). Solo cuenta retornos con destinatario explícito
+      anteriores a su siguiente declaración; un fallback antiguo sin destino
+      cierra la búsqueda porque no demuestra quién recuperó el turno;
     * **duración de turnos IA**: desde su `turn start` hasta el siguiente relevo;
     * **acciones de combate sin tirada**: declaraciones humanas en combate sin
       ningún dado de ese actor dentro del turno. No todas son errores (esquivar,
@@ -111,7 +113,13 @@ defmodule Dragonex.Playtest.Metrics do
 
   # ------------------------------------------------------------ medidas
 
-  # Humano declara → primer relevo del TurnMaster que le devuelve la palabra.
+  # Humano declara → primer relevo normal o de emergencia que le devuelve la
+  # palabra explícitamente. Su siguiente declaración cierra la búsqueda: no
+  # atribuir a dos acciones un mismo retorno ni incluir la deliberación entre
+  # ellas. Un fallback sin destino también la cierra: no se sabe si devolvió
+  # la palabra al humano antes de otra actividad (p. ej. activar autoplay).
+  # No se infiere un retorno desde el siguiente turn start, que en humanos
+  # se escribe al declarar.
   # Se descarta el tramo si contiene una pausa por fallo.
   defp round_trips(events, humans) do
     indexed = Enum.with_index(events)
@@ -119,7 +127,7 @@ defmodule Dragonex.Playtest.Metrics do
     for {%{type: type, actor: actor} = action, i} <- indexed,
         type in [:action, "action"],
         MapSet.member?(humans, actor),
-        back = find_after(events, i, &handoff_to?(&1, actor)),
+        back = human_return_after(events, i, actor),
         back != nil,
         not Enum.any?(between(events, action.seq, back.seq), &kind?(&1, "turn_retained")) do
       seconds(action.inserted_at, back.inserted_at)
@@ -191,8 +199,33 @@ defmodule Dragonex.Playtest.Metrics do
   defp turn_start?(e), do: e.type in [:turn, "turn"] and payload(e)["kind"] == "start"
   defp dice?(e), do: e.type in [:dice, "dice"]
 
-  defp handoff?(e), do: e.type in [:system, "system"] and e.actor == "turnmaster"
+  defp handoff?(e),
+    do:
+      e.type in [:system, "system"] and
+        (e.actor == "turnmaster" or kind?(e, "turnmaster_fallback"))
+
   defp handoff_to?(e, actor), do: handoff?(e) and payload(e)["to"] == actor
+
+  defp human_return_after(events, i, actor) do
+    events
+    |> Enum.drop(i + 1)
+    |> Enum.reduce_while(nil, fn event, _ ->
+      cond do
+        event.type in [:action, "action"] and event.actor == actor -> {:halt, nil}
+        unknown_fallback?(event) -> {:halt, nil}
+        handoff_to?(event, actor) -> {:halt, event}
+        true -> {:cont, nil}
+      end
+    end)
+  end
+
+  defp unknown_fallback?(event) do
+    handoff?(event) and kind?(event, "turnmaster_fallback") and
+      case payload(event)["to"] do
+        to when is_binary(to) -> String.trim(to) == ""
+        _ -> true
+      end
+  end
 
   defp failure?(e) do
     e.type in [:system, "system"] and

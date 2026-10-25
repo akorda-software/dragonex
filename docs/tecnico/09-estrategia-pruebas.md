@@ -5,8 +5,8 @@
 > declarar "hecho". Regla fundacional: **verificabilidad antes que
 > afirmaciones** — nada está "funcionando" sin un test verde que lo pruebe.
 
-Últimos gates completos, **D246–D251**, 2026-10-25: **3152 passed / 3 excluded**
-en ambos grafos, seed0; local134,7 s y Hex133,7 s, secuenciales. Código propio
+Últimos gates completos, **D246–D252**, 2026-10-25: **3162 passed / 3 excluded**
+en ambos grafos, seed0; local 131,5 s y Hex 130,8 s, secuenciales. Código propio
 dev/test/prod compila con `--warnings-as-errors`, formato limpio y ambos
 `mix hex.audit` sin avisos. Compilar dependencias frías con Elixir1.20 emite
 avisos de terceros (toml, websockex, gettext y plug), sin avisos de Dragonex;
@@ -63,6 +63,16 @@ avisos inesperados; cinco deliberados breaker.32 focalizados en1,7 s limpios.
 Gate D1782549/3 final49,3 s/seed30343/max_cases48 sin errores/desconexiones
 ni avisos inesperados; cinco breaker. El primero49,4 s descubrió un fixture
 anti-repeat agotado, reproducido con oráculo exacto y corregido abajo.
+
+## D252 — Retornos explícitos y ventanas de latencia acotadas
+
+`playtest/metrics_test.exs` añade siete regresiones puras; el caso de referencia
+separa una respuesta de 4 s y otra de 5 s de 56 s de deliberación humana. Verifica
+retorno a otro PC IA, legado con destino desconocido, varias declaraciones y
+varios humanos. Los 15 casos puros pasan sin arrancar la aplicación ni la DB.
+`game_combat_fallback_test.exs` añade tres comprobaciones de destino persistido
+con Session/World: humano, PC IA y DM que controla el siguiente monstruo.
+No se infiere un destino desde prosa ni se reescriben partidas guardadas.
 
 ## D246–D251 — Regresiones de combate, recuperación y operaciones asíncronas
 

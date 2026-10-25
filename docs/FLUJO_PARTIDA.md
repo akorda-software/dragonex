@@ -1751,6 +1751,13 @@ con el mismo presupuesto de reanudación (D251): `turns_reached` requiere
 volver al humano; una pausa sin margen devuelve `paused`. Las omisiones y
 fallos siguen visibles en las métricas, aunque el bucle logre continuar.
 
+Las métricas reconocen también los relevos de emergencia (D252), cuya nota
+incluye el controlador realmente elegido. El tiempo hasta el retorno humano
+no cruza otra declaración de ese jugador ni un fallback antiguo sin destino:
+se descarta la muestra ambigua para no sumar tiempo de reflexión. Esos eventos
+sí cierran la duración del turno IA. Las cifras anteriores deben recalcularse
+para comparar mesas con relevos de emergencia.
+
 1. `docker compose -f compose.dev.yml up -d` (levanta Postgres + app; http://localhost:4035).
 2. Navegador → http://localhost:4035/games/new → escenario "Arena de Pruebas".
 3. Toggle auto-play en un PC para observar sin input humano.

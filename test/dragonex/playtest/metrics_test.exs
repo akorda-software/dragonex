@@ -17,7 +17,32 @@ defmodule Dragonex.Playtest.MetricsTest do
   defp start(seq, at, actor, phase),
     do: ev(seq, at, :turn, actor, %{"kind" => "start", "phase" => phase})
 
-  defp handoff(seq, at, to), do: ev(seq, at, :system, "turnmaster", %{"to" => to})
+  defp handoff(seq, at, to),
+    do: ev(seq, at, :system, "turnmaster", %{"kind" => "give_turn_to", "to" => to})
+
+  defp fallback(seq, at, to) do
+    ev(seq, at, :system, "system", %{
+      "kind" => "turnmaster_fallback",
+      "to" => to,
+      "reason" => "tm_error",
+      "note" => "El motor toma el relevo del turno."
+    })
+  end
+
+  # The player gets the floor at 4 s, thinks for 56 s and declares again.
+  # A turn marker is written only when they declare, never when waiting starts.
+  defp fallback_then_another_action do
+    [
+      start(1, 0, "Thane", "combat"),
+      ev(2, 0, :action, "Thane", %{"text" => "Esquivo."}),
+      start(3, 1, "dm", "combat"),
+      fallback(4, 4, "Thane"),
+      start(5, 60, "Thane", "combat"),
+      ev(6, 60, :action, "Thane", %{"text" => "Esquivo de nuevo."}),
+      start(7, 61, "dm", "combat"),
+      handoff(8, 65, "Thane")
+    ]
+  end
 
   # Thane (humano) ataca con tirada; el DM responde; Lyra (IA) actúa; vuelve Thane.
   defp combat_round do
@@ -44,6 +69,104 @@ defmodule Dragonex.Playtest.MetricsTest do
     assert m.ai_turn_seconds.ai_pc.samples == [5]
     assert m.failures == 0
     assert m.combat_actions_without_dice == []
+  end
+
+  test "el relevo de emergencia cierra el turno IA sin sumar la deliberación humana" do
+    m = Metrics.analyze(fallback_then_another_action(), ["Thane"])
+
+    assert m.round_trip.samples == [4, 5]
+    assert m.round_trip.max == 5
+    assert m.ai_turn_seconds.dm.samples == [3, 4]
+    assert m.tm_fallbacks == 1
+  end
+
+  test "el fallback a otro PC IA no se confunde con el retorno al humano" do
+    events = [
+      start(1, 0, "Thane", "combat"),
+      ev(2, 0, :action, "Thane", %{"text" => "Esquivo."}),
+      start(3, 1, "dm", "combat"),
+      fallback(4, 4, "Lyra"),
+      start(5, 4, "Lyra", "combat"),
+      handoff(6, 9, "Thane")
+    ]
+
+    m = Metrics.analyze(events, ["Thane"])
+    assert m.round_trip.samples == [9]
+    assert m.ai_turn_seconds.dm.samples == [3]
+    assert m.ai_turn_seconds.ai_pc.samples == [5]
+  end
+
+  test "un fallback legacy sin destino cierra IA sin atribuirle el siguiente retorno" do
+    events =
+      Enum.map(fallback_then_another_action(), fn
+        %{seq: 4} = e -> %{e | payload: Map.delete(e.payload, "to")}
+        e -> e
+      end)
+
+    m = Metrics.analyze(events, ["Thane"])
+    assert m.round_trip.samples == [5]
+    assert m.ai_turn_seconds.dm.samples == [3, 4]
+    assert m.tm_fallbacks == 1
+  end
+
+  test "un fallback legacy al final del log no inventa un retorno desde su texto" do
+    events =
+      fallback_then_another_action()
+      |> Enum.take(4)
+      |> Enum.map(fn
+        %{seq: 4} = e ->
+          %{e | payload: %{"kind" => "turnmaster_fallback", "note" => "El turno pasa a Thane."}}
+
+        e ->
+          e
+      end)
+
+    m = Metrics.analyze(events, ["Thane"])
+    assert m.round_trip.count == 0
+    assert m.ai_turn_seconds.dm.samples == [3]
+  end
+
+  test "ningún retorno posterior recupera un tramo que cruzó un fallback sin destino" do
+    # No new human action bounds this interval. The legacy fallback could
+    # have returned the floor before they waited and enabled autoplay.
+    events = [
+      start(1, 0, "Thane", "combat"),
+      ev(2, 0, :action, "Thane", %{"text" => "Esquivo."}),
+      start(3, 1, "dm", "combat"),
+      ev(4, 4, :system, "system", %{"kind" => "turnmaster_fallback"}),
+      start(5, 60, "Lyra", "combat"),
+      handoff(6, 65, "Thane")
+    ]
+
+    m = Metrics.analyze(events, ["Thane"])
+    assert m.round_trip.count == 0
+    assert m.ai_turn_seconds.dm.samples == [3]
+    assert m.ai_turn_seconds.ai_pc.samples == [5]
+  end
+
+  test "un mismo relevo solo cierra la última declaración pendiente de ese humano" do
+    events = [
+      start(1, 0, "Thane", "exploration"),
+      ev(2, 0, "action", "Thane", %{"text" => "Observo la puerta."}),
+      start(3, 8, "Thane", "exploration"),
+      ev(4, 8, :action, "Thane", %{"text" => "Examino la cerradura."}),
+      handoff(5, 10, "Thane")
+    ]
+
+    assert Metrics.analyze(events, ["Thane"]).round_trip.samples == [2]
+  end
+
+  test "la declaración de otro humano no corta la búsqueda de un retorno explícito" do
+    events = [
+      start(1, 0, "Thane", "exploration"),
+      ev(2, 0, :action, "Thane", %{"text" => "Observo la puerta."}),
+      start(3, 2, "Mara", "exploration"),
+      ev(4, 2, :action, "Mara", %{"text" => "Vigilo el pasillo."}),
+      handoff(5, 5, "Thane"),
+      handoff(6, 9, "Mara")
+    ]
+
+    assert Metrics.analyze(events, ["Thane", "Mara"]).round_trip.samples == [5, 7]
   end
 
   test "señala una declaración de combate sin tirada propia" do
@@ -84,7 +207,7 @@ defmodule Dragonex.Playtest.MetricsTest do
           ev(13, 22, :system, "system", %{"note" => "the turn failed: :timeout"}),
           ev(14, 23, :system, "system", %{"kind" => "turn_retained"}),
           ev(15, 24, :system, "system", %{"kind" => "turn_skipped"}),
-          ev(16, 25, :system, "turnmaster", %{"kind" => "turnmaster_fallback", "to" => nil})
+          ev(16, 25, :system, "system", %{"kind" => "turnmaster_fallback", "to" => nil})
         ]
 
     m = Metrics.analyze(events, ["Thane"])

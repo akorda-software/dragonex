@@ -1725,6 +1725,13 @@ Prefijo cacheable medido 44–85% de input cacheado.
   disponibles devuelve `paused`, conservando la causa y los resultados
   registrados (`playtest/playtest_test.exs`). No certifica fidelidad narrativa.
 
+- AC-NFR-2c (D252): un relevo de emergencia registra su destinatario real y
+  cierra la duración IA. La ida/vuelta humana requiere retorno explícito
+  anterior a la siguiente declaración del mismo actor; descarta intervalos
+  que cruzan un fallback legacy sin destino, sin sumar deliberación ni
+  atribuir el mismo retorno a dos acciones (`playtest/metrics_test.exs`,
+  `game_combat_fallback_test.exs`).
+
 ---
 
 ## Lectura siguiente

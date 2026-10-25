@@ -8115,8 +8115,8 @@ subtotal negativo para explicar el mínimo cero en la interfaz.
 
 **Verificación/límites:** casos deterministas de las cuatro rutas de ataque,
 cancelación de fuentes y furtivo sin aliado consciente. Crítico d8=[2,7] con
-modificador3 causa12; upcast2d8 tira cuatro dados [1,2,6,8] y causa20. SAB6 y
-d8=1 producen total0/subtotal−1, sin tocar PG temporales o concentración y
+modificador 3 causa 12; upcast de 2d8 tira cuatro dados [1,2,6,8] y causa 20. SAB 6 y
+d8=1 producen total 0/subtotal −1, sin tocar PG temporales o concentración y
 con una sola bonus. No cambian distancias, caducidad de Guiado, structs,
 Codec ni la simplificación de Empowered Spell (D65).
 
@@ -8200,6 +8200,40 @@ la última declaración que se recupera una vez y vuelve al humano sin repetir
 acción; presupuesto cero que devuelve `:paused`. Los fallos/omisiones siguen
 en las métricas: `turns_reached` no certifica fidelidad narrativa ni ausencia
 de una omisión recuperable del motor. No hay llamada a proveedor real.
+
+## D252 — Relevos de emergencia medidos sin incluir deliberación humana
+
+**Estado:** Aceptada. **Fecha:** 2026-10-25.
+
+**Contexto:** los relevos de emergencia se guardaban como eventos `system`
+sin destinatario, mientras Metrics solo reconocía al actor `turnmaster`.
+Un fallo seguido de retorno al humano no cerraba la duración del DM; su
+siguiente declaración podía compartir el mismo retorno con la anterior.
+La reproducción pura devolvía ida/vuelta [5,65] y DM [4,59], incluyendo 56 s
+que el jugador dedicó a pensar.
+
+**Decisión:** la nota de fallback incluye el controlador realmente elegido
+por Session. Metrics reconoce ese tipo de evento como relevo: cierra el
+turno IA y acepta retorno humano solo con destino explícito. La búsqueda
+termina ante otra declaración del mismo humano o un fallback legacy sin
+destino válido; se descarta la muestra ambigua, sin reconstruir el destino
+desde la prosa o un marcador escrito cuando el humano vuelve a declarar.
+Los eventos antiguos no se reescriben.
+
+**Verificación/límites:** siete regresiones puras cubren la secuencia correcta
+[4,5]/DM[3,4], relevo a otro PC IA, tres casos legacy, declaraciones consecutivas
+y varios humanos. Tres casos con Session/World verifican destinos humano,
+PC IA y controlador DM de monstruo. Las pausas por fallo siguen excluidas.
+La resolución temporal continúa siendo de segundos; no se promete detectar
+pausas manuales no registradas ni atribuir toda demora al proveedor. Las
+cifras históricas con fallback deben recalcularse antes de comparar latencia.
+
+**Lectura de evidencia existente:** las diez últimas mesas locales suman 1676
+eventos y 3 fallos de 248 turnos IA. El máximo de 423 s de 19466 es un intervalo
+con 25 turnos DM y 2 de Lyra, sin pausa por fallo, y cierres/reaperturas de
+combate del problema histórico D244. No representa una petición individual
+de 423 s ni una mejora medida con el proveedor después de esta tanda. La
+consulta es de solo lectura; no se han creado partidas ni consumido créditos.
 
 ## Pendientes de decisión (abiertas)
 
