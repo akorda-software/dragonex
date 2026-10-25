@@ -249,7 +249,13 @@ defmodule Dragonex.Game.SceneRefresh do
         world.phase == :exploration and world.scene_refresh_pending and
           is_binary(before) and before == Dragonex.Rules.Inventory.scene_fingerprint(world) and
           Enum.all?(tools, fn {{name, _}, _} ->
-            name in ["grant_item", "remove_item", "confirm_inventory_unchanged"]
+            name in [
+              "grant_item",
+              "remove_item",
+              "confirm_inventory_unchanged",
+              "record_item_round_trip",
+              "confirm_no_inventory_transfer"
+            ]
           end)
 
       _ ->

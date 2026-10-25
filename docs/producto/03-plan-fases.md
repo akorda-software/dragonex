@@ -34,7 +34,9 @@ La tanda D255–D258 añade revalidación de Recuperación arcana,
 creación con nombres sin colisión, edición de héroes con progreso y replay
 canónico de ataques. Criterios: AC-9.1, AC-10.6, AC-6.1/6.2/6.3 y AC-35.7.
 Verificación focal y gates completos local/Hex superados (3224/3).
-D254 mantiene CI preparada con primer check remoto pendiente.
+D254/D262 ya verifican CI remota y promoción a la rama protegida production.
+D265 cierra el préstamo con devolución inmediata: dos movimientos atómicos
+a saldo neto cero, rechazo tipado, checkpoint y UI; AC-38.5/38.6/38.7.
 
 Después: mantener el orden de [`../progress.md`](../progress.md): evidencia de
 partidas humanas, inventario de misión y fiabilidad/latencia del proveedor.

@@ -842,6 +842,18 @@ Iniciativa individual por monstruo → **D34 / F6.4**.
   exacto. Otros efectos/legacy/timeout mantienen el criterio conservador; un
   snapshot posterior válido puede cerrar pendiente sin duplicar stock.
 
+- AC-38.5 (D265): recibir/devolver o prestar/recuperar guarda dos movimientos
+  ordenados y enlazados, incluso con saldo neto cero, conservando el inventario
+  inicial exacto. World, ambas notas y recibo son atómicos; rollback de la
+  segunda nota no deja la primera. HP, slots, reloj y héroe reusable intactos.
+- AC-38.6 (D265): una propuesta temporal reconocida no cierra con «sin cambios»
+  ni una pierna aislada. Exige el actor correcto y operación completa, o una
+  negativa tipada con motivo. No aplica recursos por una promesa de retorno futuro.
+- AC-38.7 (D265): repetición, retry/restart y llamadas concurrentes no duplican
+  el episodio; UI y recarga muestran ambas piernas. Petición capturada sobrevive
+  a la narración intermedia; un checkpoint anterior termina con el contrato
+  previo sin repetir efectos ni quedar bloqueado por el contrato nuevo.
+
 22 casos deterministas de Rules/tools/Game/Codec/replay/escena/contexto/UI;
 110 focalizados2,8 s y2635/3 en52,6 s limpios, cinco breaker deliberados.
 19425 confirma cantidades0/1 y escena; formulación original de dejar623→630

@@ -2893,6 +2893,21 @@ Y según la tabla anterior: tests nuevos de la capa que toca, docs actualizados
  (`progress.md` mueve el ítem; ADR si hay decisión). Con API key disponible,
 opcionalmente: `DRAGONEX_RUN_LIVE=1 OPENROUTER_API_KEY=… mix test --include integration`.
 
+## Préstamos devueltos D265
+
+Focos: `inventory_round_trip_test.exs`, `round_trip_tools_test.exs`,
+`inventory_round_trip_resolution_test.exs`, `game_inventory_round_trip_test.exs`,
+`game_inventory_resolution_test.exs` y su homónimo en `test/dragonex_web/`.
+La prueba de rollback rechaza la segunda pierna en SQL y exige cero eventos,
+World y receipt anteriores. La de concurrencia admite dos propuestas antes
+del primer commit y rechaza la segunda después del pago. Replay normal y
+tras restart conserva grupo, orden y saldo. Checkpoints antiguos mantienen
+el contrato previo hasta completar su turno; nuevos episodios usan D265.
+
+Proveedor real y navegador: partida 19468, eventos 12/13 (recibe/devuelve),
+22/23 (presta/recupera) y 31 (rechazo sin transferencia), descritos en
+`producto/05-cierre-version-jugable.md`. Gates vigentes en `progress.md`.
+
 ## Límites declarados
 
 - D254/D262: `.github/workflows/ci.yml` ejecuta el gate Hex offline con

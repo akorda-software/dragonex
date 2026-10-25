@@ -1,43 +1,13 @@
 defmodule Dragonex.Game.InventoryMovement do
   @moduledoc "Factual inventory deltas saved with the tool's World and replay receipt."
   use Gettext, backend: Dragonex.Gettext
-  alias Dragonex.{Item, Text, World}
+  alias Dragonex.{Text, World}
   alias Dragonex.Rules.Inventory
-
-  @max_counterparty 80
-  def max_counterparty, do: @max_counterparty
 
   # A counterparty is the DM's attribution, not an NPC existence check or a
   # second character's inventory mutation. Missing attribution stays unknown.
-  def counterparty(nil), do: {:ok, nil}
-
-  def counterparty(value) when is_binary(value) and byte_size(value) <= 512 do
-    if String.valid?(value) do
-      clean =
-        value
-        |> String.normalize(:nfc)
-        |> Text.scrub()
-        |> String.replace(~r/\s+/u, " ")
-        |> String.trim()
-
-      if String.length(clean) in 1..@max_counterparty,
-        do: {:ok, clean},
-        else: invalid_counterparty()
-    else
-      invalid_counterparty()
-    end
-  end
-
-  def counterparty(_), do: invalid_counterparty()
-
-  defp invalid_counterparty do
-    {:error,
-     dgettext(
-       "engine",
-       "Indica un origen o destinatario de 1 a %{max} caracteres, o null si no se conoce.",
-       max: @max_counterparty
-     )}
-  end
+  defdelegate max_counterparty(), to: Inventory
+  defdelegate counterparty(value), to: Inventory
 
   def instruction do
     dgettext(
@@ -93,16 +63,65 @@ defmodule Dragonex.Game.InventoryMovement do
 
   def notes(_, _, _), do: []
 
+  @doc "Materialize the two factual legs returned by the domain inside the writer."
+  def round_trip_notes([], _deps), do: []
+
+  def round_trip_notes(legs, deps) do
+    group = Ecto.UUID.generate()
+    metadata = Map.take(Map.get(deps, :beat, %{}), [:turn_id, :round, :phase])
+
+    legs
+    |> Enum.with_index(1)
+    |> Enum.map(fn {leg, index} ->
+      partner = if leg.operation == "grant", do: leg.source, else: leg.recipient
+      delta = leg.balance_after - leg.balance_before
+
+      leg
+      |> Map.update!(:item, &Text.scrub/1)
+      |> Map.merge(metadata)
+      |> Map.merge(%{
+        kind: "inventory_movement",
+        tool: "record_item_round_trip",
+        movement_group: group,
+        leg_index: index,
+        note:
+          note(
+            leg.stock_owner,
+            Text.scrub(leg.item),
+            delta,
+            leg.balance_before,
+            leg.balance_after,
+            partner
+          )
+      })
+    end)
+  end
+
+  def no_transfer_notes(
+        %{inventory_no_transfer: %{who: who, outcome: outcome, reason: reason}} = deps
+      ) do
+    [
+      %{
+        kind: "inventory_no_transfer",
+        stock_owner: who,
+        outcome: outcome,
+        reason: reason,
+        note:
+          dgettext("engine", "Inventario · %{who}: no cambia de manos ningún objeto. %{reason}",
+            who: Text.scrub(who),
+            reason: Text.scrub(reason)
+          )
+      }
+      |> Map.merge(Map.take(Map.get(deps, :beat, %{}), [:turn_id, :round, :phase]))
+    ]
+  end
+
+  def no_transfer_notes(_), do: []
+
   defp stacks(world, who, key) do
     case world.characters[who] do
       %{inventory: inventory} when is_list(inventory) ->
-        Enum.filter(inventory, fn
-          %Item{kind: :gear, name: name, qty: qty} when is_integer(qty) and qty > 0 ->
-            Inventory.key(name) == key
-
-          _ ->
-            false
-        end)
+        Inventory.stacks(inventory, key)
 
       _ ->
         []

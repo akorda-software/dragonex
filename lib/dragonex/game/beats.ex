@@ -189,7 +189,22 @@ defmodule Dragonex.Game.Beats do
     events = Games.recent_events(game_id, 400)
     wait_resolution = Dragonex.Game.WaitResolution.request(participant, world, events)
     npc_memory_resolution = Dragonex.Game.NPCMemoryResolution.request(participant, world)
-    inventory_resolution = Dragonex.Game.InventoryResolution.request(participant, world, events)
+
+    inventory_resolution =
+      cond do
+        restored && Map.has_key?(restored, :inventory_resolution) ->
+          restored.inventory_resolution
+
+        Map.has_key?(retries, :inventory_resolution) ->
+          retries.inventory_resolution
+
+        restored && not Map.has_key?(world.actor_checkpoint || %{}, "inventory_resolution") ->
+          Dragonex.Game.InventoryResolution.legacy_request(participant, world, events)
+
+        true ->
+          Dragonex.Game.InventoryResolution.request(participant, world, events)
+      end
+
     literal = Keyword.get(opts, :literal_speech)
 
     # The resolver can choose tools, but a manual player's voice comes from
@@ -380,6 +395,7 @@ defmodule Dragonex.Game.Beats do
           mini_turn: mini,
           death_save_required: death_save_required,
           wait_resolution: wait_resolution,
+          inventory_resolution: inventory_resolution,
           inventory_scene_before:
             if(restored,
               do: restored.inventory_scene_before,

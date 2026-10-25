@@ -10,6 +10,7 @@ defmodule Dragonex.GameInventoryResolutionTest do
   @pickup "Subo al altillo, abro el arcón azul y tomo el libro de cuentas."
   @answer "El libro pesa más de lo que parece; Mara lo guarda bajo el brazo."
   @unrecorded "Mara se lleva el libro, pero el inventario no se entera."
+  @loan "Ada, ¿me prestas el sello un instante para ver mejor la efigie? Cuando ella me lo presta, lo miro y se lo devuelvo inmediatamente a Ada. El encargo sigue terminado."
 
   setup do
     Dragonex.Test.Sandbox.start_shared!()
@@ -120,6 +121,258 @@ defmodule Dragonex.GameInventoryResolutionTest do
     assert {:ok, :resolving} == Game.declare(pid, "Mara", declaration)
     world = finish(game, pid)
     assert world.characters == before.characters
+  end
+
+  test "an immediate loan needs its two committed movements despite unchanged final stock" do
+    round_trip = round_trip()
+
+    {game, pid, before} =
+      boot([
+        narration(@loan),
+        narration(@unrecorded),
+        round_trip,
+        narration("Ada recupera el sello.")
+      ])
+
+    assert {:ok, :resolving} = Game.declare(pid, "Mara", @loan)
+    world = finish(game, pid)
+    assert world.characters == before.characters
+    assert_round_trip(game.id)
+  end
+
+  test "an ambiguous no-change confirmation cannot settle the loan or pay a partial leg" do
+    parent = self()
+
+    rejected = fn messages, _ ->
+      context = messages |> ModelMessages.project() |> inspect(limit: :infinity)
+      send(parent, {:partial_rejected, context =~ "record_item_round_trip"})
+      round_trip()
+    end
+
+    for tool <- [
+          call("confirm_inventory_unchanged", %{
+            "who" => "Mara",
+            "reason" => "lo devuelve inmediatamente y el saldo queda igual"
+          }),
+          call("grant_item", %{"who" => "Mara", "item" => "sello", "quantity" => 1}),
+          call("remove_item", %{
+            "who" => "Mara",
+            "item" => "sello",
+            "quantity" => 1,
+            "recipient" => "Ada"
+          })
+        ] do
+      {game, pid, before} =
+        boot([
+          narration(@loan),
+          tool_calls([tool]),
+          rejected,
+          narration("Ada recupera el sello.")
+        ])
+
+      assert {:ok, :resolving} = Game.declare(pid, "Mara", @loan)
+      world = finish(game, pid)
+      assert world.characters == before.characters
+      assert_round_trip(game.id)
+      assert_receive {:partial_rejected, true}
+    end
+  end
+
+  test "a typed refusal records no custody transfer and lets the DM close" do
+    refusal =
+      tool_calls([
+        call("confirm_no_inventory_transfer", %{
+          "who" => "Mara",
+          "outcome" => "declined",
+          "reason" => "Ada guarda el sello y no lo entrega."
+        })
+      ])
+
+    {game, pid, before} =
+      boot([narration(@loan), refusal, narration("Ada prefiere conservar el sello en su mano.")])
+
+    assert {:ok, :resolving} = Game.declare(pid, "Mara", @loan)
+    world = finish(game, pid)
+    assert world.characters == before.characters
+    assert movements(game.id) == []
+  end
+
+  for mode <- [:restart_before_payment, :restart_after_legacy_intermediate] do
+    test "#{mode} keeps the unresolved loan and does not publish an unpaid closure" do
+      {game, pid, before} =
+        boot([narration(@loan), narration(@unrecorded), narration(@unrecorded)])
+
+      assert {:ok, :resolving} = Game.declare(pid, "Mara", @loan)
+      assert :ok = Game.await(pid, &(&1.status == :paused), 5_000)
+      paused = Game.world(pid)
+      assert paused.characters == before.characters
+      assert movements(game.id) == []
+      refute Enum.any?(Games.list_events(game.id), &(&1.payload["text"] == @unrecorded))
+
+      if unquote(mode) == :restart_after_legacy_intermediate do
+        # Historical intermediate narration is fixture data. Seed it only with
+        # Game stopped; an active unresolved beat now rejects its publication.
+        assert :ok = Dragonex.Game.Supervisor.stop_game(game.id)
+        legacy = update_in(paused.actor_checkpoint, &Map.delete(&1, "inventory_resolution"))
+        {:ok, _} = Games.save_state(game.id, legacy, "dm", legacy.round, :paused)
+
+        {:ok, _} =
+          Games.append_event(game.id, :narration, "dm", "all", %{
+            text: "Ada levanta la mirada; aún no entrega el sello.",
+            complete: false,
+            turn_id: paused.actor_checkpoint["turn_id"]
+          })
+      else
+        assert paused.actor_checkpoint["inventory_resolution"]["kind"] == "round_trip"
+      end
+
+      {:ok, reopened} =
+        Game.restart(game.id,
+          model: %Test{
+            script: [narration(@unrecorded), round_trip(), narration("Ada recupera el sello.")]
+          },
+          scene_model: %Test{
+            script: [
+              fn _, _ -> tool_calls([call("final_result", %{"scene" => before.scene})]) end
+            ]
+          },
+          turnmaster_model: %Test{
+            script: [tool_calls([call("give_turn_to", %{"participant" => "Mara"})]), "listo"]
+          }
+        )
+
+      refute reopened == pid
+      assert :ok = Game.resume(reopened)
+      world = finish(game, reopened)
+      assert world.characters == before.characters
+      assert_round_trip(game.id)
+    end
+  end
+
+  test "a checkpoint without the new contract resumes its paid grant and completes the old return" do
+    hero = %{
+      Archetypes.wizard(name: "Mara")
+      | inventory: [%Item{name: "piedra azul", qty: 2, kind: :gear}]
+    }
+
+    {:ok, game} = Games.create_game(title: "Préstamo anterior", roster: [{hero, :human}])
+    before = %{Games.load_world(game) | scene_refresh_pending: false}
+    {:ok, paid} = World.grant_item("Mara", "sello", 1).(before)
+    turn_id = "legacy-loan-before-captured-contract"
+    grant_args = %{"who" => "Mara", "item" => "sello", "quantity" => 1}
+
+    # Historical fixture, written before Game starts. The old checkpoint proves
+    # its grant was paid but does not claim an ordered D265 loan or invent a
+    # movement event that did not exist in that historical schema.
+    paid = %{
+      paid
+      | actor_checkpoint: %{
+          "actor" => "dm",
+          "turn_id" => turn_id,
+          "phase" => "exploration",
+          "enemies_before" => [],
+          "mini_turn" => false,
+          "pending_narration" => true,
+          "tools" => [
+            %{"name" => "grant_item", "args" => grant_args, "values" => ["Mara recibe el sello."]}
+          ]
+        }
+    }
+
+    {:ok, _} = Games.append_event(game.id, :action, "Mara", "all", %{text: @loan})
+
+    {:ok, _} =
+      Games.append_event(game.id, :turn, "dm", "all", %{
+        kind: "start",
+        turn_id: turn_id,
+        phase: "exploration",
+        round: 1
+      })
+
+    {:ok, _} = Games.save_state(game.id, paid, "dm", 1, :paused)
+    parent = self()
+
+    return_item = fn messages, _ ->
+      context = messages |> ModelMessages.project() |> inspect(limit: :infinity)
+      send(parent, {:legacy_grant_replayed, context =~ "Resultado ya aplicado antes del fallo"})
+
+      tool_calls([
+        call("remove_item", %{
+          "who" => "Mara",
+          "item" => "sello",
+          "quantity" => 1,
+          "recipient" => "Ada"
+        })
+      ])
+    end
+
+    {:ok, pid} =
+      Game.ensure_started(game.id,
+        model: %Test{
+          script: [
+            tool_calls([call("grant_item", grant_args)]),
+            return_item,
+            narration("Ada vuelve a tener el sello.")
+          ]
+        },
+        scene_model: %Test{
+          script: [
+            tool_calls([
+              call("final_result", %{"scene" => "El sello está de nuevo en manos de Ada."})
+            ])
+          ]
+        },
+        turnmaster_model: %Test{
+          script: [tool_calls([call("give_turn_to", %{"participant" => "Mara"})]), "listo"]
+        },
+        roller: fn _ -> flunk("A legacy inventory continuation has no dice") end
+      )
+
+    on_exit(fn -> Dragonex.Game.Supervisor.stop_game(game.id) end)
+    assert :ok = Game.resume(pid)
+    world = finish(game, pid)
+    assert world.characters == before.characters
+    assert_receive {:legacy_grant_replayed, true}
+    assert [returned] = movements(game.id)
+    assert returned.payload["tool"] == "remove_item"
+    assert returned.payload["balance_before"] == 1
+    assert returned.payload["balance_after"] == 0
+    assert returned.payload["recipient"] == "Ada"
+
+    refute Enum.any?(
+             Games.list_events(game.id),
+             &(&1.payload["tool"] == "record_item_round_trip")
+           )
+  end
+
+  defp round_trip do
+    tool_calls([
+      call("record_item_round_trip", %{
+        "who" => "Mara",
+        "item" => "sello",
+        "quantity" => 1,
+        "direction" => "borrow_return",
+        "counterparty" => "Ada"
+      })
+    ])
+  end
+
+  defp movements(game_id),
+    do: Enum.filter(Games.list_events(game_id), &(&1.payload["kind"] == "inventory_movement"))
+
+  defp assert_round_trip(game_id) do
+    assert [received, returned] = movements(game_id)
+    assert received.payload["stock_owner"] == "Mara"
+    assert received.payload["source"] == "Ada"
+    assert received.payload["recipient"] == "Mara"
+    assert received.payload["balance_before"] == 0
+    assert received.payload["balance_after"] == 1
+    assert returned.payload["source"] == "Mara"
+    assert returned.payload["recipient"] == "Ada"
+    assert returned.payload["balance_before"] == 1
+    assert returned.payload["balance_after"] == 0
+    assert received.payload["item_key"] == returned.payload["item_key"]
+    assert received.payload["quantity"] == returned.payload["quantity"]
   end
 
   describe "request/3" do

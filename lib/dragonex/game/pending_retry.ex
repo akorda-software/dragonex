@@ -16,6 +16,7 @@ defmodule Dragonex.Game.PendingRetry do
     :model_retry,
     mini_turn: false,
     death_save_required: false,
+    inventory_resolution: nil,
     tool_results: %{},
     max_token_retries: 0,
     transient_retries: 0,

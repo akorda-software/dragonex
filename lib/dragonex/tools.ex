@@ -15,6 +15,31 @@ defmodule Dragonex.Tools do
   @doc "Tools advertised to live agents, with genuinely optional spell arguments."
   def agent_tools do
     Enum.map(tools(), fn
+      %{name: "record_item_round_trip"} = tool ->
+        schema = tool.parameters_json_schema
+
+        properties =
+          schema.properties
+          |> Map.update!("item", &Map.merge(&1, %{minLength: 1, maxLength: 160}))
+          |> Map.update!("quantity", &Map.merge(&1, %{minimum: 1, maximum: 9999}))
+          |> Map.update!("counterparty", &Map.merge(&1, %{minLength: 1, maxLength: 80}))
+          |> Map.update!("direction", &Map.put(&1, :enum, ["borrow_return", "lend_return"]))
+
+        %{tool | parameters_json_schema: %{schema | properties: properties}}
+
+      %{name: "confirm_no_inventory_transfer"} = tool ->
+        schema = tool.parameters_json_schema
+
+        properties =
+          schema.properties
+          |> Map.update!(
+            "outcome",
+            &Map.put(&1, :enum, ["declined", "not_available", "look_only"])
+          )
+          |> Map.update!("reason", &Map.merge(&1, %{minLength: 1, maxLength: 400}))
+
+        %{tool | parameters_json_schema: %{schema | properties: properties}}
+
       %{name: name} = tool when name in ["grant_item", "remove_item"] ->
         schema = tool.parameters_json_schema
 
@@ -426,6 +451,7 @@ defmodule Dragonex.Tools do
             source :: String.t()
           ) do
     with :ok <- assert_inventory_dm(ctx),
+         :ok <- Dragonex.Game.InventoryResolution.assert_tool_allowed(ctx, "grant_item", who),
          {:ok, ctx} <- inventory_counterparty(ctx, source),
          {:ok, _} <- propose(ctx, Dragonex.World.grant_item(who, item, quantity, additional)) do
       {:ok,
@@ -449,6 +475,7 @@ defmodule Dragonex.Tools do
             recipient :: String.t()
           ) do
     with :ok <- assert_inventory_dm(ctx),
+         :ok <- Dragonex.Game.InventoryResolution.assert_tool_allowed(ctx, "remove_item", who),
          {:ok, ctx} <- inventory_counterparty(ctx, recipient),
          {:ok, _} <- propose(ctx, Dragonex.World.remove_item(who, item, quantity)) do
       {:ok,
@@ -469,12 +496,139 @@ defmodule Dragonex.Tools do
 
   @doc "DM only, exploration: confirm that a player's declared pickup or handover does NOT change any inventory this turn (the object is not there, the attempt fails, they only look at it, or it is already in their inventory). Use it instead of grant_item/remove_item, never alongside a real change."
   deftool confirm_inventory_unchanged(ctx, who :: String.t(), reason :: String.t()) do
-    with :ok <- assert_inventory_dm(ctx) do
+    with :ok <- assert_inventory_dm(ctx),
+         :ok <-
+           Dragonex.Game.InventoryResolution.assert_tool_allowed(
+             ctx,
+             "confirm_inventory_unchanged",
+             who
+           ) do
       _ = reason
 
       {:ok, dgettext("engine", "Sin cambios en el inventario de %{who}.", who: who)}
     end
   end
+
+  @doc "DM only, exploration: register BOTH completed legs of a temporary handover in this turn, even when final stock is unchanged. borrow_return: the PC receives descriptive gear from counterparty and returns it; lend_return: the PC hands over owned gear and receives it back. Use ONE call instead of separate grant/remove or confirm_inventory_unchanged. State the exact object, positive quantity, present PC and other person/role; never invent a completed return that is only planned for later. Both movements commit atomically and remain in history. For a refused/unavailable loan or looking without taking, use confirm_no_inventory_transfer instead."
+  deftool record_item_round_trip(
+            ctx,
+            who :: String.t(),
+            item :: String.t(),
+            quantity :: integer(),
+            counterparty :: String.t(),
+            direction :: String.t()
+          ) do
+    with :ok <- assert_inventory_dm(ctx),
+         :ok <-
+           Dragonex.Game.InventoryResolution.assert_tool_allowed(
+             ctx,
+             "record_item_round_trip",
+             who
+           ),
+         {:ok, _} <- propose_round_trip(ctx, who, item, quantity, counterparty, direction) do
+      {:ok,
+       dgettext(
+         "engine",
+         "Registrados ambos traspasos de %{quantity} × %{item} para %{who}; el saldo final se conserva.",
+         quantity: quantity,
+         item: Dragonex.Rules.Inventory.key(item),
+         who: who
+       )}
+    else
+      {:error, :invalid_round_trip_direction} ->
+        {:error,
+         dgettext(
+           "engine",
+           "Indica borrow_return para recibir y devolver, o lend_return para entregar y recuperar."
+         )}
+
+      {:error, :round_trip_counterparty_required} ->
+        {:error,
+         dgettext(
+           "engine",
+           "El préstamo necesita una contraparte distinta del personaje, de 1 a 80 caracteres."
+         )}
+
+      error ->
+        error
+    end
+  end
+
+  defp propose_round_trip(ctx, who, item, quantity, counterparty, direction) do
+    durable? = is_pid(ctx.deps[:game_owner])
+
+    propose(ctx, fn world ->
+      result =
+        Dragonex.Rules.InventoryRoundTrip.apply(
+          world,
+          who,
+          item,
+          quantity,
+          counterparty,
+          direction
+        )
+
+      case result do
+        {:ok, final, _legs} when not durable? -> {:ok, final}
+        other -> other
+      end
+    end)
+  end
+
+  @doc "DM only, exploration: explicitly confirm that NO physical handover occurred: declined (the other person refused), not_available (the object was absent), or look_only (observed without taking). Provide the actual short reason. NEVER use this for a loan/examination followed by a return, even if final stock is unchanged: record_item_round_trip must record both legs. This decision is durable and excludes a conflicting successful round trip in this turn."
+  deftool confirm_no_inventory_transfer(
+            ctx,
+            who :: String.t(),
+            outcome :: String.t(),
+            reason :: String.t()
+          ) do
+    with :ok <- assert_inventory_dm(ctx),
+         :ok <-
+           Dragonex.Game.InventoryResolution.assert_tool_allowed(
+             ctx,
+             "confirm_no_inventory_transfer",
+             who
+           ),
+         {:ok, clean} <- no_transfer_reason(outcome, reason) do
+      ctx = %{
+        ctx
+        | deps:
+            Map.put(ctx.deps, :inventory_no_transfer, %{who: who, outcome: outcome, reason: clean})
+      }
+
+      with {:ok, _} <-
+             propose(ctx, fn world ->
+               if world.phase == :exploration and
+                    match?(%{side: "pc"}, Dragonex.World.present_character(world, who)),
+                  do: {:ok, world},
+                  else:
+                    {:error,
+                     dgettext("engine", "El destinatario debe ser un personaje jugador presente.")}
+             end) do
+        {:ok,
+         dgettext("engine", "No hubo entrega para %{who}: %{reason}", who: who, reason: clean)}
+      end
+    end
+  end
+
+  defp no_transfer_reason(outcome, reason)
+       when outcome in ["declined", "not_available", "look_only"] and is_binary(reason) and
+              byte_size(reason) <= 2048 do
+    if String.valid?(reason) do
+      clean = reason |> Dragonex.Text.scrub() |> String.replace(~r/\s+/u, " ") |> String.trim()
+      if String.length(clean) in 1..400, do: {:ok, clean}, else: no_transfer_reason(nil, nil)
+    else
+      no_transfer_reason(nil, nil)
+    end
+  end
+
+  defp no_transfer_reason(_, _),
+    do:
+      {:error,
+       dgettext(
+         "engine",
+         "Indica declined, not_available o look_only y un motivo de 1 a 400 caracteres; un préstamo devuelto sí tuvo entregas."
+       )}
 
   defp assert_inventory_dm(ctx) do
     if ctx.deps.state.participant_id == "dm",

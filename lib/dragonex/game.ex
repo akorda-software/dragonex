@@ -701,6 +701,7 @@ defmodule Dragonex.Game do
         model_retry: state.busy.model_retry,
         mini_turn: state.busy.mini_turn,
         death_save_required: state.busy.death_save_required,
+        inventory_resolution: state.busy.inventory_resolution,
         narration_retries: state.busy.narration_retries,
         tool_results: state.busy.tool_results
       }

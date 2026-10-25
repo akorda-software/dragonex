@@ -3253,3 +3253,43 @@ msgstr "The AI key has been removed. The table now uses the house model and is p
 #, elixir-autogen, elixir-format
 msgid "La clave de IA se ha actualizado. La mesa queda en pausa con la nueva clave; reanuda cuando quieras."
 msgstr "The AI key has been updated. The table is paused with the new key; resume when ready."
+
+#, elixir-autogen
+msgid "Indica declined, not_available o look_only y un motivo de 1 a 400 caracteres; un préstamo devuelto sí tuvo entregas."
+msgstr "Provide declined, not_available or look_only and a reason of 1 to 400 characters; a returned loan did involve handovers."
+
+#, elixir-autogen
+msgid "No hubo entrega para %{who}: %{reason}"
+msgstr "No handover occurred for %{who}: %{reason}"
+
+#, elixir-autogen
+msgid "El préstamo necesita una contraparte distinta del personaje, de 1 a 80 caracteres."
+msgstr "The loan needs a counterparty other than the character, with 1 to 80 characters."
+
+#, elixir-autogen
+msgid "Indica borrow_return para recibir y devolver, o lend_return para entregar y recuperar."
+msgstr "Use borrow_return to receive and return, or lend_return to hand over and recover."
+
+#, elixir-autogen
+msgid "Registrados ambos traspasos de %{quantity} × %{item} para %{who}; el saldo final se conserva."
+msgstr "Both handovers of %{quantity} × %{item} for %{who} were recorded; the final balance is preserved."
+
+#, elixir-autogen
+msgid "El préstamo y la devolución inmediata requieren record_item_round_trip, o confirm_no_inventory_transfer si no hubo entrega. Un saldo final igual no significa que no cambió de manos."
+msgstr "A loan and immediate return require record_item_round_trip, or confirm_no_inventory_transfer if no handover occurred. An unchanged final balance does not mean no handover took place."
+
+#, elixir-autogen
+msgid "Hay una entrega o retirada anterior ya pagada para %{who}. No registres otro préstamo ni infieras el orden de esos comprobantes. Continúa desde el inventario actual con las herramientas previas del turno, sin repetir los efectos pagados."
+msgstr "A previous handover or removal was already paid for %{who}. Do not record another loan or infer the order of those receipts. Continue from the current inventory using the previous tools for the turn, without repeating paid effects."
+
+#, elixir-autogen
+msgid "El inventario de %{who} ya tiene una resolución registrada en este turno. No añadas otro préstamo ni cambies su resultado."
+msgstr "The inventory of %{who} already has a recorded resolution this turn. Do not add another loan or change its outcome."
+
+#, elixir-autogen
+msgid "Resuelve el préstamo pendiente de %{who}, no el de otro personaje."
+msgstr "Resolve the pending loan of %{who}, not another character."
+
+#, elixir-autogen
+msgid "Inventario · %{who}: no cambia de manos ningún objeto. %{reason}"
+msgstr "Inventory · %{who}: no item changes hands. %{reason}"

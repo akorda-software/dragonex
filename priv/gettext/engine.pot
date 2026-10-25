@@ -3253,3 +3253,43 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "La clave de IA se ha actualizado. La mesa queda en pausa con la nueva clave; reanuda cuando quieras."
 msgstr ""
+
+#, elixir-autogen
+msgid "Indica declined, not_available o look_only y un motivo de 1 a 400 caracteres; un préstamo devuelto sí tuvo entregas."
+msgstr ""
+
+#, elixir-autogen
+msgid "No hubo entrega para %{who}: %{reason}"
+msgstr ""
+
+#, elixir-autogen
+msgid "El préstamo necesita una contraparte distinta del personaje, de 1 a 80 caracteres."
+msgstr ""
+
+#, elixir-autogen
+msgid "Indica borrow_return para recibir y devolver, o lend_return para entregar y recuperar."
+msgstr ""
+
+#, elixir-autogen
+msgid "Registrados ambos traspasos de %{quantity} × %{item} para %{who}; el saldo final se conserva."
+msgstr ""
+
+#, elixir-autogen
+msgid "El préstamo y la devolución inmediata requieren record_item_round_trip, o confirm_no_inventory_transfer si no hubo entrega. Un saldo final igual no significa que no cambió de manos."
+msgstr ""
+
+#, elixir-autogen
+msgid "Hay una entrega o retirada anterior ya pagada para %{who}. No registres otro préstamo ni infieras el orden de esos comprobantes. Continúa desde el inventario actual con las herramientas previas del turno, sin repetir los efectos pagados."
+msgstr ""
+
+#, elixir-autogen
+msgid "El inventario de %{who} ya tiene una resolución registrada en este turno. No añadas otro préstamo ni cambies su resultado."
+msgstr ""
+
+#, elixir-autogen
+msgid "Resuelve el préstamo pendiente de %{who}, no el de otro personaje."
+msgstr ""
+
+#, elixir-autogen
+msgid "Inventario · %{who}: no cambia de manos ningún objeto. %{reason}"
+msgstr ""

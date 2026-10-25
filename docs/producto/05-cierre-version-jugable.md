@@ -158,3 +158,29 @@ El escenario controlado arranca a 0 PG y no usa proveedor externo. La aventura
 real y este recorrido se complementan; ninguno certifica todos los conjuros,
 campañas largas ni fidelidad universal del texto generado. Gates y despliegue
 vigentes en `../progress.md`.
+
+
+## Préstamos y devoluciones sin saldo neto — D265 (2026-10-25)
+
+Partida nueva `/games/19468`, «El sello prestado — D265», desde el navegador
+con Bran Octubre y OpenRouter `deepseek/deepseek-v4-flash-0731`. No se altera
+la historia de 19467. Tres declaraciones naturales verificadas:
+
+1. Ada presta el sello para examinarlo y lo recibe inmediatamente: eventos
+   **12/13**, mismo grupo, piernas 1/2, saldos **0 → 1 → 0** y contraparte Ada.
+2. Bran presta su trofeo brevemente y lo recupera: eventos **22/23**, otro
+   grupo, saldos **1 → 0 → 1**. El objeto conserva su pila inicial exacta.
+3. Solicita el pergamino reservado, que Ada no presta: evento **31**, decisión
+   `declined` y motivo; no crea ninguna transferencia del pergamino.
+
+Chromium tras recarga a 1440×900 y 375×812 encuentra exactamente cuatro
+movimientos y una negativa, con los saldos anteriores y Ada como contraparte;
+sin errores JS ni desbordamiento horizontal. Evidencia temporal:
+`/tmp/dragonex-d265-browser.json`, `/tmp/dragonex-d265-1440.png` y
+`/tmp/dragonex-d265-375.png`. La mesa queda pausada, con inventario final igual
+al inicial. Reintentos, reinicio, carrera de commit, rollback y recuperación
+legacy se comprueban además en los tests deterministas D265.
+
+Esto cierra el caso observado de préstamo y devolución inmediata. No convierte
+prosa histórica en eventos inventados ni promete comprender cualquier frase
+posible; las reglas nuevas verifican el episodio estructurado y su persistencia.

@@ -26,10 +26,16 @@ defmodule Dragonex.Game.RuleCheckpoint do
 
       with :ok <-
              Dragonex.Game.RestResolution.validate(busy, get_in(deps, [:tool_commit, :key])),
-           {:ok, candidate} <- evaluate(change, before) do
+           :ok <-
+             Dragonex.Game.InventoryResolution.validate_commit(
+               busy,
+               get_in(deps, [:tool_commit, :key])
+             ),
+           {:ok, candidate, inventory_legs} <- evaluate(change, before, deps) do
         {next, candidate} = Dragonex.Game.ToolReplay.stage_change(state, deps, candidate)
 
-        with {:ok, entries} <- Persistence.persist_tool_change(state, candidate, deps, before),
+        with {:ok, entries} <-
+               Persistence.persist_tool_change(state, candidate, deps, before, inventory_legs),
              {:ok, committed} <-
                Session.update_state(session, actor, fn _ -> {:ok, candidate} end) do
           Persistence.publish_tool_rolls(state, deps, entries)
@@ -48,12 +54,24 @@ defmodule Dragonex.Game.RuleCheckpoint do
 
   def commit(state, _deps, _change), do: {{:error, :stale_beat}, state}
 
-  defp evaluate(change, world) do
+  defp evaluate(change, world, deps) do
     case change.(world) do
-      {:ok, %World{} = candidate} -> {:ok, candidate}
-      %World{} = candidate -> {:ok, candidate}
-      {:error, _} = error -> error
-      _ -> {:error, :invalid_world_change}
+      {:ok, %World{} = candidate, [_, _] = legs} ->
+        if match?(%{tool_commit: %{key: {"record_item_round_trip", _}}}, deps),
+          do: {:ok, candidate, legs},
+          else: {:error, :invalid_world_change}
+
+      {:ok, %World{} = candidate} ->
+        {:ok, candidate, []}
+
+      %World{} = candidate ->
+        {:ok, candidate, []}
+
+      {:error, _} = error ->
+        error
+
+      _ ->
+        {:error, :invalid_world_change}
     end
   rescue
     _ -> {:error, :invalid_world_change}

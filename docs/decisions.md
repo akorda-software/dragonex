@@ -8570,6 +8570,47 @@ El motor no adivina si dos intervalos expresados libremente eran simultáneos o
 sucesivos. Feedback/prompts ES/EN explican la restricción. Las pruebas Game y
 la repetición real se registran en la estrategia de pruebas y progress.
 
+## D265 — Un préstamo devuelto conserva ambos traspasos
+
+**Estado:** Aceptada. **Fecha:** 2026-10-25.
+
+**Contexto:** en 19467/63–67 el DM narró que Ada prestaba el sello y Bran lo
+examinaba y devolvía, sin movimientos durables. La declaración se reconocía
+como entrega; el contrato aceptaba cualquier comprobante, incluso «inventario
+sin cambios». El saldo neto cero no demostraba que no hubiera traspasos.
+
+**Decisión:** `record_item_round_trip` registra una ida y vuelta completa en
+exploración, con PC presente, objeto descriptivo, cantidad, contraparte y
+sentido `borrow_return` o `lend_return`. Rules valida las dos piernas en orden
+y restaura exactamente las pilas, nombres y orden iniciales del inventario.
+Game guarda ambas notas, World y recibo en la misma transacción; comparten
+`movement_group` y llevan `leg_index` 1/2. Fallar en la segunda nota revierte
+también la primera. No hay campos nuevos de Character/World ni migración.
+
+El detector ES/EN reconoce una propuesta temporal con retorno del mismo
+episodio; una devolución futura explícita sigue las tools ordinarias. Esa
+petición exige el recibo específico del actor antes de publicar narración:
+`confirm_inventory_unchanged` y pagos sueltos grant/remove no la resuelven.
+`confirm_no_inventory_transfer` registra una decisión distinta y durable:
+rechazo, objeto no disponible o mirar sin tomarlo, con motivo saneado.
+
+Admisión y commit impiden decisiones contradictorias o un segundo episodio
+para el mismo actor en ese beat. El replay de una llamada idéntica devuelve
+lo ya aplicado, también sin fallo previo. La petición se conserva en el
+checkpoint y en los reintentos; la narración intermedia no la borra. Los beats
+antiguos sin ese campo mantienen el contrato D239 hasta terminar, sin inferir
+el orden de recibos antiguos ni volver a ejecutar un préstamo. La siguiente
+declaración utiliza D265.
+
+**Verificación/límites:** pruebas del dominio, herramientas, SQL, Game y
+LiveView cubren ambos sentidos, saldo cero/con stock, duplicados, carrera de
+commit, rollback de segunda pierna, negativa, restart y recarga. La validación
+real de 19468 y los gates están en producto/05 y progress. No se reconstruyen
+movimientos históricos desde prosa. Las contrapartes son atribuciones del DM;
+no hay un almacén universal de inventario de PNJ ni se interpretan todas las
+posibles formulaciones del lenguaje natural. Un nuevo préstamo del mismo
+actor requiere otra declaración.
+
 ## Pendientes de decisión (abiertas)
 
 - **Coordinación real entre PCs auto**: cubierta por **TurnMaster (D25,

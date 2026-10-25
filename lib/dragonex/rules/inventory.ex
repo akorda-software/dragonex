@@ -6,8 +6,55 @@ defmodule Dragonex.Rules.Inventory do
   @max_name 160
   @max_quantity 9999
   @max_entries 80
+  @max_counterparty 80
   def max_name, do: @max_name
   def max_quantity, do: @max_quantity
+  def max_counterparty, do: @max_counterparty
+
+  @doc "All descriptive stacks sharing one canonical name, including legacy duplicates."
+  def stacks(items, item) when is_list(items) do
+    key = key(item)
+
+    Enum.filter(items, fn
+      %Item{kind: :gear, name: name, qty: qty} when is_integer(qty) and qty > 0 ->
+        key(name) == key
+
+      _ ->
+        false
+    end)
+  end
+
+  def stacks(_, _), do: []
+
+  def counterparty(nil), do: {:ok, nil}
+
+  def counterparty(value) when is_binary(value) and byte_size(value) <= 512 do
+    if String.valid?(value) do
+      clean =
+        value
+        |> String.normalize(:nfc)
+        |> Text.scrub()
+        |> String.replace(~r/\s+/u, " ")
+        |> String.trim()
+
+      if String.length(clean) in 1..@max_counterparty,
+        do: {:ok, clean},
+        else: invalid_counterparty()
+    else
+      invalid_counterparty()
+    end
+  end
+
+  def counterparty(_), do: invalid_counterparty()
+
+  defp invalid_counterparty do
+    {:error,
+     dgettext(
+       "engine",
+       "Indica un origen o destinatario de 1 a %{max} caracteres, o null si no se conoce.",
+       max: @max_counterparty
+     )}
+  end
 
   @doc "Fingerprint of the actual world except owned quantities and review/checkpoint bookkeeping."
   def scene_fingerprint(world) do

@@ -1464,3 +1464,11 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "TRAZA DE INVENTARIO: en grant_item indica source si conoces quién entrega o de dónde procede el objeto; source se puede omitir. En remove_item SIEMPRE incluye recipient: nombre o rol de quien recibe el objeto, o null únicamente si no hay receptor o se desconoce. Son atribuciones breves del DM, no personajes creados ni cambios en otro inventario. No inventes una contraparte. El motor registra el objeto, la cantidad y el saldo real. Al recuperar una herramienta ya aplicada, conserva su movimiento original."
 msgstr ""
+
+#, elixir-autogen
+msgid "PRÉSTAMOS BREVES: recibir un objeto, examinarlo y devolverlo sí son dos traspasos, aunque el saldo final no cambie. Usa record_item_round_trip una sola vez para registrar ambas partes antes de narrarlas: borrow_return si el PC recibe y devuelve, lend_return si entrega y recupera. No uses confirm_inventory_unchanged para ocultar esa ida y vuelta ni grant_item/remove_item por separado. Si se rechaza el préstamo, falta el objeto o solo se mira sin tomarlo, usa confirm_no_inventory_transfer con el motivo real. Un retorno previsto para más tarde no está realizado: registra solo la entrega actual con las herramientas ordinarias."
+msgstr ""
+
+#, elixir-autogen
+msgid "PRÉSTAMO Y DEVOLUCIÓN PENDIENTES: %{actor} propone una entrega temporal con devolución inmediata. Si ocurre, registra ambos tramos juntos con record_item_round_trip antes de narrar. El saldo final puede ser idéntico: eso no elimina las dos transferencias. Si no llega a cambiar de manos, usa confirm_no_inventory_transfer para %{actor} con outcome declined (rechazado), not_available (no disponible) o look_only (solo lo observa sin recibirlo). No uses confirm_inventory_unchanged ni grant_item/remove_item separados para este episodio. No repitas una resolución pagada ni infieras el orden de comprobantes antiguos; conserva sus efectos."
+msgstr ""

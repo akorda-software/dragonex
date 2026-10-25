@@ -24,7 +24,7 @@ defmodule Dragonex.DM do
   @spec tools() :: [term()]
   def tools do
     resolution =
-      ~w(make_attack cast_spell ability_check make_death_save heal roll_initiative short_rest long_rest rest_party advance_time)
+      ~w(make_attack cast_spell ability_check make_death_save heal roll_initiative short_rest long_rest rest_party advance_time grant_item remove_item confirm_inventory_unchanged record_item_round_trip confirm_no_inventory_transfer)
 
     # Spike stubs stay in `Tools` for framework tests; the live DM only sees
     # rules-driven tools (D1).
@@ -165,6 +165,13 @@ defmodule Dragonex.DM do
     |> String.trim()
   end
 
+  defp inventory_round_trip_instruction do
+    dgettext(
+      "prompts",
+      "PRÉSTAMOS BREVES: recibir un objeto, examinarlo y devolverlo sí son dos traspasos, aunque el saldo final no cambie. Usa record_item_round_trip una sola vez para registrar ambas partes antes de narrarlas: borrow_return si el PC recibe y devuelve, lend_return si entrega y recupera. No uses confirm_inventory_unchanged para ocultar esa ida y vuelta ni grant_item/remove_item por separado. Si se rechaza el préstamo, falta el objeto o solo se mira sin tomarlo, usa confirm_no_inventory_transfer con el motivo real. Un retorno previsto para más tarde no está realizado: registra solo la entrega actual con las herramientas ordinarias."
+    )
+  end
+
   @doc "The system prompt — the contract the DM must honour, plus the campaign bible."
   @spec system_prompt() :: String.t()
   def system_prompt, do: system_prompt(%{})
@@ -173,7 +180,10 @@ defmodule Dragonex.DM do
   def system_prompt(story_bible) when is_map(story_bible) do
     (rules_prompt() <>
        "\n" <>
-       Dragonex.Game.InventoryMovement.instruction() <> "\n" <> bible_section(story_bible) <> "\n")
+       Dragonex.Game.InventoryMovement.instruction() <>
+       "\n" <>
+       inventory_round_trip_instruction() <>
+       "\n" <> bible_section(story_bible) <> "\n")
     |> String.trim_trailing()
   end
 

@@ -11,7 +11,7 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 
 ## Último estado — 2026-10-25
 
-- **Gates:** 3266 passed / 4 excluded en ambos grafos (local y Hex).
+- **Gates:** 3303 passed / 4 excluded en ambos grafos (local y Hex).
   Código propio sin warnings, formato limpio; dependencias frías conservan
   avisos de terceros documentados en `tecnico/09-estrategia-pruebas.md`.
 - **Producción verificada:** `59b362e`, desplegado el 2026-10-25 tras
@@ -20,7 +20,7 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
   SHA; HTTP 200, LiveView conectado y móvil sin errores JS ni desbordamiento.
 - **Dependencias:** dev usa `../exAgent` 2.2.2 y `../dic_ex` 0.3; el lock de
   producción adopta exAgent 2.2.2, ReqLLM 1.29.0 y Bandit 1.13.1. Ambos locks
-  pasan `mix hex.audit` sin avisos (D246). Tanda D259–D264 validada local/Hex y
+  pasan `mix hex.audit` sin avisos (D246). Tanda D259–D265 validada local/Hex y
   navegador. [CI y promociones](https://github.com/akorda-software/dragonex/actions/workflows/ci.yml)
   registran el SHA probado que recibe Dokploy desde `production` (D262).
 - **Medición:** `bin/dev dragonex.metrics --last 10` (partidas guardadas) y
@@ -62,6 +62,9 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
 - **Inventario trazable (D261):** movimiento durable con objeto, cantidad,
   saldos y contraparte declarada; retry/restart no duplica. Entrega real a Ada
   comprobada; destinatario obligatorio nullable en la tool.
+- **Préstamos devueltos (D265):** dos traspasos atómicos aun con saldo neto
+  cero; negativa tipada, replay/restart y turnos legacy recuperables.
+  Recibir/devolver, prestar/recuperar y rechazo verificados en la mesa real 19468.
 - **Agentes:** DM con narración estructurada (D222), PCs IA con voz propia,
   TurnMaster que orquesta relevos, intenciones humanas en cola, testimonios de
   PNJ con fuente durable, esperas y viajes con reloj, contexto de tiradas.
@@ -107,8 +110,9 @@ mueve entre ✅/🟡/🔴. No se pegan aquí gates intermedios ni relatos de ses
    antes de publicar el cierre del DM; en la tanda 19462–64 las 4 recogidas o
    entregas reales cambiaron el stock. D240 rechaza duplicados salvo
    `additional: true`; D261 registra movimientos y se comprobó en 19467.
-   Sigue abierta la correspondencia semántica universal entre prosa y objeto,
-   incluido préstamo/devolución transitorios sin cambio neto de stock.
+   El préstamo con devolución inmediata y saldo neto cero queda cerrado por
+   D265. Sigue abierta la correspondencia semántica universal entre prosa y
+   objeto, fuera de los contratos explícitos del motor.
 3. **Fiabilidad del proveedor:** argumentos de tool inválidos (DM y TM),
    retención de 4 KiB (19447) y caídas. El `narrate` vacío de 19463 ya no
    tumba el turno (D240). Medir con `dragonex.playtest --games N`

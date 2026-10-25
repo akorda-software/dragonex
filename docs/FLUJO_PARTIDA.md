@@ -981,6 +981,15 @@ UI1440/375 reproduce solo payload716 sin nueva tirada y verifica teclado;
 Escape también funciona en tirada724. Pista nueva queda solo en narración;
 memoria durable de observaciones y callbacks 3D sin generación siguen acotados.
 
+D265 distingue un préstamo devuelto de la ausencia de entrega. En el primero,
+`record_item_round_trip` confirma ambas piernas y publica dos movimientos
+ordenados aunque la ficha termine igual. La negativa o la observación sin
+recibir el objeto usa `confirm_no_inventory_transfer`. Una petición temporal
+reconocida necesita esa resolución específica antes de narrar; no basta
+«inventario sin cambios». El checkpoint conserva el requisito, y reintentar
+no duplica movimientos. Los turnos empezados antes de D265 mantienen su contrato
+anterior hasta finalizar. La posesión de PNJ sigue siendo declarada por el DM.
+
 D261 añade movimientos visibles y durables para cada cambio real de stock:
 objeto, cantidad, propietario, saldo anterior/posterior y contraparte opcional.
 `grant_item` acepta `source` opcional y `remove_item` exige `recipient`

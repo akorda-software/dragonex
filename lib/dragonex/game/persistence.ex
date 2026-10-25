@@ -38,11 +38,16 @@ defmodule Dragonex.Game.Persistence do
   # Read after evaluating the change, which can itself produce saving throws.
   # `before` is the world the change ran on, so the rolls can carry the HP
   # they left behind.
-  def persist_tool_change(state, world, deps, before \\ nil) do
+  def persist_tool_change(state, world, deps, before \\ nil, inventory_legs \\ []) do
     entries = deps[:roll_log] |> RollLog.pending() |> RollLog.with_hp_changes(before, world)
     actor = Map.get(deps.beat, :actor, Session.current(state.session))
     metadata = Map.take(deps.beat, [:turn_id, :round, :phase])
-    notes = Dragonex.Game.InventoryMovement.notes(before, world, deps)
+
+    notes =
+      Dragonex.Game.InventoryMovement.notes(before, world, deps) ++
+        Dragonex.Game.InventoryMovement.round_trip_notes(inventory_legs, deps) ++
+        if(is_nil(before), do: [], else: Dragonex.Game.InventoryMovement.no_transfer_notes(deps))
+
     persist_roll_change(state, world, entries, actor, metadata, notes)
   end
 

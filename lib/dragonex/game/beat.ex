@@ -31,6 +31,7 @@ defmodule Dragonex.Game.Beat do
     mini_turn: false,
     death_save_required: false,
     wait_resolution: nil,
+    inventory_resolution: nil,
     inventory_scene_before: nil,
     tool_results: %{},
     tool_commits: %{},

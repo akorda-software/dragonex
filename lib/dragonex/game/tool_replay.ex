@@ -139,6 +139,13 @@ defmodule Dragonex.Game.ToolReplay do
     |> without_nulls()
   end
 
+  defp canonical_args(_ctx, "record_item_round_trip", args) do
+    args
+    |> Map.delete("counterparty")
+    |> Map.update("item", nil, &Dragonex.Rules.Inventory.key/1)
+    |> without_nulls()
+  end
+
   defp canonical_args(_ctx, _name, args), do: without_nulls(args)
   defp without_nulls(args), do: Map.reject(args, fn {_key, value} -> is_nil(value) end)
 
@@ -215,7 +222,17 @@ defmodule Dragonex.Game.ToolReplay do
     if active?(state, deps) do
       beat = state.busy
 
-      case Map.get(beat.replay_results, key, []) do
+      results = Map.get(beat.replay_results, key, [])
+
+      # These are a single resolved episode, even if the model calls the tool
+      # twice in one successful run. Other tools may legitimately repeat.
+      results =
+        if elem(key, 0) in ["record_item_round_trip", "confirm_no_inventory_transfer"] and
+             results == [],
+           do: Map.get(beat.tool_results, key, []),
+           else: results
+
+      case results do
         [] ->
           {admit_execution(state, key), state}
 
@@ -227,6 +244,20 @@ defmodule Dragonex.Game.ToolReplay do
       end
     else
       {{:error, :stale_beat}, state}
+    end
+  end
+
+  defp admit_execution(state, {tool, _} = key)
+       when tool in [
+              "record_item_round_trip",
+              "confirm_no_inventory_transfer",
+              "grant_item",
+              "remove_item",
+              "confirm_inventory_unchanged"
+            ] do
+    case Dragonex.Game.InventoryResolution.validate_commit(state.busy, key) do
+      :ok -> :execute
+      error -> error
     end
   end
 
@@ -419,7 +450,7 @@ defmodule Dragonex.Game.ToolReplay do
             into: MapSet.new(),
             do: {"make_attack", entry["args"]}
 
-      %{
+      restored = %{
         turn_id: turn_id,
         inventory_scene_before: Map.get(saved, "inventory_scene_before"),
         tool_results: results,
@@ -429,12 +460,35 @@ defmodule Dragonex.Game.ToolReplay do
         phase: if(phase == "combat", do: :combat, else: :exploration),
         enemies_before: MapSet.new(enemies)
       }
+
+      restore_inventory_request(restored, saved)
     else
       _ -> nil
     end
   end
 
   def restore(_, _), do: nil
+
+  defp restore_inventory_request(restored, saved) do
+    case Map.fetch(saved, "inventory_resolution") do
+      {:ok, nil} ->
+        Map.put(restored, :inventory_resolution, nil)
+
+      {:ok, %{"actor" => actor, "kind" => kind, "seq" => seq}}
+      when is_binary(actor) and actor != "" and is_integer(seq) and seq > 0 and
+             kind in ["pickup", "delivery", "both", "round_trip"] ->
+        Map.put(restored, :inventory_resolution, %{
+          actor: actor,
+          kind: String.to_existing_atom(kind),
+          seq: seq
+        })
+
+      # Older checkpoints have no captured request. Preserve that distinction
+      # so Beats can reconstruct it from the durable declaration events.
+      _ ->
+        restored
+    end
+  end
 
   def clear(state) do
     world = ExAgent.Session.read_state(state.session)
@@ -459,6 +513,7 @@ defmodule Dragonex.Game.ToolReplay do
       "mini_turn" => beat.mini_turn,
       "death_save_required" => beat.death_save_required,
       "inventory_scene_before" => beat.inventory_scene_before,
+      "inventory_resolution" => encode_inventory_request(Map.get(beat, :inventory_resolution)),
       "enemies_before" => MapSet.to_list(beat.enemies_before),
       "tools" =>
         Enum.map(beat.tool_results, fn {{name, args}, values} ->
@@ -471,6 +526,13 @@ defmodule Dragonex.Game.ToolReplay do
         end)
     }
   end
+
+  defp encode_inventory_request(%{actor: actor, kind: kind, seq: seq})
+       when is_binary(actor) and kind in [:pickup, :delivery, :both, :round_trip] and
+              is_integer(seq) and seq > 0,
+       do: %{"actor" => actor, "kind" => Atom.to_string(kind), "seq" => seq}
+
+  defp encode_inventory_request(_), do: nil
 
   defp valid_entry?(%{"name" => name, "args" => args, "values" => values}) do
     is_binary(name) and is_map(args) and is_list(values) and values != [] and
