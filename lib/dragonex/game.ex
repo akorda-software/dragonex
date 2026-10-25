@@ -690,6 +690,7 @@ defmodule Dragonex.Game do
         transient_retries: tr,
         max_token_retries: mr,
         model_retry: state.busy.model_retry,
+        mini_turn: state.busy.mini_turn,
         narration_retries: state.busy.narration_retries,
         tool_results: state.busy.tool_results
       }

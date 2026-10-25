@@ -346,7 +346,12 @@ defmodule Dragonex.Game.Beats do
         end
       end)
 
-    mini = if restored, do: restored.mini_turn, else: state.pending_mini == true
+    # A retry can precede the first durable tool or speech receipt. The first
+    # attempt already consumed pending_mini, so retain its kind explicitly.
+    mini =
+      if restored,
+        do: restored.mini_turn,
+        else: Map.get(retries, :mini_turn, state.pending_mini == true)
 
     state = %{
       state

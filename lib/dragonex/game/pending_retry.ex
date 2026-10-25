@@ -14,6 +14,7 @@ defmodule Dragonex.Game.PendingRetry do
     :turn_id,
     :instruction,
     :model_retry,
+    mini_turn: false,
     tool_results: %{},
     max_token_retries: 0,
     transient_retries: 0,
@@ -26,6 +27,7 @@ defmodule Dragonex.Game.PendingRetry do
           turn_id: String.t(),
           instruction: String.t(),
           model_retry: nil | :invalid_tool_arguments,
+          mini_turn: boolean(),
           max_token_retries: non_neg_integer(),
           transient_retries: non_neg_integer(),
           narration_retries: non_neg_integer()

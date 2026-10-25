@@ -190,6 +190,7 @@ defmodule Dragonex.Game.Settlement do
               max_token_retries: beat_max_token_retries,
               transient_retries: beat_transient_retries,
               narration_retries: beat.narration_retries + 1,
+              mini_turn: mini_turn,
               tool_results: tool_results
             }
 
@@ -219,7 +220,8 @@ defmodule Dragonex.Game.Settlement do
             retries = %{
               max_token_retries: beat_max_token_retries + 1,
               narration_retries: beat.narration_retries,
-              transient_retries: 0,
+              transient_retries: beat_transient_retries,
+              mini_turn: mini_turn,
               tool_results: tool_results
             }
 
@@ -247,7 +249,8 @@ defmodule Dragonex.Game.Settlement do
               beat_max_token_retries,
               reason,
               tool_results,
-              beat.narration_retries
+              beat.narration_retries,
+              mini_turn
             )
 
           wait_resolution != nil and
@@ -573,7 +576,8 @@ defmodule Dragonex.Game.Settlement do
          max_token_retries,
          reason,
          tool_results \\ %{},
-         narration_retries \\ 0
+         narration_retries \\ 0,
+         mini_turn \\ false
        ) do
     backoff = Beat.transient_backoff(transient_retries)
 
@@ -596,6 +600,7 @@ defmodule Dragonex.Game.Settlement do
           turn_id: turn_id,
           instruction: instruction,
           model_retry: argument_retry_feedback(reason),
+          mini_turn: mini_turn,
           tool_results: tool_results,
           transient_retries: transient_retries + 1,
           max_token_retries: max_token_retries,
